@@ -1,0 +1,23 @@
+name: GSF Disocclusion Math Contract
+on:
+  pull_request:
+    paths:
+      - 'engine/gfg-temporal/bench/test_disocclusion_confidence_contract.py'
+      - '.github/workflows/gsf-disocclusion-math.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'engine/gfg-temporal/bench/test_disocclusion_confidence_contract.py'
+      - '.github/workflows/gsf-disocclusion-math.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vector-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate A-to-B half-grid vector and per-time mode assumptions
+        run: python3 engine/gfg-temporal/bench/test_disocclusion_confidence_contract.py
+      - name: Classification
+        run: echo "This tests a mathematical contract only, not GLSL parity, GPU image correctness, game compatibility or actual scanout."
