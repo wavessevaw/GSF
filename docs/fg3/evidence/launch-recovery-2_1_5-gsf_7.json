@@ -1,0 +1,55 @@
+{
+  "scope": "isolated extracted-package software Vulkan; NOT Steam Deck acceptance",
+  "source_commit": "9ddb5802e3cac33df0f5c50df6b67ff55d2d892a",
+  "version": "2.1.5-gsf.7",
+  "component_sha256": "7f20aa98dcefa3249206b8ee7b18b81d0b17b3b7c9d86a87a7b06f3e75ca3d04",
+  "decky_sha256": "9075b37acd1b43899f335c15c601aec7974b11dedfddb7a9af6e142d27172490",
+  "elf_sha256": "7454f9536377ff3209d110b331d72c1184c8acedcd5b364c5549677435c3982c",
+  "checks": [
+    "archive-checksums-executable-modes-and-build-identity",
+    "backend-startup",
+    "startup-off-actual-wsi",
+    "backend-2",
+    "installed-x2",
+    "backend-3",
+    "installed-x3",
+    "explicit-off-inherited-layer-actual-wsi",
+    "unavailable-diagnostics-actual-wsi",
+    "missing-component-actual-wsi",
+    "two-local-pair-reports-and-retired-status-cleanup",
+    "first-install-rollback",
+    "rollback-off-actual-wsi"
+  ],
+  "passed": true,
+  "hardware_acceptance": "NOT TESTED",
+  "physical_displayed_fps": null,
+  "upstream_main": "25ca62521acf19ddb56b899bf69eaa04cb735153",
+  "backend": {
+    "run": 1409,
+    "failed": 0,
+    "skipped": 1,
+    "skip_reason": "root-only Decky privilege-drop test; cloud uid1000"
+  },
+  "frontend": {
+    "screens": 123,
+    "failed": 0
+  },
+  "pipeline": {
+    "checks": 17,
+    "passed": true,
+    "output_hz": 9,
+    "physical_scanout": false
+  },
+  "native_contracts": "PASS; including consumed CreateDevice LINK_INFO regression",
+  "included_source_rebuild": "byte-identical",
+  "actual_glibc_2_31_load": "PASS",
+  "old_internal6_negative_control": {
+    "tests": 5,
+    "failures": 3,
+    "execution_errors": 2,
+    "meaning": "expected failures before fixes; NOT a passing acceptance run"
+  },
+  "remote_ci": "NOT VERIFIED",
+  "task_status": "hardware/product acceptance remains OPEN",
+  "rebuild_elf_sha256": "7454f9536377ff3209d110b331d72c1184c8acedcd5b364c5549677435c3982c"
+}

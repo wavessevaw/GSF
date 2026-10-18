@@ -1,0 +1,1677 @@
+{
+  "schema": 1,
+  "pr": 133,
+  "head": "5782aa992b4c2509210fddd57759933a8c6bc6d8",
+  "merge_base": "a764fd1483ca81c909317256ab8c2b98ca266a35",
+  "main_tip": "85092856107143fa3aa93d1dd926ba7d9cabf231",
+  "full_diff_sha256": "1f26dcf5f8059c0a290e5d5d4cf09e351d7c4bfa700b11066ad72a1c3d12d609",
+  "files": 237,
+  "categories": {
+    "packaging-integration-and-tools": 67,
+    "documentation-and-evidence": 110,
+    "native-runtime": 13,
+    "tests-and-harness": 25,
+    "core-runtime": 22
+  },
+  "entries": [
+    {
+      "path": ".github/beta/native-fg.json",
+      "category": "packaging-integration-and-tools",
+      "added": 6,
+      "removed": 0,
+      "sha256": "198411bd9eddacc56585de4ba5d84054a88941ce0b7406c4842f0513d77cd040"
+    },
+    {
+      "path": ".github/beta/native-fg.md",
+      "category": "packaging-integration-and-tools",
+      "added": 37,
+      "removed": 0,
+      "sha256": "1777d334ce5333911027b4367752844c6038fe3101d2dfbcae74cee027b1708e"
+    },
+    {
+      "path": ".github/beta/temporal-engine.json",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 1,
+      "sha256": "960d3203cf6830a362d854e92860d5d5375b810bf37210760f469b54501e1a49"
+    },
+    {
+      "path": ".github/beta/temporal-engine.md",
+      "category": "packaging-integration-and-tools",
+      "added": 19,
+      "removed": 20,
+      "sha256": "c98f7c491485e92acf491b0b58919613dc595c242e3681cf98b48d0c41893d2b"
+    },
+    {
+      "path": ".github/workflows/fg3-coordination.yml",
+      "category": "packaging-integration-and-tools",
+      "added": 31,
+      "removed": 0,
+      "sha256": "44508a2fd1b16a27a09271dc57fa8192e392c5dc5c37786d842e8ee085023e9f"
+    },
+    {
+      "path": ".github/workflows/gfg-native-no-dll.yml",
+      "category": "packaging-integration-and-tools",
+      "added": 319,
+      "removed": 0,
+      "sha256": "3965f0b8e96d4762f656701fc025a08d10c2666ca846dfaff2afd773c064a051"
+    },
+    {
+      "path": ".github/workflows/temporal-engine-beta.yml",
+      "category": "packaging-integration-and-tools",
+      "added": 8,
+      "removed": 2,
+      "sha256": "c5a27fb571ba21e8358d0064be8d586801fc8c9261a83b84ab6f1a7c1b631bd0"
+    },
+    {
+      "path": "dist/index.js",
+      "category": "packaging-integration-and-tools",
+      "added": 12,
+      "removed": 5,
+      "sha256": "e605f700ce8887c9a614e2e4f9bee34f78e9abf884f0ec12ffb4e41cf95b4a4f"
+    },
+    {
+      "path": "docs/PROVENANCE_AND_LICENSES.md",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "0b60541315d25ca7fa795444d8919401351a70c172970d086c9b31fa225f66d8"
+    },
+    {
+      "path": "docs/TEMPORAL_ENGINE_TE8.md",
+      "category": "documentation-and-evidence",
+      "added": 63,
+      "removed": 0,
+      "sha256": "4e56ce7ecaaa75a7fd18506685342434e06354b51d200ffbbe469b41ed80b965"
+    },
+    {
+      "path": "docs/fg3/ARCHITECTURE_DECISION_1_0.md",
+      "category": "documentation-and-evidence",
+      "added": 157,
+      "removed": 0,
+      "sha256": "1b1a25cdeb6aa5cd8b4323f55f9b43837549f6244cc0e70f9b1d57e1f2ff8906"
+    },
+    {
+      "path": "docs/fg3/ASYNC_HDR_CHECKPOINT.md",
+      "category": "documentation-and-evidence",
+      "added": 29,
+      "removed": 0,
+      "sha256": "a2e66fd03e0e8567313b4f62f7334d449269781e85da7d736e1e3c5b7f874e69"
+    },
+    {
+      "path": "docs/fg3/CONTINUATION.md",
+      "category": "documentation-and-evidence",
+      "added": 265,
+      "removed": 0,
+      "sha256": "65cc9844f873269edf706c295b08c3f6d315e420d25d324f870bae22c33ee9a5"
+    },
+    {
+      "path": "docs/fg3/COORDINATION.md",
+      "category": "documentation-and-evidence",
+      "added": 54,
+      "removed": 0,
+      "sha256": "7c50841598ba30dccd38dfc299f2b042e6485120fa11037936b4b67190905e35"
+    },
+    {
+      "path": "docs/fg3/INTEGRATION_PR.md",
+      "category": "documentation-and-evidence",
+      "added": 7,
+      "removed": 0,
+      "sha256": "420fd274b1d44d7b1a29fee19c89e8cb4341f1a133c1d528b20b06e161a665a3"
+    },
+    {
+      "path": "docs/fg3/REFERENCE_REIMPLEMENTATION.md",
+      "category": "documentation-and-evidence",
+      "added": 120,
+      "removed": 0,
+      "sha256": "699dad71c4e21a20810d0bab22da70af3daa35d6f6a758419de9b0a767e403f0"
+    },
+    {
+      "path": "docs/fg3/SHARED_FLOW_PROTOTYPE.md",
+      "category": "documentation-and-evidence",
+      "added": 185,
+      "removed": 0,
+      "sha256": "e2a5239db7c108924c979977c70c83febd24b866b6930ebc984dac394e242a5f"
+    },
+    {
+      "path": "docs/fg3/STEAMOS_DEEP_AUDIT.md",
+      "category": "documentation-and-evidence",
+      "added": 199,
+      "removed": 0,
+      "sha256": "15233dade79e43f558970cd7b2a847b6fb0adafb2880c5488fe644c422070d24"
+    },
+    {
+      "path": "docs/fg3/evidence/1280x800-packed.txt",
+      "category": "documentation-and-evidence",
+      "added": 15,
+      "removed": 0,
+      "sha256": "4a6755ffa113038bfc59a3818afcaa1b0be794f90b3de553d3a258af8d1021ec"
+    },
+    {
+      "path": "docs/fg3/evidence/borrowed-gpu-lmc.txt",
+      "category": "documentation-and-evidence",
+      "added": 3,
+      "removed": 0,
+      "sha256": "6890a184ccaf669c75b2dc2df95a9c4dfdd9efebd0f436eb58eb91ac7e8e2e49"
+    },
+    {
+      "path": "docs/fg3/evidence/borrowed-timeline.txt",
+      "category": "documentation-and-evidence",
+      "added": 3,
+      "removed": 0,
+      "sha256": "0fd8b3a8866bdb7614fe103804f7e947e7b73203450f2882148cfdef6f0b8d03"
+    },
+    {
+      "path": "docs/fg3/evidence/core-after-borrow.txt",
+      "category": "documentation-and-evidence",
+      "added": 4,
+      "removed": 0,
+      "sha256": "08aebe70c5087088fd08872739da67bcd69f2f60f680d244f104f143f8b7af60"
+    },
+    {
+      "path": "docs/fg3/evidence/core-gpu-lmc.txt",
+      "category": "documentation-and-evidence",
+      "added": 4,
+      "removed": 0,
+      "sha256": "08aebe70c5087088fd08872739da67bcd69f2f60f680d244f104f143f8b7af60"
+    },
+    {
+      "path": "docs/fg3/evidence/fault-index.txt",
+      "category": "documentation-and-evidence",
+      "added": 8,
+      "removed": 0,
+      "sha256": "c95c1762fd8f7b8e96d630cc41b41c1898ba683ea0f4efadceef6d7d48e51995"
+    },
+    {
+      "path": "docs/fg3/evidence/fault-record.txt",
+      "category": "documentation-and-evidence",
+      "added": 9,
+      "removed": 0,
+      "sha256": "ac3e23c568b4910d7b15f0d9a0a9db417e21f8e3aef23b05a8a6eecc7f3df27e"
+    },
+    {
+      "path": "docs/fg3/evidence/fault-submit.txt",
+      "category": "documentation-and-evidence",
+      "added": 8,
+      "removed": 0,
+      "sha256": "82724e3e3361e6a2e3c573cc6499f500f6cd954a7066beee9d6c384e2cee9684"
+    },
+    {
+      "path": "docs/fg3/evidence/gamescope-meson-configure-20261016.txt",
+      "category": "documentation-and-evidence",
+      "added": 39,
+      "removed": 0,
+      "sha256": "3b6e9a97720e81da1498ebbbee1d4b98db53f2774496ed0feb05bfc99d4e6bba"
+    },
+    {
+      "path": "docs/fg3/evidence/gpu-lmc-reverse-srgb-initial.txt",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "9c44e89f892f51bda08dda24ff1d6dea2060a0c1f229d1d83902e3d8f501db79"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-affine-comparison.json",
+      "category": "documentation-and-evidence",
+      "added": 780,
+      "removed": 0,
+      "sha256": "761dc0478055e6cd99e614f44a458db39bb403bddd848bb70b350a72bc613986"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-compact-dense-comparison.json",
+      "category": "documentation-and-evidence",
+      "added": 982,
+      "removed": 0,
+      "sha256": "8b0492ae9c32af675e9329f801bf560a6ae62ba06699c129e5157112567d542a"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-fixed-model-comparison.json",
+      "category": "documentation-and-evidence",
+      "added": 1030,
+      "removed": 0,
+      "sha256": "a71f234cad29dd53499ea16ba192c950d9ac133d1bba6a436008a45f2457ec53"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-native-acceptance.json",
+      "category": "documentation-and-evidence",
+      "added": 89,
+      "removed": 0,
+      "sha256": "6691e3c37c88495953da6086b9eb337c6fc0af94aba6e0113ba3617676f17763"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-native-acceptance.zip",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "f7ed7b7238be5580d155f27d7a2466898e9a69eb32e354822a2639337fc9ac9d"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-research-20261016.zip",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "2403c201bf2c1c05ca2898077c0e6524ca9d56dbb579ed761d352786451a76d4"
+    },
+    {
+      "path": "docs/fg3/evidence/gsf-runtime-limits.txt",
+      "category": "documentation-and-evidence",
+      "added": 7,
+      "removed": 0,
+      "sha256": "80c6048cbc615f4432851092872286e96c6c1d569c71c353d5c6ce8a99fe3993"
+    },
+    {
+      "path": "docs/fg3/evidence/injected-skips-before-packed.txt",
+      "category": "documentation-and-evidence",
+      "added": 28,
+      "removed": 0,
+      "sha256": "471e7c54189c33a550708ebe7b6417a6cb2502bb019e6755abe5a7a29812b164"
+    },
+    {
+      "path": "docs/fg3/evidence/installed-artifact.txt",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "60bb9b497b968d2f33a05ab2083b62fb0a6b1ae2b9ad1481739265d023d57e01"
+    },
+    {
+      "path": "docs/fg3/evidence/installer-tests.txt",
+      "category": "documentation-and-evidence",
+      "added": 24,
+      "removed": 0,
+      "sha256": "0dcaa439efa42f92cc5d90caee0ae72b7cfbb9b924e96133a2bf52b9a51a9bb7"
+    },
+    {
+      "path": "docs/fg3/evidence/native-gpu-lmc-initial.txt",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "d0bc812e629d21a0a2a5b4d4bfe7121837924ec10907faf5b5385a0d8faa0173"
+    },
+    {
+      "path": "docs/fg3/evidence/packaged-source-build.txt",
+      "category": "documentation-and-evidence",
+      "added": 60,
+      "removed": 0,
+      "sha256": "91face54713e845e34bd621875fd947e7ec65f6dbf9a679d816191c97699219b"
+    },
+    {
+      "path": "docs/fg3/evidence/pr133-8e3f58c-relay-sync-validation.txt",
+      "category": "documentation-and-evidence",
+      "added": 61,
+      "removed": 0,
+      "sha256": "a6231c4d9096ebfcc7855b1f184f7239dbb17e8b2003a9853787a8bcf83b94ab"
+    },
+    {
+      "path": "docs/fg3/evidence/quality-cpu-lmc.json",
+      "category": "documentation-and-evidence",
+      "added": 65,
+      "removed": 0,
+      "sha256": "36d923e8339a8d3167589fa94b43e2bfb777791bdcb2804ab1c6e84a2a4d285e"
+    },
+    {
+      "path": "docs/fg3/evidence/quality-gpu-lmc-full-fit.json",
+      "category": "documentation-and-evidence",
+      "added": 65,
+      "removed": 0,
+      "sha256": "f3a0de572913e73fb8e8afed7d4ca9d8c34e61c25ab57bc601cfb59d53938a7f"
+    },
+    {
+      "path": "docs/fg3/evidence/quality-gpu-lmc.json",
+      "category": "documentation-and-evidence",
+      "added": 65,
+      "removed": 0,
+      "sha256": "1ac34870f5d30d8a7f4452300df729b77e8e3268a0dc3011d3029c15a8fcf940"
+    },
+    {
+      "path": "docs/fg3/evidence/quality-inputs.json",
+      "category": "documentation-and-evidence",
+      "added": 86,
+      "removed": 0,
+      "sha256": "69a1478909040eb346f4c95ea5cfd0d681e963c08610c9c24c5fffbe4fa81f6f"
+    },
+    {
+      "path": "docs/fg3/evidence/recovery-pixels.txt",
+      "category": "documentation-and-evidence",
+      "added": 4,
+      "removed": 0,
+      "sha256": "ff89b26a869a9aacb5ff62eb31ae7741881e9d76fb389766cc91686d91f43e58"
+    },
+    {
+      "path": "docs/fg3/evidence/resource-checkpoint-20261016.txt",
+      "category": "documentation-and-evidence",
+      "added": 59,
+      "removed": 0,
+      "sha256": "b97e0a3b1ab9d5092caef012c3e444a612e07e1cb6cebf893669cd11bfeee987"
+    },
+    {
+      "path": "docs/fg3/evidence/reverse-before-packed.txt",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "60b0614cfff60f9b40125d4ad38863f2749aa69587cef006354237049132199f"
+    },
+    {
+      "path": "docs/fg3/evidence/software-checkpoint-20261016.txt",
+      "category": "documentation-and-evidence",
+      "added": 257,
+      "removed": 0,
+      "sha256": "3f11891ded6d1f542bfea0f7426dfcbc58c7194cdc3b8e1d7484f24d8e7805b6"
+    },
+    {
+      "path": "docs/fg3/evidence/srgb-packed.txt",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "76c65b8d91d168ba44862998974baed6ce7c94d4e6017c64542aa58e40f2081f"
+    },
+    {
+      "path": "docs/fg3/evidence/steam-source-probe-20261016-repeat.txt",
+      "category": "documentation-and-evidence",
+      "added": 27,
+      "removed": 0,
+      "sha256": "992fb4ebed2e274b9b4d269196e508c7b9cd8f7be6f2ac075468e4e4582fa101"
+    },
+    {
+      "path": "docs/fg3/evidence/steam-source-probe-20261016.txt",
+      "category": "documentation-and-evidence",
+      "added": 27,
+      "removed": 0,
+      "sha256": "ea7552bd4cb32c28cba50a9234ff6b3ec33589fea1cc7f3b33d6b162372e8091"
+    },
+    {
+      "path": "docs/fg3/evidence/wsi-pixels-srgb.txt",
+      "category": "documentation-and-evidence",
+      "added": 4,
+      "removed": 0,
+      "sha256": "203fc7dcaa1cc97d31b9754f617ffe19448b7beba342e0bcae33765db623bd3f"
+    },
+    {
+      "path": "docs/fg3/evidence/wsi-pixels-unorm.txt",
+      "category": "documentation-and-evidence",
+      "added": 3,
+      "removed": 0,
+      "sha256": "17d542df9c41bf81699028fc70d76478c5fceec3b4f9b3543f1b232b586b4b75"
+    },
+    {
+      "path": "docs/img/te8-colour-alias.png",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "31e8abad99521acb110ace62bc227e7e47a565e6a9f4a02e6c3cd74961cba930"
+    },
+    {
+      "path": "docs/temporal_bench_results/te8_analytic_30to90.json",
+      "category": "documentation-and-evidence",
+      "added": 173,
+      "removed": 0,
+      "sha256": "7244bd1651b8c261281fc7d794d053285a2b5c9b2a8fb8c7e6a3dec809d1d21f"
+    },
+    {
+      "path": "docs/temporal_bench_results/te8_fit.json",
+      "category": "documentation-and-evidence",
+      "added": 52,
+      "removed": 0,
+      "sha256": "48341b3c27e339fc51db208ed8a273bda1c916e8044264458339c724d67f5846"
+    },
+    {
+      "path": "docs/temporal_bench_results/te8_godot_paired_30to90.json",
+      "category": "documentation-and-evidence",
+      "added": 500,
+      "removed": 0,
+      "sha256": "7f60ca23909d4c91550637bb15387c403e1e36b46da0f6cc7f8e29c084156d4f"
+    },
+    {
+      "path": "engine/gfg-native/Makefile",
+      "category": "packaging-integration-and-tools",
+      "added": 189,
+      "removed": 0,
+      "sha256": "630141337b303e42b2535949dd61ed08bb7a65c38614d628afcb71a5010d332b"
+    },
+    {
+      "path": "engine/gfg-native/README.md",
+      "category": "packaging-integration-and-tools",
+      "added": 77,
+      "removed": 0,
+      "sha256": "b8187c37359730bc56d4f66a1c2f77d8547766c54e8608695cf9ffa307081e60"
+    },
+    {
+      "path": "engine/gfg-native/VkLayer_gfg_native.json",
+      "category": "packaging-integration-and-tools",
+      "added": 21,
+      "removed": 0,
+      "sha256": "ceb38db538a1603852f9b9f92f64b896bbe969568a602495ca2959cdd39f91df"
+    },
+    {
+      "path": "engine/gfg-native/bootstrap.py",
+      "category": "packaging-integration-and-tools",
+      "added": 153,
+      "removed": 0,
+      "sha256": "354c617abe0c0f5cad858b849164d846380a55ec29caaf693510fd6c8b7f6667"
+    },
+    {
+      "path": "engine/gfg-native/package/BUILD-ENVIRONMENT.txt",
+      "category": "packaging-integration-and-tools",
+      "added": 36,
+      "removed": 0,
+      "sha256": "eef34f1b6f4f4989f2a04ab82d34d040983c2190c7458c683e9812f3cc3a0724"
+    },
+    {
+      "path": "engine/gfg-native/package/README.ru.md",
+      "category": "packaging-integration-and-tools",
+      "added": 28,
+      "removed": 0,
+      "sha256": "f14ecb2775af028a9938c13779002d10abf942b3db9aaf1e6fc2af020a3342a4"
+    },
+    {
+      "path": "engine/gfg-native/package/diagnose.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 124,
+      "removed": 0,
+      "sha256": "d1e34315699e58547a07628146156eba7cd528c5d450fe74b269e0092be50b03"
+    },
+    {
+      "path": "engine/gfg-native/package/gfg-native.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 45,
+      "removed": 0,
+      "sha256": "6182836b96f6ad48f72727abfed3e5d2cb75d6d7a639b4bee3b9c9e29021153a"
+    },
+    {
+      "path": "engine/gfg-native/package/install.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 36,
+      "removed": 0,
+      "sha256": "5a8ceb53b3425d9d62c936434348c96b161177ca53c20f68e657df4fdb640240"
+    },
+    {
+      "path": "engine/gfg-native/package/rollback.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 27,
+      "removed": 0,
+      "sha256": "9e2d18d8c9afb9b304a6ac7c7a759e575a3f3c8b434dda3cf95156dff9e1b1d6"
+    },
+    {
+      "path": "engine/gfg-native/package/uninstall.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 14,
+      "removed": 0,
+      "sha256": "0036dcba0e5004a6769ccc258e8b5c4374d959110616f5fcfea547b053c69e9b"
+    },
+    {
+      "path": "engine/gfg-native/src/cpu_bridge.c",
+      "category": "native-runtime",
+      "added": 651,
+      "removed": 0,
+      "sha256": "2b2bdb9a6d92569014a8442ed3558d74f42afb06f3eeeefeb64d0802e0334438"
+    },
+    {
+      "path": "engine/gfg-native/src/cpu_bridge.h",
+      "category": "native-runtime",
+      "added": 16,
+      "removed": 0,
+      "sha256": "de14568d9acacfb3e0a8c3ebbea4aca4ba28407f82e13d893a22b55ca8f3dbe1"
+    },
+    {
+      "path": "engine/gfg-native/src/frame_clock.h",
+      "category": "native-runtime",
+      "added": 20,
+      "removed": 0,
+      "sha256": "91b73968e14c5501b0b46df131459ba98c89b5c8c87588ae47bd5b4a8815d50b"
+    },
+    {
+      "path": "engine/gfg-native/src/gpu_bridge.c",
+      "category": "native-runtime",
+      "added": 1603,
+      "removed": 0,
+      "sha256": "463fafc9bbe441ffd011d0acb2f043f46db3b9df3dae29c3e0b34b4c310449ff"
+    },
+    {
+      "path": "engine/gfg-native/src/gpu_bridge.h",
+      "category": "native-runtime",
+      "added": 79,
+      "removed": 0,
+      "sha256": "d6b969ec4c74c2169b208121252c15781604661d68047a10013a2b4f261922f9"
+    },
+    {
+      "path": "engine/gfg-native/src/layer.c",
+      "category": "native-runtime",
+      "added": 1687,
+      "removed": 0,
+      "sha256": "4284f019f7e107e66a046902766430da464251eb183b1e5c58fd593807d94e1d"
+    },
+    {
+      "path": "engine/gfg-native/src/memory_policy.h",
+      "category": "native-runtime",
+      "added": 33,
+      "removed": 0,
+      "sha256": "20c2f07ec7baf01b493bbf604ffc1deb28c55faeb8843eb1c49e3d088994f1f1"
+    },
+    {
+      "path": "engine/gfg-native/src/output_worker.c",
+      "category": "native-runtime",
+      "added": 259,
+      "removed": 0,
+      "sha256": "97ea028b29b1874d9bd026c24a8ca5b4b5701c7691347fa835cd0c15fb9597ce"
+    },
+    {
+      "path": "engine/gfg-native/src/output_worker.h",
+      "category": "native-runtime",
+      "added": 23,
+      "removed": 0,
+      "sha256": "9f57cc1bb850f1471469c27df3cacf460b46f1b155728c494c9adbba3b8ac842"
+    },
+    {
+      "path": "engine/gfg-native/src/present_chain.h",
+      "category": "native-runtime",
+      "added": 178,
+      "removed": 0,
+      "sha256": "2f87e36d561944ab489e3a942c62c1650ae2d9a808375f36b16407d8f035db35"
+    },
+    {
+      "path": "engine/gfg-native/src/present_ids.h",
+      "category": "native-runtime",
+      "added": 60,
+      "removed": 0,
+      "sha256": "ad7f4796d20eb561b323981cc1e801454fda0006914425afbb2108790b9ae45b"
+    },
+    {
+      "path": "engine/gfg-native/src/swapchain_chain.h",
+      "category": "native-runtime",
+      "added": 54,
+      "removed": 0,
+      "sha256": "e733805ecdef72346ec2fe817d42f262f2c3e97679427f1b68b66282117e5037"
+    },
+    {
+      "path": "engine/gfg-native/src/wsi_queries.inc",
+      "category": "native-runtime",
+      "added": 143,
+      "removed": 0,
+      "sha256": "4812c5183f0c7250ca9400cd761fd144d7b58152281bcb0a7599ef314731e834"
+    },
+    {
+      "path": "engine/gfg-native/tests/borrowed_device.c",
+      "category": "tests-and-harness",
+      "added": 161,
+      "removed": 0,
+      "sha256": "f9ae88261b8e084f9d52a3d25619f694761a9deae7663df369254a8e5e317472"
+    },
+    {
+      "path": "engine/gfg-native/tests/frame_clock.c",
+      "category": "tests-and-harness",
+      "added": 22,
+      "removed": 0,
+      "sha256": "ba0e46747b68543e1be6656fc916b2449922042f5d1f2cf76d342300abfd0fef"
+    },
+    {
+      "path": "engine/gfg-native/tests/gpu_observer.h",
+      "category": "tests-and-harness",
+      "added": 234,
+      "removed": 0,
+      "sha256": "d471751ff5adfffedc77f6c86b4751bba703e8c4228558b2cc684347c288c334"
+    },
+    {
+      "path": "engine/gfg-native/tests/gpu_ring.c",
+      "category": "tests-and-harness",
+      "added": 69,
+      "removed": 0,
+      "sha256": "b4f198e40865c18decc9527d9c3e84ab75ce05778e05492c4454bc243f377bf1"
+    },
+    {
+      "path": "engine/gfg-native/tests/hdr_precision.c",
+      "category": "tests-and-harness",
+      "added": 132,
+      "removed": 0,
+      "sha256": "95ff56e39227815050d943c93c91091c0ab7b233e976966c8a67368cf274b40e"
+    },
+    {
+      "path": "engine/gfg-native/tests/loader_smoke.c",
+      "category": "tests-and-harness",
+      "added": 92,
+      "removed": 0,
+      "sha256": "148d30a8126196bd3598b6d99130c605afca4bba6b84e4422550d3bba373fa12"
+    },
+    {
+      "path": "engine/gfg-native/tests/memory_policy.c",
+      "category": "tests-and-harness",
+      "added": 28,
+      "removed": 0,
+      "sha256": "0f368d95c49310c4eea5f38e5e6a43237e8b14d155ca1fa44d13283b33ee39d7"
+    },
+    {
+      "path": "engine/gfg-native/tests/output_worker.c",
+      "category": "tests-and-harness",
+      "added": 142,
+      "removed": 0,
+      "sha256": "e9d3dbf30e7a7de2a3c1ab7c9cf194624d3813237cc00b787ee580723bf5d97a"
+    },
+    {
+      "path": "engine/gfg-native/tests/present_chain.c",
+      "category": "tests-and-harness",
+      "added": 128,
+      "removed": 0,
+      "sha256": "834561e08d279dc4e9b2f14e72967d5c288e68743680cfaff3a35e44cba07ae3"
+    },
+    {
+      "path": "engine/gfg-native/tests/present_ids.c",
+      "category": "tests-and-harness",
+      "added": 38,
+      "removed": 0,
+      "sha256": "02cce91f634b1aafc1b7918f315df521ad70923a955e4efefdfc54ffe0b781c2"
+    },
+    {
+      "path": "engine/gfg-native/tests/queue_serialization.c",
+      "category": "tests-and-harness",
+      "added": 56,
+      "removed": 0,
+      "sha256": "5ceed4c0de6cf46381cb3f26a6ae59fb13437ec5a65db8eb80990c538e30a16c"
+    },
+    {
+      "path": "engine/gfg-native/tests/swapchain_policy.c",
+      "category": "tests-and-harness",
+      "added": 78,
+      "removed": 0,
+      "sha256": "951049cb0268dc817e7cd5a02b57f7c6157a411ecd2d51ae289f5819f73ad895"
+    },
+    {
+      "path": "engine/gfg-native/tests/wsi_gpu_observer.c",
+      "category": "tests-and-harness",
+      "added": 320,
+      "removed": 0,
+      "sha256": "d75f7e576048719a8d796d0cc34c6a52ab396eb505a707f4b69f46a443fa1e2c"
+    },
+    {
+      "path": "engine/gfg-native/tests/wsi_gpu_smoke.c",
+      "category": "tests-and-harness",
+      "added": 504,
+      "removed": 0,
+      "sha256": "e504f8f40044795c332892a79d850df006d806da18a44491233194bc4fbb4c9c"
+    },
+    {
+      "path": "engine/gfg-native/tests/wsi_smoke.c",
+      "category": "tests-and-harness",
+      "added": 227,
+      "removed": 0,
+      "sha256": "593c9973d3b45d3fc0a13aeab9dd4bdc90e70553b802591c16bb26353263e819"
+    },
+    {
+      "path": "engine/gfg-temporal/Makefile",
+      "category": "packaging-integration-and-tools",
+      "added": 13,
+      "removed": 2,
+      "sha256": "0034a2e2a30772d13832b35f14aecb7fcb27a7712ab94ae16e9dd5a04f1bb681"
+    },
+    {
+      "path": "engine/gfg-temporal/bench/gen_lmc.py",
+      "category": "packaging-integration-and-tools",
+      "added": 22,
+      "removed": 4,
+      "sha256": "fe59d4b2b452066816851ee1b4c379ee6e7eee354b3de9f36247cc6f4962882c"
+    },
+    {
+      "path": "engine/gfg-temporal/bench/gen_lmc2.py",
+      "category": "packaging-integration-and-tools",
+      "added": 6,
+      "removed": 2,
+      "sha256": "1febd1a23e666766dfb6f2787b35560787ba6f77df640a2087eb80d995187673"
+    },
+    {
+      "path": "engine/gfg-temporal/bench/gpu_eval.py",
+      "category": "packaging-integration-and-tools",
+      "added": 9,
+      "removed": 9,
+      "sha256": "ce2139443ed6769d34f6b5f38cb6db5aa68c254d324788d4b461846ac7b18800"
+    },
+    {
+      "path": "engine/gfg-temporal/mako/gfg_temporal.cpp",
+      "category": "packaging-integration-and-tools",
+      "added": 30,
+      "removed": 38,
+      "sha256": "68d7f043491a6b9595cdb1f937816f7cc11cf1207f7b30f956040146063e63f3"
+    },
+    {
+      "path": "engine/gfg-temporal/mako/lmc_budget.hpp",
+      "category": "packaging-integration-and-tools",
+      "added": 54,
+      "removed": 0,
+      "sha256": "437f746d95eda710594b1ef7bafba489e44cb1249f07fd54b785f2e385a56874"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/common.glsl",
+      "category": "core-runtime",
+      "added": 5,
+      "removed": 0,
+      "sha256": "5f72665a22de3b1a9762a7eb384fcf6ae70f6621e21d9903e5658509d4abdd11"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/full.comp",
+      "category": "core-runtime",
+      "added": 5,
+      "removed": 2,
+      "sha256": "5013dbf9879a7c44a69d5f18b5ac1c8ab3519fdb5ab75807487d0f6bdf17c96a"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/light.comp",
+      "category": "core-runtime",
+      "added": 5,
+      "removed": 2,
+      "sha256": "8bf295336b298f63b20ed4e6d8a5001466a62d650043aa0bc66f3dc14fd01ace"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_common.glsl",
+      "category": "core-runtime",
+      "added": 4,
+      "removed": 4,
+      "sha256": "27e1053a472b9b3c3e590d799adfde844d93da27a2f732d2584ad98374291c50"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_compose.comp",
+      "category": "core-runtime",
+      "added": 25,
+      "removed": 5,
+      "sha256": "a3e99b9c6ff08efbc0601b66533bb36c1ebc5e426500eb991308b0146ea53b0b"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_field.comp",
+      "category": "core-runtime",
+      "added": 15,
+      "removed": 2,
+      "sha256": "0b3ed79f46865659a36ba396d80f193962af740d3f63c16eb758b0b098e668fd"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_hyp.comp",
+      "category": "core-runtime",
+      "added": 168,
+      "removed": 0,
+      "sha256": "df410ca690c16b186ac1ab6e6115e3c357315c2a79c4157737d6ef5280b1cd36"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_irls.comp",
+      "category": "core-runtime",
+      "added": 409,
+      "removed": 0,
+      "sha256": "c7ee980bde23a7ea8c2284c2d348ba447f88a946efcb22ae3fab3fd9cc289fad"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_layers.comp",
+      "category": "core-runtime",
+      "added": 24,
+      "removed": 1,
+      "sha256": "81a2f76391f2df89212f6fee64336b5a25f4716f91a0aa2a344a63cfb1476c1d"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_orphan.comp",
+      "category": "core-runtime",
+      "added": 2,
+      "removed": 1,
+      "sha256": "1158a1b20a8c0c38818ef30957328053fc09265d71ed3e12c5c8826143234fc6"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_palette.comp",
+      "category": "core-runtime",
+      "added": 127,
+      "removed": 0,
+      "sha256": "a0ab8103fe54127890167916983d393cca71e6cf44812253874153e794fbd749"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_plane.glsl",
+      "category": "core-runtime",
+      "added": 64,
+      "removed": 0,
+      "sha256": "13c4e59bd99e0551955d7aa3717a8adaa7fd950910628a61a045d5ecb4ec77bf"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_search.comp",
+      "category": "core-runtime",
+      "added": 39,
+      "removed": 6,
+      "sha256": "ef2f006e52ff230d2b3d2cc2abf6872546789ffd322976404b6b20d9b0de1c9a"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_sf_compose.comp",
+      "category": "core-runtime",
+      "added": 56,
+      "removed": 0,
+      "sha256": "07fc2d3b4dccf562067e27e4b91e676ee3b587c1a14d76a6b21d454f8e232687"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_sf_model.comp",
+      "category": "core-runtime",
+      "added": 64,
+      "removed": 0,
+      "sha256": "86420533d200ca48d9e3bd4d0b0cf6c1ef170eb2f14f0d3fe82daab4eed8d474"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/lmc/lmc_sf_prepare.comp",
+      "category": "core-runtime",
+      "added": 79,
+      "removed": 0,
+      "sha256": "f7edfce201023388e520f1412166841c9140642733f7be6713a8edee61672ac2"
+    },
+    {
+      "path": "engine/gfg-temporal/shaders/reuse.comp",
+      "category": "core-runtime",
+      "added": 5,
+      "removed": 2,
+      "sha256": "f95e6dbb55d54ab0d26e2da1fd33c33329fbdc8c55ee01d54cbf334672995fcd"
+    },
+    {
+      "path": "engine/gfg-temporal/src/te_bench.c",
+      "category": "core-runtime",
+      "added": 34,
+      "removed": 14,
+      "sha256": "0dc7029459a20845faf53205eb80da5f44a21eeea5c159085ea065dfdab9ab5d"
+    },
+    {
+      "path": "engine/gfg-temporal/src/te_engine.c",
+      "category": "core-runtime",
+      "added": 288,
+      "removed": 31,
+      "sha256": "f0075f512ffc80baf5ee47f0911d2ab6b59e43930041a1256fdfab144681f541"
+    },
+    {
+      "path": "engine/gfg-temporal/src/te_engine.h",
+      "category": "core-runtime",
+      "added": 37,
+      "removed": 7,
+      "sha256": "077afa43282fabb5c83af92d3746e1cacc8e76491d6c9fab04cc0138411927d6"
+    },
+    {
+      "path": "engine/gfg-temporal/src/te_lmc.inc",
+      "category": "core-runtime",
+      "added": 139,
+      "removed": 26,
+      "sha256": "75892a5633ce705616af04a2610e104e1f8ffcc526f2192e4b7e3dddf1306805"
+    },
+    {
+      "path": "engine/gfg-temporal/src/te_lmc_fit.c",
+      "category": "core-runtime",
+      "added": 61,
+      "removed": 33,
+      "sha256": "b794366a7725d10b4e0424577e4a610b3fe4fc08ccd19793cec4c9da9ed84d01"
+    },
+    {
+      "path": "engine/gfg-temporal/tests/te_tests.c",
+      "category": "tests-and-harness",
+      "added": 124,
+      "removed": 2,
+      "sha256": "a575ae699fa332d59f09b6d2e5864f1431144b87aff43125edb15c0bec1ba2d1"
+    },
+    {
+      "path": "frontend/harness/lib.mjs",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 0,
+      "sha256": "b373c50cd092c182e7e77d0c8522904beac36bb2216888bd1221ed547aa18556"
+    },
+    {
+      "path": "frontend/harness/smoke.mjs",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 0,
+      "sha256": "187dc663b5e7fcf91cda1a9a25a19c72efb3cae077256c9810af013be1e0c014"
+    },
+    {
+      "path": "frontend/src/app.js",
+      "category": "packaging-integration-and-tools",
+      "added": 12,
+      "removed": 3,
+      "sha256": "9932ea151740f6539cbedd8fdbc2dbcb14296def539f6a1bc492cb0db1f54230"
+    },
+    {
+      "path": "package-lock.json",
+      "category": "packaging-integration-and-tools",
+      "added": 2,
+      "removed": 2,
+      "sha256": "307a6adea4f30705f37ea7c80bf143d3c41d0f3310b03240f1776fca90877878"
+    },
+    {
+      "path": "package.json",
+      "category": "packaging-integration-and-tools",
+      "added": 2,
+      "removed": 2,
+      "sha256": "4feeb456e4e30b1658e45f8ee0c7b4982909546111e15127d8b90c632e7f818f"
+    },
+    {
+      "path": "patches/native-02/README.md",
+      "category": "packaging-integration-and-tools",
+      "added": 48,
+      "removed": 0,
+      "sha256": "687528d5a64fa21978ab460c3b93e1cc25a54f1df5d8bce2ab73823f8f82059b"
+    },
+    {
+      "path": "patches/native-02/apply.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 39,
+      "removed": 0,
+      "sha256": "edb9be22975b64a2428ce7316d41a4446caa14bd78bd68739d98adf9005ea61b"
+    },
+    {
+      "path": "patches/native-02/rollback.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 18,
+      "removed": 0,
+      "sha256": "0f6fd6771d6fe9376ed64ac6f035befb13fa72f44796a1820eb01a5ce64cca74"
+    },
+    {
+      "path": "patches/native-03/README.md",
+      "category": "packaging-integration-and-tools",
+      "added": 64,
+      "removed": 0,
+      "sha256": "c34cc6edd0ab71e2f2f334ab54bd78730a1ef000a59184f85080d21c997ac1c7"
+    },
+    {
+      "path": "patches/native-03/apply.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 28,
+      "removed": 0,
+      "sha256": "8c3466d2b1d23d823ecc93d21b264fef86d94a11f772161fc9ef652bd7916e37"
+    },
+    {
+      "path": "patches/native-03/rollback.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 16,
+      "removed": 0,
+      "sha256": "11c8e04ccea39d6fd22e8defd0c3f3d75b7d31823bd0004152a6a725b8b5b715"
+    },
+    {
+      "path": "patches/native-04/README.md",
+      "category": "packaging-integration-and-tools",
+      "added": 54,
+      "removed": 0,
+      "sha256": "324316df679a45c08a77e85a8894df03a78335581b8cc4a87bdd5f709bf0c0f8"
+    },
+    {
+      "path": "patches/native-04/apply.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 28,
+      "removed": 0,
+      "sha256": "8e3438473988493ef1d8ad4137c2dc2ca7af93a5837a188f5ff6ab0acc386239"
+    },
+    {
+      "path": "patches/native-04/rollback.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 16,
+      "removed": 0,
+      "sha256": "351afaf18e696edb7b82a3a1bb3b0aaff7bbdc47fd7897f122cac5a46623e85c"
+    },
+    {
+      "path": "patches/native-05/README.md",
+      "category": "packaging-integration-and-tools",
+      "added": 61,
+      "removed": 0,
+      "sha256": "6037e4cc7abe3d5e72bab90449f50d0e0a60fa99ca0cee3af9040a61c0350e48"
+    },
+    {
+      "path": "patches/native-05/apply.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 28,
+      "removed": 0,
+      "sha256": "9ebd4a220269d775387a2a0525964aaf41696eb159ae504f1caa6b5b67fffa87"
+    },
+    {
+      "path": "patches/native-05/rollback.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 16,
+      "removed": 0,
+      "sha256": "0349427fea1d64b6bb54ebaf7c618532feeff29706a390132b4e6d6624b5c5f7"
+    },
+    {
+      "path": "py_modules/gfg_plugin/autopilot/planner.py",
+      "category": "packaging-integration-and-tools",
+      "added": 9,
+      "removed": 1,
+      "sha256": "0080f2453434d896d54089f21376afbd57d7c3f36f8c5fb8ce90648698743a71"
+    },
+    {
+      "path": "py_modules/gfg_plugin/governor_service.py",
+      "category": "packaging-integration-and-tools",
+      "added": 9,
+      "removed": 2,
+      "sha256": "7815dc6d1751bb94eeab230c39da7592cde799e28bfb7d32a4f8c5123b5a8bc1"
+    },
+    {
+      "path": "py_modules/gfg_plugin/log_report.py",
+      "category": "packaging-integration-and-tools",
+      "added": 13,
+      "removed": 2,
+      "sha256": "3fd2e314b9757e9a70d5ee58d73ca18c86f7ed0c083d7463529d8a35ea4d1cdd"
+    },
+    {
+      "path": "py_modules/gfg_plugin/plugin.py",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 1,
+      "sha256": "06088b4f92f12986be440ef881b4f62980b9f29e1314fc6be6e0cc7871694b1b"
+    },
+    {
+      "path": "py_modules/gfg_plugin/session_recorder.py",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 1,
+      "sha256": "d54c101bab357e319fa94eb02aee00a616bde700ad8e2e6f9dc1362fd8c89c29"
+    },
+    {
+      "path": "py_modules/gfg_plugin/temporal_engine.py",
+      "category": "packaging-integration-and-tools",
+      "added": 11,
+      "removed": 1,
+      "sha256": "77a724e75cf38de096fd213f725d2e094d235ce312ba10ffdb2f3822911f409c"
+    },
+    {
+      "path": "research/DECK_CONNECTION.md",
+      "category": "documentation-and-evidence",
+      "added": 23,
+      "removed": 0,
+      "sha256": "41394b55094e378cfe44fa08584c6835b3f24486a92989eaddf7a8a4f04c5fdd"
+    },
+    {
+      "path": "research/DEVICE_VALIDATION.md",
+      "category": "documentation-and-evidence",
+      "added": 25,
+      "removed": 0,
+      "sha256": "778be3b9f2c14677e376362b3fd6e3a3600ca13925e77bafc14e7454c6e57c9f"
+    },
+    {
+      "path": "research/GFG_CURRENT_ENGINE_AUDIT.md",
+      "category": "documentation-and-evidence",
+      "added": 48,
+      "removed": 0,
+      "sha256": "83938beb2f39f4a68e045077882cdbe742d336068cb58459423c756af21fef42"
+    },
+    {
+      "path": "research/LSFG_BINARY_ANALYSIS.md",
+      "category": "documentation-and-evidence",
+      "added": 16,
+      "removed": 0,
+      "sha256": "f727afa15d677922ca4c419aeb858e2a23848e4b84f4ecb88640a1afc1b44158"
+    },
+    {
+      "path": "research/LSFG_COMPUTE_GRAPH.md",
+      "category": "documentation-and-evidence",
+      "added": 26,
+      "removed": 0,
+      "sha256": "582d9dec4485bc4e27820a53f9eaf9387f56d443732d660c9ecf5125ba407d90"
+    },
+    {
+      "path": "research/LSFG_COST_MODEL.md",
+      "category": "documentation-and-evidence",
+      "added": 18,
+      "removed": 0,
+      "sha256": "bed3e0ab3d5f1742b6acec668fac7513e24bea61b4b084fe42d156d8791bab9f"
+    },
+    {
+      "path": "research/LSFG_MODEL_ANALYSIS.md",
+      "category": "documentation-and-evidence",
+      "added": 15,
+      "removed": 0,
+      "sha256": "f6083581a102b58d31447d9a73e44eb632a9377a4d56c9aa08d198a41393f37b"
+    },
+    {
+      "path": "research/LSFG_REFERENCE_ORACLE.md",
+      "category": "documentation-and-evidence",
+      "added": 15,
+      "removed": 0,
+      "sha256": "1bbc1ab2b485a971579a3fe2964435e22248dab873ad88f57d736e5b8b9727f9"
+    },
+    {
+      "path": "research/LSFG_SHADER_ARCHITECTURE.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "f301c2db2fb2a7b512dffbc3c4f4e9ef6e2af9a976fece7b81641eb405fdae32"
+    },
+    {
+      "path": "research/MAKO_ARCHITECTURE.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "c64100325a06acaeff94f411b933af11fb5e2d6cf073276523e11c1cd8c23938"
+    },
+    {
+      "path": "research/MAKO_FRAME_LIFECYCLE.md",
+      "category": "documentation-and-evidence",
+      "added": 25,
+      "removed": 0,
+      "sha256": "c8cdf43b5021ea72953ee681171ab128817729b50909de85913a6f1cdfceb1f6"
+    },
+    {
+      "path": "research/MAKO_FRAME_PACING.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "2f902197cc808460799cec683b104bbc695011256fdf2c3756549399ea14652d"
+    },
+    {
+      "path": "research/MAKO_GPU_COST.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "6b7e4d1d7b5dba9fc741863fd6420bbd37399d0e43d0520dffa0d5ca88cdfa3c"
+    },
+    {
+      "path": "research/MAKO_HOST_CALL_EXPERIMENT.md",
+      "category": "documentation-and-evidence",
+      "added": 45,
+      "removed": 0,
+      "sha256": "06db62dd98a6fbe202480a5c50eea468edfa0b209b03cbbe0a1e8cb78df1d5e8"
+    },
+    {
+      "path": "research/MAKO_LIMITATIONS.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "0d4d33455a208f29eae825fdaf1898453f5abf544d0df8480ea85c2949bc8651"
+    },
+    {
+      "path": "research/MAKO_SYNC_ANALYSIS.md",
+      "category": "documentation-and-evidence",
+      "added": 11,
+      "removed": 0,
+      "sha256": "eb2d97f4fba210d13e69716fa0cb05599e2a5c8b3beed13bc54e3989ee690280"
+    },
+    {
+      "path": "research/NATIVE_FG_ARCHITECTURE.md",
+      "category": "documentation-and-evidence",
+      "added": 13,
+      "removed": 0,
+      "sha256": "03a5c9dc8717223240d5e3a1d9251d2dfb16370e34e81e874ed9ecdad095585a"
+    },
+    {
+      "path": "research/README.md",
+      "category": "documentation-and-evidence",
+      "added": 39,
+      "removed": 0,
+      "sha256": "c55ee4a826716e2fe44b48d6dbbaf4c2ae14a9259b5713985de53aee67f827c1"
+    },
+    {
+      "path": "research/REMOTE_ACCESS_STATUS.md",
+      "category": "documentation-and-evidence",
+      "added": 9,
+      "removed": 0,
+      "sha256": "3b89a9b44d3b867c02e19a43c233b4ad880835a54c9e0b4dc90107e26e32502f"
+    },
+    {
+      "path": "research/SOURCES.md",
+      "category": "documentation-and-evidence",
+      "added": 32,
+      "removed": 0,
+      "sha256": "4f33646e0825d829a67bc597b3ac4331d7d7ac8525c7deb66f29e643788d1143"
+    },
+    {
+      "path": "research/SPECIFICATION.md",
+      "category": "documentation-and-evidence",
+      "added": 1095,
+      "removed": 0,
+      "sha256": "351769e6a7ca2519b6793766b27e940ee2f495ff31905573cbaf2747ae7b9940"
+    },
+    {
+      "path": "research/results/device_inventory_20261015.json",
+      "category": "documentation-and-evidence",
+      "added": 28,
+      "removed": 0,
+      "sha256": "61356bbe3b1d8c64b01abf8ebc5d46dc3ca5a4cc24775118612a844f0b794cd9"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "2ce316bf2d47401c2f80517b95bcfe45712568ede43cedab90cb0cf170f629d9"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "15c32b9443bb7ab54f486af6e7d46c5023e3771b4d86b6636d76d0802c2c3514"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "fa7d97edbe4e1d7958730b2ee1a0d580da8f43477892ddd444fef1353abfa207"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "d5b4022d6436ab46b7de29eb04b4a1155774eadd9da7a879431291464d84eb69"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "2047fa019064eb0524e3201bbc49408016afa7c3b26f0fbf6118d7a0b7407961"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "8556e4283500d6bb08497fa0a2d1b880801b6ac50181386b99207ca7a3a61956"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "260c556bfde40073d4643d92c8c71918b0e14ba5215edd78db0e4373cd0b8a6d"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "18db119a514ea6e1c395e7115e1472c172b6d3f981ab205813a0628e815fbc13"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "f0718d16b67266efc8438f43c53d3e906a8b9eae5098c4d342924c6cc0b9b306"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "1ade322e6dd326ccb1f89f501253549cdd380dbe7e964c02e93daf83d6b33a5e"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "b7af0f80f3ac11f3bc2360272423aa66a3bfeb71c28d785989fb18a1f0c6539f"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "d190e5c6c58fe9dc9da3d1107838e5157b735ebec3f5b529efa9422b5481a667"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "9b41aa7538b2811eee684cdfca9bad9e867be96416dc8b4979c301cfbcaaf0b3"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "ae14aa4f40dbf88ac83ce3997d9702f7b76eb7781fd0b02780e41a2879b6e247"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "fae2eacb569b0810c6dce01acfc8e3589b60d4087fc2330d8b1b5bd915d1577d"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "8fa672b5db4083f7e6c04a7c3f4ea240f84522cdd2d1ad2b9f22fcb5ddfdc787"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "0dd076263e350fd9e766d0bdb6b9f6be4df77b9ac7bec84590e5443002e046a6"
+    },
+    {
+      "path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "5bcee516b2c69998f3510b1aee9b351bcd595e4a87bc72c296b01a944d2b1708"
+    },
+    {
+      "path": "research/results/mako_host_trace.json",
+      "category": "documentation-and-evidence",
+      "added": 3589,
+      "removed": 0,
+      "sha256": "be822915fe170dddb6d7b0a6490dd9294c4155762e3957499dce53fcc0d08c29"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "2ce316bf2d47401c2f80517b95bcfe45712568ede43cedab90cb0cf170f629d9"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "15c32b9443bb7ab54f486af6e7d46c5023e3771b4d86b6636d76d0802c2c3514"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "fa7d97edbe4e1d7958730b2ee1a0d580da8f43477892ddd444fef1353abfa207"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "d5b4022d6436ab46b7de29eb04b4a1155774eadd9da7a879431291464d84eb69"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "2047fa019064eb0524e3201bbc49408016afa7c3b26f0fbf6118d7a0b7407961"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.5-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "8556e4283500d6bb08497fa0a2d1b880801b6ac50181386b99207ca7a3a61956"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "260c556bfde40073d4643d92c8c71918b0e14ba5215edd78db0e4373cd0b8a6d"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "18db119a514ea6e1c395e7115e1472c172b6d3f981ab205813a0628e815fbc13"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "f0718d16b67266efc8438f43c53d3e906a8b9eae5098c4d342924c6cc0b9b306"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "1ade322e6dd326ccb1f89f501253549cdd380dbe7e964c02e93daf83d6b33a5e"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "b7af0f80f3ac11f3bc2360272423aa66a3bfeb71c28d785989fb18a1f0c6539f"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale0.75-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "d190e5c6c58fe9dc9da3d1107838e5157b735ebec3f5b529efa9422b5481a667"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf0-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "9b41aa7538b2811eee684cdfca9bad9e867be96416dc8b4979c301cfbcaaf0b3"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf0-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "ae14aa4f40dbf88ac83ce3997d9702f7b76eb7781fd0b02780e41a2879b6e247"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf0-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "fae2eacb569b0810c6dce01acfc8e3589b60d4087fc2330d8b1b5bd915d1577d"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf1-outputs1.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "8fa672b5db4083f7e6c04a7c3f4ea240f84522cdd2d1ad2b9f22fcb5ddfdc787"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf1-outputs2.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "0dd076263e350fd9e766d0bdb6b9f6be4df77b9ac7bec84590e5443002e046a6"
+    },
+    {
+      "path": "research/results/mako_host_upstream/scale1.0-perf1-outputs4.jsonl.gz",
+      "category": "documentation-and-evidence",
+      "added": null,
+      "removed": null,
+      "sha256": "5bcee516b2c69998f3510b1aee9b351bcd595e4a87bc72c296b01a944d2b1708"
+    },
+    {
+      "path": "research/results/source_inventory.json",
+      "category": "documentation-and-evidence",
+      "added": 699,
+      "removed": 0,
+      "sha256": "86ac6da8d3c907ab16388159d1c65398ec05a9ff0fe4941172b2d6f72ca6b3b6"
+    },
+    {
+      "path": "scripts/accept_report.py",
+      "category": "packaging-integration-and-tools",
+      "added": 182,
+      "removed": 0,
+      "sha256": "a997ab8b21f6690cb19d5bf42a6260f154864efdd8de6c6c18aacdcda5f5109e"
+    },
+    {
+      "path": "scripts/build_frame_fusion.py",
+      "category": "packaging-integration-and-tools",
+      "added": 15,
+      "removed": 6,
+      "sha256": "1d3a495ccf5c58bdf693c201fd0b0ae343f9c4464ce1fec4ba36d7e89ea777ae"
+    },
+    {
+      "path": "scripts/check_gsf_pipeline.py",
+      "category": "packaging-integration-and-tools",
+      "added": 60,
+      "removed": 0,
+      "sha256": "5316d4694d1a6ca19b79fabb60d0a507e684144ac305a672db3b15a05f90dc13"
+    },
+    {
+      "path": "scripts/check_native_independence.py",
+      "category": "packaging-integration-and-tools",
+      "added": 38,
+      "removed": 0,
+      "sha256": "81f55606bb72351008534ce8c799bfa868f82ba69a48e7cb0b38a2250d8d376c"
+    },
+    {
+      "path": "scripts/package_frame_fusion.py",
+      "category": "packaging-integration-and-tools",
+      "added": 1,
+      "removed": 1,
+      "sha256": "e1cfff3221286575124e9e890bb9c48b87c38b0a12018a886f37be09ab5c7f50"
+    },
+    {
+      "path": "scripts/package_native_fg.py",
+      "category": "packaging-integration-and-tools",
+      "added": 189,
+      "removed": 0,
+      "sha256": "57bd4be84ec899e705601db8be61b75c518f1cf9d7fc93b00db91026f1677c0d"
+    },
+    {
+      "path": "scripts/probe_steamos_sources.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 25,
+      "removed": 0,
+      "sha256": "c795f98a8122ca63d749ba35d42d24248e1fb93870308b79c7e2d9df8b05cea6"
+    },
+    {
+      "path": "scripts/run_gfg_gsf.sh",
+      "category": "packaging-integration-and-tools",
+      "added": 22,
+      "removed": 0,
+      "sha256": "f918c365d284c39ae445cfbb5a642f1b89d913cdc48155c6ef90f619709ed613"
+    },
+    {
+      "path": "tests/test_autopilot_v2.py",
+      "category": "tests-and-harness",
+      "added": 12,
+      "removed": 0,
+      "sha256": "5a4a3476e8ecb17db3fdd866e12980db86884988e3c4693676e31a9b547451a6"
+    },
+    {
+      "path": "tests/test_native_diagnostic_report.py",
+      "category": "tests-and-harness",
+      "added": 112,
+      "removed": 0,
+      "sha256": "ce4bb14c56c2a3ef3ba18b0f98f418c0a19c868c2b26135c5fc1beea1b992386"
+    },
+    {
+      "path": "tests/test_native_fg_probe.py",
+      "category": "tests-and-harness",
+      "added": 75,
+      "removed": 0,
+      "sha256": "86827e8829aa9ab214281721dbf19bb4e034471c2b353d91748f8587e6414b61"
+    },
+    {
+      "path": "tests/test_native_gpu_install.py",
+      "category": "tests-and-harness",
+      "added": 131,
+      "removed": 0,
+      "sha256": "d4c6b4700ef25bebb68fc58e6a64298859c2c6e1f3e3582f6c5c922ad1a8d811"
+    },
+    {
+      "path": "tests/test_native_layer_foundation.py",
+      "category": "tests-and-harness",
+      "added": 112,
+      "removed": 0,
+      "sha256": "519e84d6e2e75053b215773865f2339700e257782771b4f245ec7fe3e7f80886"
+    },
+    {
+      "path": "tests/test_native_no_dll_bootstrap.py",
+      "category": "tests-and-harness",
+      "added": 75,
+      "removed": 0,
+      "sha256": "f752fb53685ecabe834a948f87f2e2a42ca5d594303af30dec74cae68547a536"
+    },
+    {
+      "path": "tests/test_native_package_provenance.py",
+      "category": "tests-and-harness",
+      "added": 49,
+      "removed": 0,
+      "sha256": "bbab28eb6ce15f9a35aa8efa6317d7e822af43ceaf1050e839c22a9470dbf72e"
+    },
+    {
+      "path": "tests/test_temporal_budget.py",
+      "category": "tests-and-harness",
+      "added": 66,
+      "removed": 0,
+      "sha256": "8f1b38d31d682e68357c2527820ad9f316f2059ee78159fd05169e9c94c31729"
+    },
+    {
+      "path": "tests/test_temporal_engine.py",
+      "category": "tests-and-harness",
+      "added": 22,
+      "removed": 1,
+      "sha256": "b73f39de7bf1f198a94dd0f7ce0ba4449d44f6321bb83d31a04ecb38ebd845ce"
+    },
+    {
+      "path": "tools/audit_native_fg_sources.py",
+      "category": "packaging-integration-and-tools",
+      "added": 107,
+      "removed": 0,
+      "sha256": "1b5d0625e5617aa29f563833c8df44fcf191faddb4d120a89b61845d5415d27f"
+    },
+    {
+      "path": "tools/benchmark_lmc_fit.py",
+      "category": "packaging-integration-and-tools",
+      "added": 121,
+      "removed": 0,
+      "sha256": "4d6a7e5faec36c5467f278124b3b1838c4138ba5fc6659c8b9375ab3c9f2e2a9"
+    },
+    {
+      "path": "tools/benchmark_temporal_90.py",
+      "category": "packaging-integration-and-tools",
+      "added": 133,
+      "removed": 0,
+      "sha256": "83559b829a3f0387e47a18de7984d15b4e778b3aaa1cd21cc70bfd3f2e71535f"
+    },
+    {
+      "path": "tools/benchmark_temporal_paired.py",
+      "category": "packaging-integration-and-tools",
+      "added": 59,
+      "removed": 0,
+      "sha256": "20c89c70fea45d515628a759c8a628d5fd8b8e463af472377c14f096d0d332a3"
+    },
+    {
+      "path": "tools/native_fg_probe.py",
+      "category": "packaging-integration-and-tools",
+      "added": 176,
+      "removed": 0,
+      "sha256": "468009a4793c560a044dd397feb8b630029739bb937073dd6796f48347c191f5"
+    },
+    {
+      "path": "tools/native_fg_trace/sim.hpp",
+      "category": "packaging-integration-and-tools",
+      "added": 91,
+      "removed": 0,
+      "sha256": "986ea8198869c1bb8c01a4a489fb0c65172b9438949ab1a9847d04dcca01da0f"
+    },
+    {
+      "path": "tools/native_fg_trace/trace.cpp",
+      "category": "packaging-integration-and-tools",
+      "added": 98,
+      "removed": 0,
+      "sha256": "8d9a2e1e890fae81ce316a36d3035403410b917e67ecb29f1e7cd73dcb5d319f"
+    },
+    {
+      "path": "tools/temporal_bench/compare_shared_flow.py",
+      "category": "packaging-integration-and-tools",
+      "added": 161,
+      "removed": 0,
+      "sha256": "3d7387b6b6e62e4dc75c2ea761e7e525e864c9f0b03dfeae267c11aa07978d1a"
+    },
+    {
+      "path": "tools/temporal_bench/prepare_shared_flow_corpus.py",
+      "category": "packaging-integration-and-tools",
+      "added": 72,
+      "removed": 0,
+      "sha256": "3dda00ec0bafe06ea90812a3499fa6c30f7f9961d4248b669ab66f18de8ac6ea"
+    },
+    {
+      "path": "tools/temporal_bench/render_game_scene.py",
+      "category": "packaging-integration-and-tools",
+      "added": 14,
+      "removed": 6,
+      "sha256": "1eede93363de9cfeafbc85548ee50dc262fb6f6f775aed2ad68b7e25e981e0c8"
+    },
+    {
+      "path": "tools/trace_mako_host.py",
+      "category": "packaging-integration-and-tools",
+      "added": 135,
+      "removed": 0,
+      "sha256": "8d5b035bf2b47589d5bf55ad0e440042b907da12e2b30c16835bd669385d92b8"
+    }
+  ]
+}
