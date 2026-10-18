@@ -87,6 +87,28 @@ static int find_layer_cb(struct dl_phdr_info *info, size_t size, void *out) {
     }
     return 0;
 }
+static int read_gpu_stats(gpu_stats *st) {
+    const char *path = NULL;
+    dl_iterate_phdr(find_layer_cb, &path);
+    void *layer = path ? dlopen(path, RTLD_NOW | RTLD_NOLOAD) : NULL;
+    void (*get)(gpu_stats *) = layer ? (void (*)(gpu_stats *))dlsym(layer, "gfg_native_gpu_bridge_stats") : NULL;
+    if (!get) { if (layer) dlclose(layer); return 0; }
+    memset(st, 0, sizeof(*st)); get(st); dlclose(layer);
+    return st->version == 1;
+}
+static int check_generation(const gpu_stats *before, const gpu_stats *after, uint32_t frames, unsigned generation) {
+    const uint64_t real = after->real_presents - before->real_presents;
+    const uint64_t synthetic = after->synthetic_presents - before->synthetic_presents;
+    const uint64_t checks = after->verify_checks - before->verify_checks;
+    const int valid = after->bridges_created - before->bridges_created == 1 &&
+        real == frames && synthetic == (getenv("GFG_NATIVE_MODE") && !strcmp(getenv("GFG_NATIVE_MODE"), "2") ? 1ull : 2ull) * (frames - 1) &&
+        after->skipped_synthetic == before->skipped_synthetic && after->errors == before->errors &&
+        checks > 0 && after->verify_distinct - before->verify_distinct == checks;
+    printf("GSF_LIFECYCLE_RETIRED generation=%u real=%llu synthetic=%llu pixel_checks=%llu status=%s\n",
+        generation, (unsigned long long)real, (unsigned long long)synthetic,
+        (unsigned long long)checks, valid ? "PASS" : "FAIL");
+    return valid;
+}
 static uint32_t between(uint32_t x, uint32_t lo, uint32_t hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* textured blocks moving 4 px right and 1 px down per frame */
@@ -107,6 +129,12 @@ int main(void) {
     const unsigned source_hz=env_uint("GFG_TEST_SOURCE_HZ",0);
     REQUIRE(source_hz<=240);
     const uint32_t frames = env_uint("GFG_TEST_FRAMES", 24);
+    const int lifecycle = env_1("GFG_TEST_LIFECYCLE");
+    REQUIRE(!lifecycle || (frames >= 12 && frames % 3 == 0 &&
+        env_1("GFG_TEST_EXPECT_GPU") && env_1("GFG_NATIVE_GPU_BRIDGE_VERIFY") &&
+        !env_1("GFG_TEST_ALLOW_SKIPS")));
+    gpu_stats generation_before = {0};
+    unsigned generation = 0;
     const uint32_t want_w = env_uint("GFG_TEST_WIDTH", 96), want_h = env_uint("GFG_TEST_HEIGHT", 64);
     const int validation = env_1("GFG_TEST_VALIDATION");
     const int pace_idle = env_1("GFG_TEST_PACE_IDLE");
@@ -301,7 +329,8 @@ int main(void) {
 
     /* app resources: 2 frames in flight */
     enum { INFLIGHT = 2 };
-    const VkDeviceSize bytes = (VkDeviceSize)ext.width * ext.height * 4u;
+    const VkDeviceSize bytes = (VkDeviceSize)(ext.width + (lifecycle ? 32u : 0u)) *
+        (ext.height + (lifecycle ? 16u : 0u)) * 4u;
     VkPhysicalDeviceMemoryProperties mp;
     vkGetPhysicalDeviceMemoryProperties(physical, &mp);
     VkBuffer staging[INFLIGHT];
@@ -414,6 +443,47 @@ int main(void) {
         if(env_1("GFG_TEST_EXPECT_RECREATE") && frame+1==frames)
             REQUIRE(presented==VK_ERROR_OUT_OF_DATE_KHR);
         else TRY(presented);
+        if (lifecycle && (frame + 1) % (frames / 3) == 0 && frame + 1 < frames) {
+            /* First replacement: no app queue drain before create, exercising
+             * the layer's oldSwapchain output retirement. Second: resize only
+             * after draining, so the X server cannot invalidate queued output. */
+            if (generation == 1) {
+                TRY(vkQueueWaitIdle(queue));
+                const uint32_t size[2] = {want_w + 32u, want_h + 16u};
+                xcb_configure_window(xc, window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, size);
+                xcb_flush(xc);
+                xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(xc, xcb_get_geometry(xc, window), NULL);
+                REQUIRE(geometry && geometry->width == size[0] && geometry->height == size[1]);
+                free(geometry);
+                TRY(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, surface, &caps));
+                ext = caps.currentExtent.width == UINT32_MAX ? (VkExtent2D){size[0], size[1]} : caps.currentExtent;
+                REQUIRE(ext.width == size[0] && ext.height == size[1]);
+                swci.imageExtent = ext;
+                swci.preTransform = caps.currentTransform;
+            }
+            VkSwapchainKHR replacement = VK_NULL_HANDLE;
+            swci.oldSwapchain = swapchain;
+            TRY(vkCreateSwapchainKHR(device, &swci, NULL, &replacement));
+            TRY(vkQueueWaitIdle(queue));
+            vkDestroySwapchainKHR(device, swapchain, NULL);
+            gpu_stats completed;
+            REQUIRE(read_gpu_stats(&completed));
+            REQUIRE(check_generation(&generation_before, &completed, frames / 3, generation));
+            generation_before = completed;
+            ++generation;
+            for (uint32_t i = 0; i < image_count; ++i) vkDestroySemaphore(device, rendered[i], NULL);
+            free(rendered); free(images);
+            swapchain = replacement;
+            swci.oldSwapchain = VK_NULL_HANDLE;
+            TRY(vkGetSwapchainImagesKHR(device, swapchain, &image_count, NULL));
+            images = calloc(image_count, sizeof(*images));
+            rendered = calloc(image_count, sizeof(*rendered));
+            REQUIRE(images && rendered);
+            TRY(vkGetSwapchainImagesKHR(device, swapchain, &image_count, images));
+            for (uint32_t i = 0; i < image_count; ++i)
+                TRY(vkCreateSemaphore(device, &semci, NULL, &rendered[i]));
+            printf("GSF_LIFECYCLE_READY generation=%u extent=%ux%u old_retired=1\n", generation, ext.width, ext.height);
+        }
         if (pace_idle) TRY(vkQueueWaitIdle(queue)); /* app-side pacing, outside the layer */
         if(source_hz) {
             struct timespec deadline;clock_gettime(CLOCK_MONOTONIC,&deadline);
@@ -452,6 +522,13 @@ int main(void) {
         void *layer = path ? dlopen(path, RTLD_NOW | RTLD_NOLOAD) : NULL;
         void (*get)(gpu_stats *) = layer ? (void (*)(gpu_stats *))dlsym(layer, "gfg_native_gpu_bridge_stats") : NULL;
         REQUIRE(get);
+        const char *expected_layer = getenv("GFG_TEST_EXPECT_LAYER_PATH");
+        if (expected_layer) {
+            char *actual = realpath(path, NULL), *expected = realpath(expected_layer, NULL);
+            REQUIRE(actual && expected && !strcmp(actual, expected));
+            printf("GSF_LOADED_LAYER path=%s verified=1\n", actual);
+            free(actual); free(expected);
+        }
         gpu_stats st;
         memset(&st, 0, sizeof st);
         get(&st);
@@ -470,9 +547,10 @@ int main(void) {
                (unsigned long long)st.verify_host_reads);
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "GPU smoke check failed: %s\n", #c); failed = 1; } } while (0)
         CHECK(st.version == 1);
-        CHECK(st.bridges_created == 1);
+        CHECK(st.bridges_created == (lifecycle ? 3u : 1u));
+        if (lifecycle) CHECK(check_generation(&generation_before, &st, frames / 3, generation));
         CHECK(st.real_presents == frames);
-        CHECK(st.synthetic_presents + st.skipped_synthetic == (getenv("GFG_NATIVE_MODE") && !strcmp(getenv("GFG_NATIVE_MODE"),"2")?1ull:2ull) * (frames - 1));
+        CHECK(st.synthetic_presents + st.skipped_synthetic == (getenv("GFG_NATIVE_MODE") && !strcmp(getenv("GFG_NATIVE_MODE"),"2")?1ull:2ull) * (frames - (lifecycle ? 3u : 1u)));
         if (!env_1("GFG_TEST_ALLOW_SKIPS")) CHECK(st.skipped_synthetic == 0);
         CHECK(st.errors == (env_1("GFG_TEST_EXPECT_FAULT")?1u:0u));
         CHECK(st.present_path_host_pixel_reads == 0);
