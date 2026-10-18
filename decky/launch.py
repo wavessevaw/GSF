@@ -45,7 +45,7 @@ def game_environment(kit, run, inherited):
     env['VK_INSTANCE_LAYERS'] = ':'.join(layers)
     env.update(GFG_NATIVE_FG='1', GFG_NATIVE_GPU_BRIDGE='1', GFG_NATIVE_GPU_SYNC='same-device',
                GFG_NATIVE_ASYNC='1', GFG_NATIVE_FORCE_FIFO='1', GFG_NATIVE_MODE='2',
-               GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
+               GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
                GFG_NATIVE_TIMING='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'))
     # Never set SOURCE_HZ, OUTPUT_HZ, a game limiter, pixel readbacks or test badges.
