@@ -163,7 +163,8 @@ class Runtime:
                     shutil.rmtree(stage)
         base.verify_payload(dest)
         for source, name in ((self.plugin/'launch.py', 'launch.py'),
-                             (self.plugin/'py_modules/gsf_runtime.py', 'gsf_runtime.py')):
+                             (self.plugin/'py_modules/gsf_runtime.py', 'gsf_runtime.py'),
+                             (self.plugin/'py_modules/gsf_diagnostic.py', 'gsf_diagnostic.py')):
             temp = self.root/(name+'.new')
             shutil.copyfile(source, temp)
             temp.chmod(0o600)
@@ -213,6 +214,18 @@ class Runtime:
             del cfg['games'][app_id(appid)]
             atomic_json(self.root/'config.json', cfg)
 
+    def set_diagnostic_mode(self, appid, mode):
+        if mode not in ('normal', 'source-only', 'compute-only', 'matched-compute'):
+            raise ValueError('Неверный диагностический режим')
+        aid = app_id(appid)
+        cfg = self.config()
+        entry = cfg['games'].get(aid)
+        if not entry:
+            raise ValueError('Сначала настройте выбранную игру')
+        entry['diagnostic_mode'] = mode
+        atomic_json(self.root/'config.json', cfg)
+        return {'diagnostic_mode': mode, 'restart_required': True}
+
     def disable_all(self):
         cfg = self.config()
         for saved in cfg['games'].values():
@@ -255,6 +268,7 @@ class Runtime:
         blocked = gate_rejection(run) if run else None
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
+                'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,
