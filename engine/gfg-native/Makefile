@@ -338,3 +338,13 @@ $(BUILD)/timeline-watch: tests/timeline_watch.c src/timeline_watch.h tests/stubs
 timeline-watch: $(BUILD)/timeline-watch
 	$(BUILD)/timeline-watch
 .PHONY: timeline-watch
+
+
+# Pure fake Vulkan calibration clock tests, no driver or real swapchain.
+$(BUILD)/calibration-clock: tests/calibration_clock.c src/calibrated_clock.h tests/stubs/vulkan/vulkan.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -pthread -Itests/stubs -o $@ tests/calibration_clock.c
+
+calibration-clock: $(BUILD)/calibration-clock
+	$(BUILD)/calibration-clock
+.PHONY: calibration-clock
