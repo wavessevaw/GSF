@@ -1,0 +1,127 @@
+{
+ "sequence": "bolt-multi-size-detection.mp4 (intel-iot-devkit/sample-videos, CC-BY 4.0)",
+ "fps_source": 59.94005994005994,
+ "step": 2,
+ "fps_real": 29.97002997002997,
+ "fps_output": 59.94005994005994,
+ "width": 1280,
+ "height": 720,
+ "segments": {
+  "bolt-multi-size-detection": {
+   "start": 0,
+   "pairs": 90,
+   "methods": {
+    "repeat": {
+     "psnr_y": 34.11601780984851,
+     "psnr_y_p5": 22.93917237453981,
+     "ssim_y": 0.9688427626130213,
+     "temporal_err": 2.5965850406695004,
+     "frames": 90
+    },
+    "blend": {
+     "psnr_y": 37.73970240062327,
+     "psnr_y_p5": 27.31313445844893,
+     "ssim_y": 0.9780239230374439,
+     "temporal_err": 1.7062063355503294,
+     "frames": 90
+    },
+    "te_adaptive": {
+     "psnr_y": 45.13370748342933,
+     "psnr_y_p5": 39.600727550425596,
+     "ssim_y": 0.9916683314682133,
+     "temporal_err": 0.6743098709460658,
+     "frames": 90,
+     "seam_excess": 0.17939991646562703,
+     "cost": {
+      "pyramid_ms": 6.236593333333333,
+      "analyze_ms": 68.41697333333333,
+      "classify_ms": 0.37414444444444445,
+      "lists_ms": 0.37124444444444443,
+      "frame_ms": 40.05509444444445,
+      "frame_ms_p95": 86.57771499999998,
+      "frame_ms_p99": 115.94153799999998,
+      "scene_cuts": 0,
+      "promoted": 1,
+      "confidence": 0.9409955555555556,
+      "share_reuse": 0.34537345679012343,
+      "reuse_ms": 2.9283488888888884,
+      "share_light": 0.559929012345679,
+      "light_ms": 13.775211111111112,
+      "share_full": 0.09469753086419755,
+      "full_ms": 22.829845555555554,
+      "pair_ms": 115.08280555555555,
+      "pair_ms_p95": 173.36992999999998,
+      "pair_ms_p99": 205.89329299999994,
+      "per_output_ms": 115.08280555555555
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x720 tiles 80x45 pairs 90 step 2 mode adaptive profile",
+     "wall_s": 11.93259596824646
+    },
+    "te_full": {
+     "psnr_y": 45.22664394764639,
+     "psnr_y_p5": 39.57992881000144,
+     "ssim_y": 0.9919454462966647,
+     "temporal_err": 0.6699650292187774,
+     "frames": 90,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 6.319842222222223,
+      "analyze_ms": 69.63937333333334,
+      "classify_ms": 0.49764888888888886,
+      "lists_ms": 0.36174999999999996,
+      "frame_ms": 225.6103866666667,
+      "frame_ms_p95": 261.85792,
+      "frame_ms_p99": 293.91615699999994,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.9409955555555556,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.12990444444444446,
+      "share_light": 0.0,
+      "light_ms": 0.13878222222222222,
+      "share_full": 1.0,
+      "full_ms": 224.81335555555557,
+      "pair_ms": 302.0672511111111,
+      "pair_ms_p95": 356.71164,
+      "pair_ms_p99": 376.824005,
+      "per_output_ms": 302.0672511111111
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x720 tiles 80x45 pairs 90 step 2 mode full profile",
+     "wall_s": 28.54645562171936
+    },
+    "te_light": {
+     "psnr_y": 45.251415929314454,
+     "psnr_y_p5": 39.90762547874699,
+     "ssim_y": 0.9919772208096306,
+     "temporal_err": 0.6698297662078403,
+     "frames": 90,
+     "seam_excess": 0.9981250271569782,
+     "cost": {
+      "pyramid_ms": 7.253584444444443,
+      "analyze_ms": 75.00398111111112,
+      "classify_ms": 0.4243188888888889,
+      "lists_ms": 0.37163666666666667,
+      "frame_ms": 25.665721111111107,
+      "frame_ms_p95": 31.84979,
+      "frame_ms_p99": 36.554221,
+      "scene_cuts": 0,
+      "promoted": 1647,
+      "confidence": 0.9409955555555556,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.14617000000000002,
+      "share_light": 0.9949166666666667,
+      "light_ms": 23.117777777777782,
+      "share_full": 0.005083333333333334,
+      "full_ms": 1.901072222222222,
+      "pair_ms": 108.34760555555555,
+      "pair_ms_p95": 142.549575,
+      "pair_ms_p99": 164.234453,
+      "per_output_ms": 108.34760555555555
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x720 tiles 80x45 pairs 90 step 2 mode light profile",
+     "wall_s": 11.079822540283203
+    }
+   }
+  }
+ }
+}

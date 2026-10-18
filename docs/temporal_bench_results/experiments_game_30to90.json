@@ -1,0 +1,317 @@
+{
+ "results": [
+  {
+   "config": "adaptive",
+   "experiments": [],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.88317972214706,
+   "ssim_y": 0.9714727285691251,
+   "temporal_err": 1.39686089998213,
+   "per_segment": {
+    "strafe": 30.222847956100367,
+    "objects": 35.74094722074067,
+    "fastturn": 29.486993190471445,
+    "static_hud": 39.455821134506294,
+    "scenecut": 39.509289108916555
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "full": 39033612.8
+   },
+   "fetches_total_per_output": 64774438.4
+  },
+  {
+   "config": "full-all",
+   "experiments": [],
+   "params": {
+    "adaptive": false,
+    "force_class": 2
+   },
+   "outputs": 80,
+   "psnr_y": 34.84237716292459,
+   "ssim_y": 0.971660847622607,
+   "temporal_err": 1.3708435201660905,
+   "per_segment": {
+    "strafe": 30.246707217686954,
+    "objects": 35.7004253359715,
+    "fastturn": 29.473613019743667,
+    "static_hud": 39.260410943601826,
+    "scenecut": 39.53072929761899
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "full": 186368000.0
+   },
+   "fetches_total_per_output": 210784000.0
+  },
+  {
+   "config": "light-all",
+   "experiments": [],
+   "params": {
+    "adaptive": false,
+    "force_class": 1
+   },
+   "outputs": 80,
+   "psnr_y": 34.678347890236445,
+   "ssim_y": 0.9700281019980694,
+   "temporal_err": 1.491440015470289,
+   "per_segment": {
+    "strafe": 29.925075533075905,
+    "objects": 35.657034651809234,
+    "fastturn": 29.37088026481129,
+    "static_hud": 39.21102518510875,
+    "scenecut": 39.227723816377065
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "light": 1919072.0,
+    "full": 11732448.0
+   },
+   "fetches_total_per_output": 38067520.0
+  },
+  {
+   "config": "A-checker",
+   "experiments": [
+    "A"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.88391349748179,
+   "ssim_y": 0.9714717990932558,
+   "temporal_err": 1.3969374988992058,
+   "per_segment": {
+    "strafe": 30.224152594330242,
+    "objects": 35.7407706067675,
+    "fastturn": 29.487169495243435,
+    "static_hud": 39.45587018950914,
+    "scenecut": 39.511604601558616
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "full": 22335618.95
+   },
+   "fetches_total_per_output": 48076444.55
+  },
+  {
+   "config": "B-2x1",
+   "experiments": [
+    "B2x1"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.86589264340607,
+   "ssim_y": 0.9713628645860218,
+   "temporal_err": 1.3990958294707525,
+   "per_segment": {
+    "strafe": 30.193948139815966,
+    "objects": 35.73573327590202,
+    "fastturn": 29.470103440002767,
+    "static_hud": 39.44385602176352,
+    "scenecut": 39.48582233954606
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "full": 19731276.8
+   },
+   "fetches_total_per_output": 45472102.4
+  },
+  {
+   "config": "B-1x2",
+   "experiments": [
+    "B1x2"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.85948713646894,
+   "ssim_y": 0.9714046956226763,
+   "temporal_err": 1.3973792086835601,
+   "per_segment": {
+    "strafe": 30.184281992849645,
+    "objects": 35.7444649251166,
+    "fastturn": 29.480692787189113,
+    "static_hud": 39.38800110459775,
+    "scenecut": 39.49999487259163
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "full": 19731276.8
+   },
+   "fetches_total_per_output": 45472102.4
+  },
+  {
+   "config": "B-2x2",
+   "experiments": [
+    "B2x2"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.84486903624654,
+   "ssim_y": 0.9713005228247203,
+   "temporal_err": 1.3994131309991644,
+   "per_segment": {
+    "strafe": 30.15936910183587,
+    "objects": 35.73689991391501,
+    "fastturn": 29.46137374908462,
+    "static_hud": 39.38155171820152,
+    "scenecut": 39.48515069819565
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "full": 10080108.8
+   },
+   "fetches_total_per_output": 35820934.4
+  },
+  {
+   "config": "C-chroma",
+   "experiments": [
+    "C"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 35.05906022659586,
+   "ssim_y": 0.9718822794537167,
+   "temporal_err": 1.3863724498878582,
+   "per_segment": {
+    "strafe": 30.40886817803363,
+    "objects": 35.90860011772874,
+    "fastturn": 29.57999231330776,
+    "static_hud": 39.76729357887186,
+    "scenecut": 39.630546945037324
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294233.6,
+    "light": 1030592.0,
+    "chroma_split_bytes": 4378598.4,
+    "full": 39033612.8
+   },
+   "fetches_total_per_output": 69153036.8
+  },
+  {
+   "config": "D-nearest",
+   "experiments": [
+    "D"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.67073835876515,
+   "ssim_y": 0.9703947264631605,
+   "temporal_err": 1.4791806010107393,
+   "per_segment": {
+    "strafe": 30.17322114990288,
+    "objects": 35.50252724067056,
+    "fastturn": 29.426141392738344,
+    "static_hud": 39.149694503424044,
+    "scenecut": 39.10210750708992
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294131.2,
+    "light": 519187.2,
+    "full": 38344051.2
+   },
+   "fetches_total_per_output": 63573369.6
+  },
+  {
+   "config": "E-motion",
+   "experiments": [
+    "E"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.81070272262361,
+   "ssim_y": 0.9711188185071118,
+   "temporal_err": 1.4233869236959436,
+   "per_segment": {
+    "strafe": 30.215421547898394,
+    "objects": 35.73142267772047,
+    "fastturn": 29.484555076902467,
+    "static_hud": 39.15167802722777,
+    "scenecut": 39.470436283368954
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 399206.4,
+    "light": 821849.6,
+    "full": 38924121.6
+   },
+   "fetches_total_per_output": 64561177.6
+  },
+  {
+   "config": "F-dual",
+   "experiments": [
+    "F"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.88126118318088,
+   "ssim_y": 0.9710955908851047,
+   "temporal_err": 1.4211226777042612,
+   "per_segment": {
+    "strafe": 30.18901993348607,
+    "objects": 35.72615825866374,
+    "fastturn": 29.50118470371153,
+    "static_hud": 39.515481937667445,
+    "scenecut": 39.47446108237561
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294131.2,
+    "light": 1459737.6,
+    "full": 11582188.8
+   },
+   "fetches_total_per_output": 37752057.6
+  },
+  {
+   "config": "G-interleave",
+   "experiments": [
+    "G"
+   ],
+   "params": {},
+   "outputs": 80,
+   "psnr_y": 34.57786832914181,
+   "ssim_y": 0.9694729930805182,
+   "temporal_err": 1.462917721375561,
+   "per_segment": {
+    "strafe": 29.757343180527545,
+    "objects": 35.67090864074468,
+    "fastturn": 29.330203713215383,
+    "static_hud": 39.07764373548308,
+    "scenecut": 39.05324237573835
+   },
+   "fetches_per_output": {
+    "pyramid": 672000.0,
+    "analyze": 23744000.0,
+    "reuse": 294092.8,
+    "light": 1246041.6,
+    "full": 19453324.8
+   },
+   "fetches_total_per_output": 45409459.2
+  }
+ ],
+ "sequence": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+ "step": 3,
+ "pairs": 8
+}
