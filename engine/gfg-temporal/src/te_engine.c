@@ -17,6 +17,28 @@
 #include <time.h>
 #include <unistd.h>
 
+
+/* Opt-in monotonic HOST timings. These measure Vulkan host calls, not GPU time,
+ * shader-cache hits or eventual WSI/physical scanout. Zero default overhead
+ * on the frame submission path (only called at context initialization). */
+static int te_profile_init_enabled(void) {
+    const char* setting = getenv("GSF_TE_PROFILE_INIT");
+    return setting && setting[0] == '1' && setting[1] == '\0';
+}
+
+static double te_profile_init_clock_ms(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec * 1e3 + (double)t.tv_nsec / 1e6;
+}
+
+static void te_profile_init_log(const char* phase, int pipeline, int variant,
+                                double start_ms, VkResult result) {
+    if (!te_profile_init_enabled()) return;
+    fprintf(stderr, "[gfg-te] init_profile phase=%s pipeline=%d variant=%d host_ms=%.3f result=%d\n",
+            phase, pipeline, variant, te_profile_init_clock_ms() - start_ms, (int)result);
+}
+
 #define TE_RING 2
 #define TE_LMC_Q0 (4 + TE_MAX_OUTPUTS * 6)              /* LMC per-pass points */
 #define TE_QUERIES (TE_LMC_Q0 + TE_LMC_PROF_COUNT + 1)
@@ -738,12 +760,17 @@ static VkResult make_pipeline(te_context* ctx, const uint32_t* code, size_t byte
     VkShaderModuleCreateInfo smci = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = bytes,
                                      .pCode = code};
     VkShaderModule mod;
-    CHECK(vkCreateShaderModule(d, &smci, NULL, &mod), "vkCreateShaderModule");
+    double module_started = te_profile_init_clock_ms();
+    VkResult module_result = vkCreateShaderModule(d, &smci, NULL, &mod);
+    te_profile_init_log("temporal-shader-module", -1, -1, module_started, module_result);
+    CHECK(module_result, "vkCreateShaderModule");
     VkComputePipelineCreateInfo cpci = {.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
                                         .stage = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                                                   .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = mod, .pName = "main"},
                                         .layout = ctx->layout};
+    double pipeline_started = te_profile_init_clock_ms();
     VkResult r = vkCreateComputePipelines(d, VK_NULL_HANDLE, 1, &cpci, NULL, out);
+    te_profile_init_log("temporal-compute-pipeline", -1, -1, pipeline_started, r);
     vkDestroyShaderModule(d, mod, NULL);
     if (r != VK_SUCCESS) return fail(r, "vkCreateComputePipelines failed (%d)", r);
     return VK_SUCCESS;
@@ -800,7 +827,9 @@ static VkResult create_pipelines(te_context* ctx) {
         [PIPE_FULL] = {fp16 ? te_spv_full_fp16 : te_spv_full, fp16 ? sizeof te_spv_full_fp16 : sizeof te_spv_full},
     };
     for (int i = 0; i < PIPE_COUNT; ++i) {
+        double stage_started = te_profile_init_clock_ms();
         VkResult r = make_pipeline(ctx, src[i].code, src[i].size, &ctx->pipe[i]);
+        te_profile_init_log("temporal-pipeline-total", i, 0, stage_started, r);
         if (r != VK_SUCCESS) return r;
     }
     return VK_SUCCESS;
@@ -1017,6 +1046,7 @@ static VkResult validate_desc(te_device* dev, const te_context_desc* d) {
 }
 
 VkResult te_context_create(te_device* dev, const te_context_desc* desc, te_context** out) {
+    double context_started = te_profile_init_clock_ms();
     select_device(dev);
     *out = NULL;
     VkResult r = validate_desc(dev, desc);
@@ -1151,8 +1181,14 @@ VkResult te_context_create(te_device* dev, const te_context_desc* desc, te_conte
     dsai.pSetLayouts = l1;
     TRY(vkAllocateDescriptorSets(d, &dsai, ctx->set1));
     write_sets(ctx);
+    double pipeline_started = te_profile_init_clock_ms();
     TRY(create_pipelines(ctx));
-    if (p->algorithm == TE_ALGO_LMC || p->algorithm == TE_ALGO_LMC_GPU || p->algorithm == TE_ALGO_SHARED_FLOW) TRY(lmc_create(ctx));
+    te_profile_init_log("temporal-pipelines-all", -1, 0, pipeline_started, VK_SUCCESS);
+    if (p->algorithm == TE_ALGO_LMC || p->algorithm == TE_ALGO_LMC_GPU || p->algorithm == TE_ALGO_SHARED_FLOW) {
+        double lmc_started = te_profile_init_clock_ms();
+        TRY(lmc_create(ctx));
+        te_profile_init_log("lmc-context-all", -1, p->algorithm, lmc_started, VK_SUCCESS);
+    }
     for (int s = 0; s < TE_RING; ++s) {
         te_slot* slot = &ctx->ring[s];
         VkCommandBufferAllocateInfo cai = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -1169,8 +1205,11 @@ VkResult te_context_create(te_device* dev, const te_context_desc* desc, te_conte
         TRY(vkCreateQueryPool(d, &qpci, NULL, &slot->queries));
         TRY(buffer_create(dev, &slot->readback, TE_GLOBALS_HEADER * TE_MAX_OUTPUTS, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1));
     }
+    double init_submit_started = te_profile_init_clock_ms();
     TRY(one_time(ctx, record_init, NULL));
+    te_profile_init_log("context-initial-gpu-submit-and-wait", -1, 0, init_submit_started, VK_SUCCESS);
     ctx->memory_bytes = dev->allocated - allocated_before;
+    te_profile_init_log("context-total", -1, p->algorithm, context_started, VK_SUCCESS);
 #undef TRY
     *out = ctx;
     return VK_SUCCESS;

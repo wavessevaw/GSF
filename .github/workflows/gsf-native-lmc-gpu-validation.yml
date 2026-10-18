@@ -64,6 +64,7 @@ jobs:
               GFG_TEST_VALIDATION=1 GFG_TEST_PROTON_CHAIN=1 \
               GFG_NATIVE_ALGO=lmc-gpu GFG_TEST_FRAMES=8 \
               GFG_NATIVE_GPU_BRIDGE_VERIFY=1 GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY=2 \
+              GSF_TE_PROFILE_INIT=1 \
               VK_INSTANCE_LAYERS="$LAYER_ORDER" \
               VK_LAYER_PATH="$GITHUB_WORKSPACE/engine/gfg-native/build-triage:/usr/share/vulkan/explicit_layer.d" \
               xvfb-run -a engine/gfg-native/build-triage/wsi-gpu-smoke \
