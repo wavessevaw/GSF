@@ -103,4 +103,69 @@ def diagnostic_summary(path):
         report['completion_overrun_median_ms'] = _median(ordered)
         report['post_deadline_tail_p95_ms'] = round(ordered[min(len(ordered)-1, int((len(ordered)-1)*0.95))], 3)
         report['late_completion_rate'] = round(sum(x > 0 for x in overruns) / len(overruns), 4)
+
+    # Correlate only after pair/te_sequence windows were indexed. Never
+    # infer pure queue wait from this submit-to-GPU-start duration.
+    by_window = {int(row['start_s']//10): row for row in result_windows}
+    delays = []
+    statuses = {}
+    calibrated_records = 0
+    try:
+        with path.open(encoding='utf-8', errors='replace') as stream:
+            for line in stream:
+                if '"gpu_correlated"' not in line and '"calibration_init"' not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except (TypeError, ValueError):
+                    continue
+                if event.get('event') == 'calibration_init':
+                    report['calibration_init_status'] = event.get('status', 'unavailable')
+                    report['calibration_extension'] = event.get('extension', 'none')
+                if event.get('event') != 'gpu_correlated':
+                    continue
+                calibrated_records += 1
+                reason = event.get('calibration_status', 'unknown')
+                statuses[reason] = statuses.get(reason, 0) + 1
+                wait_ns = event.get('submit_to_gpu_start_ns')
+                if wait_ns is not None and reason == 'calibrated':
+                    ms = int(wait_ns)/1e6
+                    delays.append(ms)
+                    offset = sequence_window.get(int(event.get('te_sequence', 0)))
+                    if offset in by_window:
+                        by_window[offset].setdefault('_submit_to_gpu_start_ms', []).append(ms)
+    except OSError:
+        pass
+    report['submit_to_gpu_start_median_ms'] = _median(delays)
+    report['submit_to_gpu_start_samples'] = len(delays)
+    report['gpu_correlated_records'] = calibrated_records
+    report['calibration_status_counts'] = statuses
+
+    samples = []
+    try:
+        with path.with_name('amdgpu.jsonl').open(encoding='utf-8', errors='replace') as stream:
+            for line in stream:
+                try:
+                    event = json.loads(line)
+                except (TypeError, ValueError):
+                    continue
+                if event.get('event') == 'amdgpu_sample':
+                    samples.append(event)
+    except OSError:
+        pass
+    busy = [e['gpu_busy_percent'] for e in samples if e.get('gpu_busy_percent') is not None]
+    report['amdgpu_sample_count'] = len(samples)
+    report['gpu_busy_median_percent'] = _median(busy)
+    report['gpu_busy_scope'] = 'global_gpu_not_game'
+    for sample in samples:
+        if first_ns is None or sample.get('gpu_busy_percent') is None:
+            continue
+        offset = (int(sample['sample_ns'])-first_ns)//10000000000
+        if offset in by_window:
+            by_window[offset].setdefault('_gpu_busy_percent', []).append(sample['gpu_busy_percent'])
+    for window in result_windows:
+        window['submit_to_gpu_start_median_ms'] = _median(window.pop('_submit_to_gpu_start_ms', []))
+        window['gpu_busy_median_percent'] = _median(window.pop('_gpu_busy_percent', []))
+    # A/B comparisons need an independent baseline with matching scene/thermals.
+    report['source_fps_loss_vs_baseline_percent'] = None
     return report
