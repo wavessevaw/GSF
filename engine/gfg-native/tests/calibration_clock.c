@@ -48,6 +48,8 @@ int main(void) {
     gsf_calibration_maybe_sample(&c,11);
     out=gsf_calibration_estimate(&c,1000,1000.0,19999999000ull);
     assert(!out.valid && !strcmp(out.reason,"maxDeviation_over_limit"));
+    deviation=500000;
+    gsf_calibration_maybe_sample(&c,21);
     out=gsf_calibration_estimate(&c,1000000000,1000.0,19999999000ull);
     assert(!out.valid && !strcmp(out.reason,"calibration_stale"));
     has_host=0;
