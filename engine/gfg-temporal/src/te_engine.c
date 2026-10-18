@@ -1181,13 +1181,17 @@ VkResult te_context_create(te_device* dev, const te_context_desc* desc, te_conte
     dsai.pSetLayouts = l1;
     TRY(vkAllocateDescriptorSets(d, &dsai, ctx->set1));
     write_sets(ctx);
-    double pipeline_started = te_profile_init_clock_ms();
-    TRY(create_pipelines(ctx));
-    te_profile_init_log("temporal-pipelines-all", -1, 0, pipeline_started, VK_SUCCESS);
     if (p->algorithm == TE_ALGO_LMC || p->algorithm == TE_ALGO_LMC_GPU || p->algorithm == TE_ALGO_SHARED_FLOW) {
+        /* The algorithm is fixed for this context. Both analysis and output
+         * dispatch exclusively through lmc_record_* and its own pipelines;
+         * compiling the nine tile pipelines here wastes initialization work. */
         double lmc_started = te_profile_init_clock_ms();
         TRY(lmc_create(ctx));
         te_profile_init_log("lmc-context-all", -1, p->algorithm, lmc_started, VK_SUCCESS);
+    } else {
+        double pipeline_started = te_profile_init_clock_ms();
+        TRY(create_pipelines(ctx));
+        te_profile_init_log("temporal-pipelines-all", -1, 0, pipeline_started, VK_SUCCESS);
     }
     for (int s = 0; s < TE_RING; ++s) {
         te_slot* slot = &ctx->ring[s];

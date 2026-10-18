@@ -56,6 +56,8 @@ def summarize(rows, log, wall_ms):
     contexts = [e for e in events if e["phase"] == "context-total"]
     if len(contexts) != 1 or any(e["result"] != 0 for e in events):
         raise ValueError("missing successful context initialization profile")
+    if any(e["phase"].startswith("temporal-") for e in events):
+        raise ValueError("LMC context still creates unused tile pipelines")
     first = rows[0]
     stages = dict(first["lmc_ms"], pyramid=first["pyramid_ms"],
                   output1=first["frames"][0]["total_ms"], output2=first["frames"][1]["total_ms"])
