@@ -489,13 +489,18 @@ static VkResult lmc_create(te_context* ctx) {
         VkShaderModuleCreateInfo smci = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
                                          .codeSize = src[i].size, .pCode = src[i].code};
         VkShaderModule mod;
-        CHECK(vkCreateShaderModule(d, &smci, NULL, &mod), "vkCreateShaderModule(lmc)");
+        double module_started = te_profile_init_clock_ms();
+        VkResult module_result = vkCreateShaderModule(d, &smci, NULL, &mod);
+        te_profile_init_log("lmc-shader-module", i, 0, module_started, module_result);
+        CHECK(module_result, "vkCreateShaderModule(lmc)");
         VkComputePipelineCreateInfo cpci = {.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
                                             .stage = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                                                       .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = mod,
                                                       .pName = "main"},
                                             .layout = m->layout};
+        double pipeline_started = te_profile_init_clock_ms();
         r = vkCreateComputePipelines(d, VK_NULL_HANDLE, 1, &cpci, NULL, &m->pipe[i]);
+        te_profile_init_log("lmc-compute-pipeline", i, 0, pipeline_started, r);
         vkDestroyShaderModule(d, mod, NULL);
         if (r != VK_SUCCESS) return fail(r, "vkCreateComputePipelines(lmc %d) failed (%d)", i, r);
     }
@@ -504,7 +509,10 @@ static VkResult lmc_create(te_context* ctx) {
         VkShaderModuleCreateInfo smci = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
                                          .codeSize = sizeof te_spv_lmc_search, .pCode = te_spv_lmc_search};
         VkShaderModule mod;
-        CHECK(vkCreateShaderModule(d, &smci, NULL, &mod), "vkCreateShaderModule(lmc search)");
+        double module_started = te_profile_init_clock_ms();
+        VkResult module_result = vkCreateShaderModule(d, &smci, NULL, &mod);
+        te_profile_init_log("lmc-search-shader-module", LMC_SEARCH, 0, module_started, module_result);
+        CHECK(module_result, "vkCreateShaderModule(lmc search)");
         for (int l = 1; l <= LMC_LEVELS && r == VK_SUCCESS; ++l)
             for (int g = 0; g < 2 && r == VK_SUCCESS; ++g) {
                 int32_t spec[2] = {l, g};
@@ -516,7 +524,9 @@ static VkResult lmc_create(te_context* ctx) {
                               .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = mod, .pName = "main",
                               .pSpecializationInfo = &si},
                     .layout = m->layout};
+                double pipeline_started = te_profile_init_clock_ms();
                 r = vkCreateComputePipelines(d, VK_NULL_HANDLE, 1, &cpci, NULL, &m->search[l][g]);
+                te_profile_init_log("lmc-search-compute-pipeline", l, g, pipeline_started, r);
             }
         vkDestroyShaderModule(d, mod, NULL);
         if (r != VK_SUCCESS) return fail(r, "vkCreateComputePipelines(lmc search) failed (%d)", r);
