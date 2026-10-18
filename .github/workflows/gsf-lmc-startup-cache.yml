@@ -1,0 +1,42 @@
+name: GSF LMC Cold and Warm Cache Lab
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-temporal/src/**'
+      - 'engine/gfg-temporal/shaders/**'
+      - 'engine/gfg-temporal/bench/startup_cache_lab.py'
+      - 'engine/gfg-temporal/bench/test_startup_cache_lab.py'
+      - '.github/workflows/gsf-lmc-startup-cache.yml'
+permissions:
+  contents: read
+jobs:
+  startup:
+    name: Direct GPU LMC cache / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software GPU and shader tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools python3-numpy
+      - name: Reject partial or malformed timing evidence
+        run: /usr/bin/python3 -m unittest discover -s engine/gfg-temporal/bench -p test_startup_cache_lab.py -v
+      - name: Compile actual Temporal GPU engine
+        run: make -C engine/gfg-temporal all lib
+      - name: Measure isolated empty, reused and disabled disk cache
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          /usr/bin/python3 engine/gfg-temporal/bench/startup_cache_lab.py --out startup-results
+      - name: Preserve source, GPU pixels, stage timestamps and process logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lmc-startup-${{ matrix.os }}
+          path: startup-results/
+          retention-days: 21
