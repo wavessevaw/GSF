@@ -1,0 +1,19 @@
+; GFG Temporal Engine quality bench: procedural 3D scenes rendered at a fixed
+; 90 FPS with Godot's Movie Maker.  Every frame is ground truth for the
+; frames a generator has to reproduce from the 30 FPS subsequence.
+config_version=5
+
+[application]
+config/name="gfg-te-bench"
+run/main_scene="res://main.tscn"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/size/resizable=false
+window/vsync/vsync_mode=0
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=2
