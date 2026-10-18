@@ -97,8 +97,11 @@ static inline const char *gfg_pc_prepare(gfg_present_chain *out,
             /* App-owned IDs stay unchanged so its timing-query results stay in
              * its namespace. Relative deadlines need a separate cadence policy. */
             if (id_mode) return "present-timing-needs-application-owned-ids";
-            if (p->swapchainCount != 1 || !p->pTimingInfos) return "invalid-present-timings";
-            if (p->pTimingInfos[0].flags & VK_PRESENT_TIMING_INFO_PRESENT_AT_RELATIVE_TIME_BIT_EXT)
+            if (p->swapchainCount != 1) return "invalid-present-timings";
+            /* Vulkan permits a NULL array: there are no per-present timing
+             * records to inspect. Preserve that no-op node and its suffix. */
+            if (p->pTimingInfos &&
+                (p->pTimingInfos[0].flags & VK_PRESENT_TIMING_INFO_PRESENT_AT_RELATIVE_TIME_BIT_EXT))
                 return "relative-present-timing";
             bit = 32u; size = sizeof(*p); break;
         }

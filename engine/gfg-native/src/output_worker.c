@@ -81,9 +81,12 @@ static output_job *copy_job(const VkPresentInfoKHR *app, int mode) {
             if (n->times.pTimes) { j->time = n->times.pTimes[0]; n->times.pTimes = &j->time; }
             break;
         case VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT:
-            j->timing = n->timings.pTimingInfos[0];
-            if (j->timing.pNext) { free(j); return NULL; }
-            n->timings.pTimingInfos = &j->timing; break;
+            if (n->timings.pTimingInfos) {
+                j->timing = n->timings.pTimingInfos[0];
+                if (j->timing.pNext) { free(j); return NULL; }
+                n->timings.pTimingInfos = &j->timing;
+            }
+            break;
         default: break; /* mode array was already internalized; damage omitted */
         }
     }
