@@ -89,6 +89,10 @@ typedef struct {
     int profiled;                        /* per-executor times valid (else -1) */
     int held;                            /* no previous frame: outputs copy the new real frame */
     uint64_t sequence;                   /* submission number of this pair (1 = first submit) */
+    uint64_t submit_return_ns;           /* CLOCK_MONOTONIC after TE QueueSubmit */
+    uint64_t gpu_start_ticks;            /* raw query 0, valid when timed */
+    double gpu_timestamp_period_ns;
+    uint32_t gpu_timestamp_valid_bits;
     uint64_t outputs_completed_total;    /* all outputs of this context whose GPU work finished */
     double stage_ms[TE_STAGE_COUNT];     /* once per pair */
     double lmc_ms[TE_LMC_PROF_COUNT];    /* LMC: per analysis pass (-1 when not timed) */

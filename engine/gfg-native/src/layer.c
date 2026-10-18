@@ -133,6 +133,7 @@ typedef struct native_device {
     int gpu_capable;  /* external memory fd + timeline enabled by this layer */
     int display_timing; /* 0 absent, 1 app namespace, 2 layer-owned GOOGLE timing */
     int semaphore_fd; /* VK_KHR_external_semaphore_fd enabled */
+    int calibrated_mode; /* 1 KHR, 2 EXT, 0 not enabled */
     int present_caps; /* NATIVE_PRESENT_* enabled (by the app or, for tracing, by us) */
     int present_trace;
     int app_present_ids;
@@ -264,6 +265,7 @@ typedef struct {
     int active;
     int display_timing; /* 0 absent, 1 app namespace, 2 layer-owned GOOGLE timing */
     int semaphore_fd;
+    int calibrated_mode;
     int present_caps; /* NATIVE_PRESENT_* enabled on the created device */
     int app_present_ids; /* the application owns its ID/wait/timing namespace */
 } native_device_patch;
@@ -343,6 +345,11 @@ static const char *native_patch_device(native_instance *inst, VkPhysicalDevice p
     const int has_timing=native_has_extension(ext,n,VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
     const int has_pid = native_has_extension(ext, n, VK_KHR_PRESENT_ID_EXTENSION_NAME);
     const int has_pwait = native_has_extension(ext, n, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+    /* Diagnostic opt-in. Do not call calibration functions unless the device
+     * was successfully created with this extension enabled. */
+    const int calibrated_mode = native_env_is_1("GFG_NATIVE_CALIBRATED_TIMESTAMPS") ?
+        native_has_extension(ext,n,VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) ? 1 :
+        native_has_extension(ext,n,VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) ? 2 : 0 : 0;
     free(ext);
     const char *sync_mode = getenv("GFG_NATIVE_GPU_SYNC");
     if (sync_mode && strcmp(sync_mode, "same-device") && strcmp(sync_mode, "shared-fd"))
@@ -384,7 +391,7 @@ static const char *native_patch_device(native_instance *inst, VkPhysicalDevice p
             add_pwait = !(p->present_caps & NATIVE_PRESENT_WAIT);
         }
     }
-    p->extensions = calloc(ci->enabledExtensionCount + 5u, sizeof(char *));
+    p->extensions = calloc(ci->enabledExtensionCount + 6u, sizeof(char *));
     if (!p->extensions) return "oom";
     uint32_t count = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; ++i)
@@ -400,6 +407,12 @@ static const char *native_patch_device(native_instance *inst, VkPhysicalDevice p
         p->extensions[count++] = VK_KHR_PRESENT_ID_EXTENSION_NAME;
     if (add_pwait && !native_requested_extension(ci, VK_KHR_PRESENT_WAIT_EXTENSION_NAME))
         p->extensions[count++] = VK_KHR_PRESENT_WAIT_EXTENSION_NAME;
+    if(calibrated_mode) {
+        const char *cal_name=calibrated_mode==1?VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME:
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME;
+        if(!native_requested_extension(ci,cal_name))p->extensions[count++]=cal_name;
+        p->calibrated_mode=calibrated_mode;
+    }
     if(native_requested_extension(ci,VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME))p->display_timing=1;
     else if(has_timing) {
         p->extensions[count++]=VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME;
@@ -507,6 +520,7 @@ native_CreateDevice(VkPhysicalDevice phys, const VkDeviceCreateInfo *ci,
     const int gpu_capable = patch.active && !fallback && result == VK_SUCCESS;
     const int display_timing=gpu_capable?patch.display_timing:0;
     const int semaphore_fd = gpu_capable && patch.semaphore_fd;
+    const int calibrated_mode = gpu_capable ? patch.calibrated_mode : 0;
     const int present_caps = gpu_capable ? patch.present_caps : 0;
     const int app_present_ids = gpu_capable && patch.app_present_ids;
     native_unpatch_device(&patch);
@@ -538,6 +552,7 @@ native_CreateDevice(VkPhysicalDevice phys, const VkDeviceCreateInfo *ci,
     d->gpu_capable = gpu_capable;
     d->set_loader_data = set_loader_data;
     d->semaphore_fd = semaphore_fd;
+    d->calibrated_mode=calibrated_mode;
     d->display_timing=display_timing;
     d->present_caps = present_caps;
     d->present_trace = native_env_is_1("GFG_NATIVE_PRESENT_TRACE");
@@ -1861,7 +1876,7 @@ native_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
                         .gdpa = d->async_output ? native_worker_gdpa : d->gdpa,
                         .swapchain = sc->handle, .extent = sc->extent, .format = sc->format, .color_space=sc->color_space,
                         .present_mode = sc->present_mode, .force_fifo=sc->force_fifo, .queue = queue,
-                        .family = q->family, .semaphore_fd = d->semaphore_fd, .display_timing=d->display_timing,
+                        .family = q->family, .semaphore_fd = d->semaphore_fd, .display_timing=d->display_timing, .calibrated_mode=d->calibrated_mode,
                         .set_loader_data = d->set_loader_data};
                     sc->gpu = gfg_gpu_fg_create(&gi);
                     if (native_env_is_1("GFG_NATIVE_REAL_WSI_PROBE"))

@@ -100,6 +100,7 @@ typedef struct {
     uint32_t outputs;
     uint32_t parity;
     uint64_t sequence;
+    uint64_t submit_return_ns;
     int generated;
     int held;
     int profiled;
@@ -1426,6 +1427,9 @@ static void collect(te_context* ctx, te_slot* slot) {
     st->profiled = slot->profiled;
     st->held = slot->held;
     st->sequence = slot->sequence;
+    st->submit_return_ns = slot->submit_return_ns;
+    st->gpu_timestamp_period_ns = ctx->dev->props.limits.timestampPeriod;
+    st->gpu_timestamp_valid_bits = ctx->dev->ts_bits;
     ctx->outputs_completed += slot->outputs;
     st->outputs_completed_total = ctx->outputs_completed;
     uint64_t ts[TE_QUERIES];
@@ -1437,6 +1441,7 @@ static void collect(te_context* ctx, te_slot* slot) {
     uint64_t mask = ctx->dev->ts_bits >= 64 ? ~0ull : ((1ull << ctx->dev->ts_bits) - 1);
 #define DELTA(a, b) ((double)((ts[b] - ts[a]) & mask) * period)
     if (st->timed) {
+        st->gpu_start_ticks = ts[0];
         st->stage_ms[TE_STAGE_PYRAMID] = DELTA(0, 1);
         st->stage_ms[TE_STAGE_ANALYZE] = DELTA(1, 2);
         st->stage_ms[TE_STAGE_CLASSIFY] = DELTA(2, 3);
@@ -1689,6 +1694,8 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
             ctx->deferred_slot=slot;
         }
     }
+    struct timespec te_submitted_at;clock_gettime(CLOCK_MONOTONIC,&te_submitted_at);
+    const uint64_t te_submit_return_ns=(uint64_t)te_submitted_at.tv_sec*1000000000ull+(uint64_t)te_submitted_at.tv_nsec;
     for(uint32_t i=0;i<TE_MAX_OUTPUTS;++i)ctx->output_ready[i]=i<outs?s->signal_first+i:0;
     slot->in_flight = 1;
     slot->outputs = outs;
@@ -1697,6 +1704,7 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
     slot->pair = ctx->pairs;
     slot->parity = s->slot;
     slot->sequence = ++ctx->submits;
+    slot->submit_return_ns=te_submit_return_ns;
     slot->profiled = ctx->desc.profile || s->profile;
     if (ctx->upload_pending[s->slot]) {
         ctx->upload_pending[s->slot] = 0;

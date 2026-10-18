@@ -27,6 +27,7 @@ typedef struct {
     uint32_t family;
     int display_timing;               /* GOOGLE extension enabled: 1 app namespace, 2 private */
     int semaphore_fd;                 /* VK_KHR_external_semaphore_fd enabled on the app device */
+    int calibrated_mode;              /* calibrated timestamps enabled on device: KHR=1, EXT=2 */
     PFN_vkSetDeviceLoaderData set_loader_data; /* dispatch for layer-allocated command buffers */
 } gfg_gpu_fg_create_info;
 
