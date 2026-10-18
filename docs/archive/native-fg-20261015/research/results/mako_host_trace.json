@@ -1,0 +1,3589 @@
+{
+  "schema": 1,
+  "evidence": "SIMULATED",
+  "note": "Unmodified open source chain code with recording Vulkan wrappers; no proprietary shader or GPU",
+  "versions": {
+    "gfg_base": {
+      "schema": 1,
+      "purpose": "host-call simulation; no GPU or proprietary shader",
+      "width": 1280,
+      "height": 800,
+      "scope": "SDR; modeled context wiring; actual unmodified chain/helper code",
+      "source_sha256": {
+        "shaderchains/mipmaps.hpp": "04efdf7a9de67d5f091237dc908bc1c439a05b90b2f5d316332779aa3f7b5d3d",
+        "shaderchains/mipmaps.cpp": "06e53b9b244e60a711721596a7875993ac48febdd0dc5b86d0be749f49277fe6",
+        "shaderchains/alpha0.hpp": "6cfe6aedd5fbcbb8bab41dd3a5d6164fa9507e08354ede7092daaa59311db49c",
+        "shaderchains/alpha0.cpp": "e6af8002d4ac2b046d1dbef1116c93653dd4b4a00fee11d1d5202f19fc8d49f2",
+        "shaderchains/alpha1.hpp": "e4161da7360e494212bf1dad56bf6f5575e704c13d30881686c57e6d51d78372",
+        "shaderchains/alpha1.cpp": "932dd741642ba9727911ea88192fde69072ace55e15d80ffafee8a05f277ee0c",
+        "shaderchains/beta0.hpp": "ab57270f67bb44f33ad1021a0cd8dc1e2229b7e5010798c8aaf45ca066b712f3",
+        "shaderchains/beta0.cpp": "5c0a3b3438ac97cfd810c4f3d5f660efa06f6e687c27110bbcabd4102863f0f1",
+        "shaderchains/beta1.hpp": "3a7e716564791c818fbc1ec8a92d9e9ccce912eaf592da82a2a9f6ef794a4775",
+        "shaderchains/beta1.cpp": "4073b48548e31cfdee8db01d47d88e56e0e5b985c740a045ee036907aa9abbf5",
+        "shaderchains/gamma0.hpp": "4a3e186da96e88f35baf0154a2cf3162922c93fee22a05bed41337c2d28e0071",
+        "shaderchains/gamma0.cpp": "e0a31aea528ad6fff90b20445112c10f1a294d40e4cf5bba613895265544e588",
+        "shaderchains/gamma1.hpp": "08e49cc48cbbcdcde75e9dc30bdd8a468f94978057e5f5a050311fea6928c1f3",
+        "shaderchains/gamma1.cpp": "9e7776f2c9fb9c7c3931f9b820f23d0a9274b7e10fec2d8d0cc95847e2013433",
+        "shaderchains/delta0.hpp": "59f39a4b8614ef258be59798baa3506aa7f6fc9283adcd45ddaefc203eae499d",
+        "shaderchains/delta0.cpp": "bad5603114553dabad0638efc4d80a7860782e6d11d34a88fba9d290ba7a4478",
+        "shaderchains/delta1.hpp": "29c8a34a806e4934ebc89c62ab9097e84abb30ccac5e353f7d8721cd4e56c60c",
+        "shaderchains/delta1.cpp": "3c48a4200b964dd4b75583a1ea95bdd36c27ff6aa201a6f7cc5885b625b078d2",
+        "shaderchains/generate.hpp": "25d1f9d0ceb3c225efce7c287bc5d2a8a3d5783fea280bcdb35bf35a1c246ed5",
+        "shaderchains/generate.cpp": "3eba7d3d16b2ca997ae68f48652931d0e319e02365c17f4e720dee0a428e7ae5",
+        "helpers/utils.hpp": "fd0247e85d944e491f5348a137cbc759b5ed7d813678e3f462c1c468d89ccfbe",
+        "helpers/utils.cpp": "1ef903a3fceb4a6629e223b181a4df8357cc117af28dc133d827423c3d9a3e66",
+        "helpers/managed_shader.hpp": "deb47e4c2dd11c9efcad644a6850ece76630e2db590fa4cf360c4c85a7229450",
+        "helpers/managed_shader.cpp": "c941c0b7f56714897b10bd58b8ceed01d2103a386fc4996468a1ef70b1509e5e",
+        "helpers/image_prefix.hpp": "2da2210693966792e8f67713a5b0cc658db982a1190b98405a3fe0e8f4db0490",
+        "helpers/delta_scratch.hpp": "ad513da85da2d6d8bf330c7a71a869fc8749c6bf5013fd2c29d3f073fe223a73",
+        "helpers/temporal_phases.hpp": "21c2142cc567c1e68212f4839a998451764c652372461e1487fa69517b2647da",
+        "extraction/shader_registry.hpp": "beec442f878f713a67ec5ff89dd78ad782d945a325202c9b8751368f6a1d66b1",
+        "harness/sim.hpp": "986ea8198869c1bb8c01a4a489fb0c65172b9438949ab1a9847d04dcca01da0f",
+        "harness/trace.cpp": "8d9a2e1e890fae81ce316a36d3035403410b917e67ecb29f1e7cd73dcb5d319f",
+        "reviewed/engine/mako-backend/src/mako.cpp": "6c3e6d41d3d7604815e74474e821329c5dc7e34b1ac1971aecdf9bf55b34f298",
+        "reviewed/engine/mako-common/include/mako-common/vulkan/image.hpp": "982b9268086f06b4a54d9f16d8a618c2b3e73fa2a70097b948c1da8fd02778c9"
+      },
+      "runs": [
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale1.0-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 30272644,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 24095,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "c982b8409488b04339f5ac0d7b3c0bb392830c59ba75a4a1f6741866a02ce55d"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale1.0-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 38785064,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 48190,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "2384a53d8b5c2eb2d40d0024e5f4d2567978ae9bf93114a384b2480c113e1e58"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale1.0-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 55809904,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 96380,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "bb130e5736db17e0157d826a4807c5677cdf0337cc792f8e7788dd375c1373e9"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale1.0-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 24299044,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 24095,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "f1a0503a894e61fcf3646ba6a6a9c82b24bc9d7d9f569c13c7583b4f72a383a7"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale1.0-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 32128704,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 48190,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "e32af73f971be2572159bfb66304be08ef42305e2db5aede63fcc6841d964a95"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale1.0-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 47788024,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 96380,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "229946f4f26603d4b50ea06954f485ce4eedbd458363133511fa6d1c096c8a69"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale0.75-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 22409070,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 15490,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "31058a67752347708a4a50888e2ffa83080492b08c2eeed1e55319253ccc5868"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale0.75-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 28991422,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 30980,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "daa41895f8f8ad6073d3757c11897b291d8f89e0e8a1485a32448d446ac511df"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale0.75-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 42156126,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 61960,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "a67d8cc2362e87575abc988c757bfbd16ac7e549de10f544ea022b6c691afeed"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale0.75-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 19047206,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 15490,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "14b1401e15b782b3a57c252757dfbfa0a0899fe8cd4c27dbe55f4ca4251cd6cd"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale0.75-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 25245142,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 30980,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "cc404b9eb7ad7dbac885959eef6490ef53f16adbeaefa0cc202b9f1d65eadeca"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale0.75-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 37641014,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 61960,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "9465fb56db2410a24c1bbafcae4c02eec2882c47f0de7c9cc783bd08af4df067"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale0.5-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 16785463,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 9300,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "3b83b11bac9fcec8f2d8c2b107a3dc6a8264910841ff432ff79fd931df8d0b8c"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale0.5-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 21986099,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 18600,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "91920143f10af27845d882c83b832ac89bf919ff8f80de3a6d4921b6fb6556ed"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale0.5-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 32387371,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 37200,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "df204ee8a9457729897f9b499c62fbd16c09a6144d9c312a18ca70a71cbf13fa"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_gfg_base/scale0.5-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 15291551,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 9300,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "4aadf418acac740001015760e1491be612b7621f8fad19af817a87ef8908e9f7"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_gfg_base/scale0.5-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 20321379,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 18600,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "2093dfce32d704f53f721c67ca3fe1314ee755739ee96f8efd763ecb2a353b4c"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_gfg_base/scale0.5-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 30381035,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 37200,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "89e3d16597e62d708b4c639d8d7b8d78f6e23e5e4a723ee0839666571d5a6344"
+        }
+      ],
+      "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+      "source_commit": "edd2946bd3c4281e357bd436e0e7b80df0759576"
+    },
+    "upstream": {
+      "schema": 1,
+      "purpose": "host-call simulation; no GPU or proprietary shader",
+      "width": 1280,
+      "height": 800,
+      "scope": "SDR; modeled context wiring; actual unmodified chain/helper code",
+      "source_sha256": {
+        "shaderchains/mipmaps.hpp": "04efdf7a9de67d5f091237dc908bc1c439a05b90b2f5d316332779aa3f7b5d3d",
+        "shaderchains/mipmaps.cpp": "06e53b9b244e60a711721596a7875993ac48febdd0dc5b86d0be749f49277fe6",
+        "shaderchains/alpha0.hpp": "6cfe6aedd5fbcbb8bab41dd3a5d6164fa9507e08354ede7092daaa59311db49c",
+        "shaderchains/alpha0.cpp": "e6af8002d4ac2b046d1dbef1116c93653dd4b4a00fee11d1d5202f19fc8d49f2",
+        "shaderchains/alpha1.hpp": "e4161da7360e494212bf1dad56bf6f5575e704c13d30881686c57e6d51d78372",
+        "shaderchains/alpha1.cpp": "932dd741642ba9727911ea88192fde69072ace55e15d80ffafee8a05f277ee0c",
+        "shaderchains/beta0.hpp": "ab57270f67bb44f33ad1021a0cd8dc1e2229b7e5010798c8aaf45ca066b712f3",
+        "shaderchains/beta0.cpp": "5c0a3b3438ac97cfd810c4f3d5f660efa06f6e687c27110bbcabd4102863f0f1",
+        "shaderchains/beta1.hpp": "3a7e716564791c818fbc1ec8a92d9e9ccce912eaf592da82a2a9f6ef794a4775",
+        "shaderchains/beta1.cpp": "4073b48548e31cfdee8db01d47d88e56e0e5b985c740a045ee036907aa9abbf5",
+        "shaderchains/gamma0.hpp": "4a3e186da96e88f35baf0154a2cf3162922c93fee22a05bed41337c2d28e0071",
+        "shaderchains/gamma0.cpp": "e0a31aea528ad6fff90b20445112c10f1a294d40e4cf5bba613895265544e588",
+        "shaderchains/gamma1.hpp": "08e49cc48cbbcdcde75e9dc30bdd8a468f94978057e5f5a050311fea6928c1f3",
+        "shaderchains/gamma1.cpp": "9e7776f2c9fb9c7c3931f9b820f23d0a9274b7e10fec2d8d0cc95847e2013433",
+        "shaderchains/delta0.hpp": "59f39a4b8614ef258be59798baa3506aa7f6fc9283adcd45ddaefc203eae499d",
+        "shaderchains/delta0.cpp": "bad5603114553dabad0638efc4d80a7860782e6d11d34a88fba9d290ba7a4478",
+        "shaderchains/delta1.hpp": "29c8a34a806e4934ebc89c62ab9097e84abb30ccac5e353f7d8721cd4e56c60c",
+        "shaderchains/delta1.cpp": "3c48a4200b964dd4b75583a1ea95bdd36c27ff6aa201a6f7cc5885b625b078d2",
+        "shaderchains/generate.hpp": "25d1f9d0ceb3c225efce7c287bc5d2a8a3d5783fea280bcdb35bf35a1c246ed5",
+        "shaderchains/generate.cpp": "2fdc8d9252b32cb508d9899372648a018bc872a3a1c4c5b108ae78e4c1d45691",
+        "helpers/utils.hpp": "6449c2cf4a5e82fadead61b741f4773cfb40b6a36bbcfe8fbb138fab06ed2852",
+        "helpers/utils.cpp": "1ef903a3fceb4a6629e223b181a4df8357cc117af28dc133d827423c3d9a3e66",
+        "helpers/managed_shader.hpp": "deb47e4c2dd11c9efcad644a6850ece76630e2db590fa4cf360c4c85a7229450",
+        "helpers/managed_shader.cpp": "c941c0b7f56714897b10bd58b8ceed01d2103a386fc4996468a1ef70b1509e5e",
+        "helpers/image_prefix.hpp": "2da2210693966792e8f67713a5b0cc658db982a1190b98405a3fe0e8f4db0490",
+        "helpers/delta_scratch.hpp": "ad513da85da2d6d8bf330c7a71a869fc8749c6bf5013fd2c29d3f073fe223a73",
+        "helpers/temporal_phases.hpp": "21c2142cc567c1e68212f4839a998451764c652372461e1487fa69517b2647da",
+        "extraction/shader_registry.hpp": "41b4ea820325a2004cda3b4e4d7e44301354ff407426cc9cb66d44c523561017",
+        "harness/sim.hpp": "986ea8198869c1bb8c01a4a489fb0c65172b9438949ab1a9847d04dcca01da0f",
+        "harness/trace.cpp": "8d9a2e1e890fae81ce316a36d3035403410b917e67ecb29f1e7cd73dcb5d319f",
+        "reviewed/engine/mako-backend/src/mako.cpp": "69a57f5e22c6bb8526d2336bc5391df5fbbb11fc69d3a644d3c498f92437ab3c",
+        "reviewed/engine/mako-common/include/mako-common/vulkan/image.hpp": "2bec804fd170b1416d19b1a68472f9fcd5bc14f63eeae0fa483ba72e4dc40ab7"
+      },
+      "runs": [
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale1.0-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 30272644,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 24095,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "c982b8409488b04339f5ac0d7b3c0bb392830c59ba75a4a1f6741866a02ce55d"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale1.0-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 38785064,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 48190,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "2384a53d8b5c2eb2d40d0024e5f4d2567978ae9bf93114a384b2480c113e1e58"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale1.0-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 55809904,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 6826640
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 3755040
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 2048280
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 96380,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "bb130e5736db17e0157d826a4807c5677cdf0337cc792f8e7788dd375c1373e9"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale1.0-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 24299044,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 24095,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "f1a0503a894e61fcf3646ba6a6a9c82b24bc9d7d9f569c13c7583b4f72a383a7"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale1.0-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 32128704,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 48190,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "e32af73f971be2572159bfb66304be08ef42305e2db5aede63fcc6841d964a95"
+        },
+        {
+          "flow_scale": 1.0,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale1.0-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 47788024,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 1365240
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 3413320
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1877520
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 512000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 1109300
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 1024140
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 1365520
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 1344000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 17764,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 96380,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "229946f4f26603d4b50ea06954f485ce4eedbd458363133511fa6d1c096c8a69"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale0.75-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 22409070,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 15490,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "31058a67752347708a4a50888e2ffa83080492b08c2eeed1e55319253ccc5868"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale0.75-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 28991422,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 30980,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "daa41895f8f8ad6073d3757c11897b291d8f89e0e8a1485a32448d446ac511df"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale0.75-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 42156126,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 3841232
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 2113664
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 1153248
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 61960,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "a67d8cc2362e87575abc988c757bfbd16ac7e549de10f544ea022b6c691afeed"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale0.75-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 19047206,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 15490,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "14b1401e15b782b3a57c252757dfbfa0a0899fe8cd4c27dbe55f4ca4251cd6cd"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale0.75-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 25245142,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 30980,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "cc404b9eb7ad7dbac885959eef6490ef53f16adbeaefa0cc202b9f1d65eadeca"
+        },
+        {
+          "flow_scale": 0.75,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale0.75-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 37641014,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 767895
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 1920616
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 1056832
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 288000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 623923
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 576624
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 768832
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 756480
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 10140,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 61960,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "9465fb56db2410a24c1bbafcae4c02eec2882c47f0de7c9cc783bd08af4df067"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale0.5-perf0-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 201,
+          "logical_bytes": 16785463,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 9300,
+              "image_barriers": 510
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "3b83b11bac9fcec8f2d8c2b107a3dc6a8264910841ff432ff79fd931df8d0b8c"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale0.5-perf0-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 264,
+          "logical_bytes": 21986099,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 18600,
+              "image_barriers": 1020
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "91920143f10af27845d882c83b832ac89bf919ff8f80de3a6d4921b6fb6556ed"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": false,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale0.5-perf0-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 390,
+          "logical_bytes": 32387371,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 56,
+              "logical_bytes": 1706976
+            },
+            "prepass-alpha1": {
+              "images": 60,
+              "logical_bytes": 939232
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output2-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output3-gamma1": {
+              "images": 35,
+              "logical_bytes": 512424
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 189
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 37200,
+              "image_barriers": 2040
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "df204ee8a9457729897f9b499c62fbd16c09a6144d9c312a18ca70a71cbf13fa"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 1,
+          "raw": "mako_host_upstream/scale0.5-perf1-outputs1.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 129,
+          "logical_bytes": 15291551,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 1,
+              "logical_bytes": 4096000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 66,
+              "workgroups": 9300,
+              "image_barriers": 314
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "4aadf418acac740001015760e1491be612b7621f8fad19af817a87ef8908e9f7"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 2,
+          "raw": "mako_host_upstream/scale0.5-perf1-outputs2.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 178,
+          "logical_bytes": 20321379,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 132,
+              "workgroups": 18600,
+              "image_barriers": 628
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "2093dfce32d704f53f721c67ca3fe1314ee755739ee96f8efd763ecb2a353b4c"
+        },
+        {
+          "flow_scale": 0.5,
+          "performance": true,
+          "outputs": 4,
+          "raw": "mako_host_upstream/scale0.5-perf1-outputs4.jsonl.gz",
+          "evidence": "SIMULATED",
+          "images": 276,
+          "logical_bytes": 30381035,
+          "allocations_by_owner": {
+            "external-source": {
+              "images": 2,
+              "logical_bytes": 8192000
+            },
+            "black": {
+              "images": 1,
+              "logical_bytes": 4
+            },
+            "external-output": {
+              "images": 4,
+              "logical_bytes": 16384000
+            },
+            "prepass-mipmaps": {
+              "images": 7,
+              "logical_bytes": 341300
+            },
+            "prepass-alpha0": {
+              "images": 28,
+              "logical_bytes": 853488
+            },
+            "prepass-alpha1": {
+              "images": 30,
+              "logical_bytes": 469616
+            },
+            "prepass-beta0": {
+              "images": 2,
+              "logical_bytes": 128000
+            },
+            "prepass-beta1": {
+              "images": 10,
+              "logical_bytes": 277315
+            },
+            "output0-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output0-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output0-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output1-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output1-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output1-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output2-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output2-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output2-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            },
+            "output3-gamma0": {
+              "images": 21,
+              "logical_bytes": 256212
+            },
+            "output3-gamma1": {
+              "images": 21,
+              "logical_bytes": 341616
+            },
+            "output3-delta1": {
+              "images": 6,
+              "logical_bytes": 336000
+            }
+          },
+          "first_pair": {
+            "prepass": {
+              "dispatches": 34,
+              "workgroups": 4568,
+              "image_barriers": 113
+            },
+            "synthesis": {
+              "dispatches": 264,
+              "workgroups": 37200,
+              "image_barriers": 1256
+            }
+          },
+          "bindings_repeat_at_6": true,
+          "bindings_repeat_at_2": false,
+          "bindings_repeat_at_3": false,
+          "sampled_storage_overlaps_first_pair": [],
+          "not_measured": [
+            "GPU time",
+            "VRAM allocation",
+            "texture fetches",
+            "bandwidth",
+            "shader math",
+            "image quality",
+            "presentation"
+          ],
+          "raw_sha256": "89e3d16597e62d708b4c639d8d7b8d78f6e23e5e4a723ee0839666571d5a6344"
+        }
+      ],
+      "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+      "source_commit": "e933b42fcdf2768c34aa5e921aa6b76da03304c0"
+    }
+  }
+}

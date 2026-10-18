@@ -1,0 +1,417 @@
+{
+  "schema": 1,
+  "source_repository": "wavessevaw/GFG-Extreme",
+  "imported_text_blobs": [
+    {
+      "path": "docs/archive/native-fg-20261015/research/DECK_CONNECTION.md",
+      "source_path": "research/DECK_CONNECTION.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "293a0909f1d2b70f86488f212d8046fd23cfb0b5"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/DEVICE_VALIDATION.md",
+      "source_path": "research/DEVICE_VALIDATION.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "10d533b2d948edc54f23786f7b4cab3b0ecd7069"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/GFG_CURRENT_ENGINE_AUDIT.md",
+      "source_path": "research/GFG_CURRENT_ENGINE_AUDIT.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "85a0d8ddf2baab8933e7b45ff3e9db5f00189af3"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_BINARY_ANALYSIS.md",
+      "source_path": "research/LSFG_BINARY_ANALYSIS.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "d38e2f26d4170e02bf31c0162aca70ebc337613d"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_COMPUTE_GRAPH.md",
+      "source_path": "research/LSFG_COMPUTE_GRAPH.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "9fdeb60dfd8ab3691322895e6a2db9c3d888d904"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_COST_MODEL.md",
+      "source_path": "research/LSFG_COST_MODEL.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "4561ce72da256930c3a8cfec9e2950404547a601"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_MODEL_ANALYSIS.md",
+      "source_path": "research/LSFG_MODEL_ANALYSIS.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "74adc9293c5f9238403992c18dae4247b76aae42"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_REFERENCE_ORACLE.md",
+      "source_path": "research/LSFG_REFERENCE_ORACLE.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "d8778e4a4994f3bfb536b9cb16261d43838b0fd1"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/LSFG_SHADER_ARCHITECTURE.md",
+      "source_path": "research/LSFG_SHADER_ARCHITECTURE.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "029d894ec49098fc99950cf287a079a8728e30d9"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_ARCHITECTURE.md",
+      "source_path": "research/MAKO_ARCHITECTURE.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "5a4df8f8046b4930bd1a61e3de09bec3e6214efb"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_FRAME_LIFECYCLE.md",
+      "source_path": "research/MAKO_FRAME_LIFECYCLE.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "be8ef7eefd7abf5c7ca5e2a82838a5bd18443b2d"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_FRAME_PACING.md",
+      "source_path": "research/MAKO_FRAME_PACING.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "7cbcafea72eb78bac0eb7deab44ccc61bcd1d4c7"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_GPU_COST.md",
+      "source_path": "research/MAKO_GPU_COST.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6c75d89a692889af2d758b329214fef9cc169073"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_HOST_CALL_EXPERIMENT.md",
+      "source_path": "research/MAKO_HOST_CALL_EXPERIMENT.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "cefa8976255e82ae283ea9582a478505cbd18799"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_LIMITATIONS.md",
+      "source_path": "research/MAKO_LIMITATIONS.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "3f4e78b642ae373404ce8bafd1f9986b45b96345"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/MAKO_SYNC_ANALYSIS.md",
+      "source_path": "research/MAKO_SYNC_ANALYSIS.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "126e84f9573df2640dff487f3d1843e88f5862b0"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/NATIVE_FG_ARCHITECTURE.md",
+      "source_path": "research/NATIVE_FG_ARCHITECTURE.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "a867591303fcd1b38fb9559f14689f15b1cb99a6"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/README.md",
+      "source_path": "research/README.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "f38d576989dcf1a428bfb8f72231efe1b64f6b20"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/REMOTE_ACCESS_STATUS.md",
+      "source_path": "research/REMOTE_ACCESS_STATUS.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "a963481b5dc141ac2a9c93cd92b0deaad193fcaa"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/SOURCES.md",
+      "source_path": "research/SOURCES.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6dadf7c05f5caace73fbc9025767c8cbcaa65114"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/SPECIFICATION.md",
+      "source_path": "research/SPECIFICATION.md",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "72e9245de9ab74200873bdbff8ad89534e41c2cf"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/results/device_inventory_20261015.json",
+      "source_path": "research/results/device_inventory_20261015.json",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "3f4ab4b4dc41caba0c99f4865a56b8c3b12ce1b8"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/results/mako_host_trace.json",
+      "source_path": "research/results/mako_host_trace.json",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "ebd5951dc960affd8afa07e81604333b2df7fa3b"
+    },
+    {
+      "path": "docs/archive/native-fg-20261015/research/results/source_inventory.json",
+      "source_path": "research/results/source_inventory.json",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "e90add13d5907f7917f2e415ba98b59c491fb42e"
+    },
+    {
+      "path": "docs/archive/foe-20261017/docs/gsf-output-engine/ARCHITECTURE.md",
+      "source_path": "docs/gsf-output-engine/ARCHITECTURE.md",
+      "source_commit": "f7bbcddf11419db4005d87b23b3d992e35795819",
+      "git_blob_sha1": "ffb3b2d70662f34be469d145d2c2cad043d5a1f4"
+    },
+    {
+      "path": "docs/archive/foe-20261017/docs/gsf-output-engine/PRIOR_ART_REVIEW.md",
+      "source_path": "docs/gsf-output-engine/PRIOR_ART_REVIEW.md",
+      "source_commit": "f7bbcddf11419db4005d87b23b3d992e35795819",
+      "git_blob_sha1": "4e4c5e93efc8561f1c6ab8bc4a230cf06101dc71"
+    }
+  ],
+  "external_binary_evidence": [
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "ce29c538f32bd724c25bbb235d5fb5be6d056ee2",
+      "size_bytes": 7762,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "52516a4ffe48bfc1cf75bb9e9dc5cc6781ca0389",
+      "size_bytes": 11968,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "25cd5770348acdf7140be8e5ab6b39941ab7b884",
+      "size_bytes": 30087,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "2d8ecc6b06a5bc6d03131fd4dcc5d697e99b0e8d",
+      "size_bytes": 6772,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "5f3ef49c00a0269e73403f0d407d5bfee421b1da",
+      "size_bytes": 11383,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.5-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "019633ce5fbf9e713b07e00f61f336f09d68eba8",
+      "size_bytes": 27292,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.5-perf1-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "14760e3623da973f1f512fb61580482d524ce6f3",
+      "size_bytes": 7776,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "5bb0bea660a37186cb75440a4ff5ff2000598e2e",
+      "size_bytes": 11969,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6beebd525e613f4f79b6a6e88aa331f35a0b0a60",
+      "size_bytes": 30114,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "bb2373f5317feb3a77209e982fe2d490d67dc906",
+      "size_bytes": 6790,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "87f77c4f89584f3a298d410c9672900b82bf88d4",
+      "size_bytes": 11380,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale0.75-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "a6b98b864e88a302898d7c195d2c49effe032955",
+      "size_bytes": 27302,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale0.75-perf1-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "3e498c56e6e8d33677108aefa32d16db4b65ad56",
+      "size_bytes": 7804,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "853b218e310b9d73405a9a62bf4a7f538b9f3faa",
+      "size_bytes": 12020,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "92bbad06ebdf17a5d5477a23e6edbf3295c4b06a",
+      "size_bytes": 30319,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "d68581a198c0cc7bfae65c3a2ca37f306e5273ec",
+      "size_bytes": 6791,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "674cefa956c7a0a28e6dbf2d8edd8a5d1a1fc9b1",
+      "size_bytes": 11420,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_gfg_base/scale1.0-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6aa3f6a1e0eaa35e0884ce3cd93876bdc84511bc",
+      "size_bytes": 27515,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_gfg_base/scale1.0-perf1-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "ce29c538f32bd724c25bbb235d5fb5be6d056ee2",
+      "size_bytes": 7762,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "52516a4ffe48bfc1cf75bb9e9dc5cc6781ca0389",
+      "size_bytes": 11968,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "25cd5770348acdf7140be8e5ab6b39941ab7b884",
+      "size_bytes": 30087,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "2d8ecc6b06a5bc6d03131fd4dcc5d697e99b0e8d",
+      "size_bytes": 6772,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "5f3ef49c00a0269e73403f0d407d5bfee421b1da",
+      "size_bytes": 11383,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.5-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "019633ce5fbf9e713b07e00f61f336f09d68eba8",
+      "size_bytes": 27292,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.5-perf1-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "14760e3623da973f1f512fb61580482d524ce6f3",
+      "size_bytes": 7776,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "5bb0bea660a37186cb75440a4ff5ff2000598e2e",
+      "size_bytes": 11969,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6beebd525e613f4f79b6a6e88aa331f35a0b0a60",
+      "size_bytes": 30114,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "bb2373f5317feb3a77209e982fe2d490d67dc906",
+      "size_bytes": 6790,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "87f77c4f89584f3a298d410c9672900b82bf88d4",
+      "size_bytes": 11380,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale0.75-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "a6b98b864e88a302898d7c195d2c49effe032955",
+      "size_bytes": 27302,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale0.75-perf1-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf0-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "3e498c56e6e8d33677108aefa32d16db4b65ad56",
+      "size_bytes": 7804,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf0-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf0-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "853b218e310b9d73405a9a62bf4a7f538b9f3faa",
+      "size_bytes": 12020,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf0-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf0-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "92bbad06ebdf17a5d5477a23e6edbf3295c4b06a",
+      "size_bytes": 30319,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf0-outputs4.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf1-outputs1.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "d68581a198c0cc7bfae65c3a2ca37f306e5273ec",
+      "size_bytes": 6791,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf1-outputs1.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf1-outputs2.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "674cefa956c7a0a28e6dbf2d8edd8a5d1a1fc9b1",
+      "size_bytes": 11420,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf1-outputs2.jsonl.gz"
+    },
+    {
+      "source_path": "research/results/mako_host_upstream/scale1.0-perf1-outputs4.jsonl.gz",
+      "source_commit": "609ce4f50c95c80135348b6c0e3dc7270d8fda2f",
+      "git_blob_sha1": "6aa3f6a1e0eaa35e0884ce3cd93876bdc84511bc",
+      "size_bytes": 27515,
+      "url": "https://github.com/wavessevaw/GFG-Extreme/blob/609ce4f50c95c80135348b6c0e3dc7270d8fda2f/research/results/mako_host_upstream/scale1.0-perf1-outputs4.jsonl.gz"
+    }
+  ],
+  "note": "Historical evidence only. Compressed recorder traces and original tools remain in the source repository; no runtime or shader code is imported."
+}

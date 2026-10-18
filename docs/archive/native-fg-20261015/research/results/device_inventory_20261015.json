@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "evidence": "DEVICE VERIFIED — user-run inventory only; no FG/performance test",
+  "input_zip_sha256": "f63bdb98dd2fa7556e8d580f26642fe244b3a2f5d5da81742a7de97c77347b11",
+  "probe_sha256": "468009a4793c560a044dd397feb8b630029739bb937073dd6796f48347c191f5",
+  "capture_utc": "2026-10-15T12:06:41.654341+00:00",
+  "model_reported": "Galileo",
+  "board_reported": "Galileo",
+  "os": "SteamOS 3.8.28",
+  "os_build": "20260922.1",
+  "libc": "glibc 2.41",
+  "kernel": "Linux 6.18.50-valve2-1-neptune-618-gc7289a96b14d x86_64",
+  "vulkan_driver": "RADV",
+  "mesa": "26.0.0-devel (git-d246f60ddf)",
+  "gpu": "AMD Custom GPU 0932 (RADV VANGOGH)",
+  "vulkan_api": "1.4.330",
+  "vulkaninfo_status": "COMPLETED",
+  "temperature_snapshot_c": 46,
+  "on_mains": true,
+  "battery_percent": 75,
+  "notes": [
+    "Galileo is the reported model, not an optical display verification.",
+    "Layer enumeration is availability, not proof that each layer was active.",
+    "20 W sysfs GPU power cap is not a measured user APU TDP setting.",
+    "VRAM sysfs figure on UMA is not a verified total graphics-memory limit.",
+    "No DLL inspection, generated image or benchmark was included."
+  ]
+}

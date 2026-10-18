@@ -9,17 +9,22 @@ Independent research and development of a Vulkan GPU frame-generation engine for
 - [Native Vulkan layer and output experiments](engine/gfg-native/): real-WSI interception, GPU bridge, present scheduling, Vulkan loader integration and unit / lavapipe tests.
 - [Temporal Engine and GPU LMC](engine/gfg-temporal/): Vulkan compute and interpolation algorithms, shaders, reference tests and benchmarks.
 - [Historical GSF investigation](docs/fg3/): architecture decisions, failures, validation and hardware acceptance requirements.
+- [Recovered pre-migration research](docs/archive/README.md): pinned MAKO/LSFG audits, host-recorder evidence and alternative Output Engine documents from GFG branches.
 - [AFMF-Linux comparison](docs/GSF_AFMF_LINUX_SOURCE_AUDIT_20261018.md): reference source audit, WSI and RDNA2 risks.
 
 See [MIGRATION.md](MIGRATION.md) for source provenance, history access and limitations.
 
-## First development priorities
+## Current development priorities
 
-1. Reproduce the inherited Native FG3 software validation failure (8 real / 8 synthetic / 6 skipped / 0 verified checks).
-2. Validate Vulkan ownership/synchronization and **actual intermediate pixels**, without weakening tests.
-3. Make independent native + temporal builds reproducible.
-4. Prove ordered GSF 2× output in a controlled Vulkan WSI test.
-5. Qualify Deck SDR2× on hardware; only then HDR10 and 3×.
+The current Decky diagnostic baseline is [0.1.6](decky/README.md). Independent
+builds, strict 5 Hz GPU pixel correctness, real Vulkan WSI and extracted-package
+tests run in CI. These software results do not qualify variable-rate Deck 2×.
+
+1. Validate calibrated submit-to-GPU-start measurements and calibration overhead with comparable workloads; keep unproven pure queue wait null.
+2. Protect source frames and use actual deadline/slack and measured GPU cost for admission, without a fixed source-FPS floor.
+3. Preserve image lifetime, semaphore consumption, ordered WSI handoffs and recovery through scene/format/swapchain changes.
+4. Qualify sustained SDR 2× under variable game FPS on Deck, including source frametimes, latency and evidence of unique displayed frames.
+5. Address HDR10 and 3× after SDR 2× acceptance. Keep historical cold-start failures distinct from warmed software correctness.
 
 ## License, attribution and official identity
 
