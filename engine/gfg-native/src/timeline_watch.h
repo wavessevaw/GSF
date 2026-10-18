@@ -32,6 +32,7 @@ typedef struct {
     PFN_vkWaitSemaphores wait;
     PFN_vkGetSemaphoreCounterValue counter;
     FILE *log; /* owner joins observer before fclose */
+    uint64_t pid, generation; /* immutable telemetry namespace */
     tw_record entries[TW_CAP];
     int stop;
     uint64_t overflow, wakeups, timed_out, signaled, expired, failed, teardown;
@@ -52,7 +53,7 @@ static void tw_finish_locked(timeline_watch *w, tw_record *r,const char *outcome
     else if(!strcmp(outcome,"submit_failed"))++w->failed;
     else if(!strcmp(outcome,"teardown"))++w->teardown;
     if(w->log)fprintf(w->log,
-        "{\"schema\":1,\"event\":\"timeline_watch\",\"te_sequence\":%llu,"
+        "{\"schema\":1,\"event\":\"timeline_watch\",\"pid\":%llu,\"generation\":%llu,\"te_sequence\":%llu,"
         "\"base_value\":%llu,\"output_index\":%u,\"wait_threshold\":%llu,"
         "\"actual_signal_value\":%llu,\"signal_source\":\"gpu_queue\","
         "\"submit_status\":\"%s\",\"deadline_kind\":\"%s\","
@@ -60,6 +61,7 @@ static void tw_finish_locked(timeline_watch *w, tw_record *r,const char *outcome
         "\"deadline_ns\":%llu,\"last_below_ns\":%llu,\"timeline_observed_ns\":%llu,"
         "\"timeline_value_seen\":%llu,\"completion_overrun_ns\":%lld,"
         "\"observation_max_ns\":%llu,\"watch_poll_interval_ns\":%llu}\n",
+        (unsigned long long)w->pid,(unsigned long long)w->generation,
         (unsigned long long)r->sequence,(unsigned long long)r->base,r->output_index,
         (unsigned long long)r->threshold,(unsigned long long)r->signal,
         !strcmp(outcome,"submit_failed")?"failed":r->submit_ns?"submitted":"pending",
@@ -115,9 +117,11 @@ static void *tw_thread_main(void *ptr) {
     for(unsigned i=0;i<TW_CAP;++i)if(w->entries[i].state==1 || w->entries[i].state==2)
         tw_finish_locked(w,&w->entries[i],"teardown",tw_now(),0);
     if(w->log)fprintf(w->log,"{\"schema\":1,\"event\":\"timeline_watch_summary\","
+        "\"pid\":%llu,\"generation\":%llu,"
         "\"threshold_reached\":%llu,\"expired\":%llu,\"submit_failed\":%llu,"
         "\"teardown\":%llu,\"watch_queue_overflow\":%llu,\"watch_wakeups\":%llu,"
         "\"watch_timeouts\":%llu}\n",
+        (unsigned long long)w->pid,(unsigned long long)w->generation,
         (unsigned long long)w->signaled,(unsigned long long)w->expired,
         (unsigned long long)w->failed,(unsigned long long)w->teardown,
         (unsigned long long)w->overflow,(unsigned long long)w->wakeups,
@@ -127,11 +131,13 @@ static void *tw_thread_main(void *ptr) {
 }
 
 static timeline_watch *tw_start(VkDevice device,VkSemaphore semaphore,
-    PFN_vkWaitSemaphores wait,PFN_vkGetSemaphoreCounterValue counter,FILE *log) {
+    PFN_vkWaitSemaphores wait,PFN_vkGetSemaphoreCounterValue counter,FILE *log,
+    uint64_t pid,uint64_t generation) {
     if(!device || !semaphore || !wait || !log)return NULL;
     timeline_watch *w=calloc(1,sizeof(*w));
     if(!w)return NULL;
     w->device=device;w->semaphore=semaphore;w->wait=wait;w->counter=counter;w->log=log;
+    w->pid=pid;w->generation=generation;
     if(pthread_mutex_init(&w->lock,NULL)) {free(w);return NULL;}
     if(pthread_cond_init(&w->changed,NULL)) {pthread_mutex_destroy(&w->lock);free(w);return NULL;}
     if(pthread_create(&w->thread,NULL,tw_thread_main,w)) {
@@ -155,7 +161,8 @@ static void tw_register(timeline_watch *w,uint64_t base,uint64_t sequence,
             .deadline_kind=(unsigned)(probe!=0),.registered_ns=tw_now(),.state=1};
     } else {
         ++w->overflow;
-        if(w->log)fprintf(w->log,"{\"schema\":1,\"event\":\"timeline_watch_overflow\",\"watch_queue_overflow\":%llu}\n",
+        if(w->log)fprintf(w->log,"{\"schema\":1,\"event\":\"timeline_watch_overflow\",\"pid\":%llu,\"generation\":%llu,\"watch_queue_overflow\":%llu}\n",
+            (unsigned long long)w->pid,(unsigned long long)w->generation,
             (unsigned long long)w->overflow);
     }
     pthread_mutex_unlock(&w->lock);

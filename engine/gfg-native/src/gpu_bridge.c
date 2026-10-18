@@ -420,11 +420,12 @@ static void gpu_sample(gfg_gpu_fg *fg) {
     }
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_correlated\","
-            "\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
+            "\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
             "\"timestamp_valid_bits\":%u,\"gpu_timestamp_period_ns\":%.9f,"
             "\"gpu_start_cpu_ns\":%s,\"submit_to_gpu_start_ns\":%s,"
             "\"calibration_ns\":%s,\"calibration_max_deviation_ns\":%s,"
             "\"calibration_status\":\"%s\"}\n",
+            (long)getpid(),(unsigned long long)fg->generation,
             (unsigned long long)s.sequence,(unsigned long long)submit_return_ns,
             (unsigned long long)gpu_start_ticks,timestamp_valid_bits,
             gpu_tick_period_ns,estimate.start_text,estimate.delay_text,
@@ -1237,7 +1238,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     if(env_flag("GFG_NATIVE_TIMELINE_WATCH") && fg->same_device &&
        cd.params.algorithm==TE_ALGO_LMC_GPU) {
         fg->timeline_observer=tw_start(fg->device,fg->timeline,fg->WaitSemaphores,
-            fg->GetSemaphoreCounterValue,fg->telemetry);
+            fg->GetSemaphoreCounterValue,fg->telemetry,(uint64_t)getpid(),fg->generation);
         fprintf(stderr,"[gfg-native] timeline_watch enabled=%d poll_ms=2 observation_max_ms=200\n",
             fg->timeline_observer!=NULL);
     }
@@ -1729,6 +1730,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     }
     fg->output_deadline_us = t0 + (double)gfg_gpu_fg_source_period_ns(fg)/1000.0;
     unsigned dispatched_outputs=0,dispatched_mask=0;
+    uint64_t te_submit_sequence=0; /* this pair only; zero on bypass/failure */
     uint64_t compute_admission_ns=0;
     unsigned deferred_g2=0;uint64_t g2_submit_return_ns=0;
     double next_us = 0.0;
@@ -1890,6 +1892,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         fg->last_te_value = v + 2;
         fg->te_slot ^= 1u;
         fg->te_frames++;
+        te_submit_sequence=fg->te_frames;
         fg->te_gap = 0;
         if (!generate) STAT_ADD(holds, 1);
         if (!s.count) ++fg->history_only_submits;
@@ -2009,7 +2012,7 @@ timing:
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
             "\"admitted_ns\":%llu,\"worker_start_ns\":%llu,\"worker_end_ns\":%llu,\"interval_ns\":%llu,"
             "\"refresh_period_ns\":%llu,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
-            "\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,"
+            "\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,\"te_submit_sequence\":%llu,"
             "\"target_ns\":[%llu,%llu,%llu],\"readiness_observed_ns\":[%llu,%llu],"
             "\"wsi_accepted_ns\":[%llu,%llu,%llu],\"wsi_call_ns\":[%llu,%llu,%llu],"
             "\"readiness_wait_ns\":[%llu,%llu],\"google_present_ids\":[%u,%u,%u],\"drop_detail\":[\"%s\",\"%s\"],\"cpu_phase_us\":[%.3f,%.3f,%.3f,%.3f,%.3f],\"te_sequence\":%llu,\"drop_code\":[%d,%d],\"cut\":%d,\"duplicate\":%d,\"physical_displayed\":null,\"visually_unique\":null}\n",
@@ -2020,6 +2023,7 @@ timing:
             (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
             (unsigned long long)compute_admission_ns,(unsigned long long)fg->gpu_budget_ns[0],
             (unsigned long long)fg->gpu_budget_ns[1],deferred_g2,(unsigned long long)g2_submit_return_ns,
+            (unsigned long long)te_submit_sequence,
             (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[2],
             (unsigned long long)fg->readiness_ns[0],(unsigned long long)fg->readiness_ns[1],
             (unsigned long long)fg->accepted_ns[0],(unsigned long long)fg->accepted_ns[1],(unsigned long long)fg->accepted_ns[2],
