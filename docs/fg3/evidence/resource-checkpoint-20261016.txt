@@ -1,0 +1,59 @@
+Software-only resource/history/timestamp checkpoint, 2026-10-16
+Hardware acceptance: NOT ESTABLISHED. No local /dev/dri GPU or Deck endpoint.
+Build: cloud Debian 13.6, GCC 14.2.0, Vulkan-Headers v1.4.365.
+Runtime: Mesa llvmpipe, Xvfb :93, synchronization validation enabled.
+Local raw evidence: /workspace/artifacts/gfg-resource-fix-evidence (outside Git).
+
+python3 -m unittest discover -s tests -p 'test_native*.py' -q
+  Ran 30 tests; OK.
+
+te-tests: default mode and GFG_TEST_GPU_LMC=1
+  Both: 168 checks, 0 failures.
+  Shared-fd semaphore import unavailable on this ICD; success path untested.
+
+Native pure tests:
+  present-chain: immutable Proton fence/mode/regions/ID chains PASS.
+  gpu-ring: actual reserve_ring with deterministic fence states PASS:
+    all busy -> NULL, scans alternative free slot, bounded polls, no waiting,
+    cursor wraps, VK_ERROR_DEVICE_LOST disables instead of masking saturation.
+
+borrowed-device: default and GFG_TEST_GPU_LMC=1, validation enabled
+  Timeline count=0 history signals 4 after waiting 3, without output count growth.
+  Following generated pair signals 5/6, outputs grow by two, held=false.
+  Existing pixel quality, packing and lifetime checks PASS.
+  No Validation Error/VUID messages.
+
+wsi-gpu-smoke: GPU LMC, real maintenance1 fences + dynamic-mode + damage chain,
+  GFG_TEST_REQUIRE_MAINTENANCE1=1; both native-first and validation-first orders.
+  Both: real=8 synthetic=14 skipped=0 errors=0; validation errors=0.
+  All 8 app present fences complete; original app metadata unchanged.
+  history_only_submits=1. Actual completed GPU timestamp samples reported.
+  Synthetic outputs and real frames still hand off in G1,G2,R order.
+
+wsi-gpu-smoke skip injection every 5 frames, both orders, GPU LMC + app fences:
+  real=30 synthetic=36 skipped=22 errors=0; validation errors=0.
+  te_busy=3 ring_busy=3 holds=6 history_only_submits=6.
+  Per-output losses: ring=6 te=6 history=10 acquire=0 bypass=0 error=0.
+  Sum=22 matches cumulative skipped outputs.
+  Verify distinct=6/6 (test-only pixel readback, not physical scanout).
+
+wsi-gpu-smoke record/submit/index fault injection, both orders + app fences:
+  Each: real=2 synthetic=0 skipped=2 errors=1 (expected injected error).
+  Per-output error recovery loss=2; all other output loss categories=0.
+  All app present fences complete; validation errors=0.
+  submit/index request swapchain recreation as before.
+
+gpu-wsi-observer: tiles and GPU LMC, independent actual WSI image readback
+  Both: real=4 synthetic=6 content=PASS handoff_order=PASS.
+  Physical scanout unobserved. No validation errors.
+
+Workflow YAML parsed; bash -n passed all run blocks.
+Diagnostic reports rendered from actual generated WSI logs: GPU samples visible.
+Device archive report independently regenerated: 3806/3080/4522, API multiplier
+1.809, unavailable GPU cost explicitly reported. No raw device archive published.
+
+Open: actual Deck rerun of internal.4, image acquisition under Gamescope,
+independent output worker/deadlines, physical panel cadence, dynamic quality,
+power and input latency, 10-minute dynamic + 30-minute stability acceptance.
+Ring selection does not remove genuine GPU saturation; no performance gain
+is claimed from software timing. Stable main and public releases untouched.
