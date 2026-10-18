@@ -21,6 +21,8 @@ See [MIGRATION.md](MIGRATION.md) for source provenance, history access and limit
 4. Prove ordered GSF 2× output in a controlled Vulkan WSI test.
 5. Qualify Deck SDR2× on hardware; only then HDR10 and 3×.
 
-## License
+## License, attribution and official identity
 
-Extracted source inherits its applicable upstream terms. See [LICENSE.md](LICENSE.md) and the original GFG Extreme licensing statements. Do not assume this extraction relicenses MAKO-derived portions to MIT.
+**GSF is GPL-3.0-or-later**, with original upstream copyright and third-party notices preserved. See [full license](LICENSE.md), [copyright provenance](COPYRIGHT.md), [third-party inventory](NOTICE.md), and [licensing guidance in Russian](docs/LICENSING.ru.md). Under the GPL you may run, study, modify and redistribute this code, including commercially, if you comply with its conditions. This license does **not** grant rights to impersonate official GSF releases or make false endorsements; see [brand-use guidelines](TRADEMARKS.md). Nothing here claims registered trademark ownership or alters the GPL.
+
+For contributions, follow [CONTRIBUTING.md](CONTRIBUTING.md). The pre-extraction commit history remains in GFG Extreme; see [MIGRATION.md](MIGRATION.md).

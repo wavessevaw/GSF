@@ -1,0 +1,15 @@
+name: GSF License and Attribution
+on:
+  push:
+    branches: [main, 'legal/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify license text, notices and provenance pointers
+        run: python3 scripts/verify_licensing.py
