@@ -7,12 +7,48 @@ def _median(values):
     return round(statistics.median(values), 3) if values else None
 
 
+class _SubmissionIndex:
+    """Index actual synthetic submissions, never the last TE counter on a bypass.
+
+    Older correlated events have no process/swapchain identity. Resolve those
+    only when the submission number identifies exactly one origin in the run.
+    """
+
+    def __init__(self):
+        self.sequences = {}
+
+    def add(self, event, offset):
+        sequence = int(event.get('te_submit_sequence', event.get('te_sequence', 0)))
+        if not sequence or not int(event.get('dispatched_outputs', 0)):
+            return
+        identity = (event.get('pid'), event.get('generation'))
+        origins = self.sequences.setdefault(sequence, {})
+        if identity in origins and origins[identity] != offset:
+            origins[identity] = None  # conflicting origins must not be guessed
+        else:
+            origins[identity] = offset
+
+    def find(self, event):
+        origins = self.sequences.get(int(event.get('te_sequence', 0)), {})
+        candidates = [offset for identity, offset in origins.items()
+                      if all(event.get(field) is None or event[field] == identity[i]
+                             for i, field in enumerate(('pid', 'generation')))]
+        if not candidates:
+            return None, 'unmatched'
+        if len(candidates) != 1 or candidates[0] is None:
+            return None, 'ambiguous'
+        return candidates[0], 'matched'
+
+
 def diagnostic_summary(path):
     totals = {'threshold_reached': 0, 'expired': 0, 'submit_failed': 0,
               'teardown': 0, 'device_error': 0, 'watch_queue_overflow': 0}
     counts = {'planned_slots': 0, 'submitted_outputs': 0, 'accepted_outputs': 0,
               'gpu_budget_drops': 0}
-    windows, sequence_window, gpu_events = {}, {}, []
+    windows, gpu_events = {}, []
+    submissions = _SubmissionIndex()
+    joins = {kind: dict.fromkeys(('matched', 'unmatched', 'ambiguous'), 0)
+             for kind in ('gpu_pair', 'gpu_correlated')}
     overruns = []
     first_ns = None
     try:
@@ -62,13 +98,12 @@ def diagnostic_summary(path):
                     for key, v in (('planned_slots', planned), ('submitted_outputs', dispatched),
                                    ('accepted_outputs', accepted), ('gpu_budget_drops', budget)):
                         counts[key] += v
-                    seq = int(event.get('te_sequence', 0))
-                    if seq:
-                        sequence_window[seq] = offset
+                    submissions.add(event, offset)
     except OSError:
         return {'available': False}
     for gpu in gpu_events:
-        index = sequence_window.get(int(gpu.get('te_sequence', 0)))
+        index, status = submissions.find(gpu)
+        joins['gpu_pair'][status] += 1
         if index is not None and index in windows and gpu.get('timed'):
             v = gpu.get('ready_ms', [0])[0]
             if v and 0 < float(v) < 10000:
@@ -97,7 +132,8 @@ def diagnostic_summary(path):
               'conversion_dispatched_to_wsi': round(counts['accepted_outputs'] / counts['submitted_outputs'], 4)
                   if counts['submitted_outputs'] else None,
               'gpu_queue_wait_ms': None,  # never report an unproven pure queue wait
-              'windows_10s': result_windows, 'admission_bins': admission_bins}
+              'windows_10s': result_windows, 'admission_bins': admission_bins,
+              'gpu_sample_joins': joins}
     if overruns:
         ordered = sorted(overruns)
         report['completion_overrun_median_ms'] = _median(ordered)
@@ -127,11 +163,12 @@ def diagnostic_summary(path):
                 calibrated_records += 1
                 reason = event.get('calibration_status', 'unknown')
                 statuses[reason] = statuses.get(reason, 0) + 1
+                offset, status = submissions.find(event)
+                joins['gpu_correlated'][status] += 1
                 wait_ns = event.get('submit_to_gpu_start_ns')
                 if wait_ns is not None and reason == 'calibrated':
                     ms = int(wait_ns)/1e6
                     delays.append(ms)
-                    offset = sequence_window.get(int(event.get('te_sequence', 0)))
                     if offset in by_window:
                         by_window[offset].setdefault('_submit_to_gpu_start_ms', []).append(ms)
     except OSError:

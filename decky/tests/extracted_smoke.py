@@ -63,6 +63,19 @@ async def test(archive, output):
         assert any(e.get('watch_end_reason') == 'threshold_reached' for e in watched), watched[:3]
         assert any(e.get('wait_threshold') < e.get('actual_signal_value') for e in watched), '2x timeline signal mapping incorrect'
         assert any(e.get('event') == 'timeline_watch_summary' for e in timeline_events), 'Missing watcher teardown summary'
+        # Sequence numbers restart in every process/bridge. Verify the actual
+        # packaged C producers and Python report agree on the full identity.
+        def identity(e):
+            return e['pid'], e['generation'], e['te_sequence']
+        pairs = [e for e in timeline_events if e.get('event') == 'pair']
+        assert pairs and all('te_submit_sequence' in e for e in pairs)
+        assert all(e['te_submit_sequence'] in (0, e['te_sequence']) for e in pairs)
+        origins = {identity(e) for e in pairs if e['te_submit_sequence'] and e['dispatched_outputs']}
+        for e in timeline_events:
+            if e.get('event') in ('gpu_pair', 'gpu_correlated'):
+                assert identity(e) in origins, e
+            if e.get('event') == 'timeline_watch' and e['submit_status'] == 'submitted':
+                assert identity(e) in origins, e
         status = await backend.get_status(42)
         assert status['report']['result'] == 'GENERATION_OBSERVED', status
         assert status['state'] == 'waiting', 'retired GPU process must not be shown live'
@@ -72,6 +85,10 @@ async def test(archive, output):
         assert metadata['GFG_NATIVE_TIMELINE_WATCH'] == '1'
         assert status['report']['diagnostic_mode'] == 'normal'
         assert status['report']['timeline_diagnostic']['available'] is True
+        joins = status['report']['timeline_diagnostic']['gpu_sample_joins']
+        for kind in ('gpu_pair', 'gpu_correlated'):
+            assert joins[kind]['matched'] > 0, joins
+            assert joins[kind]['unmatched'] == joins[kind]['ambiguous'] == 0, joins
         assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
         exported = await backend.export_report(42)

@@ -24,7 +24,7 @@ static int count_token(FILE *f,const char *word) {
 }
 int main(void) {
     FILE *log=tmpfile();assert(log);
-    timeline_watch *w=tw_start((VkDevice)1,1,fake_wait,fake_counter,log);assert(w);
+    timeline_watch *w=tw_start((VkDevice)1,1,fake_wait,fake_counter,log,123,7);assert(w);
     /* 2x: renderer waits for V+1 but actual output signals V+2. */
     uint64_t now=tw_now();
     tw_register(w,7,1,0,8,9,now+4000000ull,0);
@@ -49,6 +49,7 @@ int main(void) {
     assert(count_token(log,"\"watch_end_reason\":\"expired\"")==1);
     assert(count_token(log,"\"watch_end_reason\":\"teardown\"")==1);
     assert(count_token(log,"\"event\":\"timeline_watch_summary\"")==1);
+    assert(count_token(log,"\"pid\":123,\"generation\":7")==5);
     fclose(log);
     puts("GSF timeline watcher: signal, mismatched wait, failed submit, timeout, teardown PASS");
     return 0;
