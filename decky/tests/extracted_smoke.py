@@ -61,6 +61,9 @@ async def test(archive, output):
         metadata = json.loads((run/'LAUNCH.json').read_text())['native_environment']
         assert metadata['GFG_NATIVE_MODE'] == '2' and metadata['GFG_NATIVE_PACING'] == '1'
         assert metadata['GFG_NATIVE_VISIBILITY_PROBE'] == '1'
+        assert metadata['GFG_NATIVE_TIMELINE_WATCH'] == '1'
+        assert status['report']['diagnostic_mode'] == 'normal'
+        assert status['report']['timeline_diagnostic']['available'] is True
         assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
         exported = await backend.export_report(42)

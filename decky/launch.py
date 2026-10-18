@@ -48,10 +48,12 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal"):
                GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
                GFG_NATIVE_TIMING='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'))
-    if diagnostic_mode not in ("normal", "source-only", "compute-only", "matched-compute"):
+    if diagnostic_mode not in ("normal", "normal-no-watch", "source-only", "compute-only", "matched-compute"):
         raise ValueError("Unsupported GSF diagnostic mode")
-    if diagnostic_mode != "normal":
+    if diagnostic_mode not in ("normal", "normal-no-watch"):
         env["GFG_NATIVE_DIAGNOSTIC_MODE"] = diagnostic_mode
+    if diagnostic_mode == "normal-no-watch":
+        env["GFG_NATIVE_TIMELINE_WATCH"] = "0"
     # Never set SOURCE_HZ, OUTPUT_HZ, a game limiter, pixel readbacks or test badges.
     return env
 

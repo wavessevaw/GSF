@@ -45,6 +45,16 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.forget(42, old)
             self.assertNotIn('42', self.runtime.config()['games'])
 
+    def test_diagnostic_selection_is_validated_and_persistent(self):
+        with patch.object(self.runtime, 'install', return_value={'build': 'mock'}):
+            self.runtime.prepare(42, '')
+        with self.assertRaises(ValueError):
+            self.runtime.set_diagnostic_mode(42, 'unknown-mode')
+        self.runtime.set_diagnostic_mode(42, 'matched-compute')
+        self.assertEqual(Runtime(self.home, PLUGIN).status(42)['diagnostic_mode'], 'matched-compute')
+        self.runtime.set_diagnostic_mode(42, 'normal-no-watch')
+        self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-watch')
+
     def test_selection_persists_without_installing_or_enabling(self):
         self.assertEqual(self.runtime.selection(), {'appid': 0})
         self.runtime.select(42)
@@ -109,6 +119,14 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(env['GFG_NATIVE_PACING'], '1')
         self.assertEqual(env['GFG_NATIVE_VISIBILITY_PROBE'], '1')
         self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
+        self.assertEqual(env['GFG_NATIVE_TIMELINE_WATCH'], '1')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            watch_off = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-watch')
+        self.assertEqual(watch_off['GFG_NATIVE_TIMELINE_WATCH'], '0')
+        self.assertNotIn('GFG_NATIVE_DIAGNOSTIC_MODE', watch_off)
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            matched = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'matched-compute')
+        self.assertEqual(matched['GFG_NATIVE_DIAGNOSTIC_MODE'], 'matched-compute')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[0], 'VK_LAYER_GFG_native')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[-1], 'VK_LAYER_FROG_gamescope_wsi_x86_64')
         self.assertIn('/steam/explicit', env['VK_LAYER_PATH'])

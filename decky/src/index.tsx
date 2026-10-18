@@ -101,6 +101,7 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
           {data: 'normal', label: 'Обычный 2× + Timeline Watch'},
+          {data: 'normal-no-watch', label: 'Контроль: 2× без Timeline Watch'},
           {data: 'source-only', label: 'Контроль: только исходные кадры'},
           {data: 'compute-only', label: 'Стресс-тест: только вычисления'},
           {data: 'matched-compute', label: 'Тот же допуск, без показа synthetic'}

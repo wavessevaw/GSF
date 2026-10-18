@@ -64,7 +64,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
   await act(async () => {tree = Renderer.create(context.plugin().content);});
   try {
     await flush();
-    const dropdown = () => tree.root.findByType('gsf-Dropdown');
+    const dropdown = () => tree.root.findAllByType('gsf-Dropdown').find(n => n.props.rgOptions?.some(o => o.data === 42));
     await act(async () => {dropdown().props.onChange({data: 42, label: 'Test Game'});});
     await flush();
     assert.equal(selected, 42);

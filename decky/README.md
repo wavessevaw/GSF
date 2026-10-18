@@ -5,6 +5,8 @@ It does not change frame_clock, shader implementation, admission or output timeo
 
 `timeline_watch` telemetry records `wait_threshold`, `actual_signal_value`, `submit_status`, `deadline_kind`, `watch_end_reason`, `timeline_observed_ns`, `last_below_ns`, `watch_poll_interval_ns`. A `threshold_reached` event is a CPU observation of a monotonic Vulkan semaphore threshold, **not** independently verified execution of a particular command when signals skip values, GPU completion timestamp, WSI acceptance or physical OLED scanout.
 
+`normal-no-watch`: identical normal 2× path with watcher disabled for overhead A/B.
+
 `source-only`: preserve original presents through worker without TE synthetic generation. `compute-only`: existing unthrottled compute-only stress test. `matched-compute`: use normal generation admission policy without synthetic readiness wait or presentation; comparisons are NOT equal-load scans when Gamescope frame rate changes.
 
 A/B benchmarks must use one saved scene and comparable thermal state; watcher overhead must be measured using WATCH=0 vs WATCH=1 under identical game workloads. Auto-generated `REPORT.json` includes `diagnostic_mode` and a watcher completion summary. Timeline watch only covers same-device GPU LMC (not CPU-fit or shared-fd).

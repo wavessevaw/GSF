@@ -215,7 +215,7 @@ class Runtime:
             atomic_json(self.root/'config.json', cfg)
 
     def set_diagnostic_mode(self, appid, mode):
-        if mode not in ('normal', 'source-only', 'compute-only', 'matched-compute'):
+        if mode not in ('normal', 'normal-no-watch', 'source-only', 'compute-only', 'matched-compute'):
             raise ValueError('Неверный диагностический режим')
         aid = app_id(appid)
         cfg = self.config()
