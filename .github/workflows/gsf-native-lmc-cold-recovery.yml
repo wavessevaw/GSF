@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           make -C engine/gfg-native ENABLE_TE=1 BUILD=build-cold VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-cold/wsi-gpu-smoke 2>&1 | tee "gsf-lmc-${{ matrix.order }}/native-build.log"
           test -s engine/gfg-native/build-cold/libVkLayer_gfg_native.so
-      - name: Actual LMC GPU pixels: strict 12 real + 22 synthetic, zero skips at 5Hz
+      - name: 'Actual LMC GPU pixels: 12 real plus 22 synthetic, zero skips at 5Hz'
         run: |
           python3 engine/gfg-native/scripts/gsf_lmc_cold_recovery.py \
             --order "${{ matrix.order }}" --timeout 180 --out "gsf-lmc-${{ matrix.order }}"
