@@ -55,6 +55,14 @@ async def test(archive, output):
         assert stats['real'] == 70 and stats['synthetic'] >= 60, stats
         assert stats['errors'] == stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
         assert '[gfg-native] visibility_probe frame=' in log, '0.1.4 probe path was never exercised'
+        # Native bridge must emit real per-pair GPU timeline observations.
+        timeline_events = [json.loads(line) for line in (run/'frames.jsonl').read_text().splitlines()
+                           if line.strip().startswith('{')]
+        watched = [e for e in timeline_events if e.get('event') == 'timeline_watch']
+        assert len(watched) >= 10, 'Timeline watcher did not observe generated GPU submissions'
+        assert any(e.get('watch_end_reason') == 'threshold_reached' for e in watched), watched[:3]
+        assert any(e.get('wait_threshold') < e.get('actual_signal_value') for e in watched), '2x timeline signal mapping incorrect'
+        assert any(e.get('event') == 'timeline_watch_summary' for e in timeline_events), 'Missing watcher teardown summary'
         status = await backend.get_status(42)
         assert status['report']['result'] == 'GENERATION_OBSERVED', status
         assert status['state'] == 'waiting', 'retired GPU process must not be shown live'
