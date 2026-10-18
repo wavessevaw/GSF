@@ -193,6 +193,8 @@ struct gfg_gpu_fg {
     uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
     uint64_t pacing_waits, pacing_late;
     int deadline_drop, pressure_drop;
+    /* Deliberately sparse, bounded real-WSI proof attempts for Decky 0.1.4. */
+    int visibility_probe, probe_active;
     int cut_drop, duplicate_drop, control_checked;
     unsigned multiplier;
     uint64_t source_ns, admitted_ns, source_serial, previous_source_ns, previous_serial;
@@ -229,7 +231,7 @@ int gfg_gpu_fg_waiting_image(gfg_gpu_fg *fg) { return atomic_load(&fg->waiting_i
 static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *pi,
                                PFN_vkQueuePresentKHR next,unsigned kind) {
     if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
-       !fg->diagnostic && !atomic_load(&fg->output_pressure)) {
+       !fg->diagnostic && !fg->probe_active && !atomic_load(&fg->output_pressure)) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,kind)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
         const uint64_t ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
@@ -259,7 +261,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || atomic_load(&fg->output_pressure)?
+        at.desiredPresentTime=fg->diagnostic || fg->probe_active || (kind==2 && !fg->pace_real) || atomic_load(&fg->output_pressure)?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }
@@ -302,6 +304,11 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
     unsigned mask=fg->clock.period_ns && fg->diagnostic!=2?
         gfg_frame_clock_compute_mask(&fg->clock,now,
             fg->display_timing==2?fg->clock.period_ns/4:0):(1u<<(fg->multiplier-1))-1u;
+    /* A probe may miss the strict compositor handoff deadline, but only for
+     * an actually allocated intermediate slot and once per 12 real frames.
+     * It never fabricates a slot on an overspeed/invalid frame lattice. */
+    if(fg->probe_active && have_pair && !mask)mask=fg->clock.mask&1u;
+    if(fg->probe_active)mask&=1u;
     if(!fg->diagnostic && atomic_load(&fg->output_pressure))mask=0;
     if(fg->clock.period_ns && !fg->diagnostic && fg->gpu_budget_ns[0]) {
         unsigned affordable=0,output=0;
@@ -316,6 +323,10 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
          * one eligible output every two seconds, never an expired slot. */
         if(!affordable && mask && now>=fg->last_generation_dispatch_ns &&
            now-fg->last_generation_dispatch_ns>=2000000000ull)affordable=mask&(~mask+1u);
+        /* Sparse visibility probes test whether *real generated* pixels can
+         * reach the game's WSI, without treating a GPU-cost estimate as a
+         * hard refusal. Readiness still has a small finite wait budget. */
+        if(fg->probe_active && mask)affordable=mask&(~mask+1u);
         mask=affordable;
     }
     const int generate=have_pair && mask;
@@ -903,6 +914,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     fg->force_fifo = info->force_fifo;
     fg->set_loader_data = info->set_loader_data;
     fg->log = getenv("GFG_NATIVE_TRACE") != NULL;
+    fg->visibility_probe=env_flag("GFG_NATIVE_VISIBILITY_PROBE");
     fg->src_bgra = is_bgra(info->format);
     fg->hdr10 = is_hdr10(info->format);
     fg->color_space=info->color_space;
@@ -1454,14 +1466,18 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
     double tp = now_us();
     VkResult r;
     double target_us=fg->output_deadline_us;
+    const int probe=fg->probe_active && k==0;
     if(atomic_load(&fg->output_pressure)) {
         fg->slot_detail[k]="source-backlog";fg->pressure_drop=1;return 0;
     }
     if(fg->pacing_active && fg->clock.period_ns) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,(unsigned)k)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         uint64_t now=(uint64_t)(now_us()*1000.0),value=v+1+(uint64_t)output_index;
+        /* The probe gets at most 12ms for GPU readiness, independent of a
+         * past output deadline. Normal scheduling retains strict deadlines. */
+        const uint64_t ready_until=probe?now+12000000ull:target;
         if(fg->cut_drop || fg->duplicate_drop)return 0;
-        if(!(gfg_frame_clock_compute_mask(&fg->clock,now,fg->display_timing==2?fg->clock.period_ns/4:0)&(1u<<k))) {
+        if(!probe && !(gfg_frame_clock_compute_mask(&fg->clock,now,fg->display_timing==2?fg->clock.period_ns/4:0)&(1u<<k))) {
             fg->slot_detail[k]="expired-before-readiness";fg->deadline_drop=1;return 0;
         }
         VkSemaphoreWaitInfo wait={.sType=VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
@@ -1472,13 +1488,13 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
                 fg->slot_detail[k]="source-backlog";fg->pressure_drop=1;return 0;
             }
             uint64_t current=(uint64_t)(now_us()*1000.0);
-            uint64_t remaining=target>current?target-current:0;
+            uint64_t remaining=ready_until>current?ready_until-current:0;
             r=fg->WaitSemaphores(fg->device,&wait,remaining>500000?500000:remaining);
-        }while(r==VK_TIMEOUT && (uint64_t)(now_us()*1000.0)<target);
+        }while(r==VK_TIMEOUT && (uint64_t)(now_us()*1000.0)<ready_until);
         const uint64_t observed=(uint64_t)(now_us()*1000.0);
         fg->readiness_wait_ns[k]=observed-now;
         if(r==VK_SUCCESS)fg->readiness_ns[k]=observed;
-        if(r==VK_TIMEOUT || (r==VK_SUCCESS && (uint64_t)(now_us()*1000.0)>target)) {
+        if(r==VK_TIMEOUT || (!probe && r==VK_SUCCESS && (uint64_t)(now_us()*1000.0)>target)) {
             fg->slot_detail[k]="gpu-readiness-deadline";fg->deadline_drop=1;return 0;
         }
         if(r!=VK_SUCCESS){fail_log(fg,"output readiness",r);return -1;}
@@ -1493,7 +1509,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
             if(cut || held){fg->cut_drop=1;return 0;}
             if(duplicate){fg->duplicate_drop=1;return 0;}
         }
-        target_us=(double)target/1000.0;
+        target_us=probe?now_us()+2000.0:(double)target/1000.0;
     }
     /* WSI acquisition is polled with the host lock released between attempts.
      * Never block an app acquire while holding that same swapchain lock. Give
@@ -1671,6 +1687,11 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     double next_us = 0.0;
     STAT_ADD(real_presents, 1);
     const uint64_t frame = fg->frame++;
+    /* Probe only a single G1 on every twelfth eligible source, never on
+     * overspeed or backlog. The normal 0.1.3 pacing is unchanged otherwise. */
+    fg->probe_active=fg->visibility_probe && frame>=3 && frame%12==0 &&
+        (fg->clock.mask&1u) && !fg->clock.overspeed &&
+        !atomic_load(&fg->output_pressure);
     const uint32_t idx = app->pImageIndices[0];
     VkResult result;
     gfg_present_chain app_chain;
@@ -1904,7 +1925,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->in_present = 0;
     /* Real-only fences/timing and immutable copied metadata stay on the app's
      * real present; synthetic calls never borrow those completion objects. */
-    fg->pace_real=presented>0;
+    fg->pace_real=presented>0 && !fg->probe_active;
     result = forward_real(fg, queue, app, &fg->ready[idx], next, ids, &next_us);
     if(fg->recreate_required && (result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR)){
         result=VK_ERROR_OUT_OF_DATE_KHR;
@@ -1914,6 +1935,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         fprintf(stderr, "[gfg-native] gpu-bridge frame=%llu te=%d generated=%d presented=%d\n",
                 (unsigned long long)frame, (int)tr, generate, presented);
 timing:
+    if(fg->probe_active)
+        fprintf(stderr,"[gfg-native] visibility_probe frame=%llu synthetic_wsi=%d real_wsi=%d detail=%s bounded_wait_ms=12\n",
+            (unsigned long long)frame,fg->slot_drop[0]==-1,fg->accepted_ns[2]!=0,fg->slot_detail[0]);
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"pair\",\"pid\":%ld,\"generation\":%llu,\"pair\":%llu,"
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
@@ -1982,6 +2006,7 @@ timing:
         fg->status_last_ns=status_now;
     }
     fg->source_ns=fg->source_serial=fg->admitted_ns=0;
+    fg->probe_active=0;
     if (fg->timing_total_us && fg->timing_count < TIMING_CAP) {
         const double total = now_us() - t0;
         fg->timing_total_us[fg->timing_count] = total;
