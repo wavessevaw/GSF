@@ -8,7 +8,7 @@ ENABLE_CPU_BRIDGE ?= 0
 TE_LIB ?= ../gfg-temporal/build/libgfg-temporal.a
 ifeq ($(ENABLE_TE),1)
 NATIVE_SOURCES := src/layer.c src/gpu_bridge.c src/output_worker.c
-NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
+NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/calibrated_clock.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
 NATIVE_CPPFLAGS := -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src
 ifeq ($(ENABLE_CPU_BRIDGE),1)
 NATIVE_SOURCES += src/cpu_bridge.c

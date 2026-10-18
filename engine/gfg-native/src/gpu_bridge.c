@@ -50,6 +50,7 @@
 #include "past_timing.h"
 #include "te_engine.h"
 #include "timeline_watch.h"
+#include "calibrated_clock.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -145,6 +146,7 @@ struct gfg_gpu_fg {
     uint64_t next_value;         /* first value of the next block */
     uint64_t last_te_value;      /* last value TE will signal */
     timeline_watch *timeline_observer;
+    gsf_calibrated_clock calibrated;
     int lmc_tier;
 
     /* test-only verification (GFG_NATIVE_GPU_BRIDGE_VERIFY=1) */
@@ -398,6 +400,27 @@ static void gpu_sample(gfg_gpu_fg *fg) {
     if(s.timed && s.outputs)for(unsigned k=0;k<s.outputs && k<2;++k)
         if(s.ready_ms[k]>0 && s.ready_ms[k]<10000.0)
             fg->gpu_budget_ns[k]=(uint64_t)(s.ready_ms[k]*1000000.0);
+    gsf_clock_estimate estimate={0};
+    if(s.timed && s.gpu_timestamp_valid_bits==64)
+        estimate=gsf_calibration_estimate(&fg->calibrated,s.gpu_start_ticks,
+            s.gpu_timestamp_period_ns,s.submit_return_ns);
+    else {
+        estimate=(gsf_clock_estimate){.start_text="null",.delay_text="null",
+            .calibration_text="null",.deviation_text="null",
+            .reason=s.timed?"timestamp_bits_below_64":"gpu_timestamps_unavailable"};
+    }
+    if(fg->telemetry) {
+        fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_correlated\","
+            "\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
+            "\"timestamp_valid_bits\":%u,\"gpu_timestamp_period_ns\":%.9f,"
+            "\"gpu_start_cpu_ns\":%s,\"submit_to_gpu_start_ns\":%s,"
+            "\"calibration_ns\":%s,\"calibration_max_deviation_ns\":%s,"
+            "\"calibration_status\":\"%s\"}\n",
+            (unsigned long long)s.sequence,(unsigned long long)s.submit_return_ns,
+            (unsigned long long)s.gpu_start_ticks,s.gpu_timestamp_valid_bits,
+            s.gpu_timestamp_period_ns,estimate.start_text,estimate.delay_text,
+            estimate.calibration_text,estimate.deviation_text,estimate.reason);
+    }
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_pair\",\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,"
             "\"outputs\":%u,\"timed\":%d,\"ready_ms\":[%.6f,%.6f],\"analysis_ms\":[%.6f,%.6f,%.6f],"
@@ -1199,6 +1222,9 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         fg->gpu_first_ms = calloc(TIMING_CAP, sizeof(double));
         fg->gpu_pair_ms = calloc(TIMING_CAP, sizeof(double));
     }
+    gsf_calibration_init(&fg->calibrated,info->instance,info->physical,info->device,
+        info->gipa,info->gdpa,info->calibrated_mode,
+        env_uint("GFG_NATIVE_CALIBRATION_EVERY_FRAMES",10,1,1000),fg->telemetry);
     if(env_flag("GFG_NATIVE_TIMELINE_WATCH") && fg->same_device &&
        cd.params.algorithm==TE_ALGO_LMC_GPU) {
         fg->timeline_observer=tw_start(fg->device,fg->timeline,fg->WaitSemaphores,
@@ -1840,6 +1866,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     tp = now_us();
     VkResult tr = inject_te_busy ? VK_NOT_READY : te_submit_frame(fg->context, &s);
     fg->phase_us[1] += now_us() - tp;
+    if(tr==VK_SUCCESS && generate && s.count)
+        gsf_calibration_maybe_sample(&fg->calibrated,fg->frame);
     if(generate && s.count)tw_submitted(fg->timeline_observer,v,tr==VK_SUCCESS);
     gpu_sample(fg);
     int presented = 0;
