@@ -1,0 +1,23 @@
+name: GSF Temporal Causality Research
+on:
+  push:
+    branches: [main, 'research/qwen-temporal-architecture-review-20261018']
+    paths:
+      - engine/gfg-native/tests/test_gsf_temporal_causality.py
+      - .github/workflows/gsf-temporal-causality.yml
+  pull_request:
+    paths:
+      - engine/gfg-native/tests/test_gsf_temporal_causality.py
+      - .github/workflows/gsf-temporal-causality.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  causal-timeline-math:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify bounded buffered FG temporal model
+        run: python3 engine/gfg-native/tests/test_gsf_temporal_causality.py
+      - name: State test scope
+        run: echo "A mathematical thought-experiment only; real WSI, compositor, OLED, input latency and GPU cost are NOT measured."
