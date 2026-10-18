@@ -80,20 +80,27 @@ def check_active(log, lifecycle, kit, paced=False, frames=12):
 def check_cadence(path, minimum=5):
     pairs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     pairs = [p for p in pairs if p.get('event') == 'pair']
-    gaps = []
+    gaps, transitions = [], []
     for pair in pairs:
         if pair['refresh_period_ns'] != 100_000_000:
             raise ValueError('LMC не включил заданный выходной такт 10 Гц')
         accepted = pair['wsi_accepted_ns']
         if accepted[0] and accepted[2]:
             gap = accepted[2] - accepted[0]
-            if not 70_000_000 <= gap <= 130_000_000:
+            planned = pair['target_ns'][2] - pair['target_ns'][0]
+            if planned not in (100_000_000, 200_000_000) or abs(gap-planned) > 30_000_000:
                 raise ValueError(f'G1 и real отправлены с неверным интервалом: {gap/1e6:.3f} мс')
-            gaps.append(gap/1e6)
+            if planned == 100_000_000:
+                gaps.append(gap/1e6)
+            else:
+                # The first post-reset lattice can span three refresh slots.
+                # Record it, but never count it as an evenly spaced pair.
+                transitions.append(gap/1e6)
     if len(gaps) < minimum:
         raise ValueError('Недостаточно равномерно разделённых пар G1/real')
     return {'scope':'WSI handoff, physical display unverified', 'pairs':len(gaps),
-            'g1_to_real_ms_min':min(gaps), 'g1_to_real_ms_max':max(gaps)}
+            'g1_to_real_ms_min':min(gaps), 'g1_to_real_ms_max':max(gaps),
+            'nonuniform_transition_gaps_ms':transitions}
 
 
 def child_env(kit, active, validation, order):
