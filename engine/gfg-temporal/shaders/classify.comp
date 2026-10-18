@@ -1,0 +1,59 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Target class, residual promotion and hysteresis per tile, once per pair
+// (reference: target_classes + apply_hysteresis + scene-cut reset).
+#include "common.glsl"
+layout(local_size_x = 64) in;
+
+void main() {
+    int id = int(gl_GlobalInvocationID.x);
+    int n = tile_count();
+    if (id >= n) return;
+    uint par = uint(PC.parity);
+    bool cut = 2u * G.count_err[par] > uint(n) && 2u * G.count_diff[par] > uint(n);
+    bool hist = G.history_valid[par ^ 1u] != 0u;
+    TileState ts = tstate[id];
+    if (cut) {
+        G.cut[par] = 1u;
+        G.history_valid[par] = 0u;
+        ts.state = CLASS_REUSE;
+        ts.count = 0u;
+        ts.target = CLASS_REUSE;
+        ts.frame_cls = CLASS_NONE;
+        tstate[id] = ts;
+        return;
+    }
+    G.cut[par] = 0u;
+    G.history_valid[par] = 1u;
+    TileStats st = stats[id];
+    // PC.step_ scales the LIGHT threshold, PC.flags bit 0 forces FULL (scheduler knobs)
+    uint target = st.probe <= P.light_thr * PC.step_ ? CLASS_LIGHT : CLASS_FULL;
+    if (st.diff <= P.static_thr && st.diff_max <= P.static_max_thr && st.neigh <= float(P.tile) * 0.5)
+        target = CLASS_REUSE;
+    if (P.adaptive == 0) target = uint(P.force_class);
+    if ((PC.flags & 1) != 0) target = CLASS_FULL;
+    if ((PC.flags & 2) != 0 && target == CLASS_FULL) target = CLASS_LIGHT;  // cost cap: cheapest level
+    if ((PC.flags & 2) == 0 && hist && ts.frame_cls == CLASS_LIGHT && residual[id] > P.residual_thr) {
+        ts.state = CLASS_FULL;
+        ts.count = 0u;
+        atomicAdd(G.promoted, 1u);
+    }
+    if (!hist) {
+        ts.state = target;
+        ts.count = 0u;
+    } else if (target > ts.state) {
+        ts.state = target;
+        ts.count = 0u;
+    } else if (target == ts.state) {
+        ts.count = 0u;
+    } else {
+        ts.count += 1u;
+        if (ts.count >= uint(P.hysteresis)) {
+            ts.state = target;
+            ts.count = 0u;
+        }
+    }
+    ts.target = target;
+    ts.frame_cls = CLASS_NONE;
+    tstate[id] = ts;
+}

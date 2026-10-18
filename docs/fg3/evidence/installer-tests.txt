@@ -1,0 +1,24 @@
+test_home_and_model_paths_are_redacted (test_native_fg_probe.NativeProbeTests.test_home_and_model_paths_are_redacted) ... ok
+test_missing_dependency_is_recorded (test_native_fg_probe.NativeProbeTests.test_missing_dependency_is_recorded) ... ok
+test_multiframe_positions (test_native_fg_probe.NativeProbeTests.test_multiframe_positions) ... ok
+test_nonexistent_device_fields_stay_unknown (test_native_fg_probe.NativeProbeTests.test_nonexistent_device_fields_stay_unknown) ... ok
+test_packet_excludes_closed_payloads_and_symlinks (test_native_fg_probe.NativeProbeTests.test_packet_excludes_closed_payloads_and_symlinks) ... ok
+test_reference_environment_overrides_inherited_backend (test_native_fg_probe.NativeProbeTests.test_reference_environment_overrides_inherited_backend) ... ok
+test_timed_out_tool_is_not_success (test_native_fg_probe.NativeProbeTests.test_timed_out_tool_is_not_success) ... ok
+test_corrupted_payload_does_not_mutate_existing_install (test_native_gpu_install.NativeGpuInstallTests.test_corrupted_payload_does_not_mutate_existing_install) ... ok
+test_first_install_rollback_and_uninstall_leave_working_launch_option (test_native_gpu_install.NativeGpuInstallTests.test_first_install_rollback_and_uninstall_leave_working_launch_option) ... ok
+test_off_mode_preserves_arguments_and_disables_native (test_native_gpu_install.NativeGpuInstallTests.test_off_mode_preserves_arguments_and_disables_native) ... ok
+test_upgrade_rollback_restores_exact_previous_files (test_native_gpu_install.NativeGpuInstallTests.test_upgrade_rollback_restores_exact_previous_files) ... ok
+test_host_cached_vulkan_readback_and_bulk_mapped_transfer (test_native_layer_foundation.NativeLayerTests.test_host_cached_vulkan_readback_and_bulk_mapped_transfer) ... ok
+test_manifest_is_opt_in_and_standalone (test_native_layer_foundation.NativeLayerTests.test_manifest_is_opt_in_and_standalone) ... ok
+test_native_cpu_path_uses_only_internal_temporal_engine (test_native_layer_foundation.NativeLayerTests.test_native_cpu_path_uses_only_internal_temporal_engine) ... ok
+test_no_foreign_backend_linkage (test_native_layer_foundation.NativeLayerTests.test_no_foreign_backend_linkage) ... ok
+test_wsi_present_semaphores_are_per_swapchain_image (test_native_layer_foundation.NativeLayerTests.test_wsi_present_semaphores_are_per_swapchain_image) ... ok
+test_backend_native_has_no_model_registry_path (test_native_no_dll_bootstrap.BootstrapTests.test_backend_native_has_no_model_registry_path) ... ok
+test_checked_replace_unique (test_native_no_dll_bootstrap.BootstrapTests.test_checked_replace_unique) ... ok
+test_renderer_no_dll_lookup_in_native_mode (test_native_no_dll_bootstrap.BootstrapTests.test_renderer_no_dll_lookup_in_native_mode) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.323s
+
+OK

@@ -1,0 +1,13 @@
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+GFG native: validation messenger active sync_validation=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=24
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=lmc-gpu verify=1 startup_ms=1759.47
+[gfg-native] gpu-verify frame=5 distinct=1 ordered=1 mad_g1g2=18.161 mad_g1_prev=19.819 mad_g1_real=34.421 mad_g2_prev=34.890 mad_g2_real=19.308 mad_prev_real=48.129
+[gfg-native] gpu-verify frame=9 distinct=1 ordered=1 mad_g1g2=18.355 mad_g1_prev=19.177 mad_g1_real=34.988 mad_g2_prev=34.688 mad_g2_real=19.456 mad_prev_real=48.117
+[gfg-native] gpu-verify frame=13 distinct=1 ordered=1 mad_g1g2=18.738 mad_g1_prev=19.740 mad_g1_real=35.172 mad_g2_prev=35.414 mad_g2_real=19.627 mad_prev_real=49.035
+[gfg-native] gpu-verify frame=17 distinct=1 ordered=1 mad_g1g2=18.133 mad_g1_prev=18.769 mad_g1_real=35.324 mad_g2_prev=34.061 mad_g2_real=19.953 mad_prev_real=48.131
+[gfg-native] gpu-verify frame=21 distinct=1 ordered=1 mad_g1g2=18.227 mad_g1_prev=19.300 mad_g1_real=34.797 mad_g2_prev=34.736 mad_g2_real=19.392 mad_prev_real=48.107
+GFG native: gpu stats bridges=1 sync_mode=3 real=24 synthetic=46 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=5 verify_distinct=5 verify_host_reads=5
+GFG native: validation errors=0 warnings=2
+GFG native: 24 real frames GPU bridge WSI smoke PASS

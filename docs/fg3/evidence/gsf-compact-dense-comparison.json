@@ -1,0 +1,982 @@
+{
+  "schema": 1,
+  "scope": "offscreen Vulkan; not Deck GPU performance or physical scanout",
+  "source_commit": "e292a017edaf348bc90306cbb40dec9de8614eec",
+  "worktree_dirty": true,
+  "bench_sha256": "7556f82793a31210c15010de80d5e786a0c4d036ef5f6f6a2b8923d8799f4fca",
+  "timing_warmup_pairs_discarded": 1,
+  "segments": [
+    {
+      "name": "bolt-small-bolt",
+      "input_sha256": "1e6197b4de8ff93c4ede0fcfb4fefc36f4262a4e4099fa3d0619c9e62a029374",
+      "source": "bolt.mp4 intel-iot-devkit/sample-videos, CC-BY-4.0; original 60000/1001 FPS",
+      "fps_source": 59.94005994005994,
+      "fps_real": 19.98001998001998,
+      "width": 384,
+      "height": 216,
+      "start": 0,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 46.20212555229748,
+          "ssim_y": 0.9834182518674505,
+          "motion_roi_psnr": 36.03577931901245,
+          "temporal_error": 0.6581474758180169,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 62.869,
+          "quality_process_wall_s": 1.4093899989966303,
+          "cut_flags": 0,
+          "device_log": "bolt-small-bolt-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 23.69435,
+            "p95": 28.134139999999995
+          },
+          "s1_ms": {
+            "median": 4.1074,
+            "p95": 4.905214999999999
+          },
+          "s2_ms": {
+            "median": 4.01705,
+            "p95": 4.978885
+          },
+          "first_ready_ms": {
+            "median": 27.93,
+            "p95": 32.613904999999995
+          },
+          "pair_ready_ms": {
+            "median": 32.7331,
+            "p95": 36.925079999999994
+          },
+          "cpu_submit_ms": {
+            "median": 0.10805000000000001,
+            "p95": 0.12110499999999999
+          },
+          "cpu_total_ms": {
+            "median": 33.292100000000005,
+            "p95": 37.385059999999996
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 43.99768712714363,
+          "ssim_y": 0.9819490734068627,
+          "motion_roi_psnr": 32.08866329850084,
+          "temporal_error": 0.6741066507917518,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 4911124,
+          "quality_run_first_pair_gpu_ms": 32.5912,
+          "quality_process_wall_s": 0.8283777500037104,
+          "cut_flags": 0,
+          "device_log": "bolt-small-bolt-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 6.7842,
+            "p95": 8.435329999999999
+          },
+          "s1_ms": {
+            "median": 3.0060000000000002,
+            "p95": 4.201094999999999
+          },
+          "s2_ms": {
+            "median": 3.18235,
+            "p95": 4.307054999999998
+          },
+          "first_ready_ms": {
+            "median": 10.012,
+            "p95": 12.434695
+          },
+          "pair_ready_ms": {
+            "median": 13.5701,
+            "p95": 16.19186
+          },
+          "cpu_submit_ms": {
+            "median": 0.06975,
+            "p95": 0.09375499999999999
+          },
+          "cpu_total_ms": {
+            "median": 13.93405,
+            "p95": 16.685859999999998
+          },
+          "vs_lmc": {
+            "psnr_delta": -2.204438425153853,
+            "motion_roi_delta": -3.947116020511608,
+            "temporal_ratio": 1.024248630527526,
+            "pair_gpu_ratio": 0.41456812828604683
+          },
+          "software_gate_pass": false
+        },
+        "shared-flow-dense": {
+          "psnr_y": 46.16328953364391,
+          "ssim_y": 0.9833530947387491,
+          "motion_roi_psnr": 35.936762967421345,
+          "temporal_error": 0.658540545264259,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 48.6641,
+          "quality_process_wall_s": 1.281376758008264,
+          "cut_flags": 0,
+          "device_log": "bolt-small-bolt-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 19.945700000000002,
+            "p95": 24.144719999999996
+          },
+          "s1_ms": {
+            "median": 3.8578,
+            "p95": 7.416234999999993
+          },
+          "s2_ms": {
+            "median": 3.87075,
+            "p95": 6.671059999999995
+          },
+          "first_ready_ms": {
+            "median": 24.45305,
+            "p95": 29.542624999999997
+          },
+          "pair_ready_ms": {
+            "median": 28.5103,
+            "p95": 36.149229999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.0947,
+            "p95": 0.10092
+          },
+          "cpu_total_ms": {
+            "median": 28.981650000000002,
+            "p95": 36.661424999999994
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.038836018653569226,
+            "motion_roi_delta": -0.09901635159110356,
+            "temporal_ratio": 1.0005972361221223,
+            "pair_gpu_ratio": 0.8709929704183228
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "game-small-strafe",
+      "input_sha256": "e9008ab53fca92f392a9d969e29df9385c576b207951d8f660a6eb28bf16be80",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90.0,
+      "fps_real": 30.0,
+      "width": 384,
+      "height": 240,
+      "start": 0,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 32.72205228722984,
+          "ssim_y": 0.9770069507584777,
+          "motion_roi_psnr": 26.435883552899043,
+          "temporal_error": 1.596532193555807,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 81.5827,
+          "quality_process_wall_s": 1.509849962007138,
+          "cut_flags": 0,
+          "device_log": "game-small-strafe-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 48.33395,
+            "p95": 51.027845
+          },
+          "s1_ms": {
+            "median": 6.705500000000001,
+            "p95": 7.567324999999999
+          },
+          "s2_ms": {
+            "median": 7.11415,
+            "p95": 7.642659999999999
+          },
+          "first_ready_ms": {
+            "median": 55.0583,
+            "p95": 57.835809999999995
+          },
+          "pair_ready_ms": {
+            "median": 62.3668,
+            "p95": 65.30544
+          },
+          "cpu_submit_ms": {
+            "median": 0.1035,
+            "p95": 0.13072
+          },
+          "cpu_total_ms": {
+            "median": 62.7608,
+            "p95": 65.76380499999999
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 31.534361024463994,
+          "ssim_y": 0.9702959473021827,
+          "motion_roi_psnr": 25.542479595050462,
+          "temporal_error": 1.6808974040516962,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5449172,
+          "quality_run_first_pair_gpu_ms": 41.2761,
+          "quality_process_wall_s": 0.9098389700084226,
+          "cut_flags": 0,
+          "device_log": "game-small-strafe-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 7.88905,
+            "p95": 12.217785
+          },
+          "s1_ms": {
+            "median": 6.6937999999999995,
+            "p95": 8.81398
+          },
+          "s2_ms": {
+            "median": 6.875,
+            "p95": 8.656125
+          },
+          "first_ready_ms": {
+            "median": 15.207550000000001,
+            "p95": 20.805855
+          },
+          "pair_ready_ms": {
+            "median": 22.459699999999998,
+            "p95": 29.029424999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.07819999999999999,
+            "p95": 0.12160499999999992
+          },
+          "cpu_total_ms": {
+            "median": 22.88345,
+            "p95": 29.644159999999996
+          },
+          "vs_lmc": {
+            "psnr_delta": -1.1876912627658491,
+            "motion_roi_delta": -0.8934039578485802,
+            "temporal_ratio": 1.0528427869080363,
+            "pair_gpu_ratio": 0.36012269348435383
+          },
+          "software_gate_pass": false
+        },
+        "shared-flow-dense": {
+          "psnr_y": 32.46359940375866,
+          "ssim_y": 0.9755208089597135,
+          "motion_roi_psnr": 26.194364345702198,
+          "temporal_error": 1.6552003131558497,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 67.9333,
+          "quality_process_wall_s": 1.1742297649907414,
+          "cut_flags": 0,
+          "device_log": "game-small-strafe-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 36.18875,
+            "p95": 39.940059999999995
+          },
+          "s1_ms": {
+            "median": 5.08105,
+            "p95": 8.709634999999997
+          },
+          "s2_ms": {
+            "median": 4.95305,
+            "p95": 6.4224
+          },
+          "first_ready_ms": {
+            "median": 42.0212,
+            "p95": 46.97739
+          },
+          "pair_ready_ms": {
+            "median": 46.89925,
+            "p95": 52.85909499999999
+          },
+          "cpu_submit_ms": {
+            "median": 0.0928,
+            "p95": 0.096185
+          },
+          "cpu_total_ms": {
+            "median": 47.369299999999996,
+            "p95": 53.32211999999999
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.2584528834711861,
+            "motion_roi_delta": -0.24151920719684483,
+            "temporal_ratio": 1.0367472199037695,
+            "pair_gpu_ratio": 0.7519906424572048
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "game-small-objects",
+      "input_sha256": "e9008ab53fca92f392a9d969e29df9385c576b207951d8f660a6eb28bf16be80",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90.0,
+      "fps_real": 30.0,
+      "width": 384,
+      "height": 240,
+      "start": 135,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 33.93917082799544,
+          "ssim_y": 0.9752609016172618,
+          "motion_roi_psnr": 26.393658336481746,
+          "temporal_error": 1.3461267781288673,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 100.006,
+          "quality_process_wall_s": 1.5368418250000104,
+          "cut_flags": 0,
+          "device_log": "game-small-objects-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 46.10505,
+            "p95": 54.84145999999999
+          },
+          "s1_ms": {
+            "median": 6.8165,
+            "p95": 7.987354999999999
+          },
+          "s2_ms": {
+            "median": 6.8444,
+            "p95": 8.797849999999997
+          },
+          "first_ready_ms": {
+            "median": 53.025800000000004,
+            "p95": 62.303115
+          },
+          "pair_ready_ms": {
+            "median": 59.704449999999994,
+            "p95": 69.17434999999999
+          },
+          "cpu_submit_ms": {
+            "median": 0.10015,
+            "p95": 0.13021
+          },
+          "cpu_total_ms": {
+            "median": 60.133250000000004,
+            "p95": 69.639275
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 33.90502226582453,
+          "ssim_y": 0.9737613119378724,
+          "motion_roi_psnr": 26.48073094725483,
+          "temporal_error": 1.3150430144742131,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5449172,
+          "quality_run_first_pair_gpu_ms": 42.1766,
+          "quality_process_wall_s": 0.9146339360013371,
+          "cut_flags": 0,
+          "device_log": "game-small-objects-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 8.31635,
+            "p95": 9.20678
+          },
+          "s1_ms": {
+            "median": 6.7566500000000005,
+            "p95": 7.401755
+          },
+          "s2_ms": {
+            "median": 6.52685,
+            "p95": 7.9020399999999995
+          },
+          "first_ready_ms": {
+            "median": 14.78745,
+            "p95": 16.530994999999997
+          },
+          "pair_ready_ms": {
+            "median": 22.1025,
+            "p95": 23.94326
+          },
+          "cpu_submit_ms": {
+            "median": 0.0758,
+            "p95": 0.104895
+          },
+          "cpu_total_ms": {
+            "median": 22.543,
+            "p95": 24.360539999999997
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.034148562170912555,
+            "motion_roi_delta": 0.08707261077308459,
+            "temporal_ratio": 0.9769087398306859,
+            "pair_gpu_ratio": 0.37019853629000854
+          },
+          "software_gate_pass": true
+        },
+        "shared-flow-dense": {
+          "psnr_y": 33.89290984146993,
+          "ssim_y": 0.9746207309596183,
+          "motion_roi_psnr": 26.35258949759741,
+          "temporal_error": 1.3492145016789436,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 73.5682,
+          "quality_process_wall_s": 1.1785212319955463,
+          "cut_flags": 0,
+          "device_log": "game-small-objects-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 33.325050000000005,
+            "p95": 37.822265
+          },
+          "s1_ms": {
+            "median": 4.7163,
+            "p95": 4.997999999999999
+          },
+          "s2_ms": {
+            "median": 4.821400000000001,
+            "p95": 5.102025
+          },
+          "first_ready_ms": {
+            "median": 38.158100000000005,
+            "p95": 42.679939999999995
+          },
+          "pair_ready_ms": {
+            "median": 43.08375,
+            "p95": 47.798335
+          },
+          "cpu_submit_ms": {
+            "median": 0.09834999999999999,
+            "p95": 0.17815999999999999
+          },
+          "cpu_total_ms": {
+            "median": 43.495900000000006,
+            "p95": 48.22826
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.04626098652551036,
+            "motion_roi_delta": -0.041068838884335435,
+            "temporal_ratio": 1.0022937836169996,
+            "pair_gpu_ratio": 0.7216170653946231
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "game-small-fastturn",
+      "input_sha256": "e9008ab53fca92f392a9d969e29df9385c576b207951d8f660a6eb28bf16be80",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90.0,
+      "fps_real": 30.0,
+      "width": 384,
+      "height": 240,
+      "start": 270,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 30.961855374925545,
+          "ssim_y": 0.9553393589921703,
+          "motion_roi_psnr": 25.5706446819262,
+          "temporal_error": 2.1978919425358376,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 114.9636,
+          "quality_process_wall_s": 1.5665440149896313,
+          "cut_flags": 0,
+          "device_log": "game-small-fastturn-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 48.1956,
+            "p95": 51.94784
+          },
+          "s1_ms": {
+            "median": 7.1369,
+            "p95": 7.70219
+          },
+          "s2_ms": {
+            "median": 7.34465,
+            "p95": 9.466859999999997
+          },
+          "first_ready_ms": {
+            "median": 55.34895,
+            "p95": 59.75571
+          },
+          "pair_ready_ms": {
+            "median": 63.04665,
+            "p95": 67.38302
+          },
+          "cpu_submit_ms": {
+            "median": 0.1072,
+            "p95": 0.136425
+          },
+          "cpu_total_ms": {
+            "median": 64.20304999999999,
+            "p95": 67.795755
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 29.86483389032397,
+          "ssim_y": 0.9502405571445637,
+          "motion_roi_psnr": 24.979789848889457,
+          "temporal_error": 2.3251585860271007,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5449172,
+          "quality_run_first_pair_gpu_ms": 44.5302,
+          "quality_process_wall_s": 0.8299903339939192,
+          "cut_flags": 0,
+          "device_log": "game-small-fastturn-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 8.843399999999999,
+            "p95": 10.112214999999999
+          },
+          "s1_ms": {
+            "median": 6.4101,
+            "p95": 7.598679999999998
+          },
+          "s2_ms": {
+            "median": 6.757300000000001,
+            "p95": 7.6053299999999995
+          },
+          "first_ready_ms": {
+            "median": 15.51785,
+            "p95": 17.69661
+          },
+          "pair_ready_ms": {
+            "median": 22.97335,
+            "p95": 24.653084999999997
+          },
+          "cpu_submit_ms": {
+            "median": 0.07835,
+            "p95": 0.10120499999999998
+          },
+          "cpu_total_ms": {
+            "median": 23.6343,
+            "p95": 25.101074999999998
+          },
+          "vs_lmc": {
+            "psnr_delta": -1.0970214846015764,
+            "motion_roi_delta": -0.5908548330367438,
+            "temporal_ratio": 1.0579039583467547,
+            "pair_gpu_ratio": 0.36438652965700796
+          },
+          "software_gate_pass": false
+        },
+        "shared-flow-dense": {
+          "psnr_y": 30.733206661991023,
+          "ssim_y": 0.9541566874520155,
+          "motion_roi_psnr": 25.328996992801166,
+          "temporal_error": 2.2308099654037505,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 70.9798,
+          "quality_process_wall_s": 1.1207721050013788,
+          "cut_flags": 0,
+          "device_log": "game-small-fastturn-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 35.71105,
+            "p95": 40.18959999999999
+          },
+          "s1_ms": {
+            "median": 5.0974,
+            "p95": 5.730335
+          },
+          "s2_ms": {
+            "median": 5.4361,
+            "p95": 6.28131
+          },
+          "first_ready_ms": {
+            "median": 40.397400000000005,
+            "p95": 45.580014999999996
+          },
+          "pair_ready_ms": {
+            "median": 45.9053,
+            "p95": 51.27500499999999
+          },
+          "cpu_submit_ms": {
+            "median": 0.09125,
+            "p95": 0.11366499999999999
+          },
+          "cpu_total_ms": {
+            "median": 46.331450000000004,
+            "p95": 51.749554999999994
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.22864871293452182,
+            "motion_roi_delta": -0.24164768912503476,
+            "temporal_ratio": 1.0149770888326446,
+            "pair_gpu_ratio": 0.7281164026954643
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "game-small-static_hud",
+      "input_sha256": "e9008ab53fca92f392a9d969e29df9385c576b207951d8f660a6eb28bf16be80",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90.0,
+      "fps_real": 30.0,
+      "width": 384,
+      "height": 240,
+      "start": 405,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 43.893681543748706,
+          "ssim_y": 0.9982285991747534,
+          "motion_roi_psnr": 20.86187758582551,
+          "temporal_error": 0.10794099388779917,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 64.7776,
+          "quality_process_wall_s": 1.3768023190059466,
+          "cut_flags": 0,
+          "device_log": "game-small-static_hud-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 28.159950000000002,
+            "p95": 29.139795
+          },
+          "s1_ms": {
+            "median": 4.27965,
+            "p95": 4.82722
+          },
+          "s2_ms": {
+            "median": 4.2862,
+            "p95": 4.696845
+          },
+          "first_ready_ms": {
+            "median": 32.6843,
+            "p95": 33.80224
+          },
+          "pair_ready_ms": {
+            "median": 37.337599999999995,
+            "p95": 38.486395
+          },
+          "cpu_submit_ms": {
+            "median": 0.112,
+            "p95": 0.14616999999999997
+          },
+          "cpu_total_ms": {
+            "median": 37.96615,
+            "p95": 38.92165
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 43.348167154835686,
+          "ssim_y": 0.9981308523096519,
+          "motion_roi_psnr": 20.34905187715349,
+          "temporal_error": 0.11449314607792378,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5449172,
+          "quality_run_first_pair_gpu_ms": 28.5926,
+          "quality_process_wall_s": 0.825805374988704,
+          "cut_flags": 0,
+          "device_log": "game-small-static_hud-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 5.9258500000000005,
+            "p95": 8.975364999999996
+          },
+          "s1_ms": {
+            "median": 2.4368,
+            "p95": 3.259875
+          },
+          "s2_ms": {
+            "median": 2.4209,
+            "p95": 5.645214999999994
+          },
+          "first_ready_ms": {
+            "median": 8.85355,
+            "p95": 12.175224999999998
+          },
+          "pair_ready_ms": {
+            "median": 11.651,
+            "p95": 16.82066
+          },
+          "cpu_submit_ms": {
+            "median": 0.07214999999999999,
+            "p95": 0.08054
+          },
+          "cpu_total_ms": {
+            "median": 12.07965,
+            "p95": 17.998944999999996
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.5455143889130198,
+            "motion_roi_delta": -0.5128257086720218,
+            "temporal_ratio": 1.0607012401325056,
+            "pair_gpu_ratio": 0.31204469489201236
+          },
+          "software_gate_pass": false
+        },
+        "shared-flow-dense": {
+          "psnr_y": 43.89272980295855,
+          "ssim_y": 0.9982285992613101,
+          "motion_roi_psnr": 20.860820488055918,
+          "temporal_error": 0.10795964900656448,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 49.6852,
+          "quality_process_wall_s": 0.9773360419931123,
+          "cut_flags": 0,
+          "device_log": "game-small-static_hud-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 20.697699999999998,
+            "p95": 43.92498999999997
+          },
+          "s1_ms": {
+            "median": 3.7365500000000003,
+            "p95": 7.941634999999992
+          },
+          "s2_ms": {
+            "median": 3.5629,
+            "p95": 11.535669999999985
+          },
+          "first_ready_ms": {
+            "median": 24.5118,
+            "p95": 51.89867999999996
+          },
+          "pair_ready_ms": {
+            "median": 28.237450000000003,
+            "p95": 63.50193999999995
+          },
+          "cpu_submit_ms": {
+            "median": 0.1084,
+            "p95": 0.1637
+          },
+          "cpu_total_ms": {
+            "median": 28.67895,
+            "p95": 63.911584999999945
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.0009517407901569186,
+            "motion_roi_delta": -0.0010570977695927297,
+            "temporal_ratio": 1.0001728270056944,
+            "pair_gpu_ratio": 0.756273836561536
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "game-small-scenecut",
+      "input_sha256": "e9008ab53fca92f392a9d969e29df9385c576b207951d8f660a6eb28bf16be80",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90.0,
+      "fps_real": 30.0,
+      "width": 384,
+      "height": 240,
+      "start": 540,
+      "pairs": 6,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 39.3149861940966,
+          "ssim_y": 0.9896511136086389,
+          "motion_roi_psnr": 30.685759725450804,
+          "temporal_error": 0.7115225173765793,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 77.3019,
+          "quality_process_wall_s": 1.451845942006912,
+          "cut_flags": 0,
+          "device_log": "game-small-scenecut-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 37.53555,
+            "p95": 45.523619999999994
+          },
+          "s1_ms": {
+            "median": 6.2084,
+            "p95": 8.874654999999997
+          },
+          "s2_ms": {
+            "median": 5.741149999999999,
+            "p95": 7.317825
+          },
+          "first_ready_ms": {
+            "median": 43.27175,
+            "p95": 54.49961999999999
+          },
+          "pair_ready_ms": {
+            "median": 49.8742,
+            "p95": 61.59224999999999
+          },
+          "cpu_submit_ms": {
+            "median": 0.10965,
+            "p95": 0.139115
+          },
+          "cpu_total_ms": {
+            "median": 50.383449999999996,
+            "p95": 61.99824499999999
+          }
+        },
+        "shared-flow": {
+          "psnr_y": 38.375393922368026,
+          "ssim_y": 0.9887806655785961,
+          "motion_roi_psnr": 30.281813513817927,
+          "temporal_error": 0.7266360381618142,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 5449172,
+          "quality_run_first_pair_gpu_ms": 36.447,
+          "quality_process_wall_s": 0.817953863996081,
+          "cut_flags": 0,
+          "device_log": "game-small-scenecut-shared-flow-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 8.73685,
+            "p95": 9.64354
+          },
+          "s1_ms": {
+            "median": 4.8941,
+            "p95": 7.146829999999996
+          },
+          "s2_ms": {
+            "median": 4.678,
+            "p95": 6.421819999999998
+          },
+          "first_ready_ms": {
+            "median": 13.8925,
+            "p95": 17.357954999999997
+          },
+          "pair_ready_ms": {
+            "median": 19.3089,
+            "p95": 23.797834999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.07139999999999999,
+            "p95": 0.12166499999999997
+          },
+          "cpu_total_ms": {
+            "median": 19.67405,
+            "p95": 25.292219999999993
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.9395922717285714,
+            "motion_roi_delta": -0.4039462116328778,
+            "temporal_ratio": 1.0212410997770798,
+            "pair_gpu_ratio": 0.38715207461974327
+          },
+          "software_gate_pass": false
+        },
+        "shared-flow-dense": {
+          "psnr_y": 38.823262576265,
+          "ssim_y": 0.9886495268941135,
+          "motion_roi_psnr": 30.223972696754796,
+          "temporal_error": 0.7529689055324221,
+          "dynamic_outputs": 12,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 12,
+          "allocation_bytes": 6278068,
+          "quality_run_first_pair_gpu_ms": 64.8777,
+          "quality_process_wall_s": 1.1617619509925134,
+          "cut_flags": 0,
+          "device_log": "game-small-scenecut-shared-flow-dense-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 10,
+          "analysis_ms": {
+            "median": 27.4471,
+            "p95": 33.821884999999995
+          },
+          "s1_ms": {
+            "median": 4.665,
+            "p95": 5.497369999999999
+          },
+          "s2_ms": {
+            "median": 4.4039,
+            "p95": 4.7175199999999995
+          },
+          "first_ready_ms": {
+            "median": 32.20865,
+            "p95": 38.954615
+          },
+          "pair_ready_ms": {
+            "median": 36.81075,
+            "p95": 43.914989999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.09315,
+            "p95": 0.13882999999999998
+          },
+          "cpu_total_ms": {
+            "median": 37.296800000000005,
+            "p95": 44.42290499999999
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.491723617831596,
+            "motion_roi_delta": -0.4617870286960084,
+            "temporal_ratio": 1.0582502832217564,
+            "pair_gpu_ratio": 0.7380719891246376
+          },
+          "software_gate_pass": false
+        }
+      }
+    }
+  ]
+}

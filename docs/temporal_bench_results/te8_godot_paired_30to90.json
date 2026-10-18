@@ -1,0 +1,500 @@
+{
+  "scope": "alternating runs on host Vulkan device; not Steam Deck",
+  "aggregation": "median of per-run aggregates; raw runs included",
+  "summary": [
+    {
+      "scene": "sword",
+      "baseline": {
+        "mean_flip": 0.029702226941784222,
+        "p95_frame_flip": 0.03467486295849085,
+        "border_flip": 0.024733545336251456,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 343.9894,
+        "fit_gap_ms_median": 1.7586,
+        "field_ms_median": 91.04235
+      },
+      "candidate": {
+        "mean_flip": 0.029611581470817327,
+        "p95_frame_flip": 0.03447296228259802,
+        "border_flip": 0.024834950842584174,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 312.5921,
+        "fit_gap_ms_median": 1.5166,
+        "field_ms_median": 53.6494,
+        "pair_ready_ms_median": 315.48595,
+        "cpu_fit_ms_median": 1.18315
+      }
+    },
+    {
+      "scene": "walk",
+      "baseline": {
+        "mean_flip": 0.03664406233777603,
+        "p95_frame_flip": 0.0431845037266612,
+        "border_flip": 0.11931594461202621,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 375.42715,
+        "fit_gap_ms_median": 1.9999,
+        "field_ms_median": 126.11365
+      },
+      "candidate": {
+        "mean_flip": 0.03655849676579237,
+        "p95_frame_flip": 0.04378914646804333,
+        "border_flip": 0.12059580100079377,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 343.8734,
+        "fit_gap_ms_median": 1.8312499999999998,
+        "field_ms_median": 90.51425,
+        "pair_ready_ms_median": 346.39335,
+        "cpu_fit_ms_median": 1.4323000000000001
+      }
+    },
+    {
+      "scene": "specular",
+      "baseline": {
+        "mean_flip": 0.04074759564052025,
+        "p95_frame_flip": 0.05659302044659853,
+        "border_flip": 0.09745268958310287,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 418.6405,
+        "fit_gap_ms_median": 1.8975,
+        "field_ms_median": 135.1235
+      },
+      "candidate": {
+        "mean_flip": 0.04083832632750273,
+        "p95_frame_flip": 0.05662856213748455,
+        "border_flip": 0.09902305466433366,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 365.9553,
+        "fit_gap_ms_median": 1.7212999999999998,
+        "field_ms_median": 84.72409999999999,
+        "pair_ready_ms_median": 368.9719,
+        "cpu_fit_ms_median": 1.38645
+      }
+    }
+  ],
+  "runs": [
+    {
+      "input_fps": 30,
+      "target_fps": 90,
+      "width": 1280,
+      "height": 800,
+      "scope": "synthetic held-out frames; not measured game FPS",
+      "baseline_sha256": "86a0b5b31c6bb429a7fb2275220d3eecfa693794dc4d13901154a7069d665d62",
+      "candidate_sha256": "a1c88d3ad8696871454bd52dc182d43b8b116a62b7da48efa156f34f870876ed",
+      "timing_scope": "Vulkan timestamps on host device; first two pairs excluded; not Deck timings",
+      "scenes": [
+        {
+          "scene": "sword",
+          "baseline": {
+            "mean_flip": 0.029702226941784222,
+            "p95_frame_flip": 0.03467486295849085,
+            "border_flip": 0.024733545336251456,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 450.64639999999997,
+            "fit_gap_ms_median": 1.7586,
+            "field_ms_median": 113.35355,
+            "passes_ms_median": {
+              "search_b": 19.629550000000002,
+              "search_a": 19.7601,
+              "layers": 38.84365,
+              "fit_wait": 1.7586,
+              "field": 113.35355,
+              "masked": 13.3702,
+              "orphan": 53.9715,
+              "field2": 11.61035
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.029611581470817327,
+            "p95_frame_flip": 0.03447296228259802,
+            "border_flip": 0.024834950842584174,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 313.15144999999995,
+            "fit_gap_ms_median": 1.58495,
+            "field_ms_median": 53.7668,
+            "passes_ms_median": {
+              "search_b": 16.542,
+              "search_a": 16.24135,
+              "layers": 29.33015,
+              "fit_wait": 1.58495,
+              "field": 53.7668,
+              "masked": 9.274750000000001,
+              "orphan": 43.113749999999996,
+              "field2": 10.0534
+            },
+            "pair_ready_ms_median": 315.48595,
+            "cpu_fit_ms_median": 1.18315
+          }
+        },
+        {
+          "scene": "walk",
+          "baseline": {
+            "mean_flip": 0.03664406233777603,
+            "p95_frame_flip": 0.0431845037266612,
+            "border_flip": 0.11931594461202621,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 375.42715,
+            "fit_gap_ms_median": 1.9927000000000001,
+            "field_ms_median": 121.8346,
+            "passes_ms_median": {
+              "search_b": 15.7366,
+              "search_a": 15.06945,
+              "layers": 29.33265,
+              "fit_wait": 1.9927000000000001,
+              "field": 121.8346,
+              "masked": 8.89215,
+              "orphan": 35.9654,
+              "field2": 8.2639
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.03655849676579237,
+            "p95_frame_flip": 0.04378914646804333,
+            "border_flip": 0.12059580100079377,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 336.36085,
+            "fit_gap_ms_median": 1.7382,
+            "field_ms_median": 86.9998,
+            "passes_ms_median": {
+              "search_b": 16.2069,
+              "search_a": 16.57585,
+              "layers": 31.559,
+              "fit_wait": 1.7382,
+              "field": 86.9998,
+              "masked": 9.396,
+              "orphan": 35.1107,
+              "field2": 8.1359
+            },
+            "pair_ready_ms_median": 339.10515,
+            "cpu_fit_ms_median": 1.38975
+          }
+        },
+        {
+          "scene": "specular",
+          "baseline": {
+            "mean_flip": 0.04074759564052025,
+            "p95_frame_flip": 0.05659302044659853,
+            "border_flip": 0.09745268958310287,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 418.91555000000005,
+            "fit_gap_ms_median": 1.8975,
+            "field_ms_median": 136.10545,
+            "passes_ms_median": {
+              "search_b": 15.8688,
+              "search_a": 15.765699999999999,
+              "layers": 29.27665,
+              "fit_wait": 1.8975,
+              "field": 136.10545,
+              "masked": 9.47275,
+              "orphan": 43.83225,
+              "field2": 9.3612
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.04083832632750273,
+            "p95_frame_flip": 0.05662856213748455,
+            "border_flip": 0.09902305466433366,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 371.43485,
+            "fit_gap_ms_median": 1.7212999999999998,
+            "field_ms_median": 86.8651,
+            "passes_ms_median": {
+              "search_b": 16.0311,
+              "search_a": 16.848399999999998,
+              "layers": 31.67855,
+              "fit_wait": 1.7212999999999998,
+              "field": 86.8651,
+              "masked": 9.12865,
+              "orphan": 44.0266,
+              "field2": 9.917549999999999
+            },
+            "pair_ready_ms_median": 374.44525,
+            "cpu_fit_ms_median": 1.38645
+          }
+        }
+      ]
+    },
+    {
+      "input_fps": 30,
+      "target_fps": 90,
+      "width": 1280,
+      "height": 800,
+      "scope": "synthetic held-out frames; not measured game FPS",
+      "baseline_sha256": "86a0b5b31c6bb429a7fb2275220d3eecfa693794dc4d13901154a7069d665d62",
+      "candidate_sha256": "a1c88d3ad8696871454bd52dc182d43b8b116a62b7da48efa156f34f870876ed",
+      "timing_scope": "Vulkan timestamps on host device; first two pairs excluded; not Deck timings",
+      "scenes": [
+        {
+          "scene": "sword",
+          "baseline": {
+            "mean_flip": 0.029702226941784222,
+            "p95_frame_flip": 0.03467486295849085,
+            "border_flip": 0.024733545336251456,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 343.9894,
+            "fit_gap_ms_median": 1.6554000000000002,
+            "field_ms_median": 91.04235,
+            "passes_ms_median": {
+              "search_b": 14.978950000000001,
+              "search_a": 14.939350000000001,
+              "layers": 29.83865,
+              "fit_wait": 1.6554000000000002,
+              "field": 91.04235,
+              "masked": 9.515799999999999,
+              "orphan": 46.75215,
+              "field2": 10.9753
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.029611581470817327,
+            "p95_frame_flip": 0.03447296228259802,
+            "border_flip": 0.024834950842584174,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 312.5921,
+            "fit_gap_ms_median": 1.47255,
+            "field_ms_median": 47.021950000000004,
+            "passes_ms_median": {
+              "search_b": 15.7434,
+              "search_a": 16.383499999999998,
+              "layers": 33.84395,
+              "fit_wait": 1.47255,
+              "field": 47.021950000000004,
+              "masked": 10.29315,
+              "orphan": 41.734049999999996,
+              "field2": 10.21065
+            },
+            "pair_ready_ms_median": 315.79605,
+            "cpu_fit_ms_median": 1.1239
+          }
+        },
+        {
+          "scene": "walk",
+          "baseline": {
+            "mean_flip": 0.03664406233777603,
+            "p95_frame_flip": 0.0431845037266612,
+            "border_flip": 0.11931594461202621,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 378.09585000000004,
+            "fit_gap_ms_median": 1.9999,
+            "field_ms_median": 129.46994999999998,
+            "passes_ms_median": {
+              "search_b": 14.64885,
+              "search_a": 14.36885,
+              "layers": 29.4563,
+              "fit_wait": 1.9999,
+              "field": 129.46994999999998,
+              "masked": 9.6519,
+              "orphan": 34.8793,
+              "field2": 8.3143
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.03655849676579237,
+            "p95_frame_flip": 0.04378914646804333,
+            "border_flip": 0.12059580100079377,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 343.8734,
+            "fit_gap_ms_median": 1.8312499999999998,
+            "field_ms_median": 90.51425,
+            "passes_ms_median": {
+              "search_b": 16.118650000000002,
+              "search_a": 15.677600000000002,
+              "layers": 28.590850000000003,
+              "fit_wait": 1.8312499999999998,
+              "field": 90.51425,
+              "masked": 9.32755,
+              "orphan": 34.573949999999996,
+              "field2": 9.9801
+            },
+            "pair_ready_ms_median": 346.39335,
+            "cpu_fit_ms_median": 1.4323000000000001
+          }
+        },
+        {
+          "scene": "specular",
+          "baseline": {
+            "mean_flip": 0.04074759564052025,
+            "p95_frame_flip": 0.05659302044659853,
+            "border_flip": 0.09745268958310287,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 409.7108,
+            "fit_gap_ms_median": 2.0489499999999996,
+            "field_ms_median": 135.1235,
+            "passes_ms_median": {
+              "search_b": 15.76015,
+              "search_a": 15.11575,
+              "layers": 30.59715,
+              "fit_wait": 2.0489499999999996,
+              "field": 135.1235,
+              "masked": 8.9969,
+              "orphan": 42.99065,
+              "field2": 9.3705
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.04083832632750273,
+            "p95_frame_flip": 0.05662856213748455,
+            "border_flip": 0.09902305466433366,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 365.9553,
+            "fit_gap_ms_median": 1.76545,
+            "field_ms_median": 84.45519999999999,
+            "passes_ms_median": {
+              "search_b": 16.95615,
+              "search_a": 15.8154,
+              "layers": 29.150599999999997,
+              "fit_wait": 1.76545,
+              "field": 84.45519999999999,
+              "masked": 8.880749999999999,
+              "orphan": 41.5469,
+              "field2": 9.9234
+            },
+            "pair_ready_ms_median": 368.9719,
+            "cpu_fit_ms_median": 1.4021
+          }
+        }
+      ]
+    },
+    {
+      "input_fps": 30,
+      "target_fps": 90,
+      "width": 1280,
+      "height": 800,
+      "scope": "synthetic held-out frames; not measured game FPS",
+      "baseline_sha256": "86a0b5b31c6bb429a7fb2275220d3eecfa693794dc4d13901154a7069d665d62",
+      "candidate_sha256": "a1c88d3ad8696871454bd52dc182d43b8b116a62b7da48efa156f34f870876ed",
+      "timing_scope": "Vulkan timestamps on host device; first two pairs excluded; not Deck timings",
+      "scenes": [
+        {
+          "scene": "sword",
+          "baseline": {
+            "mean_flip": 0.029702226941784222,
+            "p95_frame_flip": 0.03467486295849085,
+            "border_flip": 0.024733545336251456,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 337.86505,
+            "fit_gap_ms_median": 1.8424,
+            "field_ms_median": 84.38435,
+            "passes_ms_median": {
+              "search_b": 16.0882,
+              "search_a": 14.977,
+              "layers": 29.291249999999998,
+              "fit_wait": 1.8424,
+              "field": 84.38435,
+              "masked": 9.273800000000001,
+              "orphan": 44.7745,
+              "field2": 10.024
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.029611581470817327,
+            "p95_frame_flip": 0.03447296228259802,
+            "border_flip": 0.024834950842584174,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 310.07445,
+            "fit_gap_ms_median": 1.5166,
+            "field_ms_median": 53.6494,
+            "passes_ms_median": {
+              "search_b": 16.63045,
+              "search_a": 16.27025,
+              "layers": 28.9129,
+              "fit_wait": 1.5166,
+              "field": 53.6494,
+              "masked": 9.2531,
+              "orphan": 43.879,
+              "field2": 11.0567
+            },
+            "pair_ready_ms_median": 312.22875,
+            "cpu_fit_ms_median": 1.2088999999999999
+          }
+        },
+        {
+          "scene": "walk",
+          "baseline": {
+            "mean_flip": 0.03664406233777603,
+            "p95_frame_flip": 0.0431845037266612,
+            "border_flip": 0.11931594461202621,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 372.0543,
+            "fit_gap_ms_median": 2.0995,
+            "field_ms_median": 126.11365,
+            "passes_ms_median": {
+              "search_b": 14.8071,
+              "search_a": 14.93725,
+              "layers": 29.8491,
+              "fit_wait": 2.0995,
+              "field": 126.11365,
+              "masked": 9.688649999999999,
+              "orphan": 34.6259,
+              "field2": 8.66015
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.03655849676579237,
+            "p95_frame_flip": 0.04378914646804333,
+            "border_flip": 0.12059580100079377,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 356.22270000000003,
+            "fit_gap_ms_median": 1.984,
+            "field_ms_median": 93.01689999999999,
+            "passes_ms_median": {
+              "search_b": 17.086,
+              "search_a": 16.522199999999998,
+              "layers": 30.32595,
+              "fit_wait": 1.984,
+              "field": 93.01689999999999,
+              "masked": 9.912749999999999,
+              "orphan": 35.37535,
+              "field2": 8.9677
+            },
+            "pair_ready_ms_median": 359.14135,
+            "cpu_fit_ms_median": 1.64505
+          }
+        },
+        {
+          "scene": "specular",
+          "baseline": {
+            "mean_flip": 0.04074759564052025,
+            "p95_frame_flip": 0.05659302044659853,
+            "border_flip": 0.09745268958310287,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 418.6405,
+            "fit_gap_ms_median": 1.7365,
+            "field_ms_median": 134.82530000000003,
+            "passes_ms_median": {
+              "search_b": 15.151399999999999,
+              "search_a": 15.6312,
+              "layers": 29.3276,
+              "fit_wait": 1.7365,
+              "field": 134.82530000000003,
+              "masked": 9.59755,
+              "orphan": 41.544250000000005,
+              "field2": 9.6476
+            }
+          },
+          "candidate": {
+            "mean_flip": 0.04083832632750273,
+            "p95_frame_flip": 0.05662856213748455,
+            "border_flip": 0.09902305466433366,
+            "generated_frames": 12,
+            "gpu_pair_ms_median": 363.68129999999996,
+            "fit_gap_ms_median": 1.6670500000000001,
+            "field_ms_median": 84.72409999999999,
+            "passes_ms_median": {
+              "search_b": 16.0449,
+              "search_a": 16.10925,
+              "layers": 29.36565,
+              "fit_wait": 1.6670500000000001,
+              "field": 84.72409999999999,
+              "masked": 9.08625,
+              "orphan": 42.019499999999994,
+              "field2": 9.5822
+            },
+            "pair_ready_ms_median": 366.06280000000004,
+            "cpu_fit_ms_median": 1.37885
+          }
+        }
+      ]
+    }
+  ]
+}

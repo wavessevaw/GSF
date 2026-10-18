@@ -1,0 +1,199 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Per-pixel vectors at half resolution for one grid (reference:
+// gen_lmc2.half_field).  One workgroup per 2x2 level-1 blocks (8x8 half
+// pixels, one thread each).  Block-constant candidates are evaluated over a
+// 6x6 LDS apron of the other frame, once per block; the camera layers vary per
+// pixel: a layer that moves the block's corners by at most LAYER_CONST half px
+// from its centre is taken as block-constant (the cheap path), the others are
+// fetched per pixel.  Each block builds, dedupes and orders its list in
+// parallel (16 threads, 24 slots).
+//
+// PC.grid: 0 = B grid (own B, other A, sign -1), 1 = A grid (own A, other B, +1)
+// PC.pass_: 0 = without orphans: own block, 8 neighbours, layers, palette, zero
+//           1 = with orphans: starts from the pass-0 field and tries only the
+//               orphan vectors of the 3x3 neighbours.  The reference recomputes
+//               every candidate; the others give the same costs as in pass 0
+//               and can never win again (strict <), so only ties may differ.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+layout(local_size_x = 64) in;
+
+#define NS 24
+#define LAYER_CONST 0.125
+shared vec2 s_c[4][NS];     // slot values (half px)
+shared int s_lpp[4][LMC_MAX_LAYERS];  // layer evaluated per pixel in this block
+shared Layer s_inv[LMC_MAX_LAYERS];
+shared int s_v[4][NS];      // slot valid
+shared int s_k[4][NS];      // slot kept after dedupe
+shared int s_ord[4][NS];    // kept slots in order
+shared int s_n[4];
+shared vec3 s_own[100];     // 10x10 apron of the own frame (clamped)
+shared vec3 s_oth[4][36];   // 6x6 apron of the other frame per block
+shared uint s_unresolved;
+
+vec4 block_vec(int grid, int i) { return grid == 0 ? vb[P.blk_off.x + i] : va[P.blk_off.x + i]; }
+
+void main() {
+    int grid = PC.grid;
+    ivec2 nb = lblocks(1);
+    ivec2 hs = P.size.zw;
+    uint lid = gl_LocalInvocationIndex;
+    int j = int(lid >> 4u), t = int(lid & 15u);
+    ivec2 bb = ivec2(gl_WorkGroupID.xy) * 2 + ivec2(j & 1, j >> 1);
+    bool blk_ok = all(lessThan(bb, nb));
+    ivec2 org = ivec2(gl_WorkGroupID.xy) * 8 - 1;
+    ivec2 me = bb * 4 + ivec2(t & 3, t >> 2);
+    float sgn = grid == 0 ? -1.0 : 1.0;
+    int own_which = grid == 0 ? 1 : 0, oth_which = grid == 0 ? 0 : 1;
+
+    int nl = int(LY.layer_count);
+    if (PC.pass_ == 0 && lid < uint(nl)) s_inv[lid] = inv_h(LY.layers[lid]);
+    barrier();
+
+    // slots: pass 0 = 9 neighbours in reference order ((dy, dx) over (0, -1, 1)^2), the
+    //        block-constant layers, palette, zero; pass 1 = the orphan vectors of the same 9 blocks
+    const int O[3] = int[3](0, -1, 1);
+    for (int sl = t; sl < NS; sl += 16) {
+        vec2 cv = vec2(0.0);
+        bool valid = false;
+        if (blk_ok) {
+            int npal = int(G.pal_count);
+            if (sl < 9) {
+                ivec2 q = clamp(bb + ivec2(O[sl % 3], O[sl / 3]), ivec2(0), nb - 1);
+                int qi = q.y * nb.x + q.x;
+                if (PC.pass_ == 0) {
+                    cv = block_vec(grid, qi).xy;  // level-1 px == half px
+                    valid = true;
+                } else {
+                    vec4 o = orphan_at(grid, qi);
+                    cv = o.xy * 0.5;
+                    valid = o.z > 0.5;
+                }
+            } else if (PC.pass_ == 0 && sl < 9 + nl) {
+                int L = sl - 9;
+                Layer Lr = LY.layers[L];
+                vec2 c0 = vec2(bb * 4) + 1.5;
+                cv = camera_vec(Lr, s_inv[L], c0, 2.0, grid);
+                float dev = 0.0;
+                for (int k = 0; k < 4; ++k) {
+                    vec2 corner = vec2(bb * 4) + vec2(k & 1, k >> 1) * 3.0;
+                    vec2 d = camera_vec(Lr, s_inv[L], corner, 2.0, grid) - cv;
+                    dev = max(dev, max(abs(d.x), abs(d.y)));
+                }
+                valid = dev <= LAYER_CONST;
+                s_lpp[j][L] = valid ? 0 : 1;
+            } else if (PC.pass_ == 0 && sl >= 9 + nl && sl < 9 + nl + npal) {
+                cv = G.palette[sl - 9 - nl].xy * 0.5;
+                valid = true;
+            } else if (PC.pass_ == 0 && sl == 9 + nl + npal) {
+                valid = true;  // zero
+            }
+        }
+        s_c[j][sl] = cv;
+        s_v[j][sl] = valid ? 1 : 0;
+    }
+    barrier();
+    for (int sl = t; sl < NS; sl += 16) {
+        int keep = 0;
+        if (s_v[j][sl] == 1) {
+            keep = 1;
+            vec2 cv = s_c[j][sl];
+            for (int u = 0; u < sl; ++u)
+                if (s_v[j][u] == 1 && s_c[j][u] == cv) keep = 0;
+        }
+        s_k[j][sl] = keep;
+    }
+    barrier();
+    for (int sl = t; sl < NS; sl += 16) {
+        if (s_k[j][sl] == 1) {
+            int r = 0;
+            for (int u = 0; u < sl; ++u) r += s_k[j][u];
+            s_ord[j][r] = sl;
+        }
+    }
+    if (t == 15) {
+        int n = 0;
+        for (int u = 0; u < NS; ++u) n += s_k[j][u];
+        s_n[j] = n;
+    }
+    barrier();
+    int nmax = max(max(s_n[0], s_n[1]), max(s_n[2], s_n[3]));
+    if (PC.pass_ == 1 && nmax == 0) return;  // no orphan next to these blocks: the pass-0 field stands
+
+    for (int i = int(lid); i < 100; i += 64) {
+        ivec2 a = clamp(org + ivec2(i % 10, i / 10), ivec2(0), hs - 1);
+        s_own[i] = half_rgb(own_which, vec2(a));
+    }
+    ivec2 mc = min(me, hs - 1);
+    float best_c = 1e30;
+    vec2 best_v = vec2(0.0);
+    if (PC.pass_ == 1) {
+        vec4 f = grid == 0 ? texelFetch(fieldB, mc, 0) : texelFetch(fieldA, mc, 0);
+        best_c = f.z;
+        best_v = f.xy;
+    }
+    ivec2 lo = me - org;  // own pixel in the 10x10 apron
+    if (lid == 0u) s_unresolved = 0u;
+    barrier();
+
+    for (int e = 0; e < nmax; ++e) {
+        // Every candidate after the own block carries P.margin. If the
+        // entire workgroup is already at or below that lower bound, none can
+        // win the strict comparison. This skips texture fetches and barriers
+        // on coherent motion without approximating or weakening the search.
+        if (e > 0 && s_unresolved == 0u) break;
+        bool act = blk_ok && e < s_n[j] && (e == 0 || (s_unresolved & (1u << uint(j))) != 0u);
+        int slot = act ? s_ord[j][e] : 0;
+        vec2 v = act ? s_c[j][slot] : vec2(0.0);
+        for (int i = t; i < 36; i += 16) {
+            ivec2 a = bb * 4 + ivec2(i % 6, i / 6) - 1;  // the other frame is not clamped to the block
+            s_oth[j][i] = act ? half_rgb(oth_which, vec2(a) + sgn * v) : vec3(0.0);
+        }
+        barrier();
+        if (act) {
+            float c = 0.0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    vec3 d = abs(s_own[(lo.y + dy) * 10 + lo.x + dx] - s_oth[j][(t / 4 + 1 + dy) * 6 + t % 4 + 1 + dx]);
+                    c += d.r + d.g + d.b;
+                }
+            c = c / 9.0 + ((PC.pass_ == 0 && slot == 0) ? 0.0 : P.margin);
+            if (!inside(vec2(me) + sgn * v, hs)) c = 1e30;
+            if (c < best_c) { best_c = c; best_v = v; }
+        }
+        barrier();
+        if (e == 0) {
+            if (blk_ok && all(lessThan(me, hs)) && best_c > P.margin)
+                atomicOr(s_unresolved, 1u << uint(j));
+            barrier();
+        }
+    }
+    if (PC.pass_ == 0 && blk_ok && best_c > P.margin) {
+        for (int L = 0; L < nl; ++L) {
+            if (s_lpp[j][L] == 0) continue;  // block-constant: done above
+            vec2 v = camera_vec(LY.layers[L], s_inv[L], vec2(me), 2.0, grid);
+            vec2 cen = vec2(me) + sgn * v;
+            float c = 0.0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    vec3 d = abs(s_own[(lo.y + dy) * 10 + lo.x + dx] - half_rgb(oth_which, cen + vec2(dx, dy)));
+                    c += d.r + d.g + d.b;
+                }
+            c = c / 9.0 + P.margin;
+            if (!inside(cen, hs)) c = 1e30;
+            if (c < best_c) { best_c = c; best_v = v; }
+        }
+    }
+    if (blk_ok && all(lessThan(me, hs))) {
+        // HUD: reference half(hud) > 0.5, i.e. at least 3 of the 4 full-res pixels
+        uint h = 0u;
+        for (int k = 0; k < 4; ++k) {
+            ivec2 f = me * 2 + ivec2(k & 1, k >> 1);
+            if (imageLoad(hudCount, f).r >= uint(P.hud_pairs)) h += 1u;
+        }
+        vec2 v = h >= 3u ? vec2(0.0) : best_v;
+        vec4 outv = vec4(v, best_c, 0.0);
+        if (grid == 0) imageStore(storeFieldB, me, outv); else imageStore(storeFieldA, me, outv);
+    }
+}

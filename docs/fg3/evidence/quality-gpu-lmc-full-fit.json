@@ -1,0 +1,65 @@
+[
+ {
+  "scene": "specular",
+  "flip": 0.041307469519476094,
+  "flip_hud": 0.02848035314430793,
+  "worst": 0.0578323433175683,
+  "pyramid": 10.5194,
+  "passes": {
+   "search_b": 16.4529,
+   "search_a": 17.6213,
+   "layers": 29.6229,
+   "gpu_model": 35.4284,
+   "field": 88.3207,
+   "masked": 9.4567,
+   "orphan": 41.5775,
+   "field2": 10.1713
+  },
+  "frame": 70.37385,
+  "select": 44.9832,
+  "orphans_max": 115,
+  "orphans_mean": 92.33333333333333
+ },
+ {
+  "scene": "sword",
+  "flip": 0.029625028061370056,
+  "flip_hud": 0.01960992021486163,
+  "worst": 0.0345305597409606,
+  "pyramid": 9.1482,
+  "passes": {
+   "search_b": 15.5494,
+   "search_a": 15.6213,
+   "layers": 29.0715,
+   "gpu_model": 37.9306,
+   "field": 44.873,
+   "masked": 8.897,
+   "orphan": 41.0957,
+   "field2": 11.2649
+  },
+  "frame": 55.912400000000005,
+  "select": 33.68265,
+  "orphans_max": 175,
+  "orphans_mean": 133.16666666666666
+ },
+ {
+  "scene": "walk",
+  "flip": 0.03681463003158569,
+  "flip_hud": 0.048922811479618154,
+  "worst": 0.04416177161037922,
+  "pyramid": 16.32,
+  "passes": {
+   "search_b": 20.092,
+   "search_a": 19.436,
+   "layers": 45.8775,
+   "gpu_model": 36.1591,
+   "field": 108.5429,
+   "masked": 14.699,
+   "orphan": 48.8593,
+   "field2": 13.4109
+  },
+  "frame": 84.3969,
+  "select": 54.343199999999996,
+  "orphans_max": 98,
+  "orphans_mean": 32.166666666666664
+ }
+]

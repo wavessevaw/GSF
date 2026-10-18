@@ -1,0 +1,45 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Quarter-resolution masked luma of both frames for the orphan search
+// (reference: gen_lmc.masked_down with f = 4).  The residual mask of a full-res
+// pixel is "its half-res field cost > ORPHAN_RESID and not HUD"; a cell keeps
+// the masked mean luma and the maximum of the mask, so a thin object survives.
+// One thread per full-res pixel (neighbouring threads read neighbouring
+// pixels), a 16x16 tile per workgroup, reduced per 4x4 cell in shared memory.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+layout(local_size_x = 16, local_size_y = 16) in;
+
+shared vec4 s_v[256];   // yb * rb, rb, ya * ra, ra
+
+void main() {
+    uvec2 l = gl_LocalInvocationID.xy;
+    uint lid = gl_LocalInvocationIndex;
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 n = P.size.xy / 4;
+    vec4 v = vec4(0.0);
+    if (all(lessThan(p / 4, n))) {
+        bool hud = imageLoad(hudCount, p).r >= uint(P.hud_pairs);
+        ivec2 h = min(p / 2, P.size.zw - 1);
+        float rb = (!hud && texelFetch(fieldB, h, 0).z > P.orphan_resid) ? 1.0 : 0.0;
+        float ra = (!hud && texelFetch(fieldA, h, 0).z > P.orphan_resid) ? 1.0 : 0.0;
+        v = vec4(texelFetch(lumaB0, p, 0).r * rb, rb, texelFetch(lumaA0, p, 0).r * ra, ra);
+    }
+    s_v[lid] = v;
+    barrier();
+    if (lid >= 16u) return;
+    // thread k reduces cell k of the tile, its pixels in raster order
+    ivec2 cl = ivec2(int(lid % 4u), int(lid / 4u));
+    ivec2 c = ivec2(gl_WorkGroupID.xy) * 4 + cl;
+    if (any(greaterThanEqual(c, n))) return;
+    vec4 acc = vec4(0.0);
+    float mb = 0.0, ma = 0.0;
+    for (int oy = 0; oy < 4; ++oy)
+        for (int ox = 0; ox < 4; ++ox) {
+            vec4 t = s_v[(cl.y * 4 + oy) * 16 + cl.x * 4 + ox];
+            acc += t;
+            mb = max(mb, t.y);
+            ma = max(ma, t.w);
+        }
+    MQ.mq[c.y * n.x + c.x] = vec4(acc.x / max(acc.y, 1e-6), mb, acc.z / max(acc.w, 1e-6), ma);
+}

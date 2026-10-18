@@ -1,0 +1,431 @@
+{
+ "sequence": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+ "fps_source": 90.0,
+ "step": 4,
+ "fps_real": 22.5,
+ "fps_output": 90.0,
+ "width": 1280,
+ "height": 800,
+ "segments": {
+  "strafe": {
+   "start": 0,
+   "pairs": 33,
+   "methods": {
+    "repeat": {
+     "psnr_y": 20.975557748069086,
+     "psnr_y_p5": 19.948180403855027,
+     "ssim_y": 0.79098493177331,
+     "temporal_err": 9.165907229762524,
+     "frames": 99
+    },
+    "blend": {
+     "psnr_y": 22.031132754399163,
+     "psnr_y_p5": 21.416063804847944,
+     "ssim_y": 0.7794488701952603,
+     "temporal_err": 7.95457253973423,
+     "frames": 99
+    },
+    "te_adaptive": {
+     "psnr_y": 27.723910440343378,
+     "psnr_y_p5": 26.875291624107142,
+     "ssim_y": 0.9422248000178293,
+     "temporal_err": 2.7929645660333335,
+     "frames": 99,
+     "seam_excess": -0.17473616965369068,
+     "cost": {
+      "pyramid_ms": 7.131021212121212,
+      "analyze_ms": 78.86645757575758,
+      "classify_ms": 0.39125757575757575,
+      "lists_ms": 0.41611616161616155,
+      "frame_ms": 134.17279191919192,
+      "frame_ms_p95": 163.78663,
+      "frame_ms_p99": 175.07679599999997,
+      "scene_cuts": 0,
+      "promoted": 1535,
+      "confidence": 0.7985606060606061,
+      "share_reuse": 0.3215151515151516,
+      "reuse_ms": 2.528259595959596,
+      "share_light": 0.16979545454545455,
+      "light_ms": 5.365964646464645,
+      "share_full": 0.5086893939393939,
+      "full_ms": 125.70933737373737,
+      "pair_ms": 488.9071121212121,
+      "pair_ms_p95": 532.22866,
+      "pair_ms_p99": 549.2337359999999,
+      "per_output_ms": 162.96903737373736
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode adaptive profile",
+     "wall_s": 17.863375902175903
+    },
+    "te_full": {
+     "psnr_y": 27.740635886595378,
+     "psnr_y_p5": 26.887561379194132,
+     "ssim_y": 0.9426684590762641,
+     "temporal_err": 2.759813599351963,
+     "frames": 99,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 8.041087878787879,
+      "analyze_ms": 81.01225151515152,
+      "classify_ms": 0.3926090909090909,
+      "lists_ms": 0.42806060606060614,
+      "frame_ms": 252.07314949494958,
+      "frame_ms_p95": 296.51854999999995,
+      "frame_ms_p99": 317.8675939999999,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.7985606060606061,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.14295252525252525,
+      "share_light": 0.0,
+      "light_ms": 0.1332909090909091,
+      "share_full": 1.0,
+      "full_ms": 251.20539191919195,
+      "pair_ms": 845.665396969697,
+      "pair_ms_p95": 912.3384199999999,
+      "pair_ms_p99": 980.847592,
+      "per_output_ms": 281.88846565656564
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode full profile",
+     "wall_s": 29.447826147079468
+    }
+   }
+  },
+  "objects": {
+   "start": 135,
+   "pairs": 33,
+   "methods": {
+    "repeat": {
+     "psnr_y": 25.39136887895187,
+     "psnr_y_p5": 21.39416306077041,
+     "ssim_y": 0.887653495014403,
+     "temporal_err": 4.326713802345859,
+     "frames": 99
+    },
+    "blend": {
+     "psnr_y": 26.917778306373563,
+     "psnr_y_p5": 23.777160672163888,
+     "ssim_y": 0.8931391811120942,
+     "temporal_err": 3.575997366887433,
+     "frames": 99
+    },
+    "te_adaptive": {
+     "psnr_y": 31.66444566834141,
+     "psnr_y_p5": 24.835377698063784,
+     "ssim_y": 0.9616654358803559,
+     "temporal_err": 2.1186303922546688,
+     "frames": 99,
+     "seam_excess": 0.45665269505909895,
+     "cost": {
+      "pyramid_ms": 6.638178787878788,
+      "analyze_ms": 77.65968484848484,
+      "classify_ms": 0.4707242424242424,
+      "lists_ms": 0.3813868686868687,
+      "frame_ms": 96.34050808080809,
+      "frame_ms_p95": 146.53137999999998,
+      "frame_ms_p99": 154.931284,
+      "scene_cuts": 0,
+      "promoted": 763,
+      "confidence": 0.8701909090909091,
+      "share_reuse": 0.15996212121212122,
+      "reuse_ms": 1.6814343434343433,
+      "share_light": 0.5382323232323232,
+      "light_ms": 14.225001010101012,
+      "share_full": 0.30180555555555555,
+      "full_ms": 79.88841313131314,
+      "pair_ms": 373.79011212121213,
+      "pair_ms_p95": 519.4043399999999,
+      "pair_ms_p99": 535.20132,
+      "per_output_ms": 124.59670404040405
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode adaptive profile",
+     "wall_s": 13.63748574256897
+    },
+    "te_full": {
+     "psnr_y": 31.656888059162192,
+     "psnr_y_p5": 24.83668970496818,
+     "ssim_y": 0.961818647558899,
+     "temporal_err": 2.101637355041351,
+     "frames": 99,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 7.254451515151516,
+      "analyze_ms": 79.12251212121213,
+      "classify_ms": 0.41731818181818187,
+      "lists_ms": 0.3722939393939394,
+      "frame_ms": 248.08006161616166,
+      "frame_ms_p95": 283.31806,
+      "frame_ms_p99": 301.61481799999996,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.8701909090909091,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.1440949494949495,
+      "share_light": 0.0,
+      "light_ms": 0.13430909090909093,
+      "share_full": 1.0,
+      "full_ms": 247.25949393939396,
+      "pair_ms": 831.0344666666666,
+      "pair_ms_p95": 886.14028,
+      "pair_ms_p99": 906.325028,
+      "per_output_ms": 277.0114888888889
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode full profile",
+     "wall_s": 28.657628536224365
+    }
+   }
+  },
+  "fastturn": {
+   "start": 270,
+   "pairs": 33,
+   "methods": {
+    "repeat": {
+     "psnr_y": 21.083921848685065,
+     "psnr_y_p5": 15.708823853471577,
+     "ssim_y": 0.7324667936907121,
+     "temporal_err": 12.495743951082908,
+     "frames": 99
+    },
+    "blend": {
+     "psnr_y": 22.1422381188883,
+     "psnr_y_p5": 16.740866617405626,
+     "ssim_y": 0.7341769362241122,
+     "temporal_err": 10.759321545483544,
+     "frames": 99
+    },
+    "te_adaptive": {
+     "psnr_y": 23.786228811193798,
+     "psnr_y_p5": 16.22917093649592,
+     "ssim_y": 0.8137892418502279,
+     "temporal_err": 9.738648226061327,
+     "frames": 99,
+     "seam_excess": -0.7498702620664104,
+     "cost": {
+      "pyramid_ms": 6.601618181818182,
+      "analyze_ms": 76.70436969696969,
+      "classify_ms": 0.3675151515151515,
+      "lists_ms": 0.36354949494949496,
+      "frame_ms": 145.71845252525253,
+      "frame_ms_p95": 260.03259,
+      "frame_ms_p99": 282.08715799999976,
+      "scene_cuts": 0,
+      "promoted": 810,
+      "confidence": 0.7374878787878788,
+      "share_reuse": 0.10336363636363637,
+      "reuse_ms": 1.1565676767676767,
+      "share_light": 0.3639823232323233,
+      "light_ms": 10.003976767676768,
+      "share_full": 0.5326540404040404,
+      "full_ms": 134.03364646464644,
+      "pair_ms": 520.8288606060606,
+      "pair_ms_p95": 840.13576,
+      "pair_ms_p99": 913.6483920000001,
+      "per_output_ms": 173.6096202020202
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode adaptive profile",
+     "wall_s": 18.409443378448486
+    },
+    "te_full": {
+     "psnr_y": 23.77919027823831,
+     "psnr_y_p5": 16.22932172031147,
+     "ssim_y": 0.8137568111953366,
+     "temporal_err": 9.732363937232137,
+     "frames": 99,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 7.391124242424242,
+      "analyze_ms": 81.75932121212121,
+      "classify_ms": 0.49155757575757564,
+      "lists_ms": 0.41412121212121217,
+      "frame_ms": 250.20941717171712,
+      "frame_ms_p95": 279.83714,
+      "frame_ms_p99": 288.46692799999994,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.7374878787878788,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.1485969696969697,
+      "share_light": 0.0,
+      "light_ms": 0.12702626262626263,
+      "share_full": 1.0,
+      "full_ms": 249.35682121212122,
+      "pair_ms": 840.2702545454545,
+      "pair_ms_p95": 919.3009999999999,
+      "pair_ms_p99": 957.502904,
+      "per_output_ms": 280.0900848484848
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode full profile",
+     "wall_s": 28.924932956695557
+    }
+   }
+  },
+  "static_hud": {
+   "start": 405,
+   "pairs": 33,
+   "methods": {
+    "repeat": {
+     "psnr_y": 34.50101693504822,
+     "psnr_y_p5": 31.95382135736731,
+     "ssim_y": 0.9912730372016468,
+     "temporal_err": 0.3609850261339241,
+     "frames": 99
+    },
+    "blend": {
+     "psnr_y": 36.4263630315453,
+     "psnr_y_p5": 35.137023542108786,
+     "ssim_y": 0.9915585658160794,
+     "temporal_err": 0.325407954071786,
+     "frames": 99
+    },
+    "te_adaptive": {
+     "psnr_y": 37.61897561493188,
+     "psnr_y_p5": 35.21049104755569,
+     "ssim_y": 0.9940936286051348,
+     "temporal_err": 0.26240767301219003,
+     "frames": 99,
+     "seam_excess": 0.11862023496756922,
+     "cost": {
+      "pyramid_ms": 8.36339696969697,
+      "analyze_ms": 86.57907878787879,
+      "classify_ms": 0.4140787878787879,
+      "lists_ms": 0.46400707070707065,
+      "frame_ms": 31.15624646464647,
+      "frame_ms_p95": 45.699659999999994,
+      "frame_ms_p99": 54.634619999999984,
+      "scene_cuts": 0,
+      "promoted": 49,
+      "confidence": 0.9746696969696969,
+      "share_reuse": 0.777151515151515,
+      "reuse_ms": 7.817352525252526,
+      "share_light": 0.17523232323232327,
+      "light_ms": 6.648008080808082,
+      "share_full": 0.04761616161616161,
+      "full_ms": 15.995188888888888,
+      "pair_ms": 188.82529393939393,
+      "pair_ms_p95": 237.86542,
+      "pair_ms_p99": 242.91229199999998,
+      "per_output_ms": 62.94176464646464
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode adaptive profile",
+     "wall_s": 7.594006061553955
+    },
+    "te_full": {
+     "psnr_y": 37.51475629713747,
+     "psnr_y_p5": 35.08390779572399,
+     "ssim_y": 0.9938957342646413,
+     "temporal_err": 0.2582025942782903,
+     "frames": 99,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 8.444596969696969,
+      "analyze_ms": 86.31199696969699,
+      "classify_ms": 0.5078848484848484,
+      "lists_ms": 0.4058636363636363,
+      "frame_ms": 250.4174636363636,
+      "frame_ms_p95": 281.76958999999994,
+      "frame_ms_p99": 320.42587199999986,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.9746696969696969,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.15001515151515152,
+      "share_light": 0.0,
+      "light_ms": 0.14193333333333336,
+      "share_full": 1.0,
+      "full_ms": 249.55769797979798,
+      "pair_ms": 846.5168696969697,
+      "pair_ms_p95": 926.5244399999999,
+      "pair_ms_p99": 938.4698879999999,
+      "per_output_ms": 282.1722898989899
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 33 step 4 mode full profile",
+     "wall_s": 29.298108339309692
+    }
+   }
+  },
+  "scenecut": {
+   "start": 540,
+   "pairs": 22,
+   "methods": {
+    "repeat": {
+     "psnr_y": 28.72970173808641,
+     "psnr_y_p5": 26.508375306561078,
+     "ssim_y": 0.8855187201021009,
+     "temporal_err": 2.966123362421058,
+     "frames": 66
+    },
+    "blend": {
+     "psnr_y": 30.51349921600622,
+     "psnr_y_p5": 29.44675073138105,
+     "ssim_y": 0.8932368930242554,
+     "temporal_err": 2.3308512365276166,
+     "frames": 66
+    },
+    "te_adaptive": {
+     "psnr_y": 38.85900304048414,
+     "psnr_y_p5": 38.1478053095198,
+     "ssim_y": 0.9806532706513729,
+     "temporal_err": 0.9192799238239372,
+     "frames": 66,
+     "seam_excess": 0.4571322492979975,
+     "cost": {
+      "pyramid_ms": 7.504572727272727,
+      "analyze_ms": 82.21173636363636,
+      "classify_ms": 0.4267136363636364,
+      "lists_ms": 0.43736515151515154,
+      "frame_ms": 63.16282272727274,
+      "frame_ms_p95": 85.17282499999999,
+      "frame_ms_p99": 91.67376999999999,
+      "scene_cuts": 0,
+      "promoted": 443,
+      "confidence": 0.9274318181818181,
+      "share_reuse": 0.10977272727272729,
+      "reuse_ms": 1.5411499999999998,
+      "share_light": 0.7477007575757575,
+      "light_ms": 20.4904303030303,
+      "share_full": 0.14252651515151513,
+      "full_ms": 40.465251515151515,
+      "pair_ms": 279.63149090909087,
+      "pair_ms_p95": 319.090545,
+      "pair_ms_p99": 332.64715,
+      "per_output_ms": 93.21049696969696
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 22 step 4 mode adaptive profile",
+     "wall_s": 6.946150541305542
+    },
+    "te_full": {
+     "psnr_y": 38.888980666863546,
+     "psnr_y_p5": 38.19654719185717,
+     "ssim_y": 0.9811362734518152,
+     "temporal_err": 0.8928211319090967,
+     "frames": 66,
+     "seam_excess": 0.0,
+     "cost": {
+      "pyramid_ms": 8.451254545454546,
+      "analyze_ms": 85.44312272727274,
+      "classify_ms": 0.39145454545454544,
+      "lists_ms": 0.40629090909090904,
+      "frame_ms": 256.23224848484847,
+      "frame_ms_p95": 302.253275,
+      "frame_ms_p99": 338.5496,
+      "scene_cuts": 0,
+      "promoted": 0,
+      "confidence": 0.9274318181818181,
+      "share_reuse": 0.0,
+      "reuse_ms": 0.14021363636363635,
+      "share_light": 0.0,
+      "light_ms": 0.13906818181818184,
+      "share_full": 1.0,
+      "full_ms": 255.38361666666665,
+      "pair_ms": 862.9825772727272,
+      "pair_ms_p95": 961.83379,
+      "pair_ms_p99": 1019.9538089999999,
+      "per_output_ms": 287.66085909090907
+     },
+     "device": "te-bench: llvmpipe (LLVM 20.1.2, 256 bits) 1280x800 tiles 80x50 pairs 22 step 4 mode full profile",
+     "wall_s": 19.811670541763306
+    }
+   }
+  }
+ }
+}

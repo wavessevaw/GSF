@@ -1,0 +1,15 @@
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+GFG native: validation messenger active sync_validation=1
+GFG native: gpu smoke 1280x800 format=44 min_images=3 images=5 frames=8
+[gfg-native] GPU bridge active: 1280x800 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=tiles verify=1 startup_ms=84.37
+[gfg-native] gpu-verify frame=2 distinct=1 ordered=1 mad_g1g2=20.589 mad_g1_prev=20.087 mad_g1_real=36.064 mad_g2_prev=36.081 mad_g2_real=20.092 mad_prev_real=48.199
+[gfg-native] gpu-verify frame=3 distinct=1 ordered=1 mad_g1g2=18.744 mad_g1_prev=19.518 mad_g1_real=35.391 mad_g2_prev=35.273 mad_g2_real=19.689 mad_prev_real=48.457
+[gfg-native] gpu-verify frame=4 distinct=1 ordered=1 mad_g1g2=18.722 mad_g1_prev=19.629 mad_g1_real=35.287 mad_g2_prev=35.357 mad_g2_real=19.595 mad_prev_real=48.457
+[gfg-native] gpu-verify frame=5 distinct=1 ordered=1 mad_g1g2=18.560 mad_g1_prev=19.517 mad_g1_real=35.122 mad_g2_prev=35.090 mad_g2_real=19.594 mad_prev_real=48.200
+[gfg-native] gpu-verify frame=6 distinct=1 ordered=1 mad_g1g2=18.752 mad_g1_prev=19.543 mad_g1_real=35.432 mad_g2_prev=35.297 mad_g2_real=19.738 mad_prev_real=48.489
+[gfg-native] gpu-verify frame=7 distinct=1 ordered=1 mad_g1g2=18.706 mad_g1_prev=19.704 mad_g1_real=35.282 mad_g2_prev=35.406 mad_g2_real=19.617 mad_prev_real=48.489
+[gfg-native] gpu-verify frame=8 distinct=1 ordered=1 mad_g1g2=18.578 mad_g1_prev=19.545 mad_g1_real=35.165 mad_g2_prev=35.129 mad_g2_real=19.618 mad_prev_real=48.238
+GFG native: gpu stats bridges=1 sync_mode=3 real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=4 verify_checks=7 verify_distinct=7 verify_host_reads=7
+GFG native: validation errors=0 warnings=2
+GFG native: 8 real frames GPU bridge WSI smoke PASS

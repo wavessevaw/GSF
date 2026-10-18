@@ -1,0 +1,3 @@
+borrowed motion: t=1/3 psnr_db=99.000 endpoint_db=20.801
+borrowed motion: t=2/3 psnr_db=49.031 endpoint_db=20.813
+borrowed GPU: exact 1/3,2/3 pixels, BGRA packing, no optional features, device lifetime PASS

@@ -1,0 +1,21 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Pyramid level PC.level + 1 from PC.level by 2x2 box (reference: downsample).
+#include "common.glsl"
+#include "luma_store.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    int l = PC.level;
+    ivec2 dst = ivec2(level_size(l + 1));
+    if (any(greaterThanEqual(p, dst))) return;
+    ivec2 src = ivec2(level_size(l));
+    ivec2 q = min(2 * p, src - 1);
+    ivec2 q1 = min(2 * p + 1, src - 1);
+    float a = load_luma(l, q);
+    float b = load_luma(l, ivec2(q1.x, q.y));
+    float c = load_luma(l, ivec2(q.x, q1.y));
+    float d = load_luma(l, q1);
+    store_luma(l + 1, p, (a + b + c + d) * 0.25);
+}

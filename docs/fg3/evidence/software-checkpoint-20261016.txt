@@ -1,0 +1,257 @@
+# FG3 software verification checkpoint — 2026-10-16 UTC
+
+All Vulkan execution below used Mesa llvmpipe/lavapipe under Xvfb. These logs are not Deck performance or physical scanout evidence.
+The opt-in `VK_KHR_present_wait` extension is unavailable in llvmpipe (`present-ids mode=0 monitor=0`); the monitor runtime success path remains untested here. Static regression guards ensure the zero-timeout monitor shares the per-swapchain lock with acquire, present, and wait calls.
+The latest local ZIP SHA is shown below. Its manifest records a dirty worktree and deliberately has no `source_commit`; it is only a local package/install exercise, not the clean-commit Actions artifact.
+The generated diagnostic report explicitly records physical display/KMS as unobserved and acceptance as false.
+
+## Final WSI smoke, GFG layer before validation
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=1 semaphore_fd=0 present_caps=0x0 reason=enabled
+[gfg-native] swapchain 96x64 candidate=1 output=real-only reason=extended-usage-ready format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x8009f caps_queried=1 caps_result=0 extended_result=0 min_images=3->5 images=5 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=8
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=lmc-gpu verify=1 startup_ms=1155.50
+[gfg-native] present-ids mode=0 monitor=0 (present_caps=0x0)
+[gfg-native] gpu-bridge frame=0 te=0 generated=0 presented=0
+[gfg-native] gpu-bridge frame=1 te=0 generated=1 presented=2
+[gfg-native] gpu-bridge frame=2 te=0 generated=1 presented=2
+[gfg-native] gpu-verify frame=3 distinct=1 ordered=1 mad_g1g2=18.420 mad_g1_prev=19.246 mad_g1_real=34.882 mad_g2_prev=34.692 mad_g2_real=19.429 mad_prev_real=48.105
+[gfg-native] gpu-bridge frame=3 te=0 generated=1 presented=2
+[gfg-native] gpu-verify frame=5 distinct=1 ordered=1 mad_g1g2=18.161 mad_g1_prev=19.819 mad_g1_real=34.421 mad_g2_prev=34.890 mad_g2_real=19.308 mad_prev_real=48.129
+[gfg-native] gpu-verify frame=7 distinct=1 ordered=1 mad_g1g2=18.269 mad_g1_prev=19.415 mad_g1_real=34.696 mad_g2_prev=34.816 mad_g2_real=19.328 mad_prev_real=48.117
+[gfg-native] GPU bridge retired real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 verify_checks=3 verify_distinct=3
+[gfg-native] gpu-bridge present_cpu frames=6 96x64 total_median_us=18009.2 total_p95_us=18192.5 layer_own_median_us=1626.9 layer_own_p95_us=1824.9
+[gfg-native] gpu-bridge phase_mean_us real_submit=62.3 te_submit=794.9 acquire=31.0 synthetic_submit=235.8 fence_submit=8.5
+GFG native: gpu stats bridges=1 sync_mode=3 real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=3 verify_distinct=3 verify_host_reads=3
+GFG native: validation errors=0 warnings=2
+GFG native: 8 real frames GPU bridge WSI smoke PASS
+```
+
+## Final WSI smoke, validation before GFG layer
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=1 semaphore_fd=0 present_caps=0x0 reason=enabled
+[gfg-native] swapchain 96x64 candidate=1 output=real-only reason=extended-usage-ready format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x8009f caps_queried=1 caps_result=0 extended_result=0 min_images=3->5 images=5 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=8
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=lmc-gpu verify=1 startup_ms=1057.17
+[gfg-native] present-ids mode=0 monitor=0 (present_caps=0x0)
+[gfg-native] gpu-bridge frame=0 te=0 generated=0 presented=0
+[gfg-native] gpu-bridge frame=1 te=0 generated=1 presented=2
+[gfg-native] gpu-bridge frame=2 te=0 generated=1 presented=2
+[gfg-native] gpu-verify frame=3 distinct=1 ordered=1 mad_g1g2=18.420 mad_g1_prev=19.246 mad_g1_real=34.882 mad_g2_prev=34.692 mad_g2_real=19.429 mad_prev_real=48.105
+[gfg-native] gpu-bridge frame=3 te=0 generated=1 presented=2
+[gfg-native] gpu-verify frame=5 distinct=1 ordered=1 mad_g1g2=18.161 mad_g1_prev=19.819 mad_g1_real=34.421 mad_g2_prev=34.890 mad_g2_real=19.308 mad_prev_real=48.129
+[gfg-native] gpu-verify frame=7 distinct=1 ordered=1 mad_g1g2=18.269 mad_g1_prev=19.415 mad_g1_real=34.696 mad_g2_prev=34.816 mad_g2_real=19.328 mad_prev_real=48.117
+[gfg-native] GPU bridge retired real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 verify_checks=3 verify_distinct=3
+[gfg-native] gpu-bridge present_cpu frames=6 96x64 total_median_us=15722.8 total_p95_us=16055.8 layer_own_median_us=507.5 layer_own_p95_us=630.7
+[gfg-native] gpu-bridge phase_mean_us real_submit=32.6 te_submit=255.4 acquire=13.7 synthetic_submit=29.8 fence_submit=3.9
+GFG native: gpu stats bridges=1 sync_mode=3 real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=3 verify_distinct=3 verify_host_reads=3
+GFG native: validation errors=0 warnings=2
+GFG native: 8 real frames GPU bridge WSI smoke PASS
+```
+
+## Disabled timeline, GFG layer first
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=0 semaphore_fd=0 present_caps=0x0 reason=app-disabled-timeline
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=frame-bridge-unavailable format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=3 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=3 frames=4
+[gfg-native] GPU bridge not available (device lacks external memory fd / timeline); real-frame pass-through
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## Disabled timeline, validation layer first
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=0 semaphore_fd=0 present_caps=0x0 reason=app-disabled-timeline
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=frame-bridge-unavailable format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=3 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=3 frames=4
+[gfg-native] GPU bridge not available (device lacks external memory fd / timeline); real-frame pass-through
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## MAILBOX passthrough, GFG layer first
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=1 semaphore_fd=0 present_caps=0x0 reason=enabled
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=non-fifo-present-mode format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=4 present_mode=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=4 frames=4
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## MAILBOX passthrough, validation layer first
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=1 semaphore_fd=0 present_caps=0x0 reason=enabled
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=non-fifo-present-mode format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=4 present_mode=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=4 frames=4
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## Unsupported shared-fd safe refusal
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=0 semaphore_fd=0 present_caps=0x0 reason=no-external-semaphore-fd
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=frame-bridge-unavailable format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=3 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=3 frames=4
+[gfg-native] GPU bridge not available (device lacks external memory fd / timeline); real-frame pass-through
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## Unsupported legacy relay safe refusal
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+GFG native: validation messenger active sync_validation=1
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=0 semaphore_fd=0 present_caps=0x0 reason=unsupported-sync-mode
+[gfg-native] swapchain 96x64 candidate=0 output=real-only reason=frame-bridge-unavailable format=44 flags=0x0 layers=1 sharing=0 requested_usage=0x2 supported_usage=0x0 caps_queried=0 caps_result=0 extended_result=0 min_images=3->3 images=3 present_mode=2
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=3 frames=4
+[gfg-native] GPU bridge not available (device lacks external memory fd / timeline); real-frame pass-through
+GFG native: validation errors=0 warnings=2
+GFG native: 4 real frames GPU bridge WSI smoke PASS
+```
+
+## Core CPU reference
+
+```text
+te-tests on llvmpipe (LLVM 19.1.7, 256 bits)
+  fd import: memory=1 semaphore=0 on llvmpipe (LLVM 19.1.7, 256 bits)
+  semaphore fd import not supported here: refusal path tested, import path untested
+te-tests: 168 checks, 0 failures
+```
+
+## Core GPU LMC
+
+```text
+te-tests on llvmpipe (LLVM 19.1.7, 256 bits)
+  fd import: memory=1 semaphore=0 on llvmpipe (LLVM 19.1.7, 256 bits)
+  semaphore fd import not supported here: refusal path tested, import path untested
+te-tests: 168 checks, 0 failures
+```
+
+## Native Python regression suite
+
+```text
+test_home_and_model_paths_are_redacted (test_native_fg_probe.NativeProbeTests.test_home_and_model_paths_are_redacted) ... ok
+test_missing_dependency_is_recorded (test_native_fg_probe.NativeProbeTests.test_missing_dependency_is_recorded) ... ok
+test_multiframe_positions (test_native_fg_probe.NativeProbeTests.test_multiframe_positions) ... ok
+test_nonexistent_device_fields_stay_unknown (test_native_fg_probe.NativeProbeTests.test_nonexistent_device_fields_stay_unknown) ... ok
+test_packet_excludes_closed_payloads_and_symlinks (test_native_fg_probe.NativeProbeTests.test_packet_excludes_closed_payloads_and_symlinks) ... ok
+test_reference_environment_overrides_inherited_backend (test_native_fg_probe.NativeProbeTests.test_reference_environment_overrides_inherited_backend) ... ok
+test_timed_out_tool_is_not_success (test_native_fg_probe.NativeProbeTests.test_timed_out_tool_is_not_success) ... ok
+test_corrupted_payload_does_not_mutate_existing_install (test_native_gpu_install.NativeGpuInstallTests.test_corrupted_payload_does_not_mutate_existing_install) ... ok
+test_first_install_rollback_and_uninstall_leave_working_launch_option (test_native_gpu_install.NativeGpuInstallTests.test_first_install_rollback_and_uninstall_leave_working_launch_option) ... ok
+test_off_mode_preserves_arguments_and_disables_native (test_native_gpu_install.NativeGpuInstallTests.test_off_mode_preserves_arguments_and_disables_native) ... ok
+test_one_command_diagnostic_captures_local_report_without_upload (test_native_gpu_install.NativeGpuInstallTests.test_one_command_diagnostic_captures_local_report_without_upload) ... ok
+test_upgrade_rollback_restores_exact_previous_files (test_native_gpu_install.NativeGpuInstallTests.test_upgrade_rollback_restores_exact_previous_files) ... ok
+test_host_cached_vulkan_readback_and_bulk_mapped_transfer (test_native_layer_foundation.NativeLayerTests.test_host_cached_vulkan_readback_and_bulk_mapped_transfer) ... ok
+test_manifest_is_opt_in_and_standalone (test_native_layer_foundation.NativeLayerTests.test_manifest_is_opt_in_and_standalone) ... ok
+test_native_cpu_path_uses_only_internal_temporal_engine (test_native_layer_foundation.NativeLayerTests.test_native_cpu_path_uses_only_internal_temporal_engine) ... ok
+test_no_foreign_backend_linkage (test_native_layer_foundation.NativeLayerTests.test_no_foreign_backend_linkage) ... ok
+test_present_wait_monitor_serializes_swapchain_host_access (test_native_layer_foundation.NativeLayerTests.test_present_wait_monitor_serializes_swapchain_host_access) ... ok
+test_wsi_present_semaphores_are_per_swapchain_image (test_native_layer_foundation.NativeLayerTests.test_wsi_present_semaphores_are_per_swapchain_image) ... ok
+test_backend_native_has_no_model_registry_path (test_native_no_dll_bootstrap.BootstrapTests.test_backend_native_has_no_model_registry_path) ... ok
+test_checked_replace_unique (test_native_no_dll_bootstrap.BootstrapTests.test_checked_replace_unique) ... ok
+test_renderer_no_dll_lookup_in_native_mode (test_native_no_dll_bootstrap.BootstrapTests.test_renderer_no_dll_lookup_in_native_mode) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.485s
+
+OK
+```
+
+## No-TE loader/instance/device smoke
+
+```text
+make: Entering directory '/workspace/GFG-Extreme-integration/engine/gfg-native'
+VK_INSTANCE_LAYERS=VK_LAYER_GFG_native GFG_NATIVE_FG=1 GFG_NATIVE_TRACE=1 \
+VK_LAYER_PATH="/workspace/.gfg-native-final-pass" /workspace/.gfg-native-final-pass/loader-smoke
+[gfg-native] instance initialized enabled=1 (WSI pass-through)
+Failed to create /home/agent/.cache/mesa_shader_cache for shader cache (Read-only file system)---disabling.
+Failed to create /home/agent/.cache/mesa_shader_cache_db for shader cache (Read-only file system)---disabling.
+[gfg-native] device gpu_bridge_capable=0 semaphore_fd=0 present_caps=0x0 reason=built-without-te
+GFG native: Vulkan loader/instance/device dispatch smoke PASS
+make: Leaving directory '/workspace/GFG-Extreme-integration/engine/gfg-native'
+```
+
+## Latest installed package GPU runtime
+
+```text
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+GFG native: validation messenger active sync_validation=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=8
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=lmc-gpu verify=1 startup_ms=1126.45
+[gfg-native] gpu-verify frame=3 distinct=1 ordered=1 mad_g1g2=18.420 mad_g1_prev=19.246 mad_g1_real=34.882 mad_g2_prev=34.692 mad_g2_real=19.429 mad_prev_real=48.105
+[gfg-native] gpu-verify frame=5 distinct=1 ordered=1 mad_g1g2=18.161 mad_g1_prev=19.819 mad_g1_real=34.421 mad_g2_prev=34.890 mad_g2_real=19.308 mad_prev_real=48.129
+[gfg-native] gpu-verify frame=7 distinct=1 ordered=1 mad_g1g2=18.269 mad_g1_prev=19.415 mad_g1_real=34.696 mad_g2_prev=34.816 mad_g2_real=19.328 mad_prev_real=48.117
+GFG native: gpu stats bridges=1 sync_mode=3 real=8 synthetic=14 skipped=0 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=3 verify_distinct=3 verify_host_reads=3
+GFG native: validation errors=0 warnings=2
+GFG native: 8 real frames GPU bridge WSI smoke PASS
+```
+
+## Latest installed package diagnostic output
+
+```text
+GFG diagnostic bundle: /tmp/gfg-native-final3-home/.local/state/gfg-native/diagnostics/20261016T011435Z.fz9IwV.tar.gz
+4493f887f75eb13a7fad12d6f07461fc5867e0701aefb22f3285122cfaa1a305  /tmp/gfg-native-final3-home/.local/state/gfg-native/diagnostics/20261016T011435Z.fz9IwV.tar.gz
+Physical display scanout: unobserved; hardware acceptance NOT COMPLETED.
+```
+
+## Latest local dirty-worktree package checksum
+
+```text
+Native FG test package: /tmp/gfg-native-final3-package/GFG-Native-FG-v0_0_0-fg3-internal_1.zip sha256=486d334bcd3047ef3f1c2873ab422e37ba10c4668e4cefd43ea7e746b635f61c
+```

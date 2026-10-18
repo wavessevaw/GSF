@@ -1,0 +1,31 @@
+name: FG3 implementation coordination
+on:
+  push:
+    branches: [codex/fg3-integration]
+    paths:
+      - docs/fg3/COORDINATION.md
+      - .github/workflows/fg3-coordination.yml
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+jobs:
+  coordinate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('docs/fg3/COORDINATION.md', 'utf8');
+            const issue_number = 133;
+            const {owner, repo} = context.repo;
+            const comments = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number, per_page: 100});
+            const previous = comments.find(c => c.user.login === 'github-actions[bot]' && c.body.includes('<!-- codex-fg3-coordination -->'));
+            if (previous) {
+              await github.rest.issues.updateComment({owner, repo, comment_id: previous.id, body});
+            } else {
+              await github.rest.issues.createComment({owner, repo, issue_number, body});
+            }
+            core.notice(`Published source checkpoint: https://github.com/${owner}/${repo}/commit/${context.sha}`);

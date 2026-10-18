@@ -1,0 +1,47 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Per pair, full resolution (reference: LMC2.push, first lines):
+//   luma (Rec.709) of B into pyramid level 0, the HUD still counter, and on
+//   even pixels the 2x2 half-resolution RGB of B.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+#include "lmc_color.glsl"
+#ifdef GFG_LINEAR_PQ
+layout(set=0,binding=38,rgba16f) uniform writeonly image2D storeLinearB;
+#endif
+layout(local_size_x = 8, local_size_y = 8) in;
+
+shared uint changed;
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    // One exact RGB comparison piggybacks on the existing full-res pass.
+    // Edge invocations participate in both barriers; no early-return deadlock.
+    if(gl_LocalInvocationIndex==0u)changed=0u;
+    barrier();
+    bool valid=all(lessThan(p,P.size.xy));
+    if(valid && (PC.flags&2)!=0 && any(notEqual(texelFetch(srcB,p,0).rgb,texelFetch(srcA,p,0).rgb)))
+        atomicOr(changed,1u);
+    barrier();
+    if(gl_LocalInvocationIndex==0u && (PC.flags&2)!=0 && changed!=0u)atomicOr(G.hist[1],1u);
+    if (!valid) return;
+    vec3 b = texelFetch(srcB, p, 0).rgb;
+#ifdef GFG_LINEAR_PQ
+    imageStore(storeLinearB,p,vec4(pq_decode_nits(b),1.0));
+#endif
+    vec3 a = texelFetch(srcA, p, 0).rgb;
+    store_l(0, p, b.r * 0.2126 + b.g * 0.7152 + b.b * 0.0722);
+    vec3 d = abs(b - a);
+    bool still = max(d.r, max(d.g, d.b)) < P.still;
+    if ((PC.flags & 1) == 0) {  // history-only frames have no pair: the counter waits
+        uint c = imageLoad(hudCount, p).r;
+        imageStore(hudCount, p, uvec4(still ? c + G.moving : 0u));
+    }
+    if ((p.x & 1) == 0 && (p.y & 1) == 0) {
+        ivec2 h = p / 2;
+        if (all(lessThan(h, P.size.zw))) {
+            vec3 s = b + texelFetch(srcB, p + ivec2(1, 0), 0).rgb + texelFetch(srcB, p + ivec2(0, 1), 0).rgb +
+                     texelFetch(srcB, p + ivec2(1, 1), 0).rgb;
+            imageStore(storeHalf, h, vec4(s * 0.25, 1.0));
+        }
+    }
+}

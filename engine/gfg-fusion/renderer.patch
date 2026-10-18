@@ -1,0 +1,1972 @@
+diff --git a/engine/docs/CONFIGURATION.md b/engine/docs/CONFIGURATION.md
+index 323eb34..ade564d 100644
+--- a/engine/docs/CONFIGURATION.md
++++ b/engine/docs/CONFIGURATION.md
+@@ -53,6 +53,10 @@ ## Global settings
+ 
+ ## Profile settings
+ 
++### GFG fork: Autopilot-owned Fusion scope
++
++`gfg_frame_fusion` is a boolean live profile extension, default false in the Renderer. GFG stable 2.1.0 sets it only in an enabled Autopilot runtime overlay. The launch environment permits resource provisioning; execution requires both applied and requested scopes. Leaving scope closes raw source transfers and direct scaler inputs immediately, retaining an ordinary same-format blit until the existing private-group transition commits. Native candidates require blit features for this safe retained-group path. The optional Fusion extension publishes Autopilot scope capability.
++
+ ### Frame Generation
+ 
+ | Setting | Default | Meaning |
+diff --git a/engine/docs/MEMORY-MANAGEMENT.md b/engine/docs/MEMORY-MANAGEMENT.md
+index c065d6e..a1c293b 100644
+--- a/engine/docs/MEMORY-MANAGEMENT.md
++++ b/engine/docs/MEMORY-MANAGEMENT.md
+@@ -129,3 +129,13 @@ ## Validation and change ownership
+ | Scaling admission and resource formats | [`spatial_scaling_policy.hpp`](../mako-render/src/spatial_scaling_policy.hpp), [`spatial_scaler.cpp`](../mako-render/src/spatial_scaler.cpp) |
+ 
+ Extend these owners when changing memory behavior. Keep the allocator, accounting, failure cleanup, focused tests, and owning boundary guide aligned; do not add a second allocator or treat a policy estimate as completion or allocation proof.
++
++## Experimental direct sampled FG inputs
++
++The GFG Frame Fusion patch owns bounded descriptor bindings in `SpatialScaler`, borrowing generated-image views from the swapchain. Bindings must be drained and cleared before replacing or destroying their images, including prepared scalers, backend transitions and retirement. Setup is transactional and recording performs no allocations. Descriptors only accept matching extent/format, sampled usage, unique handles and at most 64 inputs. This patch retains the private fallback images; it removes one copy on an eligible recorded path, not the full memory allocation.
++
++## Experimental native-resolution source transport
++
++GFG Native Fusion keeps two private history images and their existing FD/timeline ownership. For equal-resolution SDR8 UNORM input without a spatial scaler, `fusion_source_transport.hpp` selects a matching RGBA8 or BGRA8 source layout. Both application and backend devices must support the matching sampled transfer image and opaque-FD export/import. Exporter and importer use `TRANSFER_DST | SAMPLED`; model descriptors only sample these images. The backend's SDR8 model, intermediate/output formats, scheduler and retirement remain unchanged. The old `openContext` signature selects the default transport; an explicit source-layout overload owns the same FD batch before construction.
++
++The canonical private-resource builder constructs the complete source/destination/semaphore/context group before commit. One failed native construction releases its temporary resources and tries the default source layout once. Successful replacement resets native counters; failed startup clears native preparation and retains application presentation. A native source submission uses same-format `vkCmdCopyImage` rather than a conversion blit; it does not remove either history image or the source transfer. Publication schema 2 reports native transfers and BGRA conversion blits separately from spatial copy elimination. Counters describe submitted work, not GPU completion, session totals, power or performance gains.
+diff --git a/engine/docs/RUNTIME-TRANSITIONS.md b/engine/docs/RUNTIME-TRANSITIONS.md
+index 0f4a18b..71d4ad0 100644
+--- a/engine/docs/RUNTIME-TRANSITIONS.md
++++ b/engine/docs/RUNTIME-TRANSITIONS.md
+@@ -1,5 +1,7 @@
+ # Runtime configuration transitions
+ 
++The GFG fork adds the Autopilot-owned `gfg_frame_fusion` live boolean. Scope participates in private source-group request/resource identity and uses the existing retirement and replacement owners. A false request closes shortcut execution before replacement, including on allocation/import failure; retained native-layout histories use an ordinary same-format blit. Disabled diagnostics publish zero shortcut counters rather than combining a false request with prepared native history evidence.
++
+ This guide defines how a saved profile becomes running Renderer state. [Configuration](CONFIGURATION.md) defines fields, [Adaptive validation](ADAPTIVE-VALIDATION.md) owns scheduling, [Spatial scaling architecture](SCALING.md) owns extent policy, [HDR pipeline architecture](HDR-PIPELINE.md) owns colour transitions, and [WSI isolation](WSI-ISOLATION.md) owns process-start discovery. [Memory management](MEMORY-MANAGEMENT.md) explains allocation ownership, replacement peaks, and accounting.
+ 
+ ## Lifetime boundaries
+diff --git a/engine/docs/SCALING.md b/engine/docs/SCALING.md
+index a4bd08b..76f2243 100644
+--- a/engine/docs/SCALING.md
++++ b/engine/docs/SCALING.md
+@@ -146,3 +146,7 @@ ## Code and test ownership
+ | Shared LS1/LSFG resource resolution and validation; LS1 translation | `mako-backend/src/extraction/`, `mako-cli inspect-dll` |
+ | Portable policy and transition coverage | `mako-render/tests/spatial_scaling_policy_tests.cpp`, `mako-render/tests/profile_update_tests.cpp` |
+ | GPU quality and runtime evidence | `mako-cli/src/tools/quality.cpp`, private MAKO Gym suites |
++
++## Experimental GFG Frame Fusion patch
++
++The GFG fork opts in with `GFG_FRAME_FUSION=1` before launch. The SDR8 MAKO path prebinds compatible sampled inputs and skips their source-sized blit. Before FG, supported linear UNORM swapchains negotiate sampled usage at creation and borrow image views; a clamped UV mapping samples only the logical source rectangle of the larger physical image. After FG, matching private generated images are sampled directly. The reconstruction weights, output copy and WSI ordering remain owned by their existing components. Native Resolution, LS1, HDR, nonlinear sRGB, unknown images, unsupported usage and failed bindings use the original path. Runtime status distinguishes prepared inputs from submitted work; counters are not GPU-time or power evidence.
+diff --git a/engine/mako-backend/CMakeLists.txt b/engine/mako-backend/CMakeLists.txt
+index 5a2360a..91b296b 100644
+--- a/engine/mako-backend/CMakeLists.txt
++++ b/engine/mako-backend/CMakeLists.txt
+@@ -23,19 +23,42 @@ set(BACKEND_SOURCES
+     "src/shaderchains/mipmaps.cpp"
+     "src/mako.cpp")
+ 
++# GFG Temporal Engine: the adapter and the engine library come from the GFG
++# repository (engine/gfg-temporal), built by scripts/build_frame_fusion.py.
++# The engine stays off at run time unless GFG_TEMPORAL_ENGINE selects it.
++set(GFG_TEMPORAL_SOURCE_DIR "" CACHE PATH "GFG engine/gfg-temporal directory")
++set(GFG_TEMPORAL_LIBRARY "" CACHE FILEPATH "position-independent libgfg-temporal.a")
++if(NOT GFG_TEMPORAL_SOURCE_DIR OR NOT GFG_TEMPORAL_LIBRARY)
++    message(FATAL_ERROR "GFG_TEMPORAL_SOURCE_DIR and GFG_TEMPORAL_LIBRARY are required")
++endif()
++list(APPEND BACKEND_SOURCES "${GFG_TEMPORAL_SOURCE_DIR}/mako/gfg_temporal.cpp")
++find_package(Threads REQUIRED)
++
+ add_library(mako-backend STATIC ${BACKEND_SOURCES})
++target_include_directories(mako-backend PRIVATE
++    "${GFG_TEMPORAL_SOURCE_DIR}/mako" "${GFG_TEMPORAL_SOURCE_DIR}/src")
+ 
+ target_include_directories(mako-backend
+     PUBLIC include)
+ 
+ target_link_libraries(mako-backend
+     PUBLIC mako-common
+-    PRIVATE ${CMAKE_DL_LIBS})
++    PRIVATE "${GFG_TEMPORAL_LIBRARY}" Threads::Threads ${CMAKE_DL_LIBS})
+ 
+ set_target_properties(mako-backend PROPERTIES
+     CXX_VISIBILITY_PRESET hidden)
+ 
+ if(BUILD_TESTING)
++    # GFG Temporal Engine adapter: mode, timeline mapping and LSFG fallback
++    find_package(Vulkan REQUIRED)
++    add_executable(gfg-temporal-adapter-tests
++        "${GFG_TEMPORAL_SOURCE_DIR}/mako/adapter_tests.cpp")
++    target_include_directories(gfg-temporal-adapter-tests PRIVATE
++        include "${GFG_TEMPORAL_SOURCE_DIR}/mako" "${GFG_TEMPORAL_SOURCE_DIR}/src")
++    target_link_libraries(gfg-temporal-adapter-tests PRIVATE
++        mako-backend Vulkan::Vulkan)
++    add_test(NAME gfg-temporal-adapter COMMAND gfg-temporal-adapter-tests)
++
+     add_executable(mako-backend-hot-path-tests
+         "tests/hot_path_tests.cpp")
+     target_include_directories(mako-backend-hot-path-tests
+diff --git a/engine/mako-backend/include/mako-backend/mako.hpp b/engine/mako-backend/include/mako-backend/mako.hpp
+index 1984d5e..6493d28 100644
+--- a/engine/mako-backend/include/mako-backend/mako.hpp
++++ b/engine/mako-backend/include/mako-backend/mako.hpp
+@@ -24,10 +24,35 @@ namespace mako::backend {
+         Hdr10PqPacked,
+     };
+ 
++    /// Optional SDR source byte layout. Output/model encoding remains unchanged.
++    enum class SourceImageLayout : uint8_t { Default, Rgba8, Bgra8 };
++
+     class [[gnu::visibility("default")]] ContextImpl;
+     class [[gnu::visibility("default")]] InstanceImpl;
++    namespace gfg_temporal { class Runtime; }
++
++    ///
++    /// Frame-generation context.  Either the LSFG model context or, when GFG
++    /// asks for it, the GFG Temporal Engine; callers only pass it back to the
++    /// Instance that opened it.
++    ///
++    class [[gnu::visibility("default")]] ContextBase {
++    public:
++        virtual ~ContextBase();
++        ContextBase(const ContextBase&) = delete;
++        ContextBase& operator=(const ContextBase&) = delete;
++        ContextBase(ContextBase&&) = delete;
++        ContextBase& operator=(ContextBase&&) = delete;
++
++        /// An empty span generates one frame per destination image at even spacing.
++        virtual void scheduleFrames(std::span<const float> timestamps) = 0;
++        virtual void scheduleFrameHistory() = 0;
++        [[nodiscard]] virtual bool waitForIdle(uint64_t timeoutNs) const = 0;
++    protected:
++        ContextBase() = default;
++    };
+ 
+-    using Context = ContextImpl;
++    using Context = ContextBase;
+ 
+     ///
+     /// Primitive exception class that deliveres a detailed error message
+@@ -122,6 +147,16 @@ namespace mako::backend {
+             FrameEncoding encoding, float flow, bool perf
+         );
+ 
++        /// Explicit source layout, with the same descriptor ownership contract.
++        /// Rgba8/Bgra8 require SDR8; sampled colour values keep their RGBA semantics.
++        Context& openContext(
++            std::pair<int, int> sourceFds, const std::vector<int>& destFds,
++            int syncFd, uint32_t width, uint32_t height,
++            FrameEncoding encoding, float flow, bool perf, SourceImageLayout sourceLayout
++        );
++
++        [[nodiscard]] bool supportsSourceImageLayout(SourceImageLayout layout) const;
++
+         /// Return whether the backend device can import and write the packed
+         /// RGB10A2 images used by the low-bandwidth HDR10 transport path.
+         [[nodiscard]] bool supportsPackedHdr10Transport() const;
+@@ -180,6 +215,7 @@ namespace mako::backend {
+         void collectRetiredContexts();
+ 
+         std::unique_ptr<InstanceImpl> m_impl;
++        std::shared_ptr<gfg_temporal::Runtime> m_temporal;
+ 
+         std::vector<std::unique_ptr<Context>> m_contexts;
+         std::vector<std::unique_ptr<Context>> m_retiredContexts;
+diff --git a/engine/mako-backend/include/mako-backend/source_image_layout.hpp b/engine/mako-backend/include/mako-backend/source_image_layout.hpp
+new file mode 100644
+index 0000000..76f6b1b
+--- /dev/null
++++ b/engine/mako-backend/include/mako-backend/source_image_layout.hpp
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#pragma once
++
++#include "mako.hpp"
++#include <optional>
++#include <vulkan/vulkan_core.h>
++
++namespace mako::backend {
++    /// Native SDR sources are sampled, not written by model storage descriptors.
++    /// Match the exporter's transfer/sampled image contract at the FD boundary.
++    inline constexpr VkImageUsageFlags nativeSourceImageUsage =
++        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
++
++    [[nodiscard]] constexpr std::optional<VkFormat> nativeSourceImageFormat(
++            const FrameEncoding encoding, const SourceImageLayout layout) noexcept {
++        if (encoding != FrameEncoding::Sdr8)
++            return std::nullopt;
++        switch (layout) {
++            case SourceImageLayout::Rgba8: return VK_FORMAT_R8G8B8A8_UNORM;
++            case SourceImageLayout::Bgra8: return VK_FORMAT_B8G8R8A8_UNORM;
++            default: return std::nullopt;
++        }
++    }
++}
+diff --git a/engine/mako-backend/src/mako.cpp b/engine/mako-backend/src/mako.cpp
+index ea2cec2..b047fa1 100644
+--- a/engine/mako-backend/src/mako.cpp
++++ b/engine/mako-backend/src/mako.cpp
+@@ -1,7 +1,9 @@
+ /* SPDX-License-Identifier: GPL-3.0-or-later */
+ 
+ #include "helpers/temporal_phases.hpp"
++#include "gfg_temporal.hpp"
+ #include "mako-backend/mako.hpp"
++#include "mako-backend/source_image_layout.hpp"
+ #include "extraction/dll_reader.hpp"
+ #include "extraction/shader_registry.hpp"
+ #include "helpers/limits.hpp"
+@@ -100,13 +102,14 @@ namespace mako::backend {
+     };
+ 
+     /// context class
+-    class ContextImpl {
++    class ContextImpl final : public ContextBase {
+     public:
+         /// create a context
+         /// (see mako documentation)
+         ContextImpl(const InstanceImpl& instance,
+             ls::FileDescriptorScope& sourceFds, ls::FileDescriptorScope& destFds,
+-            ls::FileDescriptorScope& syncFd, VkExtent2D extent, FrameEncoding encoding, float flow, bool perf);
++            ls::FileDescriptorScope& syncFd, VkExtent2D extent, FrameEncoding encoding, float flow, bool perf,
++            SourceImageLayout sourceLayout);
+ 
+         // Borrowed scratch and cached descriptors require stable context owners.
+         ContextImpl(const ContextImpl&) = delete;
+@@ -119,14 +122,14 @@ namespace mako::backend {
+         void scheduleFrames();
+ 
+         /// schedule a variable number of frames at explicit timestamps
+-        void scheduleFrames(std::span<const float> timestamps);
++        void scheduleFrames(std::span<const float> timestamps) override;
+ 
+         /// update temporal history without generating output frames
+         /// (see mako documentation)
+-        void scheduleFrameHistory();
++        void scheduleFrameHistory() override;
+ 
+         /// wait for this context's most recently submitted work only
+-        [[nodiscard]] bool waitForIdle(uint64_t timeoutNs) const;
++        [[nodiscard]] bool waitForIdle(uint64_t timeoutNs) const override;
+     private:
+         std::pair<vk::Image, vk::Image> sourceImages;
+         std::vector<vk::Image> destImages;
+@@ -223,8 +226,16 @@ Instance::Instance(
+     this->m_impl = std::make_unique<InstanceImpl>(
+         selectFunc, shaderDllPath, allowLowPrecision
+     );
++    // GFG Temporal Engine: its own device on the same GPU, created here so the
++    // caller's layer-disabling environment also covers it.  Off unless asked.
++    const auto& backendVulkan = this->m_impl->getVulkan();
++    this->m_temporal = gfg_temporal::Runtime::create(
++        gfg_temporal::parseMode(std::getenv("GFG_TEMPORAL_ENGINE")),
++        backendVulkan.physdev(), backendVulkan.fi().GetPhysicalDeviceProperties2);
+ }
+ 
++ContextBase::~ContextBase() = default;
++
+ bool Instance::supportsPackedHdr10Transport() const {
+     const auto& vk = this->m_impl->getVulkan();
+     constexpr VkImageUsageFlags usage =
+@@ -238,6 +249,19 @@ bool Instance::supportsPackedHdr10Transport() const {
+         );
+ }
+ 
++bool Instance::supportsSourceImageLayout(const SourceImageLayout layout) const {
++    const auto format = nativeSourceImageFormat(FrameEncoding::Sdr8, layout);
++    if (!format)
++        return false;
++    const auto& vk = this->m_impl->getVulkan();
++    return vk.supportsOptimalTilingFormatFeatures(*format,
++            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
++            VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
++            VK_FORMAT_FEATURE_TRANSFER_DST_BIT) &&
++        vk.supportsExternalImageFormat(*format, nativeSourceImageUsage,
++            VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT);
++}
++
+ namespace {
+     constexpr auto previousWorkFenceTimeout = std::chrono::milliseconds(250);
+     constexpr uint64_t previousWorkFenceTimeoutNs = static_cast<uint64_t>(
+@@ -355,6 +379,13 @@ InstanceImpl::InstanceImpl(vk::PhysicalDeviceSelector selectPhysicalDevice,
+ Context& Instance::openContext(std::pair<int, int> sourceFds, const std::vector<int>& destFds,
+         int syncFd, uint32_t width, uint32_t height,
+         const FrameEncoding encoding, float flow, bool perf) {
++    return this->openContext(sourceFds, destFds, syncFd, width, height,
++        encoding, flow, perf, SourceImageLayout::Default);
++}
++
++Context& Instance::openContext(std::pair<int, int> sourceFds, const std::vector<int>& destFds,
++        int syncFd, uint32_t width, uint32_t height,
++        const FrameEncoding encoding, float flow, bool perf, const SourceImageLayout sourceLayout) {
+     // Take the complete batch before any operation that can fail. Individual
+     // import wrappers consume their descriptor even on failure; unattempted
+     // descriptors remain here until construction succeeds or unwinds.
+@@ -369,17 +400,29 @@ Context& Instance::openContext(std::pair<int, int> sourceFds, const std::vector<
+         );
+     }
+     const VkExtent2D extent{ width, height };
++    gfg_temporal::Prepared temporal(this->m_temporal, sourceFds, destFds, syncFd,
++        extent, encoding, sourceLayout);
++    if (temporal.wantsExperimental()) {
++        if (auto engine = temporal.openExperimental()) {
++            // the engine holds duplicates; the scopes close the originals
++            auto* result = this->m_contexts.emplace_back(std::move(engine)).get();
++            std::clog << "MAKO Renderer: frame-generation context uses the GFG Temporal Engine"
++                << " width=" << width << " height=" << height
++                << " outputs=" << destFds.size() << '\n';
++            return *result;
++        }
++    }
+     const auto& vulkan = this->m_impl->getVulkan();
+     const auto before = vulkan.deviceMemorySnapshot();
+     auto context = std::make_unique<ContextImpl>(*this->m_impl,
+         sourceScope, destinationScope, syncScope,
+-        extent, encoding, flow, perf
++        extent, encoding, flow, perf, sourceLayout
+     );
+     const auto after = vulkan.deviceMemorySnapshot();
+     const auto contextInternal = memoryDelta(after.internal, before.internal);
+     const auto contextImported = memoryDelta(after.imported, before.imported);
+     const auto contextExported = memoryDelta(after.exported, before.exported);
+-    auto* result = this->m_contexts.emplace_back(std::move(context)).get();
++    auto* result = this->m_contexts.emplace_back(temporal.attach(std::move(context))).get();
+     std::clog << "MAKO Renderer: backend-memory operation=context-open"
+         << " width=" << width
+         << " height=" << height
+@@ -405,16 +448,16 @@ namespace {
+     /// import source images
+     std::pair<vk::Image, vk::Image> importSourceImages(const vk::Vulkan& vk,
+             ls::FileDescriptorScope& sourceFds,
+-            VkExtent2D extent, VkFormat format) {
++            VkExtent2D extent, VkFormat format, VkImageUsageFlags usage) {
+         try {
+             return {
+                 vk::Image(vk, extent, format,
+-                    VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, sourceFds.take()),
++                    usage, sourceFds.take()),
+                 vk::Image(vk, extent, format,
+-                    VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, sourceFds.take())
++                    usage, sourceFds.take())
+             };
+         } catch (const std::exception& e) {
+-            throw backend::error("Unable to import destination images", e);
++            throw backend::error("Unable to import source images", e);
+         }
+     }
+     /// import destination images
+@@ -477,6 +520,21 @@ namespace {
+         return VK_FORMAT_R16G16B16A16_SFLOAT;
+     }
+ 
++    VkFormat sourceTransportFormat(const FrameEncoding encoding, const SourceImageLayout layout) {
++        if (layout == SourceImageLayout::Default)
++            return transportFormat(encoding);
++        const auto format = nativeSourceImageFormat(encoding, layout);
++        if (!format)
++            throw backend::error("Native source layout requires a supported SDR8 layout");
++        return *format;
++    }
++
++    VkImageUsageFlags sourceTransportUsage(const SourceImageLayout layout) {
++        return layout == SourceImageLayout::Default
++            ? VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
++            : nativeSourceImageUsage;
++    }
++
+     bool usesHdrModel(const FrameEncoding encoding) {
+         return encoding == FrameEncoding::ScRgbLinear ||
+             encoding == FrameEncoding::Hdr10Pq ||
+@@ -601,9 +659,10 @@ namespace {
+ 
+ ContextImpl::ContextImpl(const InstanceImpl& instance,
+             ls::FileDescriptorScope& sourceFds, ls::FileDescriptorScope& destFds,
+-            ls::FileDescriptorScope& syncFd, VkExtent2D extent, const FrameEncoding encoding, float flow, bool perf) :
++            ls::FileDescriptorScope& syncFd, VkExtent2D extent, const FrameEncoding encoding, float flow, bool perf,
++            const SourceImageLayout sourceLayout) :
+         sourceImages(importSourceImages(instance.getVulkan(), sourceFds,
+-            extent, transportFormat(encoding))),
++            extent, sourceTransportFormat(encoding, sourceLayout), sourceTransportUsage(sourceLayout))),
+         destImages(importDestinationImages(instance.getVulkan(), destFds,
+             extent, transportFormat(encoding))),
+         workingSourceImages(createWorkingSourceImages(
+@@ -808,7 +867,7 @@ void Instance::scheduleFrames(Context& context) { // NOLINT (static)
+     }
+ #endif
+     try {
+-        context.scheduleFrames();
++        context.scheduleFrames({});
+     } catch (const std::exception& e) {
+         throw backend::error("Unable to schedule frames", e);
+     }
+@@ -856,7 +915,7 @@ bool Instance::contextReady(const Context& context) const {
+     return context.waitForIdle(0);
+ }
+ 
+-void Context::prepareWork() {
++void ContextImpl::prepareWork() {
+     if (this->workScheduled && !this->cmdbufFence.wait(
+             this->ctx.vk, previousWorkFenceTimeoutNs)) {
+         std::cerr << "MAKO Renderer: backend work fence timed out after "
+@@ -866,7 +925,7 @@ void Context::prepareWork() {
+     }
+ }
+ 
+-void Context::schedulePrepass(const VkFence completionFence) {
++void ContextImpl::schedulePrepass(const VkFence completionFence) {
+     auto& recorded = this->cmdbufs.at(0).at(this->fidx % commandPhaseCount);
+     if (!recorded) {
+         vk::CommandBuffer cmdbuf(ctx.vk);
+@@ -900,11 +959,11 @@ void Context::schedulePrepass(const VkFence completionFence) {
+     this->idx++;
+ }
+ 
+-void Context::scheduleFrames() {
++void ContextImpl::scheduleFrames() {
+     this->scheduleFrames({});
+ }
+ 
+-void Context::scheduleFrames(std::span<const float> timestamps) {
++void ContextImpl::scheduleFrames(std::span<const float> timestamps) {
+     const bool explicitTimestamps = !timestamps.empty();
+     const size_t generatedFrameCount = explicitTimestamps
+         ? timestamps.size()
+@@ -987,19 +1046,19 @@ void Context::scheduleFrames(std::span<const float> timestamps) {
+     this->fidx++;
+ }
+ 
+-void Context::scheduleFrameHistory() {
++void ContextImpl::scheduleFrameHistory() {
+     this->prepareWork();
+     this->schedulePrepass(this->cmdbufFence.handle());
+     this->fidx++;
+ }
+ 
+-bool Context::waitForIdle(const uint64_t timeoutNs) const {
++bool ContextImpl::waitForIdle(const uint64_t timeoutNs) const {
+     return !this->workScheduled || this->cmdbufFence.wait(this->ctx.vk, timeoutNs);
+ }
+ 
+ void Instance::collectRetiredContexts() {
+     std::erase_if(this->m_retiredContexts,
+-        [](const std::unique_ptr<ContextImpl>& context) {
++        [](const std::unique_ptr<ContextBase>& context) {
+             try {
+                 return context->waitForIdle(0);
+             } catch (const std::exception& e) {
+@@ -1013,7 +1072,7 @@ void Instance::collectRetiredContexts() {
+ void Instance::closeContext(const Context& context) {
+     this->collectRetiredContexts();
+     auto it = std::ranges::find_if(this->m_contexts,
+-        [context = &context](const std::unique_ptr<ContextImpl>& ctx) {
++        [context = &context](const std::unique_ptr<ContextBase>& ctx) {
+             return ctx.get() == context;
+         });
+     if (it == this->m_contexts.end())
+@@ -1062,3 +1121,7 @@ InstanceImpl::~InstanceImpl() {
+ void backend::makeLeaking() {
+     leaking = true;
+ }
++
++bool backend::leakingEnabled() noexcept {
++    return leaking;
++}
+diff --git a/engine/mako-backend/tests/dll_inspection_tests.cpp b/engine/mako-backend/tests/dll_inspection_tests.cpp
+index 0df99c0..9b525fc 100644
+--- a/engine/mako-backend/tests/dll_inspection_tests.cpp
++++ b/engine/mako-backend/tests/dll_inspection_tests.cpp
+@@ -20,6 +20,8 @@
+ #include <string>
+ #include <unordered_map>
+ #include <vector>
++#include <chrono>
++#include <thread>
+ 
+ #include <unistd.h>
+ 
+@@ -471,6 +473,9 @@ namespace {
+             "DLL fingerprints were not emitted");
+ 
+         const auto oldTime = std::filesystem::last_write_time(firstPath);
++        // Ensure this metadata-invalidation fixture crosses a filesystem clock
++        // tick; restoring mtime inside one coarse ctime tick is indistinguishable.
++        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+         writeFile(firstPath, syntheticPe(
+             {3U, 2U, 1U}, {
+                 .extraRootResource = true,
+@@ -542,6 +547,7 @@ namespace {
+                 mako::backend::Ls1Mode::Performance, 0).idOffset == 0,
+             "synthetic selected model did not resolve");
+         const auto modelTime = std::filesystem::last_write_time(modelPath);
++        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+         model[0x300U] = 0U;
+         writeFile(modelPath, model);
+         std::filesystem::last_write_time(modelPath, modelTime);
+diff --git a/engine/mako-common/include/mako-common/configuration/config.hpp b/engine/mako-common/include/mako-common/configuration/config.hpp
+index d2ed638..157b0c8 100644
+--- a/engine/mako-common/include/mako-common/configuration/config.hpp
++++ b/engine/mako-common/include/mako-common/configuration/config.hpp
+@@ -228,6 +228,8 @@ namespace ls {
+         };
+         /// allow frame synthesis to be toggled live without changing its mode
+         bool frame_generation_enabled{GameConfDefaults::frameGenerationEnabled};
++        /// GFG-owned live scope: only an enabled Autopilot overlay sets this.
++        bool gfg_frame_fusion{false};
+         /// provision the scaling engine independently from frame synthesis
+         bool scaling_enabled{GameConfDefaults::scalingEnabled};
+         /// preserve the application's requested swapchain image minimum
+diff --git a/engine/mako-common/include/mako-common/vulkan/command_buffer.hpp b/engine/mako-common/include/mako-common/vulkan/command_buffer.hpp
+index 1c61d45..e7c3e81 100644
+--- a/engine/mako-common/include/mako-common/vulkan/command_buffer.hpp
++++ b/engine/mako-common/include/mako-common/vulkan/command_buffer.hpp
+@@ -46,6 +46,12 @@ namespace vk {
+             std::pair<VkImage, VkImage> images, VkExtent2D extent,
+             std::span<const vk::Barrier> postBarriers) const;
+ 
++        /// Same-format, same-extent image transfer. Caller owns format/usage guards.
++        void copyImage(const vk::Vulkan& vk,
++            std::span<const vk::Barrier> preBarriers,
++            std::pair<VkImage, VkImage> images, VkExtent2D extent,
++            std::span<const vk::Barrier> postBarriers) const;
++
+         /// insert a bunch of barriers
+         /// @param vk the vulkan instance
+         /// @param barriers image memory barriers to apply
+diff --git a/engine/mako-common/include/mako-common/vulkan/image.hpp b/engine/mako-common/include/mako-common/vulkan/image.hpp
+index f3e6061..df66797 100644
+--- a/engine/mako-common/include/mako-common/vulkan/image.hpp
++++ b/engine/mako-common/include/mako-common/vulkan/image.hpp
+@@ -34,6 +34,11 @@ namespace vk {
+             std::optional<int*> exportFd = std::nullopt,
+             std::shared_ptr<ImageMemoryPool> internalPool = nullptr);
+ 
++        /// Borrow an existing image, owning only its newly created view.
++        /// The caller keeps the image alive until this wrapper is destroyed.
++        Image(const vk::Vulkan& vk, VkImage borrowedImage, VkExtent2D extent,
++            VkFormat format, VkImageUsageFlags usage);
++
+         /// create an internal image backed by a context-local non-aliasing pool
+         Image(const vk::Vulkan& vk,
+             VkExtent2D extent,
+@@ -46,11 +51,15 @@ namespace vk {
+         [[nodiscard]] const auto& handle() const { return this->image.get(); }
+         /// get the image view handle
+         /// @return the image view handle
+-        [[nodiscard]] const auto& imageview() const { return this->view.get(); }
++        [[nodiscard]] VkImageView imageview() const {
++            return this->hasView ? this->view.get() : VK_NULL_HANDLE;
++        }
+ 
+         /// get the extent of the image
+         /// @return the extent of the image
+         [[nodiscard]] VkExtent2D getExtent() const { return this->extent; }
++        [[nodiscard]] VkFormat getFormat() const { return this->format; }
++        [[nodiscard]] VkImageUsageFlags getUsage() const { return this->usage; }
+     private:
+         std::shared_ptr<void> pooledMemory;
+         ls::owned_ptr<VkDeviceMemory> memory;
+@@ -58,5 +67,8 @@ namespace vk {
+         ls::owned_ptr<VkImageView> view;
+ 
+         VkExtent2D extent{};
++        VkFormat format{};
++        VkImageUsageFlags usage{};
++        bool hasView{false};
+     };
+ }
+diff --git a/engine/mako-common/include/mako-common/vulkan/vulkan.hpp b/engine/mako-common/include/mako-common/vulkan/vulkan.hpp
+index 3ce72e9..79cde40 100644
+--- a/engine/mako-common/include/mako-common/vulkan/vulkan.hpp
++++ b/engine/mako-common/include/mako-common/vulkan/vulkan.hpp
+@@ -79,6 +79,7 @@ namespace vk {
+         PFN_vkEndCommandBuffer EndCommandBuffer;
+         PFN_vkCmdPipelineBarrier CmdPipelineBarrier;
+         PFN_vkCmdBlitImage CmdBlitImage;
++        PFN_vkCmdCopyImage CmdCopyImage;
+         PFN_vkCmdClearColorImage CmdClearColorImage;
+         PFN_vkCmdBindPipeline CmdBindPipeline;
+         PFN_vkCmdBindDescriptorSets CmdBindDescriptorSets;
+diff --git a/engine/mako-common/src/configuration/config.cpp b/engine/mako-common/src/configuration/config.cpp
+index 48a09a8..9e71e71 100644
+--- a/engine/mako-common/src/configuration/config.cpp
++++ b/engine/mako-common/src/configuration/config.cpp
+@@ -306,6 +306,7 @@ namespace {
+             .frame_generation_enabled = tbl["frame_generation_enabled"].value_or(
+                 GameConfDefaults::frameGenerationEnabled
+             ),
++            .gfg_frame_fusion = tbl["gfg_frame_fusion"].value_or(false),
+             .scaling_enabled = tbl["scaling_enabled"].value_or(
+                 GameConfDefaults::scalingEnabled
+             ),
+@@ -605,6 +606,7 @@ void ConfigFile::write(const std::filesystem::path& path) const {
+         if (conf.gpu)
+             profile.insert("gpu", conf.gpu.value_or(""));
+         profile.insert("multiplier", static_cast<int64_t>(conf.multiplier));
++        profile.insert("gfg_frame_fusion", conf.gfg_frame_fusion);
+         profile.insert(
+             "frame_generation_provisioned",
+             conf.frame_generation_provisioned
+diff --git a/engine/mako-common/src/vulkan/command_buffer.cpp b/engine/mako-common/src/vulkan/command_buffer.cpp
+index 8d9a8ba..917de36 100644
+--- a/engine/mako-common/src/vulkan/command_buffer.cpp
++++ b/engine/mako-common/src/vulkan/command_buffer.cpp
+@@ -150,6 +150,28 @@ void CommandBuffer::blitImage(const vk::Vulkan& vk,
+     );
+ }
+ 
++void CommandBuffer::copyImage(const vk::Vulkan& vk,
++        const std::span<const vk::Barrier> preBarriers,
++        const std::pair<VkImage, VkImage> images, const VkExtent2D extent,
++        const std::span<const vk::Barrier> postBarriers) const {
++    vk.df().CmdPipelineBarrier(*this->commandBuffer,
++        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
++        0, 0, nullptr, 0, nullptr,
++        static_cast<uint32_t>(preBarriers.size()), preBarriers.data());
++    const VkImageCopy region{
++        .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
++        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
++        .extent = {extent.width, extent.height, 1}
++    };
++    vk.df().CmdCopyImage(*this->commandBuffer,
++        images.first, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++        images.second, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
++    vk.df().CmdPipelineBarrier(*this->commandBuffer,
++        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
++        0, 0, nullptr, 0, nullptr,
++        static_cast<uint32_t>(postBarriers.size()), postBarriers.data());
++}
++
+ void CommandBuffer::copyBufferToImage(const vk::Vulkan& vk,
+         const vk::Buffer& buffer, const vk::Image& image) const {
+     const VkImageMemoryBarrier barrier{
+diff --git a/engine/mako-common/src/vulkan/image.cpp b/engine/mako-common/src/vulkan/image.cpp
+index 615db1a..03409ca 100644
+--- a/engine/mako-common/src/vulkan/image.cpp
++++ b/engine/mako-common/src/vulkan/image.cpp
+@@ -180,7 +180,7 @@ Image::Image(const vk::Vulkan& vk,
+             std::optional<int> importFd,
+             std::optional<int*> exportFd,
+             std::shared_ptr<ImageMemoryPool> internalPool) :
+-        extent(extent) {
++        extent(extent), format(format), usage(usage) {
+     const int incomingFd = importFd.value_or(-1);
+     ls::FileDescriptorScope imported{{&incomingFd, 1}};
+     if (internalPool && (importFd || exportFd))
+@@ -195,11 +195,27 @@ Image::Image(const vk::Vulkan& vk,
+         this->memory = allocateMemory(vk, *this->image, importFd,
+             exportFd.has_value(), imported);
+     }
+-    this->view = createImageView(vk, *this->image, format);
++    // Transfer-only Native Resolution images cannot legally have image views.
++    // They only participate in blits; sampled/storage users retain their view.
++    this->hasView = (usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
++        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) != 0;
++    if (this->hasView)
++        this->view = createImageView(vk, *this->image, format);
+     if (exportFd)
+         exportMemory(vk, *this->memory, **exportFd);
+ }
+ 
++Image::Image(const vk::Vulkan& vk, const VkImage borrowedImage,
++        const VkExtent2D extent, const VkFormat format, const VkImageUsageFlags usage) :
++    image(new VkImage(borrowedImage)), extent(extent), format(format), usage(usage) {
++    this->hasView = (usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
++        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) != 0;
++    if (this->hasView)
++        this->view = createImageView(vk, borrowedImage, format);
++}
++
+ Image::Image(const vk::Vulkan& vk,
+             const VkExtent2D extent,
+             std::shared_ptr<ImageMemoryPool> internalPool,
+diff --git a/engine/mako-common/src/vulkan/vulkan.cpp b/engine/mako-common/src/vulkan/vulkan.cpp
+index 8328b1b..0698c45 100644
+--- a/engine/mako-common/src/vulkan/vulkan.cpp
++++ b/engine/mako-common/src/vulkan/vulkan.cpp
+@@ -474,6 +474,7 @@ VulkanDeviceFuncs vk::initVulkanDeviceFuncs(const VulkanInstanceFuncs& f, VkDevi
+         .EndCommandBuffer = dpa<PFN_vkEndCommandBuffer>(f, d, "vkEndCommandBuffer"),
+         .CmdPipelineBarrier = dpa<PFN_vkCmdPipelineBarrier>(f, d, "vkCmdPipelineBarrier"),
+         .CmdBlitImage = dpa<PFN_vkCmdBlitImage>(f, d, "vkCmdBlitImage"),
++        .CmdCopyImage = dpa<PFN_vkCmdCopyImage>(f, d, "vkCmdCopyImage"),
+         .CmdClearColorImage = dpa<PFN_vkCmdClearColorImage>(f, d, "vkCmdClearColorImage"),
+         .CmdBindPipeline = dpa<PFN_vkCmdBindPipeline>(f, d, "vkCmdBindPipeline"),
+         .CmdBindDescriptorSets = dpa<PFN_vkCmdBindDescriptorSets>(f, d, "vkCmdBindDescriptorSets"),
+diff --git a/engine/mako-render/CMakeLists.txt b/engine/mako-render/CMakeLists.txt
+index 6cf0e80..8f1a337 100644
+--- a/engine/mako-render/CMakeLists.txt
++++ b/engine/mako-render/CMakeLists.txt
+@@ -19,6 +19,16 @@ set(ADAPTIVE_SOURCE "src/adaptive_scheduler.cpp")
+ set(SPATIAL_SCALER_SOURCE "src/spatial_scaler.cpp")
+ set(COLOR_PIPELINE_SOURCE "src/color_pipeline.cpp")
+ 
++if(GFG_FUSION_TEST_SOURCE)
++    find_package(Vulkan REQUIRED)
++    add_executable(gfg-frame-fusion-tests "${GFG_FUSION_TEST_SOURCE}"
++        "../mako-cli/src/tools/image_transfer.cpp")
++    target_include_directories(gfg-frame-fusion-tests PRIVATE
++        "src" "../mako-cli/src/tools")
++    target_link_libraries(gfg-frame-fusion-tests PRIVATE mako-spatial-scaler Vulkan::Vulkan)
++    add_test(NAME gfg-frame-fusion COMMAND gfg-frame-fusion-tests)
++endif()
++
+ # Keep explicit target membership while detecting a newly added implementation
+ # that was forgotten in CMake. The checker runs for the default and layer
+ # targets, so adding a source under src/ fails even in an existing build tree.
+@@ -182,6 +192,13 @@ if(BUILD_TESTING)
+             LABELS "portable-policy")
+     endfunction()
+ 
++    add_executable(mako-fusion-source-transport-tests
++        "tests/fusion_source_transport_tests.cpp")
++    target_include_directories(mako-fusion-source-transport-tests PRIVATE
++        "src" "../mako-backend/include" "../mako-common/include")
++    add_test(NAME fusion-source-transport COMMAND mako-fusion-source-transport-tests)
++    mako_register_portable_policy_test(mako-fusion-source-transport-tests fusion-source-transport)
++
+     add_executable(mako-device-selection-tests
+         "tests/device_selection_tests.cpp")
+     target_include_directories(mako-device-selection-tests
+diff --git a/engine/mako-render/src/entrypoint.cpp b/engine/mako-render/src/entrypoint.cpp
+index 4995c73..99c53c1 100644
+--- a/engine/mako-render/src/entrypoint.cpp
++++ b/engine/mako-render/src/entrypoint.cpp
+@@ -2372,6 +2372,7 @@ namespace {
+                         instance_info->scalingSurfaces->owns(info->surface)
+                     ? instance_info->scalingSurfaces.get() : nullptr,
+                 .format = newInfo.imageFormat,
++                .imageUsage = newInfo.imageUsage,
+                 .colorSpace = newInfo.imageColorSpace,
+                 .requestedMinImageCount = info->minImageCount,
+                 .provisionedMinImageCount = newInfo.minImageCount,
+diff --git a/engine/mako-render/src/fusion_source_transport.hpp b/engine/mako-render/src/fusion_source_transport.hpp
+new file mode 100644
+index 0000000..8cae2d7
+--- /dev/null
++++ b/engine/mako-render/src/fusion_source_transport.hpp
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#pragma once
++
++#include "color_pipeline.hpp"
++#include "mako-backend/source_image_layout.hpp"
++
++namespace mako::layer {
++    [[nodiscard]] constexpr backend::SourceImageLayout nativeFusionSourceCandidate(
++            const bool enabled, const bool spatialActive,
++            const SwapchainColorPipeline& colour, const VkFormat applicationFormat,
++            const VkImageUsageFlags applicationUsage,
++            const VkExtent2D source, const VkExtent2D presentation) noexcept {
++        if (!enabled || spatialActive || !colour.generationSupported || colour.hdr ||
++                colour.encoding != backend::FrameEncoding::Sdr8 ||
++                !(applicationUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) ||
++                !source.width || !source.height || source.width != presentation.width ||
++                source.height != presentation.height)
++            return backend::SourceImageLayout::Default;
++        switch (applicationFormat) {
++            case VK_FORMAT_R8G8B8A8_UNORM: return backend::SourceImageLayout::Rgba8;
++            case VK_FORMAT_B8G8R8A8_UNORM: return backend::SourceImageLayout::Bgra8;
++            default: return backend::SourceImageLayout::Default;
++        }
++    }
++}
+diff --git a/engine/mako-render/src/instance.cpp b/engine/mako-render/src/instance.cpp
+index 3390d6d..50b9e4f 100644
+--- a/engine/mako-render/src/instance.cpp
++++ b/engine/mako-render/src/instance.cpp
+@@ -1426,6 +1426,17 @@ SwapchainCreateModification Root::modifySwapchainCreateInfo(const vk::Vulkan& vk
+         );
+     }
+ 
++    // Optional source sampling is negotiated only at the WSI create boundary.
++    // Unsupported usage or nonlinear formats preserve the original copy path.
++    const char* fusion=std::getenv("GFG_FRAME_FUSION");
++    if(fusion && std::string_view(fusion)=="1" && modification.spatialScalingActive &&
++            (caps.supportedUsageFlags & VK_IMAGE_USAGE_SAMPLED_BIT) &&
++            (createInfo.imageFormat==VK_FORMAT_R8G8B8A8_UNORM ||
++             createInfo.imageFormat==VK_FORMAT_B8G8R8A8_UNORM) &&
++            vk.supportsOptimalTilingFormatFeatures(createInfo.imageFormat,
++                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
++        createInfo.imageUsage |= VK_IMAGE_USAGE_SAMPLED_BIT;
++
+     modification.privateOrderedTransport = context_ModifySwapchainCreateInfo(
+         contextProfile,
+         caps.maxImageCount,
+diff --git a/engine/mako-render/src/profile_update.hpp b/engine/mako-render/src/profile_update.hpp
+index 19160f8..1d183c8 100644
+--- a/engine/mako-render/src/profile_update.hpp
++++ b/engine/mako-render/src/profile_update.hpp
+@@ -221,6 +221,7 @@ namespace mako::layer {
+         float scalingSharpness{0.5F};
+         float effectiveFlowScale{ls::GameConfDefaults::flowScale};
+         bool effectivePerformanceMode{false};
++        bool gfgFrameFusion{false};
+         size_t requiredGeneratedFrameCapacity{0};
+ 
+         friend bool operator==(
+@@ -243,6 +244,7 @@ namespace mako::layer {
+                 ? profile.scaling_sharpness : 0.5F,
+             .effectiveFlowScale = ls::effectiveFlowScale(profile),
+             .effectivePerformanceMode = ls::effectivePerformanceMode(profile),
++            .gfgFrameFusion = profile.gfg_frame_fusion,
+             .requiredGeneratedFrameCapacity =
+                 generatedFrameCapacityForActivePolicy(profile),
+         };
+@@ -795,7 +797,8 @@ namespace mako::layer {
+             frameGenerationPrivateRebuildAvailable &&
+             frameGenerationResourcesAvailable &&
+             !processRestartDeferred &&
+-            (frameGenerationBackendChanged || generatedCapacityExceeded);
++            (frameGenerationBackendChanged || generatedCapacityExceeded ||
++                current.gfg_frame_fusion != next.gfg_frame_fusion);
+ 
+         // Scaler selection/tuning, Flow Scale, and model selection shape
+         // private resources, while pacing shapes the game-owned swapchain.
+@@ -859,6 +862,10 @@ namespace mako::layer {
+             applied.performance_mode = current.performance_mode;
+             swapchainRecreationDeferred |= !frameGenerationPrivateRebuild;
+         }
++        if (current.gfg_frame_fusion != next.gfg_frame_fusion) {
++            applied.gfg_frame_fusion = current.gfg_frame_fusion;
++            swapchainRecreationDeferred |= !frameGenerationPrivateRebuild;
++        }
+         if (current.pacing != next.pacing) {
+             applied.pacing = current.pacing;
+             swapchainRecreationDeferred = true;
+diff --git a/engine/mako-render/src/runtime_status.cpp b/engine/mako-render/src/runtime_status.cpp
+index 4cef6ba..89eeb8f 100644
+--- a/engine/mako-render/src/runtime_status.cpp
++++ b/engine/mako-render/src/runtime_status.cpp
+@@ -380,6 +380,17 @@ std::string mako::layer::runtimeStatusJson(
+     else
+         stream << "null";
+     stream << '}'
++           << ",\"frame_fusion\":{\"schema\":2,\"prepared_inputs\":"
++           << status.frameFusionPreparedInputs
++           << ",\"requested\":" << status.frameFusionRequested
++           << ",\"recorded_frames\":" << status.frameFusionRecordedFrames
++           << ",\"avoided_source_copies\":" << status.frameFusionRecordedFrames
++           << ",\"native_prepared_inputs\":" << status.frameFusionNativePreparedInputs
++           << ",\"native_source_transfers\":" << status.frameFusionNativeSourceTransfers
++           << ",\"native_conversion_blits_avoided\":" << status.frameFusionNativeConversionBlitsAvoided
++           << ",\"native_source_format\":" << status.frameFusionNativeSourceFormat
++           << ",\"native_fallback_reason\":" << jsonString(status.frameFusionNativeFallbackReason)
++           << ",\"autopilot_scope_supported\":true}"
+            << ",\"requested\":" << profileJson(status.requestedProfile)
+            << ",\"applied\":" << profileJson(status.appliedProfile)
+            << ",\"error\":";
+diff --git a/engine/mako-render/src/runtime_status.hpp b/engine/mako-render/src/runtime_status.hpp
+index 4493304..47f9a33 100644
+--- a/engine/mako-render/src/runtime_status.hpp
++++ b/engine/mako-render/src/runtime_status.hpp
+@@ -73,6 +73,14 @@ namespace mako::layer {
+         bool spatialSupersamplingActive{false};
+         std::optional<std::string> spatialFallbackReason;
+         std::optional<double> nonSupersamplingFactorCeiling;
++        size_t frameFusionPreparedInputs{0};
++        uint64_t frameFusionRecordedFrames{0};
++        bool frameFusionRequested{false};
++        size_t frameFusionNativePreparedInputs{0};
++        uint64_t frameFusionNativeSourceTransfers{0};
++        uint64_t frameFusionNativeConversionBlitsAvoided{0};
++        uint32_t frameFusionNativeSourceFormat{0};
++        std::string frameFusionNativeFallbackReason;
+         std::optional<std::string> error;
+     };
+ 
+diff --git a/engine/mako-render/src/shaders/spatial_scaling.comp b/engine/mako-render/src/shaders/spatial_scaling.comp
+index de08cde..7674005 100644
+--- a/engine/mako-render/src/shaders/spatial_scaling.comp
++++ b/engine/mako-render/src/shaders/spatial_scaling.comp
+@@ -12,7 +12,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+ 
+ layout(set = 0, binding = 0, std140) uniform SpatialScalingParameters {
+     vec4 sizes;  // source width/height, output width/height
+-    vec4 tuning; // normalized sharpness, reserved
++    vec4 tuning; // sharpness, optional cropped-input UV scale XY, reserved
+ } parameters;
+ 
+ layout(set = 0, binding = 16) uniform sampler sourceSampler;
+@@ -34,6 +34,14 @@ vec4 sourceTexel(ivec2 coordinate) {
+ }
+ 
+ vec4 filteredSource(vec2 coordinate) {
++    // Direct WSI input contains a source-sized rectangle in a larger image.
++    // Clamp to its texel centres before mapping into physical texture UVs.
++    // The default copied-input path retains its original sampling arithmetic.
++    if (parameters.tuning.y > 0.0) {
++        coordinate = clamp(coordinate, vec2(0.5) / parameters.sizes.xy,
++            (parameters.sizes.xy - vec2(0.5)) / parameters.sizes.xy);
++        coordinate *= parameters.tuning.yz;
++    }
+     return textureLod(
+         sampler2D(sourceTexture, sourceSampler), coordinate, 0.0
+     );
+diff --git a/engine/mako-render/src/spatial_scaler.cpp b/engine/mako-render/src/spatial_scaler.cpp
+index 86cab67..2d8e968 100644
+--- a/engine/mako-render/src/spatial_scaler.cpp
++++ b/engine/mako-render/src/spatial_scaler.cpp
+@@ -140,6 +140,13 @@ namespace {
+         virtual void clearDirectOutputs() = 0;
+         [[nodiscard]] virtual size_t directOutputCount() const = 0;
+         [[nodiscard]] virtual bool hasDirectOutput(VkImage) const = 0;
++        virtual void configureDirectInputs(const vk::Vulkan&,
++            std::span<const std::reference_wrapper<const vk::Image>>) {}
++        virtual void clearDirectInputs() {}
++        [[nodiscard]] virtual size_t directInputCount() const { return 0; }
++        [[nodiscard]] virtual bool hasDirectInput(VkImage) const { return false; }
++        virtual void recordDirectInput(const vk::Vulkan&, VkCommandBuffer,
++            VkImage, VkImage = VK_NULL_HANDLE) const { throw std::logic_error("direct input unavailable"); }
+         virtual void recordCompute(
+             const vk::Vulkan&, VkCommandBuffer,
+             VkImage directOutput = VK_NULL_HANDLE
+@@ -274,6 +281,7 @@ namespace {
+                 const float sharpness) :
+             sourceSize(sourceExtent),
+             presentationSize(presentationExtent),
++            sharpnessValue(sharpness),
+             sourceImage(vk, sourceExtent, workingFormat,
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
+             reconstructedImage(vk, presentationExtent, workingFormat,
+@@ -358,12 +366,16 @@ namespace {
+             this->directDescriptorPool.reset();
+             this->directDescriptorPool = std::move(replacementPool);
+             this->directDescriptorSets = std::move(replacementSets);
++            this->clearDirectInputs();
+             this->directOutputs = std::move(replacementHandles);
++            this->directOutputImages.assign(outputs.begin(), outputs.end());
+         }
+         void clearDirectOutputs() override {
+             this->directDescriptorSets.clear();
+             this->directDescriptorPool.reset();
++            if (!this->directOutputs.empty()) this->clearDirectInputs();
+             this->directOutputs.clear();
++            this->directOutputImages.clear();
+         }
+         [[nodiscard]] size_t directOutputCount() const override {
+             return this->directOutputs.size();
+@@ -372,15 +384,84 @@ namespace {
+                 const VkImage image) const override {
+             return directOutputIndex(this->directOutputs, image).has_value();
+         }
++        void configureDirectInputs(const vk::Vulkan& vk,
++                const std::span<const std::reference_wrapper<const vk::Image>> inputs) override {
++            std::optional<vk::DescriptorPool> replacementPool;
++            std::optional<vk::Buffer> replacementParameters;
++            std::vector<vk::DescriptorSet> replacementSets;
++            std::vector<VkImage> replacementHandles;
++            const size_t stride = 1 + this->directOutputImages.size();
++            if (!inputs.empty()) {
++                const auto physical = inputs.front().get().getExtent();
++                if (physical.width != this->sourceSize.width || physical.height != this->sourceSize.height) {
++                    replacementParameters.emplace(vk, Parameters{
++                        .sourceWidth=static_cast<float>(this->sourceSize.width),
++                        .sourceHeight=static_cast<float>(this->sourceSize.height),
++                        .presentationWidth=static_cast<float>(this->presentationSize.width),
++                        .presentationHeight=static_cast<float>(this->presentationSize.height),
++                        .sharpness=this->sharpnessValue,
++                        .reserved0=static_cast<float>(this->sourceSize.width)/physical.width,
++                        .reserved1=static_cast<float>(this->sourceSize.height)/physical.height});
++                }
++                const auto count=static_cast<uint32_t>(inputs.size()*stride);
++                replacementPool.emplace(vk, vk::Limits{
++                    .sets=count,.uniform_buffers=count,.samplers=count,
++                    .sampled_images=count,.storage_images=count});
++                replacementSets.reserve(count);replacementHandles.reserve(inputs.size());
++                for (const auto& input : inputs) {
++                    for(size_t out=0;out<stride;++out) {
++                        const auto& destination = out == 0 ? this->reconstructedImage
++                            : this->directOutputImages.at(out-1).get();
++                        replacementSets.emplace_back(vk,*replacementPool,this->shader,
++                            std::vector<ls::R<const vk::Image>>{std::cref(input.get())},
++                            std::vector<ls::R<const vk::Image>>{std::cref(destination)},
++                            std::vector<ls::R<const vk::Sampler>>{std::cref(this->sampler)},
++                            std::vector<ls::R<const vk::Buffer>>{std::cref(replacementParameters
++                                ? *replacementParameters : this->parameterBuffer)});
++                    }
++                    replacementHandles.push_back(input.get().handle());
++                }
++            }
++            this->inputDescriptorSets.clear();this->inputDescriptorPool.reset();
++            this->inputParameterBuffer = std::move(replacementParameters);
++            this->inputDescriptorPool=std::move(replacementPool);
++            this->inputDescriptorSets=std::move(replacementSets);
++            this->directInputs=std::move(replacementHandles);
++            this->inputDescriptorStride=stride;
++        }
++        void clearDirectInputs() override {
++            this->inputDescriptorSets.clear();
++            this->inputDescriptorPool.reset();
++            this->directInputs.clear();
++            this->inputParameterBuffer.reset();
++        }
++        [[nodiscard]] size_t directInputCount() const override {
++            return this->directInputs.size();
++        }
++        [[nodiscard]] bool hasDirectInput(const VkImage input) const override {
++            return directOutputIndex(this->directInputs, input).has_value();
++        }
++        void recordDirectInput(const vk::Vulkan& vk,
++                const VkCommandBuffer commandBuffer, const VkImage input,
++                const VkImage output) const override {
++            this->recordMakoCompute(vk, commandBuffer, output, input);
++        }
+         void recordCompute(const vk::Vulkan& vk,
++                const VkCommandBuffer commandBuffer, const VkImage output) const override {
++            this->recordMakoCompute(vk, commandBuffer, output, VK_NULL_HANDLE);
++        }
++        void recordMakoCompute(const vk::Vulkan& vk,
+                 const VkCommandBuffer commandBuffer,
+-                const VkImage directOutput) const override {
++                const VkImage directOutput, const VkImage directInput) const {
+             const auto directIndex = directOutput == VK_NULL_HANDLE
+                 ? std::optional<size_t>{}
+                 : directOutputIndex(this->directOutputs, directOutput);
+             const VkImage outputImage = directIndex
+                 ? directOutput : this->reconstructedImage.handle();
+-            const auto& outputDescriptors = directIndex
++            const auto inputIndex = directOutputIndex(this->directInputs, directInput);
++            const auto& outputDescriptors = inputIndex
++                ? this->inputDescriptorSets.at(*inputIndex * this->inputDescriptorStride
+++                    + (directIndex ? 1 + *directIndex : 0)) : directIndex
+                 ? this->directDescriptorSets.at(*directIndex)
+                 : this->descriptorSet;
+             const std::array barriers{
+@@ -400,7 +481,8 @@ namespace {
+                 commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                 0, nullptr, 0, nullptr,
+-                static_cast<uint32_t>(barriers.size()), barriers.data()
++                inputIndex ? 1U : static_cast<uint32_t>(barriers.size()),
++                inputIndex ? &barriers[1] : barriers.data()
+             );
+             vk.df().CmdBindPipeline(
+                 commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+@@ -431,6 +513,7 @@ namespace {
+     private:
+         VkExtent2D sourceSize{};
+         VkExtent2D presentationSize{};
++        float sharpnessValue{};
+         vk::Image sourceImage;
+         vk::Image reconstructedImage;
+         vk::Shader shader;
+@@ -441,6 +524,12 @@ namespace {
+         std::optional<vk::DescriptorPool> directDescriptorPool;
+         std::vector<vk::DescriptorSet> directDescriptorSets;
+         std::vector<VkImage> directOutputs;
++        std::optional<vk::DescriptorPool> inputDescriptorPool;
++        std::vector<vk::DescriptorSet> inputDescriptorSets;
++        std::vector<VkImage> directInputs;
++        size_t inputDescriptorStride{1};
++        std::optional<vk::Buffer> inputParameterBuffer;
++        std::vector<ls::R<const vk::Image>> directOutputImages;
+     };
+ 
+     class Ls1Pipeline final : public Pipeline {
+@@ -771,6 +860,7 @@ class SpatialScaler::Implementation {
+             const std::optional<std::filesystem::path>& shaderDllPath) :
+         sourceSize(sourceExtent),
+         presentationSize(presentationExtent),
++        workingFormat(workingFormat),
+         requested(requested),
+         active(requested) {
+         // The spatial role is constructed at the scaling-engine startup
+@@ -824,6 +914,9 @@ class SpatialScaler::Implementation {
+ 
+     VkExtent2D sourceSize{};
+     VkExtent2D presentationSize{};
++    VkFormat workingFormat{};
++    mutable uint64_t fusionFrames{0};
++    std::vector<vk::Image> borrowedApplicationImages;
+     ls::ScalingMethod requested{ls::ScalingMethod::Mako};
+     ls::ScalingMethod active{ls::ScalingMethod::Mako};
+     std::string fallback;
+@@ -869,12 +962,78 @@ void SpatialScaler::configureDirectFrameGenerationOutputs(
+ 
+ void SpatialScaler::clearDirectFrameGenerationOutputs() {
+     this->implementation->pipeline->clearDirectOutputs();
++    if (!this->implementation->pipeline->directInputCount()) {
++        this->implementation->borrowedApplicationImages.clear();
++        this->implementation->fusionFrames = 0;
++    }
+ }
+ 
+ size_t SpatialScaler::directFrameGenerationOutputCount() const {
+     return this->implementation->pipeline->directOutputCount();
+ }
+ 
++void SpatialScaler::configureDirectFrameGenerationInputs(const vk::Vulkan& vk,
++        const std::span<const std::reference_wrapper<const vk::Image>> inputs) {
++    if (inputs.size() > 64)
++        throw ls::vulkan_error("Frame Fusion input capacity exceeds 64");
++    for (size_t index = 0; index < inputs.size(); ++index) {
++        const auto& image = inputs[index].get();
++        const auto extent = image.getExtent();
++        if (extent.width != this->implementation->sourceSize.width ||
++                extent.height != this->implementation->sourceSize.height ||
++                image.getFormat() != this->implementation->workingFormat ||
++                !(image.getUsage() & VK_IMAGE_USAGE_SAMPLED_BIT))
++            throw ls::vulkan_error("Frame Fusion requires matching sampled input images");
++        for (size_t prior = 0; prior < index; ++prior)
++            if (inputs[prior].get().handle() == image.handle())
++                throw ls::vulkan_error("Frame Fusion rejects duplicate input images");
++    }
++    this->implementation->pipeline->configureDirectInputs(vk, inputs);
++    this->implementation->borrowedApplicationImages.clear();
++    this->implementation->fusionFrames = 0;
++}
++
++void SpatialScaler::configureDirectApplicationInputs(const vk::Vulkan& vk,
++        const std::span<const VkImage> images, const VkExtent2D physicalExtent,
++        const VkFormat format, const VkImageUsageFlags usage) {
++    if (images.empty() || images.size()>64 ||
++            !(usage & VK_IMAGE_USAGE_SAMPLED_BIT) ||
++            (format!=VK_FORMAT_R8G8B8A8_UNORM && format!=VK_FORMAT_B8G8R8A8_UNORM) ||
++            this->implementation->workingFormat!=VK_FORMAT_R8G8B8A8_UNORM ||
++            physicalExtent.width!=this->implementation->presentationSize.width ||
++            physicalExtent.height!=this->implementation->presentationSize.height ||
++            physicalExtent.width<this->implementation->sourceSize.width ||
++            physicalExtent.height<this->implementation->sourceSize.height)
++        throw ls::vulkan_error("Frame Fusion application input is not eligible");
++    std::vector<vk::Image> replacement;
++    std::vector<std::reference_wrapper<const vk::Image>> references;
++    replacement.reserve(images.size());references.reserve(images.size());
++    for(size_t index=0;index<images.size();++index) {
++        if(images[index]==VK_NULL_HANDLE) throw ls::vulkan_error("null application input");
++        for(size_t prior=0;prior<index;++prior)
++            if(images[prior]==images[index]) throw ls::vulkan_error("duplicate application input");
++        replacement.emplace_back(vk,images[index],physicalExtent,format,usage);
++        references.push_back(std::cref(replacement.back()));
++    }
++    this->implementation->pipeline->configureDirectInputs(vk,references);
++    this->implementation->borrowedApplicationImages=std::move(replacement);
++    this->implementation->fusionFrames=0;
++}
++
++void SpatialScaler::clearDirectFrameGenerationInputs() {
++    this->implementation->pipeline->clearDirectInputs();
++    this->implementation->borrowedApplicationImages.clear();
++    this->implementation->fusionFrames = 0;
++}
++
++size_t SpatialScaler::directFrameGenerationInputCount() const {
++    return this->implementation->pipeline->directInputCount();
++}
++
++uint64_t SpatialScaler::frameFusionRecordedFrames() const {
++    return this->implementation->fusionFrames;
++}
++
+ VkExtent2D SpatialScaler::sourceExtent() const {
+     return this->implementation->sourceSize;
+ }
+@@ -917,50 +1076,61 @@ void SpatialScaler::record(const vk::Vulkan& vk,
+         const VkImage frameGenerationSource,
+         const VkImageLayout applicationLayout) const {
+     const auto handle = commandBuffer.handle();
+-    const std::array inputBarriers{
+-        imageBarrier(
+-            applicationImage, VK_ACCESS_MEMORY_WRITE_BIT,
+-            VK_ACCESS_TRANSFER_READ_BIT, applicationLayout,
+-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+-        ),
+-        imageBarrier(
+-            this->implementation->pipeline->input().handle(), VK_ACCESS_NONE,
+-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+-        ),
+-    };
+-    vk.df().CmdPipelineBarrier(
+-        handle, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+-        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
+-        static_cast<uint32_t>(inputBarriers.size()), inputBarriers.data()
+-    );
+-
+-    const auto sourceCopy = blitRegion(
+-        this->implementation->sourceSize, this->implementation->sourceSize
+-    );
+-    vk.df().CmdBlitImage(
+-        handle, applicationImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+-        this->implementation->pipeline->input().handle(),
+-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+-        1, &sourceCopy, VK_FILTER_NEAREST
+-    );
+-
+     const bool directFrameGenerationOutput =
+         frameGenerationSource != VK_NULL_HANDLE &&
+         this->implementation->pipeline->hasDirectOutput(
+             frameGenerationSource
+         );
+-    this->implementation->pipeline->recordCompute(
+-        vk, handle,
+-        directFrameGenerationOutput
+-            ? frameGenerationSource : VK_NULL_HANDLE
+-    );
++    const bool directInput=this->implementation->pipeline->hasDirectInput(applicationImage);
++    if(directInput) {
++        const auto barrier=imageBarrier(applicationImage,VK_ACCESS_MEMORY_WRITE_BIT,
++            VK_ACCESS_SHADER_READ_BIT,applicationLayout,VK_IMAGE_LAYOUT_GENERAL);
++        vk.df().CmdPipelineBarrier(handle,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,0,nullptr,0,nullptr,1,&barrier);
++        this->implementation->pipeline->recordDirectInput(vk,handle,applicationImage,
++            directFrameGenerationOutput ? frameGenerationSource : VK_NULL_HANDLE);
++        ++this->implementation->fusionFrames;
++    } else {
++        const std::array inputBarriers{
++            imageBarrier(
++                applicationImage, VK_ACCESS_MEMORY_WRITE_BIT,
++                VK_ACCESS_TRANSFER_READ_BIT, applicationLayout,
++                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
++            ),
++            imageBarrier(
++                this->implementation->pipeline->input().handle(), VK_ACCESS_NONE,
++                VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
++                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
++            ),
++        };
++        vk.df().CmdPipelineBarrier(
++            handle, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
++            static_cast<uint32_t>(inputBarriers.size()), inputBarriers.data()
++        );
++
++        const auto sourceCopy = blitRegion(
++            this->implementation->sourceSize, this->implementation->sourceSize
++        );
++        vk.df().CmdBlitImage(
++            handle, applicationImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++            this->implementation->pipeline->input().handle(),
++            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
++            1, &sourceCopy, VK_FILTER_NEAREST
++        );
++
++        this->implementation->pipeline->recordCompute(
++            vk, handle,
++            directFrameGenerationOutput
++                ? frameGenerationSource : VK_NULL_HANDLE
++        );
++    }
+ 
+     std::array<VkImageMemoryBarrier, 2> outputBarriers{};
+     size_t outputBarrierCount = 0;
+     outputBarriers.at(outputBarrierCount++) = imageBarrier(
+-        applicationImage, VK_ACCESS_TRANSFER_READ_BIT,
+-        VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++        applicationImage, directInput ? VK_ACCESS_SHADER_READ_BIT : VK_ACCESS_TRANSFER_READ_BIT,
++        VK_ACCESS_TRANSFER_WRITE_BIT, directInput ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+     );
+     if (frameGenerationSource != VK_NULL_HANDLE &&
+@@ -1017,37 +1187,55 @@ void SpatialScaler::recordSourceToPresentation(const vk::Vulkan& vk,
+         const vk::CommandBuffer& commandBuffer,
+         const VkImage sourceImage, const VkImage presentationImage,
+         const VkImageLayout sourceLayout,
+-        const VkImageLayout presentationLayout) const {
++        const VkImageLayout presentationLayout,
++        const VkImageLayout finalLayout) const {
+     const auto handle = commandBuffer.handle();
+-    const std::array inputBarriers{
+-        imageBarrier(
+-            sourceImage, VK_ACCESS_MEMORY_WRITE_BIT,
+-            VK_ACCESS_TRANSFER_READ_BIT, sourceLayout,
+-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+-        ),
+-        imageBarrier(
+-            this->implementation->pipeline->input().handle(), VK_ACCESS_NONE,
+-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+-        ),
+-    };
+-    vk.df().CmdPipelineBarrier(
+-        handle, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+-        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
+-        static_cast<uint32_t>(inputBarriers.size()), inputBarriers.data()
+-    );
++    if (this->implementation->pipeline->hasDirectInput(sourceImage)) {
++        const auto inputBarrier = imageBarrier(sourceImage,
++            VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
++            sourceLayout, VK_IMAGE_LAYOUT_GENERAL);
++        vk.df().CmdPipelineBarrier(handle, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
++            0, nullptr, 0, nullptr, 1, &inputBarrier);
++        this->implementation->pipeline->recordDirectInput(vk, handle, sourceImage);
++        const auto restore = imageBarrier(sourceImage,
++            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
++            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++        vk.df().CmdPipelineBarrier(handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
++            VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
++            0, nullptr, 0, nullptr, 1, &restore);
++        ++this->implementation->fusionFrames;
++    } else {
++        const std::array inputBarriers{
++            imageBarrier(
++                sourceImage, VK_ACCESS_MEMORY_WRITE_BIT,
++                VK_ACCESS_TRANSFER_READ_BIT, sourceLayout,
++                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
++            ),
++            imageBarrier(
++                this->implementation->pipeline->input().handle(), VK_ACCESS_NONE,
++                VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
++                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
++            ),
++        };
++        vk.df().CmdPipelineBarrier(
++            handle, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
++            static_cast<uint32_t>(inputBarriers.size()), inputBarriers.data()
++        );
+ 
+-    const auto sourceCopy = blitRegion(
+-        this->implementation->sourceSize, this->implementation->sourceSize
+-    );
+-    vk.df().CmdBlitImage(
+-        handle, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+-        this->implementation->pipeline->input().handle(),
+-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+-        1, &sourceCopy, VK_FILTER_NEAREST
+-    );
++        const auto sourceCopy = blitRegion(
++            this->implementation->sourceSize, this->implementation->sourceSize
++        );
++        vk.df().CmdBlitImage(
++            handle, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++            this->implementation->pipeline->input().handle(),
++            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
++            1, &sourceCopy, VK_FILTER_NEAREST
++        );
+ 
+-    this->implementation->pipeline->recordCompute(vk, handle);
++        this->implementation->pipeline->recordCompute(vk, handle);
++    }
+ 
+     const auto presentationBarrier = imageBarrier(
+         presentationImage,
+@@ -1077,11 +1265,12 @@ void SpatialScaler::recordSourceToPresentation(const vk::Vulkan& vk,
+     const auto finalBarrier = imageBarrier(
+         presentationImage, VK_ACCESS_TRANSFER_WRITE_BIT,
+         VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
++        finalLayout
+     );
+     vk.df().CmdPipelineBarrier(
+         handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
+-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
++        finalLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
++            ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+         0, nullptr, 0, nullptr, 1, &finalBarrier
+     );
+ }
+diff --git a/engine/mako-render/src/spatial_scaler.hpp b/engine/mako-render/src/spatial_scaler.hpp
+index da42cab..0fc9735 100644
+--- a/engine/mako-render/src/spatial_scaler.hpp
++++ b/engine/mako-render/src/spatial_scaler.hpp
+@@ -49,6 +49,19 @@ namespace mako::layer {
+         void clearDirectFrameGenerationOutputs();
+         [[nodiscard]] size_t directFrameGenerationOutputCount() const;
+ 
++        /// Frame Fusion: preallocate sampled-image bindings for generated
++        /// private inputs. Unsupported algorithms keep the copy-based path.
++        /// The caller must drain in-flight work before replacing or clearing
++        /// these bindings, and retain the input images for their lifetime.
++        void configureDirectFrameGenerationInputs(const vk::Vulkan& vk,
++            std::span<const std::reference_wrapper<const vk::Image>> inputs);
++        void configureDirectApplicationInputs(const vk::Vulkan& vk,
++            std::span<const VkImage> images, VkExtent2D physicalExtent,
++            VkFormat format, VkImageUsageFlags usage);
++        void clearDirectFrameGenerationInputs();
++        [[nodiscard]] size_t directFrameGenerationInputCount() const;
++        [[nodiscard]] uint64_t frameFusionRecordedFrames() const;
++
+         /// Reconstruct the application's low-resolution rectangle, write the
+         /// native-resolution result back into its image, and optionally copy
+         /// the same result to MAKO's exported FG source. Production WSI uses
+@@ -70,7 +83,8 @@ namespace mako::layer {
+             VkImageLayout sourceLayout =
+                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+             VkImageLayout presentationLayout =
+-                VK_IMAGE_LAYOUT_UNDEFINED) const;
++                VK_IMAGE_LAYOUT_UNDEFINED,
++            VkImageLayout finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) const;
+ 
+         [[nodiscard]] VkExtent2D sourceExtent() const;
+         [[nodiscard]] VkExtent2D presentationExtent() const;
+diff --git a/engine/mako-render/src/swapchain/create.cpp b/engine/mako-render/src/swapchain/create.cpp
+index 02f8aff..bae891f 100644
+--- a/engine/mako-render/src/swapchain/create.cpp
++++ b/engine/mako-render/src/swapchain/create.cpp
+@@ -373,65 +373,14 @@ Swapchain::Swapchain(const vk::Vulkan& vk, backend::Instance* backend,
+         return;
+     }
+     try {
+-        const VkExtent2D generationExtent = frameGenerationExtent(
+-            this->spatialFramePipelinePlacement,
+-            this->info.applicationExtent, this->info.extent
+-        );
+-        std::vector<int> sourceFds(2, -1);
+-        ls::FileDescriptorScope sourceScope{sourceFds};
+-        std::vector<int> destinationFds(generatedFrameCapacityForProfile(this->profile), -1);
+-        ls::FileDescriptorScope destinationScope{destinationFds};
+-        const auto sourceImageUsage = frameGenerationSourceImageUsage(
+-            this->spatialFramePipelinePlacement,
+-            directSpatialFrameGenerationOutputSupported(
+-                vk, this->colorPipeline.exchangeFormat,
+-                this->spatialFramePipelinePlacement,
+-                this->spatialScaler.has_value()
+-            )
+-        );
+-
+-        this->sourceImages.reserve(sourceFds.size());
+-        for (int& fd : sourceFds)
+-            this->sourceImages.emplace_back(vk,
+-                generationExtent, this->colorPipeline.exchangeFormat,
+-                sourceImageUsage,
+-                std::nullopt, &fd);
+-
+-        this->destinationImages.reserve(destinationFds.size());
+-        for (int& fd : destinationFds)
+-            this->destinationImages.emplace_back(vk,
+-                generationExtent, this->colorPipeline.exchangeFormat,
+-                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+-                std::nullopt, &fd);
+-
+-        int syncFd{-1};
+-        ls::FileDescriptorScope syncScope{{&syncFd, 1}};
+-        this->syncSemaphore.emplace(vk, 0, std::nullopt, &syncFd);
+-
+-        try {
+-            this->ctx = ls::owned_ptr<ls::R<backend::Context>>(
+-                new ls::R<backend::Context>(backend->openContext(
+-                    (sourceScope.release(), std::pair{sourceFds[0], sourceFds[1]}),
+-                    (destinationScope.release(), destinationFds),
+-                    (syncScope.release(), syncFd),
+-                    generationExtent.width, generationExtent.height,
+-                    this->colorPipeline.encoding,
+-                    1.0F / ls::effectiveFlowScale(this->profile),
+-                    ls::effectivePerformanceMode(this->profile)
+-                )),
+-                [backend](ls::R<backend::Context>& ctx) {
+-                    backend->closeContext(ctx);
+-                }
+-            );
+-
+-            // The backend's private VkDevice must outlive this layer on loader
+-            // combinations where destroying it during layer unload is unsafe.
+-            // This is process-lifetime retention, not active GPU work; see the
+-            // backend API contract before changing the teardown policy.
+-            backend::makeLeaking();
+-        } catch (const std::exception& e) {
+-            throw ls::error("failed to create swapchain context", e);
+-        }
++        auto resources = this->buildFrameGenerationResources(vk, this->colorPipeline, this->profile);
++        this->sourceImages = std::move(resources.sourceImages);
++        this->destinationImages = std::move(resources.destinationImages);
++        this->syncSemaphore = std::move(resources.syncSemaphore);
++        this->ctx = std::move(resources.context);
++        this->fusionSourceLayout = resources.sourceLayout;
++        this->fusionSourceFallback = std::move(resources.sourceTransportFallback);
++        this->fusionSourceTransfers = 0;
+ 
+         this->ensureFrameGenerationExecutionResources(vk);
+         if (this->spatialScaler) {
+@@ -562,6 +511,9 @@ Swapchain::Swapchain(const vk::Vulkan& vk, backend::Instance* backend,
+         // present its real frames until the game recreates it.
+         this->ctx = {};
+         this->sourceImages.clear();
++        this->fusionSourceLayout = backend::SourceImageLayout::Default;
++        this->fusionSourceTransfers = 0;
++        this->fusionSourceFallback = "frame-generation-initialization-failed";
+         this->destinationImages.clear();
+         this->passes.clear();
+         this->postCopySemaphores.clear();
+diff --git a/engine/mako-render/src/swapchain/present/generated_frames.cpp b/engine/mako-render/src/swapchain/present/generated_frames.cpp
+index bbe8ed7..80ceb71 100644
+--- a/engine/mako-render/src/swapchain/present/generated_frames.cpp
++++ b/engine/mako-render/src/swapchain/present/generated_frames.cpp
+@@ -430,6 +430,8 @@ VkResult Swapchain::presentGeneratedFrames(
+         generatedSubmitDuration += finishPresentDiagnostic(
+             generatedSubmitStarted
+         );
++        if (this->spatialScaler && this->spatialScaler->frameFusionRecordedFrames() == 1)
++            this->publishRuntimeStatus("frame-fusion-first-submitted-frame");
+         logSlowPresentOperation(
+             "submit-generated-copy", this->frameState.realFrameIndex,
+             this->frameState.sequenceIndex,
+diff --git a/engine/mako-render/src/swapchain/present/real_frames.cpp b/engine/mako-render/src/swapchain/present/real_frames.cpp
+index 581c1ef..00a8fcb 100644
+--- a/engine/mako-render/src/swapchain/present/real_frames.cpp
++++ b/engine/mako-render/src/swapchain/present/real_frames.cpp
+@@ -301,6 +301,8 @@ void Swapchain::submitSourceCopy(const PresentInvocation& invocation,
+             this->frameState.sequenceIndex, sourceSubmitStarted,
+             std::nullopt, std::nullopt, invocation.imageIndex
+         );
++        if(this->spatialScaler->frameFusionRecordedFrames()==1)
++            this->publishRuntimeStatus("frame-fusion-first-source-submission");
+         return;
+     }
+ 
+@@ -328,12 +330,20 @@ void Swapchain::submitSourceCopy(const PresentInvocation& invocation,
+         ),
+     };
+     commandBuffer.begin(invocation.vk);
+-    commandBuffer.blitImage(invocation.vk,
+-        preBarriers,
+-        {swapchainImage, sourceImage.handle()},
+-        sourceImage.getExtent(),
+-        postBarriers
+-    );
++    const bool nativeFusionTransfer =
++        this->profile.gfg_frame_fusion &&
++        this->runtimeStatusState.requestedProfile.gfg_frame_fusion &&
++        this->fusionSourceLayout != backend::SourceImageLayout::Default &&
++        !this->spatialScaler && sourceImage.getFormat() == this->info.format &&
++        sourceImage.getExtent().width == this->info.applicationExtent.width &&
++        sourceImage.getExtent().height == this->info.applicationExtent.height;
++    if (nativeFusionTransfer) {
++        commandBuffer.copyImage(invocation.vk, preBarriers,
++            {swapchainImage, sourceImage.handle()}, sourceImage.getExtent(), postBarriers);
++    } else {
++        commandBuffer.blitImage(invocation.vk, preBarriers,
++            {swapchainImage, sourceImage.handle()}, sourceImage.getExtent(), postBarriers);
++    }
+     commandBuffer.end(invocation.vk);
+ 
+     const auto sourceSubmitStarted = startPresentDiagnostic();
+@@ -344,6 +354,11 @@ void Swapchain::submitSourceCopy(const PresentInvocation& invocation,
+         invocation.waitSemaphores, VK_NULL_HANDLE, 0,
+         {}, this->syncSemaphore->handle(), sourceTimelineValue
+     );
++    if (nativeFusionTransfer) {
++        ++this->fusionSourceTransfers;
++        if (this->fusionSourceTransfers == 1)
++            this->publishRuntimeStatus("frame-fusion-first-native-source-transfer");
++    }
+     logSlowPresentOperation(
+         "submit-source-copy", this->frameState.realFrameIndex,
+         this->frameState.sequenceIndex, sourceSubmitStarted
+diff --git a/engine/mako-render/src/swapchain/profile.cpp b/engine/mako-render/src/swapchain/profile.cpp
+index 9da7c8b..a578ab7 100644
+--- a/engine/mako-render/src/swapchain/profile.cpp
++++ b/engine/mako-render/src/swapchain/profile.cpp
+@@ -134,6 +134,14 @@ ProfileUpdateDecision Swapchain::updateProfile(
+     this->runtimeStatusState.stateRevision = runtimeStateRevision;
+     this->runtimeStatusState.processRestartPending = processRestartPending;
+     this->runtimeStatusState.error.reset();
++    if (!nextProfile.gfg_frame_fusion) {
++        // Close the shortcut immediately, even if replacing the private group fails.
++        // Existing native-layout histories remain valid for the ordinary same-format blit.
++        if (this->spatialScaler)
++            this->spatialScaler->clearDirectFrameGenerationInputs();
++        if (this->preparedSpatialScaler)
++            this->preparedSpatialScaler->clearDirectFrameGenerationInputs();
++    }
+     const bool resourcesAvailable = this->sourceImages.size() == 2 &&
+         !this->destinationImages.empty() && this->syncSemaphore.has_value();
+     const size_t requestedGeneratedFrameCapacity =
+diff --git a/engine/mako-render/src/swapchain/resources.cpp b/engine/mako-render/src/swapchain/resources.cpp
+index c6b4852..672b68c 100644
+--- a/engine/mako-render/src/swapchain/resources.cpp
++++ b/engine/mako-render/src/swapchain/resources.cpp
+@@ -1,6 +1,8 @@
+ /* SPDX-License-Identifier: GPL-3.0-or-later */
+ 
+ #include "swapchain/swapchain.hpp"
++#include "fusion_source_transport.hpp"
++#include <cstdlib>
+ #include "present_diagnostics.hpp"
+ #include "mako-common/helpers/errors.hpp"
+ #include "mako-common/helpers/file_descriptors.hpp"
+@@ -163,52 +165,93 @@ Swapchain::buildFrameGenerationResources(const vk::Vulkan& vk,
+         this->spatialFramePipelinePlacement,
+         this->info.applicationExtent, this->info.extent
+     );
+-    std::vector<int> sourceFds(2, -1);
+-    ls::FileDescriptorScope sourceScope{sourceFds};
+-    std::vector<int> destinationFds(generatedFrameCapacityForProfile(resourceProfile), -1);
+-    ls::FileDescriptorScope destinationScope{destinationFds};
+-    FrameGenerationResources resources;
+-    resources.sourceImages.reserve(sourceFds.size());
+-    resources.destinationImages.reserve(destinationFds.size());
+-    const auto sourceImageUsage = frameGenerationSourceImageUsage(
+-        this->spatialFramePipelinePlacement,
+-        directSpatialFrameGenerationOutputSupported(
+-            vk, pipeline.exchangeFormat,
++    const bool enabled = resourceProfile.gfg_frame_fusion && std::getenv("GFG_FRAME_FUSION") &&
++        std::string_view(std::getenv("GFG_FRAME_FUSION")) == "1";
++    auto layout = nativeFusionSourceCandidate(enabled, this->spatialScaler.has_value(),
++        pipeline, this->info.format, this->info.imageUsage,
++        this->info.applicationExtent, this->info.extent);
++    std::string fallback = enabled ? "native-source-ineligible" : "disabled-at-launch";
++    if (layout != backend::SourceImageLayout::Default) {
++        const auto format = *backend::nativeSourceImageFormat(pipeline.encoding, layout);
++        const bool applicationSupported = vk.supportsOptimalTilingFormatFeatures(format,
++            VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
++            VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT |
++            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) &&
++            vk.supportsExternalImageFormat(format, backend::nativeSourceImageUsage,
++                VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT);
++        const bool backendSupported = backendInstance.supportsSourceImageLayout(layout);
++        if (!applicationSupported || !backendSupported) {
++            layout = backend::SourceImageLayout::Default;
++            fallback = "native-source-format-not-shareable";
++        }
++    }
++    const auto construct = [&](const backend::SourceImageLayout layout) {
++        std::vector<int> sourceFds(2, -1);
++        ls::FileDescriptorScope sourceScope{sourceFds};
++        std::vector<int> destinationFds(generatedFrameCapacityForProfile(resourceProfile), -1);
++        ls::FileDescriptorScope destinationScope{destinationFds};
++        FrameGenerationResources resources;
++        resources.sourceLayout = layout;
++        const VkFormat sourceFormat = backend::nativeSourceImageFormat(pipeline.encoding, layout).value_or(pipeline.exchangeFormat);
++        resources.sourceImages.reserve(sourceFds.size());
++        resources.destinationImages.reserve(destinationFds.size());
++        const auto sourceImageUsage = layout != backend::SourceImageLayout::Default
++            ? backend::nativeSourceImageUsage : frameGenerationSourceImageUsage(
+             this->spatialFramePipelinePlacement,
+-            this->spatialScaler.has_value()
+-        )
+-    );
+-    for (int& fd : sourceFds) {
+-        resources.sourceImages.emplace_back(vk,
+-            extent, pipeline.exchangeFormat,
+-            sourceImageUsage,
+-            std::nullopt, &fd);
+-    }
+-    for (int& fd : destinationFds) {
+-        resources.destinationImages.emplace_back(vk,
+-            extent, pipeline.exchangeFormat,
+-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+-            std::nullopt, &fd);
+-    }
+-
+-    int syncFd{-1};
+-    ls::FileDescriptorScope syncScope{{&syncFd, 1}};
+-    resources.syncSemaphore.emplace(vk, 0, std::nullopt, &syncFd);
+-    resources.context = ls::owned_ptr<ls::R<backend::Context>>(
+-        new ls::R<backend::Context>(backendInstance.openContext(
+-            (sourceScope.release(), std::pair{sourceFds[0], sourceFds[1]}),
+-            (destinationScope.release(), destinationFds),
+-            (syncScope.release(), syncFd),
+-            extent.width, extent.height, pipeline.encoding,
+-            1.0F / ls::effectiveFlowScale(resourceProfile),
+-            ls::effectivePerformanceMode(resourceProfile)
+-        )),
+-        [backend = &backendInstance](ls::R<backend::Context>& context) {
+-            backend->closeContext(context);
++            directSpatialFrameGenerationOutputSupported(
++                vk, pipeline.exchangeFormat,
++                this->spatialFramePipelinePlacement,
++                this->spatialScaler.has_value()
++            )
++        );
++        for (int& fd : sourceFds) {
++            resources.sourceImages.emplace_back(vk,
++                extent, sourceFormat,
++                sourceImageUsage,
++                std::nullopt, &fd);
+         }
+-    );
+-    backend::makeLeaking();
+-    return resources;
++        for (int& fd : destinationFds) {
++            resources.destinationImages.emplace_back(vk,
++                extent, pipeline.exchangeFormat,
++                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++                std::nullopt, &fd);
++        }
++
++        int syncFd{-1};
++        ls::FileDescriptorScope syncScope{{&syncFd, 1}};
++        resources.syncSemaphore.emplace(vk, 0, std::nullopt, &syncFd);
++        resources.context = ls::owned_ptr<ls::R<backend::Context>>(
++            new ls::R<backend::Context>(backendInstance.openContext(
++                (sourceScope.release(), std::pair{sourceFds[0], sourceFds[1]}),
++                (destinationScope.release(), destinationFds),
++                (syncScope.release(), syncFd),
++                extent.width, extent.height, pipeline.encoding,
++                1.0F / ls::effectiveFlowScale(resourceProfile),
++                ls::effectivePerformanceMode(resourceProfile), layout
++            )),
++            [backend = &backendInstance](ls::R<backend::Context>& context) {
++                backend->closeContext(context);
++            }
++        );
++        backend::makeLeaking();
++        return resources;
++    };
++    if (layout != backend::SourceImageLayout::Default) {
++        try {
++            return construct(layout);
++        } catch (const ls::vulkan_error& error) {
++            if (error.error() == VK_ERROR_DEVICE_LOST)
++                throw;
++            fallback = "native-source-construction-failed";
++            std::cerr << "MAKO Renderer: Fusion source transport fallback: " << error.what() << '\n';
++        } catch (const std::exception& error) {
++            fallback = "native-source-construction-failed";
++            std::cerr << "MAKO Renderer: Fusion source transport fallback: " << error.what() << '\n';
++        }
++    }
++    auto result = construct(backend::SourceImageLayout::Default);
++    result.sourceTransportFallback = std::move(fallback);
++    return result;
+ }
+ 
+ void Swapchain::commitFrameGenerationResources(
+@@ -228,7 +271,11 @@ void Swapchain::commitFrameGenerationResources(
+     this->destinationImages = std::move(resources.destinationImages);
+     this->syncSemaphore = std::move(resources.syncSemaphore);
+     this->ctx = std::move(resources.context);
++    this->fusionSourceLayout = resources.sourceLayout;
++    this->fusionSourceFallback = std::move(resources.sourceTransportFallback);
++    this->fusionSourceTransfers = 0;
+ 
++    this->profile.gfg_frame_fusion = resourceProfile.gfg_frame_fusion;
+     this->profile.flow_scale = resourceProfile.flow_scale;
+     this->profile.performance_mode = resourceProfile.performance_mode;
+     this->profile.adaptive = resourceProfile.adaptive;
+@@ -727,6 +774,8 @@ void Swapchain::configureDirectSpatialFrameGenerationOutputs(
+         const vk::Vulkan& vk, SpatialScaler& scaler,
+         const std::span<const vk::Image> outputs,
+         const std::string_view reason) noexcept {
++    scaler.clearDirectFrameGenerationInputs();
++    const auto configureOutputs=[&]() {
+     if (!directSpatialFrameGenerationOutputEligible(
+             this->spatialFramePipelinePlacement,
+             this->info.spatialScalingActive, outputs.size())) {
+@@ -762,13 +811,43 @@ void Swapchain::configureDirectSpatialFrameGenerationOutputs(
+                      "mode=copy-private-output; direct-output-unavailable="
+                   << error.what() << "; reason=" << reason << '\n';
+     }
++    };
++    configureOutputs();
++    const char* fusion=std::getenv("GFG_FRAME_FUSION");
++    if(this->profile.gfg_frame_fusion && this->runtimeStatusState.requestedProfile.gfg_frame_fusion && fusion && std::string_view(fusion)=="1" &&
++            this->colorPipeline.encoding==backend::FrameEncoding::Sdr8) {
++        try {
++            if(this->spatialFramePipelinePlacement==SpatialFramePipelinePlacement::PreFrameGeneration) {
++                scaler.configureDirectApplicationInputs(vk,this->info.images,this->info.extent,
++                    this->info.format,this->info.imageUsage);
++            } else if(!this->destinationImages.empty()) {
++                std::vector<std::reference_wrapper<const vk::Image>> inputs;
++                inputs.reserve(this->destinationImages.size());
++                for(const auto& input:this->destinationImages) inputs.push_back(std::cref(input));
++                scaler.configureDirectFrameGenerationInputs(vk,inputs);
++            }
++            std::cerr << "MAKO Renderer: frame-fusion: prepared_inputs="
++                << scaler.directFrameGenerationInputCount() << "; pipeline="
++                << spatialFramePipelinePlacementName(this->spatialFramePipelinePlacement)
++                << "; reason=" << reason << '\n';
++        } catch(const std::exception& error) {
++            scaler.clearDirectFrameGenerationInputs();
++            std::cerr << "MAKO Renderer: frame-fusion: fallback=copy-private-input; reason="
++                << error.what() << '\n';
++        }
++    }
++
+ }
+ 
+ void Swapchain::clearDirectSpatialFrameGenerationOutputs() noexcept {
+-    if (this->spatialScaler)
++    if (this->spatialScaler) {
+         this->spatialScaler->clearDirectFrameGenerationOutputs();
+-    if (this->preparedSpatialScaler)
++        this->spatialScaler->clearDirectFrameGenerationInputs();
++    }
++    if (this->preparedSpatialScaler) {
+         this->preparedSpatialScaler->clearDirectFrameGenerationOutputs();
++        this->preparedSpatialScaler->clearDirectFrameGenerationInputs();
++    }
+ }
+ 
+ bool Swapchain::updateGamescopeHdrState(
+diff --git a/engine/mako-render/src/swapchain/status.cpp b/engine/mako-render/src/swapchain/status.cpp
+index 4ed8c4f..f29cf94 100644
+--- a/engine/mako-render/src/swapchain/status.cpp
++++ b/engine/mako-render/src/swapchain/status.cpp
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: GPL-3.0-or-later */
+ 
+ #include "swapchain/swapchain.hpp"
++#include <cstdlib>
+ 
+ #include <algorithm>
+ #include <optional>
+@@ -92,6 +93,8 @@ void Swapchain::publishRuntimeStatus(const std::string_view reason) noexcept {
+         requestedSpatialProfile.scaling_factor >
+             effectiveSpatialFactor + factorComparisonTolerance &&
+         !displayCeilingOwnsConstraint;
++    const bool fusionRequested = this->runtimeStatusState.requestedProfile.gfg_frame_fusion &&
++        std::getenv("GFG_FRAME_FUSION") && std::string_view(std::getenv("GFG_FRAME_FUSION")) == "1";
+     this->runtimeStatusPublisher.publish(RuntimeStatusRecord{
+         .phase = phase,
+         .reason = std::string(reason),
+@@ -154,6 +157,19 @@ void Swapchain::publishRuntimeStatus(const std::string_view reason) noexcept {
+             : std::nullopt,
+         .nonSupersamplingFactorCeiling =
+             nonSupersamplingFactorCeiling,
++        .frameFusionPreparedInputs = fusionRequested && this->spatialScaler
++            ? this->spatialScaler->directFrameGenerationInputCount() : 0,
++        .frameFusionRecordedFrames = fusionRequested && this->spatialScaler
++            ? this->spatialScaler->frameFusionRecordedFrames() : 0,
++        .frameFusionRequested = fusionRequested,
++        .frameFusionNativePreparedInputs = fusionRequested && this->fusionSourceLayout != backend::SourceImageLayout::Default
++            ? this->sourceImages.size() : 0,
++        .frameFusionNativeSourceTransfers = fusionRequested ? this->fusionSourceTransfers : 0,
++        .frameFusionNativeConversionBlitsAvoided = fusionRequested && this->fusionSourceLayout == backend::SourceImageLayout::Bgra8
++            ? this->fusionSourceTransfers : 0,
++        .frameFusionNativeSourceFormat = !fusionRequested || this->sourceImages.empty()
++            ? 0 : static_cast<uint32_t>(this->sourceImages.front().getFormat()),
++        .frameFusionNativeFallbackReason = this->fusionSourceFallback,
+         .error = this->runtimeStatusState.error,
+     });
+ }
+diff --git a/engine/mako-render/src/swapchain/swapchain.hpp b/engine/mako-render/src/swapchain/swapchain.hpp
+index 55c700c..1c9cc68 100644
+--- a/engine/mako-render/src/swapchain/swapchain.hpp
++++ b/engine/mako-render/src/swapchain/swapchain.hpp
+@@ -46,6 +46,7 @@ namespace mako::layer {
+         // outlive Vulkan swapchain retirement. Null for ordinary/WSI surfaces.
+         GamescopeScalingSurface* gamescopeScalingSurface{nullptr};
+         VkFormat format;
++        VkImageUsageFlags imageUsage{0};
+         VkColorSpaceKHR colorSpace;
+         // Preserve the application's requested minimum separately from the
+         // bounded minimum forwarded by MAKO and the actual returned count in
+@@ -344,7 +345,8 @@ namespace mako::layer {
+             friend bool operator==(
+                     const FrameGenerationResourceRequest& left,
+                     const FrameGenerationResourceRequest& right) {
+-                return ls::effectiveFlowScale(left.profile) ==
++                return left.profile.gfg_frame_fusion == right.profile.gfg_frame_fusion &&
++                    ls::effectiveFlowScale(left.profile) ==
+                         ls::effectiveFlowScale(right.profile) &&
+                     ls::effectivePerformanceMode(left.profile) ==
+                         ls::effectivePerformanceMode(right.profile) &&
+@@ -359,6 +361,8 @@ namespace mako::layer {
+             std::vector<vk::Image> sourceImages;
+             std::vector<vk::Image> destinationImages;
+             ls::lazy<vk::TimelineSemaphore> syncSemaphore;
++            backend::SourceImageLayout sourceLayout{backend::SourceImageLayout::Default};
++            std::string sourceTransportFallback;
+             ls::owned_ptr<ls::R<backend::Context>> context;
+         };
+ 
+@@ -374,6 +378,10 @@ namespace mako::layer {
+         std::vector<vk::Image> destinationImages;
+         ls::lazy<vk::TimelineSemaphore> syncSemaphore;
+ 
++        backend::SourceImageLayout fusionSourceLayout{backend::SourceImageLayout::Default};
++        std::string fusionSourceFallback;
++        uint64_t fusionSourceTransfers{0};
++
+         ls::lazy<vk::CommandBuffer> renderCommandBuffer;
+         ls::lazy<vk::Fence> renderFence;
+         struct RenderPass {
+diff --git a/engine/mako-render/tests/fusion_source_transport_tests.cpp b/engine/mako-render/tests/fusion_source_transport_tests.cpp
+new file mode 100644
+index 0000000..47c4de1
+--- /dev/null
++++ b/engine/mako-render/tests/fusion_source_transport_tests.cpp
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#include "fusion_source_transport.hpp"
++
++using namespace mako;
++using namespace mako::layer;
++
++int main() {
++    constexpr auto rgba = backend::SourceImageLayout::Rgba8;
++    constexpr auto bgra = backend::SourceImageLayout::Bgra8;
++    constexpr auto baseline = backend::SourceImageLayout::Default;
++    static_assert(backend::nativeSourceImageFormat(backend::FrameEncoding::Sdr8, rgba) == VK_FORMAT_R8G8B8A8_UNORM);
++    static_assert(backend::nativeSourceImageFormat(backend::FrameEncoding::Sdr8, bgra) == VK_FORMAT_B8G8R8A8_UNORM);
++    static_assert(!backend::nativeSourceImageFormat(backend::FrameEncoding::Sdr8, baseline));
++    static_assert(!backend::nativeSourceImageFormat(backend::FrameEncoding::SdrHighPrecision, bgra));
++    static_assert(!backend::nativeSourceImageFormat(backend::FrameEncoding::Hdr10Pq, rgba));
++    static_assert(!backend::nativeSourceImageFormat(backend::FrameEncoding::Sdr8, static_cast<backend::SourceImageLayout>(255)));
++    static_assert(backend::nativeSourceImageUsage == (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT));
++    constexpr SwapchainColorPipeline sdr;
++    constexpr VkExtent2D native{1280, 800};
++    constexpr auto usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
++    static_assert(nativeFusionSourceCandidate(true, false, sdr, VK_FORMAT_B8G8R8A8_UNORM, usage, native, native) == bgra);
++    static_assert(nativeFusionSourceCandidate(true, false, sdr, VK_FORMAT_R8G8B8A8_UNORM, usage, native, native) == rgba);
++    static_assert(nativeFusionSourceCandidate(false, false, sdr, VK_FORMAT_B8G8R8A8_UNORM, usage, native, native) == baseline);
++    static_assert(nativeFusionSourceCandidate(true, true, sdr, VK_FORMAT_B8G8R8A8_UNORM, usage, native, native) == baseline);
++    static_assert(nativeFusionSourceCandidate(true, false, sdr, VK_FORMAT_B8G8R8A8_UNORM, 0, native, native) == baseline);
++    static_assert(nativeFusionSourceCandidate(true, false, sdr, VK_FORMAT_B8G8R8A8_UNORM, usage, {852, 532}, native) == baseline);
++    static_assert(nativeFusionSourceCandidate(true, false, sdr, VK_FORMAT_B8G8R8A8_UNORM, usage, {}, {}) == baseline);
++    for (const auto format : {VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_SRGB,
++            VK_FORMAT_A2B10G10R10_UNORM_PACK32, VK_FORMAT_R16G16B16A16_SFLOAT})
++        if (nativeFusionSourceCandidate(true, false, sdr, format, usage, native, native) != baseline)
++            return 1;
++    for (auto colour : {SwapchainColorPipeline{.generationSupported = false},
++            SwapchainColorPipeline{.hdr = true},
++            SwapchainColorPipeline{.encoding = backend::FrameEncoding::SdrHighPrecision},
++            SwapchainColorPipeline{.encoding = backend::FrameEncoding::Hdr10Pq}})
++        if (nativeFusionSourceCandidate(true, false, colour, VK_FORMAT_B8G8R8A8_UNORM, usage, native, native) != baseline)
++            return 1;
++}
+diff --git a/engine/mako-render/tests/profile_update_tests.cpp b/engine/mako-render/tests/profile_update_tests.cpp
+index f1a10dd..2a1c3d3 100644
+--- a/engine/mako-render/tests/profile_update_tests.cpp
++++ b/engine/mako-render/tests/profile_update_tests.cpp
+@@ -1593,6 +1593,20 @@ int main() {
+     expect(fixedGeneratedFrameCount(5, 4) == 4,
+         "Fixed 5x must use four reserved outputs");
+ 
++    auto fusionOff = adaptiveProfile();
++    auto fusionOn = fusionOff;
++    fusionOn.gfg_frame_fusion = true;
++    const auto scopeOn = planProfileUpdate(fusionOff, fusionOn, 2, true, false, true);
++    expect(scopeOn.decision.frameGenerationPrivateRebuild && !scopeOn.appliedProfile.gfg_frame_fusion,
++        "Autopilot scope requires a private group and retains the old layout until commit");
++    const auto scopeOff = planProfileUpdate(fusionOn, fusionOff, 2, true, false, true);
++    expect(scopeOff.decision.frameGenerationPrivateRebuild,
++        "leaving Autopilot must rebuild the canonical input group");
++    const auto unavailable = planProfileUpdate(fusionOn, fusionOff, 2, true, false, false);
++    expect(unavailable.decision.swapchainRecreationDeferred,
++        "unavailable private replacement must preserve the valid history layout");
++    expect(!(recreatedProfileResourceKey(fusionOff) == recreatedProfileResourceKey(fusionOn)),
++        "a Fusion scope switch invalidates resource identity");
+     std::cout << "profile update tests passed\n";
+     return 0;
+ }
+diff --git a/engine/mako-render/tests/runtime_status_tests.cpp b/engine/mako-render/tests/runtime_status_tests.cpp
+index 3ef0e04..d3e7533 100644
+--- a/engine/mako-render/tests/runtime_status_tests.cpp
++++ b/engine/mako-render/tests/runtime_status_tests.cpp
+@@ -9,6 +9,7 @@
+ #include <iterator>
+ #include <locale>
+ #include <string>
++#include <vulkan/vulkan_core.h>
+ 
+ #include <unistd.h>
+ #include <fcntl.h>
+@@ -82,12 +83,27 @@ int main() {
+         .spatialSupersamplingActive = false,
+         .spatialFallbackReason = "translator unavailable",
+         .nonSupersamplingFactorCeiling = 4.0 / 3.0,
++        .frameFusionRequested = true,
++        .frameFusionNativePreparedInputs = 2,
++        .frameFusionNativeSourceTransfers = 7,
++        .frameFusionNativeConversionBlitsAvoided = 7,
++        .frameFusionNativeSourceFormat = VK_FORMAT_B8G8R8A8_UNORM,
++        .frameFusionNativeFallbackReason = "source \"fallback\"",
+     };
+     const auto json = mako::layer::runtimeStatusJson(
+         record, 123, 321, 456, "frame-generation", 789
+     );
+     expect(json.find("\"schema_version\":5") != std::string::npos,
+         "schema version missing");
++    expect(json.find("\"frame_fusion\":{\"schema\":2") != std::string::npos,
++        "native Fusion extension schema missing");
++    expect(json.find("\"native_source_transfers\":7") != std::string::npos &&
++        json.find("\"native_conversion_blits_avoided\":7") != std::string::npos &&
++        json.find("\"native_source_format\":44") != std::string::npos &&
++        json.find("\"native_prepared_inputs\":2") != std::string::npos,
++        "native transport evidence missing");
++    expect(json.find("\"native_fallback_reason\":\"source \\\"fallback\\\"\"") != std::string::npos,
++        "native fallback reason was not JSON escaped");
+     expect(json.find("\"phase\":\"draining\"") != std::string::npos,
+         "phase missing");
+     expect(json.find("\"process_start_ticks\":321") != std::string::npos,

@@ -1,0 +1,173 @@
+{
+  "input_fps": 30,
+  "target_fps": 90,
+  "width": 384,
+  "height": 240,
+  "scope": "synthetic held-out frames; not measured game FPS",
+  "baseline_sha256": "86a0b5b31c6bb429a7fb2275220d3eecfa693794dc4d13901154a7069d665d62",
+  "candidate_sha256": "a1c88d3ad8696871454bd52dc182d43b8b116a62b7da48efa156f34f870876ed",
+  "timing_scope": "Vulkan timestamps on host device; first two pairs excluded; not Deck timings",
+  "scenes": [
+    {
+      "scene": "pan",
+      "baseline": {
+        "mean_flip": 0.5470982988675436,
+        "p95_frame_flip": 0.5963048726320267,
+        "border_flip": 0.17320198938250542,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 48.07085000000001,
+        "fit_gap_ms_median": 0.49525,
+        "field_ms_median": 11.15245
+      },
+      "candidate": {
+        "mean_flip": 0.03053779574111104,
+        "p95_frame_flip": 0.03545870389789343,
+        "border_flip": 0.08571925014257431,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 104.71315000000001,
+        "fit_gap_ms_median": 0.3843,
+        "field_ms_median": 9.49235,
+        "pair_ready_ms_median": 105.7616,
+        "cpu_fit_ms_median": 0.18414999999999998
+      }
+    },
+    {
+      "scene": "fast-pan",
+      "baseline": {
+        "mean_flip": 0.7358060975869497,
+        "p95_frame_flip": 0.7431826293468475,
+        "border_flip": 0.47670699656009674,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 74.11135000000002,
+        "fit_gap_ms_median": 0.45675,
+        "field_ms_median": 15.543050000000001
+      },
+      "candidate": {
+        "mean_flip": 0.5758313884337743,
+        "p95_frame_flip": 0.6193964958190917,
+        "border_flip": 0.3697313219308853,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 68.89070000000001,
+        "fit_gap_ms_median": 0.45635,
+        "field_ms_median": 19.76415,
+        "pair_ready_ms_median": 69.7518,
+        "cpu_fit_ms_median": 0.2155
+      }
+    },
+    {
+      "scene": "occlusion",
+      "baseline": {
+        "mean_flip": 0.04718149174004793,
+        "p95_frame_flip": 0.049784955382347104,
+        "border_flip": 0.07477555734415849,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 55.626599999999996,
+        "fit_gap_ms_median": 0.5347,
+        "field_ms_median": 11.2516
+      },
+      "candidate": {
+        "mean_flip": 0.04593726402769486,
+        "p95_frame_flip": 0.048263254947960375,
+        "border_flip": 0.07406834326684475,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 52.310199999999995,
+        "fit_gap_ms_median": 0.42565,
+        "field_ms_median": 8.54635,
+        "pair_ready_ms_median": 53.024950000000004,
+        "cpu_fit_ms_median": 0.17809999999999998
+      }
+    },
+    {
+      "scene": "thin-posts",
+      "baseline": {
+        "mean_flip": 0.14632548515995344,
+        "p95_frame_flip": 0.17222939133644105,
+        "border_flip": 0.14727473941942057,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 54.35445,
+        "fit_gap_ms_median": 0.41085000000000005,
+        "field_ms_median": 9.568349999999999
+      },
+      "candidate": {
+        "mean_flip": 0.15080989648898444,
+        "p95_frame_flip": 0.1729999154806137,
+        "border_flip": 0.14997496890525022,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 55.96605,
+        "fit_gap_ms_median": 0.3318,
+        "field_ms_median": 8.6568,
+        "pair_ready_ms_median": 56.60835,
+        "cpu_fit_ms_median": 0.14345000000000002
+      }
+    },
+    {
+      "scene": "blade",
+      "baseline": {
+        "mean_flip": 0.3050973182544112,
+        "p95_frame_flip": 0.5996046453714371,
+        "border_flip": 0.11407054464022319,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 51.72965,
+        "fit_gap_ms_median": 0.5347,
+        "field_ms_median": 11.732050000000001
+      },
+      "candidate": {
+        "mean_flip": 0.04546193995823463,
+        "p95_frame_flip": 0.051911135204136365,
+        "border_flip": 0.09029195023079713,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 46.73725,
+        "fit_gap_ms_median": 0.4135,
+        "field_ms_median": 7.38205,
+        "pair_ready_ms_median": 47.5311,
+        "cpu_fit_ms_median": 0.178
+      }
+    },
+    {
+      "scene": "specular",
+      "baseline": {
+        "mean_flip": 0.10494577636321385,
+        "p95_frame_flip": 0.45704643875360484,
+        "border_flip": 0.09264763010044892,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 48.06455,
+        "fit_gap_ms_median": 0.49535,
+        "field_ms_median": 9.82565
+      },
+      "candidate": {
+        "mean_flip": 0.033484949730336666,
+        "p95_frame_flip": 0.036906402371823785,
+        "border_flip": 0.0858974556128184,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 50.73925,
+        "fit_gap_ms_median": 0.43520000000000003,
+        "field_ms_median": 8.45065,
+        "pair_ready_ms_median": 51.588350000000005,
+        "cpu_fit_ms_median": 0.17695
+      }
+    },
+    {
+      "scene": "hud",
+      "baseline": {
+        "mean_flip": 0.25859688874334097,
+        "p95_frame_flip": 0.49046240746974945,
+        "border_flip": 0.10091384127736092,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 52.658100000000005,
+        "fit_gap_ms_median": 0.5219,
+        "field_ms_median": 10.588799999999999
+      },
+      "candidate": {
+        "mean_flip": 0.027916694680849712,
+        "p95_frame_flip": 0.02911998154595494,
+        "border_flip": 0.0757680411140124,
+        "generated_frames": 12,
+        "gpu_pair_ms_median": 43.7908,
+        "fit_gap_ms_median": 0.4461,
+        "field_ms_median": 7.5851500000000005,
+        "pair_ready_ms_median": 44.5907,
+        "cpu_fit_ms_median": 0.16505
+      }
+    }
+  ]
+}

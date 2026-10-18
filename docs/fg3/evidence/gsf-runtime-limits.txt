@@ -1,0 +1,7 @@
+Hardware endpoint: not available in current execution environment.
+/dev/dri: absent.
+Vulkan execution: llvmpipe (LLVM 19.1.7); LP_NUM_THREADS=4.
+Local validator: fresh VVL from 4b1aed23; header revision c46850864f4661461b0f6cb9922c058ffea4915e.
+Functional native acceptance: source 9522288, configured output9 Hz/source 3 Hz, not Deck performance.
+90Hz software attempts: missed generated deadlines; preserved as failures.
+SteamOS physical acceptance: unperformed; no DRM/page-flip/optical or game contention claim.

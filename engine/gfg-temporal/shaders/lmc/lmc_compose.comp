@@ -1,0 +1,100 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Full-resolution output at time PC.t (reference: LMC2._synth): each pixel
+// takes, of the 4 nearest half-res choices, the one whose trajectory matches
+// best at full resolution (one-sided choices are judged by their mode), then
+// one two-sided or one-sided fetch.  HUD pixels copy the nearest real frame.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+#include "lmc_color.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+#ifndef OUTPUT_FMT
+#define OUTPUT_FMT rgba8
+#endif
+layout(set = 1, binding = 0, OUTPUT_FMT) uniform writeonly image2D dst;
+
+vec4 output_color(vec4 value){return P.pad1!=0?value.bgra:value;}
+
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(p, P.size.xy))) return;
+    float t = PC.t;
+    ivec2 hs = P.size.zw;
+    vec2 pf = vec2(p);
+    vec3 ca0 = texelFetch(srcA, p, 0).rgb, cb0 = texelFetch(srcB, p, 0).rgb;
+#ifdef GFG_LINEAR_PQ
+    vec3 outc = mix(composition_rgb(0,pf),composition_rgb(1,pf),t);
+#else
+    vec3 outc = ca0 * (1.0 - t) + cb0 * t;
+#endif
+    if ((PC.flags & 1) != 0) {  // hold: the newest real frame
+        imageStore(dst, p, output_color(vec4(cb0, 1.0)));
+        return;
+    }
+#ifdef GFG_LINEAR_PQ
+    // Exact duplicate recovery must keep every packed10 level. A redundant
+    // PQ -> FP16-nits -> PQ round trip can otherwise move a code by one LSB.
+    if((PC.flags&16)!=0 && G.hist[1]==0u) {
+        imageStore(dst,p,output_color(vec4(cb0,1.0)));return;
+    }
+#endif
+    // A cut is recovery, not two successful generated frames. The explicit
+    // flag keeps this experiment from altering existing LMC behavior.
+    if((PC.flags&16)!=0 && G.pad_g0!=0u) {
+        imageStore(dst,p,output_color(vec4(t>=0.5?cb0:ca0,1.0)));
+        return;
+    }
+    if (imageLoad(hudCount, p).r >= uint(P.hud_pairs)) {
+        imageStore(dst, p, output_color(vec4(t >= 0.5 ? cb0 : ca0, 1.0)));
+        return;
+    }
+    vec2 c = (pf + 0.5) / 2.0 - 0.5;
+    ivec2 c0 = ivec2(floor(c));
+    float best = 1e30;
+    // a choice equal to an earlier one gives the same error and colour and cannot
+    // win (strict <): neighbouring cells mostly agree, so most pixels fetch once
+    // Avoid old glslang aliasing this Function array with the std430 palette
+    // array type (which carries ArrayStride). Only the first four are used.
+    vec4 seen[5];
+    [[unroll]] for (int k = 0; k < 4; ++k) {
+        ivec2 q = clamp(c0 + ivec2(k & 1, k >> 1), ivec2(0), hs - 1);
+        vec4 s = SEL.sel[q.y * hs.x + q.x];
+        seen[k] = s;
+        bool rep = false;
+        [[unroll]] for (int u = 0; u < k; ++u) rep = rep || seen[u].xyz == s.xyz;
+        if (rep) continue;
+        {
+            vec2 v = s.xy * 2.0;
+            int m = int(s.z + 0.5);
+            vec2 a = pf - t * v, b = pf + (1.0 - t) * v;
+            // A half-resolution cell may be valid while this full-resolution
+            // pixel crosses the image boundary. Do not turn clamped edge
+            // texels into an invented second surface (a stretched/ghost edge).
+            bool valid_a = inside(a, P.size.xy), valid_b = inside(b, P.size.xy);
+            if (m == 3 && !valid_a) m = valid_b ? 2 : 0;
+            if (m == 3 && !valid_b) m = valid_a ? 1 : 0;
+            if ((m == 1 && !valid_a) || (m == 2 && !valid_b)) m = 0;
+            // only the two-sided error needs both fetches; one-sided modes fetch their side
+            vec3 ca = (m == 3 || m == 1) ? full_rgb(0, a) : vec3(0.0);
+            vec3 cb = (m == 3 || m == 2) ? full_rgb(1, b) : vec3(0.0);
+            vec3 d = abs(ca - cb);
+            float e = m == 3 ? d.r + d.g + d.b : (m == 0 ? 9.0 : 1.5);
+#ifdef GFG_LINEAR_PQ
+            if (e < best) {
+                best = e;
+                outc = m == 3 ? mix(composition_rgb(0,a),composition_rgb(1,b),t) :
+                    m == 1 ? composition_rgb(0,a) : m == 2 ? composition_rgb(1,b) :
+                    mix(composition_rgb(0,pf),composition_rgb(1,pf),t);
+            }
+#else
+            vec3 col = m == 3 ? ca * (1.0 - t) + cb * t : (m == 1 ? ca : (m == 2 ? cb : ca0 * (1.0 - t) + cb0 * t));
+            if (e < best) { best = e; outc = col; }
+#endif
+        }
+    }
+#ifdef GFG_LINEAR_PQ
+    imageStore(dst,p,output_color(vec4(composition_encode(outc),1.0)));
+#else
+    imageStore(dst, p, output_color(vec4(outc, 1.0)));
+#endif
+}

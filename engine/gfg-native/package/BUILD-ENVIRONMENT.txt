@@ -1,0 +1,40 @@
+GFG Native FG internal.10 / Decky 2.1.5-gsf.10 — experimental
+===========================================================
+
+Read MANIFEST.json for the exact source commit, ELF hash and build environment.
+No physical 90-Hz/OLED, SteamOS/Proton-game, quality, power or latency acceptance
+is claimed. Software Vulkan checks do not replace Steam Deck execution.
+
+The locally published internal.10 ELF was built with Debian GCC14.2.0,
+glslang15.2.0 and Vulkan-Headers v1.4.365 against an explicit glibc2.31 SDK
+extracted from signed Debian bullseye APT packages. The ELF requires symbols
+only through GLIBC2.17 and was loaded using the actual glibc2.31 loader.
+No SDK libc is shipped or installed. Host Mesa/loader supply software WSI tests.
+Rebuilding the corresponding source with the same SDK/tools produces an
+identical ELF. SOURCE/docs/fg3/STEAM_ABI_BUILD.md records package hashes and
+SDK symlink relocation; SOURCE/scripts/build_native_steam_abi.sh is the helper.
+
+Example after unpacking (set verified SDK and pinned tools first):
+  GFG_GLIBC_SYSROOT=/path/to/verified-glibc-2.31-sdk \
+  VULKAN_HEADERS=/path/to/Vulkan-Headers-v1.4.365/include \
+  GFG_CORE_BUILD=/tmp/gfg-core GFG_NATIVE_BUILD=/tmp/gfg-native \
+    bash SOURCE/scripts/build_native_steam_abi.sh
+  cmp libVkLayer_gfg_native.so /tmp/gfg-native/libVkLayer_gfg_native.so
+
+The separate Native FG3 GPU validation GitHub Actions job uses ubuntu-22.04,
+gcc-12 and its host ABI. Its ZIP records its own source/build identity and must
+not be confused with the local SDK-built artifact. It runs core/native
+contracts, GSF x2/x3 pixel/order checks, Vulkan validation, isolated archive
+startup/installation/rollback and corresponding-source rebuild checks. A source
+push or a local pass does not establish a successful remote CI run.
+
+Install component: bash install.sh. Use the absolute Steam launcher path printed
+by the installer. The Decky package stages the component automatically on plugin
+startup, initially Off. Its native panel shows readiness, build and launch path.
+An absent launcher cannot be bypassed by adding --off: remove the entire GFG
+Steam prefix to restore the unwrapped command. internal.6 is withdrawn.
+
+Rollback: bash rollback.sh. Remove: bash uninstall.sh. Existing launch options,
+including --off, retain a passthrough when the component is removed.
+Diagnostics are optional and local; an unavailable capture directory must not
+block the game. No manual log collection is required by this package update.

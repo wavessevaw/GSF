@@ -1,0 +1,60 @@
+make: Entering directory '/tmp/gfg-fg3-archive-ur98vqw6/GFG-Native-FG/SOURCE/engine/gfg-temporal'
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/me.spv shaders/me.comp >/dev/null
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/stats.spv shaders/stats.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/me.spv
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/stats.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/classify.spv shaders/classify.comp >/dev/null
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lists.spv shaders/lists.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lists.spv
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/classify.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/reuse.spv shaders/reuse.comp >/dev/null
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/light.spv shaders/light.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/reuse.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/full.spv shaders/full.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/light.spv
+glslangValidator -V --target-env vulkan1.2 -DLUMA_FMT=r16f -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r16f.spv shaders/luma.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/full.spv
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r16f.spv
+glslangValidator -V --target-env vulkan1.2 -DLUMA_FMT=r32f -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r32f.spv shaders/luma.comp >/dev/null
+glslangValidator -V --target-env vulkan1.2 -DLUMA_FMT=r16f -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r16f.spv shaders/down.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r32f.spv
+glslangValidator -V --target-env vulkan1.2 -DLUMA_FMT=r32f -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r32f.spv shaders/down.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r16f.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_prep.spv shaders/lmc/lmc_prep.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r32f.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_down.spv shaders/lmc/lmc_down.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_prep.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_search.spv shaders/lmc/lmc_search.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_down.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_layers.spv shaders/lmc/lmc_layers.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_search.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_hyp.spv shaders/lmc/lmc_hyp.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_layers.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_irls.spv shaders/lmc/lmc_irls.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_hyp.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_palette.spv shaders/lmc/lmc_palette.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_irls.spv
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_palette.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_field.spv shaders/lmc/lmc_field.comp >/dev/null
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_masked.spv shaders/lmc/lmc_masked.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_masked.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_orphan.spv shaders/lmc/lmc_orphan.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_field.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_select.spv shaders/lmc/lmc_select.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_orphan.spv
+glslangValidator -V --target-env vulkan1.2 -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_compose.spv shaders/lmc/lmc_compose.comp >/dev/null
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_select.spv
+spirv-val --target-env vulkan1.2 /tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_compose.spv
+python3 tools/embed_spirv.py /tmp/gfg-fg3-archive-ur98vqw6/source-build/te_shaders.h me=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/me.spv stats=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/stats.spv classify=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/classify.spv lists=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lists.spv reuse=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/reuse.spv light=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/light.spv full=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/full.spv luma_r16f=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r16f.spv luma_r32f=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/luma_r32f.spv down_r16f=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r16f.spv down_r32f=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/down_r32f.spv lmc_prep=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_prep.spv lmc_down=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_down.spv lmc_search=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_search.spv lmc_layers=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_layers.spv lmc_hyp=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_hyp.spv lmc_irls=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_irls.spv lmc_palette=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_palette.spv lmc_field=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_field.spv lmc_masked=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_masked.spv lmc_orphan=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_orphan.spv lmc_select=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_select.spv lmc_compose=/tmp/gfg-fg3-archive-ur98vqw6/source-build/spv/lmc_compose.spv
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/workspace/.gfg-vulkan/vkh/include -I/tmp/gfg-fg3-archive-ur98vqw6/source-build -Isrc -c -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_engine.o src/te_engine.c
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/workspace/.gfg-vulkan/vkh/include -I/tmp/gfg-fg3-archive-ur98vqw6/source-build -Isrc -c -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_scheduler.o src/te_scheduler.c
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/workspace/.gfg-vulkan/vkh/include -I/tmp/gfg-fg3-archive-ur98vqw6/source-build -Isrc -c -o /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_lmc_fit.o src/te_lmc_fit.c
+ar rcs /tmp/gfg-fg3-archive-ur98vqw6/source-build/libgfg-temporal.a /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_engine.o /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_scheduler.o /tmp/gfg-fg3-archive-ur98vqw6/source-build/pic/te_lmc_fit.o
+make: Leaving directory '/tmp/gfg-fg3-archive-ur98vqw6/GFG-Native-FG/SOURCE/engine/gfg-temporal'
+make: Entering directory '/tmp/gfg-fg3-archive-ur98vqw6/GFG-Native-FG/SOURCE/engine/gfg-native'
+mkdir -p /tmp/gfg-fg3-archive-ur98vqw6/native-build
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/workspace/.gfg-vulkan/vkh/include -shared -Wl,-z,defs -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src -o /tmp/gfg-fg3-archive-ur98vqw6/native-build/libVkLayer_gfg_native.so src/layer.c src/gpu_bridge.c /tmp/gfg-fg3-archive-ur98vqw6/source-build/libgfg-temporal.a -ldl -lm -lpthread
+mkdir -p /tmp/gfg-fg3-archive-ur98vqw6/native-build
+cp VkLayer_gfg_native.json /tmp/gfg-fg3-archive-ur98vqw6/native-build/VkLayer_gfg_native.json
+make: Leaving directory '/tmp/gfg-fg3-archive-ur98vqw6/GFG-Native-FG/SOURCE/engine/gfg-native'
+Packaged ELF matches corresponding-source rebuild byte for byte PASS

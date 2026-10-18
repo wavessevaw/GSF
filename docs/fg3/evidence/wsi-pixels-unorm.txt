@@ -1,0 +1,3 @@
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=3 present_mode=2 inflight=2 algo=tiles verify=0 startup_ms=88.68
+GPU WSI observer: real=4 synthetic=6 content=PASS handoff_order=PASS physical_scanout=unobserved
+GFG native: 4 real WSI acquire/submit/present cycles PASS

@@ -1,0 +1,52 @@
+{
+  "baseline": "v2.1.2-te.7",
+  "grid": [
+    160,
+    100
+  ],
+  "device": "host CPU, not Steam Deck",
+  "results": [
+    {
+      "scene": "translation",
+      "models_bit_exact": 16,
+      "baseline_ms": 1.3509220000000002,
+      "candidate_ms": 0.9666295,
+      "speedup": 1.397559250984995
+    },
+    {
+      "scene": "rotation",
+      "models_bit_exact": 16,
+      "baseline_ms": 1.6444255,
+      "candidate_ms": 1.1431185,
+      "speedup": 1.4385433356209354
+    },
+    {
+      "scene": "planes",
+      "models_bit_exact": 16,
+      "baseline_ms": 2.3462885,
+      "candidate_ms": 1.746529,
+      "speedup": 1.3434008252940546
+    },
+    {
+      "scene": "outliers",
+      "models_bit_exact": 16,
+      "baseline_ms": 2.0995369999999998,
+      "candidate_ms": 1.997392,
+      "speedup": 1.051139185497889
+    },
+    {
+      "scene": "noise",
+      "models_bit_exact": 16,
+      "baseline_ms": 0.6731495,
+      "candidate_ms": 0.7163275,
+      "speedup": 0.9397231015143213
+    },
+    {
+      "scene": "empty",
+      "models_bit_exact": 16,
+      "baseline_ms": 0.334535,
+      "candidate_ms": 0.33065,
+      "speedup": 1.011749584152427
+    }
+  ]
+}
