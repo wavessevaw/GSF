@@ -131,6 +131,7 @@ def main():
                        GFG_TEST_BADGE=(f'B {source}>{output} FPS' if active else f'A {source} FPS'))
             if active:
                 env.update(GFG_NATIVE_ALGO='lmc-gpu',GFG_NATIVE_OUTPUT_HZ=str(output),
+                            GFG_NATIVE_LMC_TIER='2',
                            GFG_TEST_ALLOW_SKIPS='1',GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY=str(max(2,source)),
                            GFG_NATIVE_TELEMETRY=str(run/(label+'.jsonl')))
             observed={'requested_layers':env.get('VK_INSTANCE_LAYERS','')}
