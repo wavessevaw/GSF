@@ -983,6 +983,11 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     }
     cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?4:0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
+    /* In-game LMC follows measured source intervals and the compositor's
+     * refresh query. This fallback seeds the clock; unlike OUTPUT_HZ it does
+     * not suppress WSI refresh updates or impose a source FPS target. */
+    if(cd.params.algorithm==TE_ALGO_LMC_GPU && env_flag("GFG_NATIVE_PACING"))
+        fg->clock.period_ns=1000000000ull/90;
     const char *rate=getenv("GFG_NATIVE_OUTPUT_HZ");
     /* Explicit pacing also applies to GPU LMC; its default stays unpaced.
      * Correctness probes and visible cadence demos are separate contracts. */

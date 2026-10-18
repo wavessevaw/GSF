@@ -52,6 +52,8 @@ int main(void) {
     /* 27/42 -> 54/84: enough slots for one generator output per real frame. */
     assert(replay(27,2,600)>=590);
     assert(replay(42,2,600)>=590);
+    assert(replay(40,2,600)>=590);
+    assert(replay(45,2,600)>=590);
     /* 60 -> 90: every other source pair has an available synthetic slot.
      * Do NOT aim for 120 on a 90 Hz compositor. */
     const unsigned x2_60=replay(60,2,600);
@@ -76,5 +78,20 @@ int main(void) {
     assert(c.discontinuity && !c.mask);
     t+=ns/27;gfg_frame_clock_pair(&c,t,2);assert(c.real_ns>=t);
     gfg_frame_clock none={0};gfg_frame_clock_pair(&none,t,3);assert(!none.real_ns);
+    /* In-game 2x is a multiplier, not a locked source FPS. Sweep through
+     * 30..45 with jitter, cross the 45-FPS display budget, then recover. */
+    gfg_frame_clock game={.period_ns=ns/90};t=10*ns;unsigned admitted=0;
+    for(unsigned i=0;i<3000;++i) {
+        unsigned fps=i<2000?30+(i/25)%16:i<2500?60:40;
+        t+=ns/fps+(i%2?100000:0);
+        gfg_frame_clock_pair(&game,t,2);
+        assert(game.real_ns>=t && game.real_ns<=t+2*game.interval_ns);
+        if(game.mask) {
+            assert(game.mask==1 && game.target_ns[0]>t && game.target_ns[0]<game.real_ns);
+            assert(game.real_ns-game.target_ns[0]>=game.period_ns);
+            ++admitted;
+        }
+    }
+    assert(admitted>2600 && admitted<2800);
     puts("frame-clock: bounded 27/42/60/90Hz slots, x2/x3, rate transitions PASS");
 }
