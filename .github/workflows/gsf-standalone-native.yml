@@ -1,0 +1,33 @@
+name: GSF Standalone Native
+on:
+  push:
+    branches: [main, 'migration/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-compile-and-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shader and software Vulkan dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools xvfb python3-numpy python3-skimage
+      - name: Pin Vulkan header ABI for experimental WSI extensions
+        run: git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build full Temporal Engine and GPU LMC
+        run: make -C engine/gfg-temporal all lib
+      - name: Build actual native Vulkan implicit layer (GPU transport)
+        run: |
+          make -C engine/gfg-native ENABLE_TE=1 VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" BUILD=build-standalone layer
+          test -s engine/gfg-native/build-standalone/libVkLayer_gfg_native.so
+      - name: Native deterministic ownership and FIFO contracts
+        run: |
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" output-owner virtual-source frame-clock present-ids present-chain offscreen-source-pool
+      - name: Check build artifacts exist
+        run: |
+          test -s engine/gfg-temporal/build/libgfg-temporal.a
+          test -s engine/gfg-native/build-standalone/libVkLayer_gfg_native.so
