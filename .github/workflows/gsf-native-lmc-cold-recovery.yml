@@ -1,0 +1,59 @@
+name: GSF Actual GPU LMC 5Hz Strict Correctness
+# Strict 0-skips and distinct GPU pixels at 5Hz source. This is NOT real-time 45-to-90 WSI pacing; draft PR #4 remains distinct.
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-temporal/src/**'
+      - 'engine/gfg-temporal/shaders/**'
+      - 'engine/gfg-native/tests/wsi_gpu_smoke.c'
+      - 'engine/gfg-native/scripts/gsf_lmc_cold_recovery.py'
+      - '.github/workflows/gsf-native-lmc-cold-recovery.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gsf-lmc-cold-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  actual-gpu-compute:
+    name: Real GPU LMC 5Hz strict / ${{ matrix.order }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [native-first, validation-first]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actual software Vulkan compute and GLSL build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-12 g++-12 make libvulkan-dev libxcb1-dev xvfb xauth mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools python3
+      - name: Fetch v1.4.365 Vulkan headers
+        run: git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Compile full GPU LMC Temporal Engine
+        run: |
+          set -euo pipefail
+          mkdir -p "gsf-lmc-${{ matrix.order }}"
+          make -C engine/gfg-temporal all lib 2>&1 | tee "gsf-lmc-${{ matrix.order }}/te-build.log"
+          test -s engine/gfg-temporal/build/libgfg-temporal.a
+      - name: Build real native layer and real Vulkan WSI GPU test
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-cold VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-cold/wsi-gpu-smoke 2>&1 | tee "gsf-lmc-${{ matrix.order }}/native-build.log"
+          test -s engine/gfg-native/build-cold/libVkLayer_gfg_native.so
+      - name: 'Actual LMC GPU pixels: 12 real plus 22 synthetic, zero skips at 5Hz'
+        run: |
+          python3 engine/gfg-native/scripts/gsf_lmc_cold_recovery.py \
+            --order "${{ matrix.order }}" --timeout 180 --out "gsf-lmc-${{ matrix.order }}"
+      - name: Preserve exact result, counter evidence and full build/WSI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsf-real-lmc-cold-${{ matrix.order }}
+          path: gsf-lmc-${{ matrix.order }}/
+          retention-days: 21
+          if-no-files-found: warn
