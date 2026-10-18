@@ -75,6 +75,7 @@ void gfg_gpu_fg_set_output_thread(gfg_gpu_fg *fg, pthread_mutex_t *wsi);
 /* Only the output worker enables this around its call; synchronous metadata
  * fallback must never sleep on the application's Present thread. */
 void gfg_gpu_fg_set_output_pacing(gfg_gpu_fg *fg,int active);
+void gfg_gpu_fg_set_output_pressure(gfg_gpu_fg *fg,int active);
 /* Output worker only; timestamps were captured before mailbox backpressure. */
 void gfg_gpu_fg_set_source(gfg_gpu_fg *fg,uint64_t captured_ns,uint64_t admitted_ns,uint64_t serial);
 uint64_t gfg_gpu_fg_source_period_ns(gfg_gpu_fg *fg);

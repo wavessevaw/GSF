@@ -47,6 +47,25 @@ int main(void) {
     s=(te_submit){0};prepare_generation(&plan,0,10,89,&s);assert(!s.count);
     plan.clock.period_ns=0;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,UINT64_MAX,&s)==1 && s.count==1);
+    gfg_gpu_fg_set_output_pressure(&plan,1);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,0,&s)==0 && !s.count && s.signal_first==12);
+    gfg_gpu_fg_set_output_pressure(&plan,0);
+    const uint64_t now=10000000000ull;
+    plan.clock=(gfg_frame_clock){.period_ns=11111111,.mask=1,.target_ns={now+11000000,now+22000000,now+33000000}};
+    plan.last_generation_dispatch_ns=now;plan.gpu_budget_ns[0]=10000000;
+    s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now,&s) && !s.count);
+    plan.gpu_budget_ns[0]=6000000;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,now,&s)==1 && s.count==1);
+    plan.gpu_budget_ns[0]=10000000;
+    s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now+2000000000ull,&s)); /* expired: no probe */
+    plan.clock.target_ns[0]=now+2011000000ull;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000000ull,&s)==1 && s.count==1);
+    plan.last_generation_dispatch_ns=now+2000000000ull;
+    s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now+2000000001ull,&s));
+    plan.multiplier=3;plan.gpu_budget_ns[0]=12000000;plan.clock.mask=3;
+    plan.clock.target_ns[1]=now+2022000000ull;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000001ull,&s)==2);
+    assert(s.count==1 && s.timestamps[0]==2.0f/3.0f && !s.defer_second);
     double samples[2]={50,10},median,p95;percentile(samples,2,&median,&p95);
     assert(median==30 && p95==48 && p95>=median);
     gfg_gpu_fg fg = fixture(2);

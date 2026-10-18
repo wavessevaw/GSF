@@ -119,7 +119,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.2 · Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.3 · Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

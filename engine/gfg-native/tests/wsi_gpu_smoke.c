@@ -60,6 +60,13 @@ static int env_1(const char *name) {
     const char *v = getenv(name);
     return v && !strcmp(v, "1");
 }
+static uint64_t tick_ns(void) {
+    struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);
+    return (uint64_t)t.tv_sec*1000000000ull+t.tv_nsec;
+}
+static int compare_ns(const void *a,const void *b) {
+    uint64_t x=*(const uint64_t *)a,y=*(const uint64_t *)b;return x<y?-1:x>y;
+}
 static int instance_ext(const char *layer, const char *name) {
     uint32_t n = 0;
     if (vkEnumerateInstanceExtensionProperties(layer, &n, NULL) != VK_SUCCESS || !n) return 0;
@@ -485,6 +492,9 @@ int main(void) {
     uint64_t source_next = (uint64_t)source_origin.tv_sec*1000000000ull + source_origin.tv_nsec;
     uint64_t source_first = 0, source_last = 0, steady_first = 0;
     const int absolute_pacing = env_1("GFG_TEST_ABSOLUTE_PACING");
+    const int variable_source=env_1("GFG_TEST_VARIABLE_SOURCE");
+    uint64_t *acquire_ns=calloc(frames,sizeof(*acquire_ns)),*present_ns=calloc(frames,sizeof(*present_ns));
+    REQUIRE(acquire_ns && present_ns);
     for (uint32_t frame = 0; frame < frames; frame++) {
         const uint32_t f = frame % INFLIGHT;
         TRY(vkWaitForFences(device, 1, &fences[f], VK_TRUE, UINT64_MAX)); /* app-side wait */
@@ -493,7 +503,9 @@ int main(void) {
         const char *label = getenv("GFG_TEST_BADGE");
         if (label) badge(staging_map[f], ext.width, ext.height, label);
         uint32_t index = UINT32_MAX;
+        uint64_t api_start=tick_ns();
         TRY(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, acquired[f], VK_NULL_HANDLE, &index));
+        acquire_ns[frame]=tick_ns()-api_start;
         REQUIRE(index < image_count);
         TRY(vkResetCommandBuffer(cmd[f], 0));
         VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -548,6 +560,7 @@ int main(void) {
         if (!frame) source_first = source_last;
         if (frame == 2) steady_first = source_last;
         VkResult presented=vkQueuePresentKHR(queue,&pi);
+        present_ns[frame]=tick_ns()-source_last;
         REQUIRE(present_fence.pNext == &dynamic && dynamic.pNext == &regions);
         REQUIRE(app_mode == swci.presentMode && present_region.pRectangles == &rect);
         if(env_1("GFG_TEST_EXPECT_RECREATE") && frame+1==frames)
@@ -596,7 +609,11 @@ int main(void) {
         if(source_hz) {
             struct timespec deadline;clock_gettime(CLOCK_MONOTONIC,&deadline);
             if (absolute_pacing) {
-                const uint64_t period = 1000000000ull/source_hz;
+                /* A variable source, not a fixed 30->60 assumption: ordinary
+                 * 30..45 FPS, short delivery bursts, and a scene-change gap. */
+                uint64_t period = 1000000000ull/source_hz;
+                if(variable_source)period=frame%40<4?1000000ull:
+                    frame%40==20?120000000ull:1000000000ull/(30+(frame/5)%16);
                 const uint64_t now = (uint64_t)deadline.tv_sec*1000000000ull + deadline.tv_nsec;
                 source_next += period;
                 /* Do not burst through missed source slots after cold startup. */
@@ -614,6 +631,15 @@ int main(void) {
         frames, source_hz, source_last>source_first ?
         (double)(frames-1)*1e9/(double)(source_last-source_first) : 0.0,
         frames>3 && source_last>steady_first ? (double)(frames-3)*1e9/(double)(source_last-steady_first) : 0.0, absolute_pacing);
+    if(frames>3) {
+        unsigned n=frames-3;
+        qsort(acquire_ns+3,n,sizeof(*acquire_ns),compare_ns);
+        qsort(present_ns+3,n,sizeof(*present_ns),compare_ns);
+        printf("GSF_API_LATENCY variable=%d samples=%u acquire_p50_ms=%.6f acquire_p95_ms=%.6f present_p50_ms=%.6f present_p95_ms=%.6f\n",
+            variable_source,n,acquire_ns[3+n/2]/1e6,acquire_ns[3+(n-1)*95/100]/1e6,
+            present_ns[3+n/2]/1e6,present_ns[3+(n-1)*95/100]/1e6);
+    }
+    free(acquire_ns);free(present_ns);
     if(env_1("GFG_TEST_RECREATE")) {
         VkSwapchainKHR replacement=VK_NULL_HANDLE;
         swci.oldSwapchain=swapchain;
