@@ -94,10 +94,11 @@ class GpuSampler:
                 if self.device is None:
                     file.write(json.dumps(sample(None), separators=(',', ':')) + '\n')
                     return
-                while not self.stop_event.is_set():
+                while True:
                     file.write(json.dumps(sample(self.device), separators=(',', ':')) + '\n')
                     file.flush()
-                    self.stop_event.wait(self.interval_seconds)
+                    if self.stop_event.wait(self.interval_seconds):
+                        break
         except OSError:
             # Sysfs and diagnostics must NEVER prevent original game execution.
             pass

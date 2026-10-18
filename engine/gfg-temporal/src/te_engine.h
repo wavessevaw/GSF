@@ -89,10 +89,6 @@ typedef struct {
     int profiled;                        /* per-executor times valid (else -1) */
     int held;                            /* no previous frame: outputs copy the new real frame */
     uint64_t sequence;                   /* submission number of this pair (1 = first submit) */
-    uint64_t submit_return_ns;           /* CLOCK_MONOTONIC after TE QueueSubmit */
-    uint64_t gpu_start_ticks;            /* raw query 0, valid when timed */
-    double gpu_timestamp_period_ns;
-    uint32_t gpu_timestamp_valid_bits;
     uint64_t outputs_completed_total;    /* all outputs of this context whose GPU work finished */
     double stage_ms[TE_STAGE_COUNT];     /* once per pair */
     double lmc_ms[TE_LMC_PROF_COUNT];    /* LMC: per analysis pass (-1 when not timed) */
@@ -189,6 +185,11 @@ uint32_t te_context_outputs(const te_context* ctx);
 VkResult te_output_control(te_context* ctx,uint32_t output,uint64_t ready_value,
                          uint32_t* scene_cut,int* held,int* duplicate);
 VkResult te_last_stats(te_context* ctx, te_pair_stats* stats);
+/* ABI-safe optional timestamp details. Does NOT alter te_pair_stats layout,
+ * which is also consumed by older native layers in regression tests. */
+VkResult te_last_calibration_fields(te_context* ctx, uint64_t *sequence,
+    uint64_t *submit_return_ns, uint64_t *gpu_start_ticks,
+    double *gpu_timestamp_period_ns, uint32_t *gpu_timestamp_valid_bits);
 VkResult te_download_rgb(te_context* ctx, uint32_t output, uint8_t* rgb);
 
 /* Diagnostics copies of the newest pair (after te_wait_idle). */

@@ -400,10 +400,19 @@ static void gpu_sample(gfg_gpu_fg *fg) {
     if(s.timed && s.outputs)for(unsigned k=0;k<s.outputs && k<2;++k)
         if(s.ready_ms[k]>0 && s.ready_ms[k]<10000.0)
             fg->gpu_budget_ns[k]=(uint64_t)(s.ready_ms[k]*1000000.0);
+    uint64_t cal_seq=0,submit_return_ns=0,gpu_start_ticks=0;
+    double gpu_tick_period_ns=0;
+    uint32_t timestamp_valid_bits=0;
+    if(te_last_calibration_fields(fg->context,&cal_seq,&submit_return_ns,
+        &gpu_start_ticks,&gpu_tick_period_ns,&timestamp_valid_bits)!=VK_SUCCESS ||
+       cal_seq!=s.sequence) {
+        submit_return_ns=0;gpu_start_ticks=0;gpu_tick_period_ns=0;
+        timestamp_valid_bits=0;
+    }
     gsf_clock_estimate estimate={0};
-    if(s.timed && s.gpu_timestamp_valid_bits==64)
-        estimate=gsf_calibration_estimate(&fg->calibrated,s.gpu_start_ticks,
-            s.gpu_timestamp_period_ns,s.submit_return_ns);
+    if(s.timed && timestamp_valid_bits==64)
+        estimate=gsf_calibration_estimate(&fg->calibrated,gpu_start_ticks,
+            gpu_tick_period_ns,submit_return_ns);
     else {
         estimate=(gsf_clock_estimate){.start_text="null",.delay_text="null",
             .calibration_text="null",.deviation_text="null",
@@ -416,9 +425,9 @@ static void gpu_sample(gfg_gpu_fg *fg) {
             "\"gpu_start_cpu_ns\":%s,\"submit_to_gpu_start_ns\":%s,"
             "\"calibration_ns\":%s,\"calibration_max_deviation_ns\":%s,"
             "\"calibration_status\":\"%s\"}\n",
-            (unsigned long long)s.sequence,(unsigned long long)s.submit_return_ns,
-            (unsigned long long)s.gpu_start_ticks,s.gpu_timestamp_valid_bits,
-            s.gpu_timestamp_period_ns,estimate.start_text,estimate.delay_text,
+            (unsigned long long)s.sequence,(unsigned long long)submit_return_ns,
+            (unsigned long long)gpu_start_ticks,timestamp_valid_bits,
+            gpu_tick_period_ns,estimate.start_text,estimate.delay_text,
             estimate.calibration_text,estimate.deviation_text,estimate.reason);
     }
     if(fg->telemetry) {
