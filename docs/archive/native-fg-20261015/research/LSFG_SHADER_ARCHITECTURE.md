@@ -1,0 +1,11 @@
+# LSFG shader architecture: подтверждённые границы
+
+SOURCE VERIFIED: MAKO registry выбирает наборы quality/performance и FP16/FP32 по структурным контрактам ресурсов. Generate получает два source image и три вспомогательных sampled image, storage output, два sampler и timestamp uniform. [engine/mako-backend/src/shaderchains/generate.cpp:55](https://github.com/eugeniosegala/MAKO/blob/edd2946bd3c4281e357bd436e0e7b80df0759576/engine/mako-backend/src/shaderchains/generate.cpp#L55), [engine/mako-backend/src/extraction/shader_registry.cpp:97](https://github.com/eugeniosegala/MAKO/blob/edd2946bd3c4281e357bd436e0e7b80df0759576/engine/mako-backend/src/extraction/shader_registry.cpp#L97).
+
+SOURCE VERIFIED: mipmaps создаёт семь изображений `R8_UNORM`. Gamma1 и Delta1 создают конечные вспомогательные изображения `R16G16B16A16_SFLOAT`; часть scratch переиспользуется после исчерпания времени жизни. [engine/mako-backend/src/shaderchains/mipmaps.cpp:26](https://github.com/eugeniosegala/MAKO/blob/edd2946bd3c4281e357bd436e0e7b80df0759576/engine/mako-backend/src/shaderchains/mipmaps.cpp#L26), [engine/mako-backend/src/shaderchains/gamma1.cpp:22](https://github.com/eugeniosegala/MAKO/blob/edd2946bd3c4281e357bd436e0e7b80df0759576/engine/mako-backend/src/shaderchains/gamma1.cpp#L22), [engine/mako-backend/src/shaderchains/delta1.cpp:36](https://github.com/eugeniosegala/MAKO/blob/edd2946bd3c4281e357bd436e0e7b80df0759576/engine/mako-backend/src/shaderchains/delta1.cpp#L36).
+
+SOURCE VERIFIED: host dispatch extent Generate равен ceil(source/16), многие другие цепочки используют ceil(extent/8). Это количество workgroups; нельзя автоматически объявлять его `LocalSize`. Размер workgroup нужно извлечь из конкретного SPIR-V OpExecutionMode/LocalSizeId и сверить с трассой.
+
+NOT TESTED: instruction mix, точность каждого intermediate tensor, fp16 arithmetic fraction, register pressure, occupancy, bandwidth, фактические коэффициенты/операции модели. Формат изображения FP16 сам по себе не доказывает вычисления FP16.
+
+Исследовательский протокол: локальный structural inspection → список стадий/форматов/разрешений из host source → dispatch trace → локальный shader IR audit → RDNA-профиль. В публичный отчёт входят агрегаты, ссылки и хеши; проприетарные shader binaries/weights не переносятся в Native FG.

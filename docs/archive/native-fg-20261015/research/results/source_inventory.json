@@ -1,0 +1,699 @@
+{
+  "schema": 1,
+  "purpose": "source-inventory-not-hardware-benchmark",
+  "mako_base": {
+    "engine/mako-backend/src/mako.cpp": {
+      "sha256": "6c3e6d41d3d7604815e74474e821329c5dc7e34b1ac1971aecdf9bf55b34f298",
+      "line_count": 1064,
+      "anchors": {
+        "schedulePrepass": [
+          151,
+          869,
+          974,
+          992
+        ],
+        "scheduleFrames(std::span": [
+          122,
+          907
+        ],
+        "flowExtent": [
+          586
+        ],
+        "createShaderRegistry": [
+          290,
+          344
+        ],
+        "readFrameProfile": []
+      }
+    },
+    "engine/mako-backend/src/shaderchains/mipmaps.cpp": {
+      "sha256": "06e53b9b244e60a711721596a7875993ac48febdd0dc5b86d0be749f49277fe6",
+      "line_count": 54,
+      "anchors": {
+        "Mipmaps::render": [
+          52
+        ],
+        "VK_FORMAT_R8_UNORM": [
+          26
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/alpha0.cpp": {
+      "sha256": "e6af8002d4ac2b046d1dbef1116c93653dd4b4a00fee11d1d5202f19fc8d49f2",
+      "line_count": 73,
+      "anchors": {
+        "Alpha0::render": [
+          69
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/alpha1.cpp": {
+      "sha256": "932dd741642ba9727911ea88192fde69072ace55e15d80ffafee8a05f277ee0c",
+      "line_count": 54,
+      "anchors": {
+        "Alpha1::render": [
+          52
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/beta0.cpp": {
+      "sha256": "5c0a3b3438ac97cfd810c4f3d5f660efa06f6e687c27110bbcabd4102863f0f1",
+      "line_count": 50,
+      "anchors": {
+        "Beta0::render": [
+          48
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/beta1.cpp": {
+      "sha256": "4073b48548e31cfdee8db01d47d88e56e0e5b985c740a045ee036907aa9abbf5",
+      "line_count": 81,
+      "anchors": {
+        "Beta1::render": [
+          76
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/gamma0.cpp": {
+      "sha256": "e0a31aea528ad6fff90b20445112c10f1a294d40e4cf5bba613895265544e588",
+      "line_count": 53,
+      "anchors": {
+        "Gamma0::render": [
+          51
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/gamma1.cpp": {
+      "sha256": "9e7776f2c9fb9c7c3931f9b820f23d0a9274b7e10fec2d8d0cc95847e2013433",
+      "line_count": 89,
+      "anchors": {
+        "Gamma1::render": [
+          86
+        ],
+        "prepassScratch": [
+          22,
+          24,
+          27
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/delta0.cpp": {
+      "sha256": "bad5603114553dabad0638efc4d80a7860782e6d11d34a88fba9d290ba7a4478",
+      "line_count": 65,
+      "anchors": {
+        "Delta0::render": [
+          62
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/delta1.cpp": {
+      "sha256": "3c48a4200b964dd4b75583a1ea95bdd36c27ff6aa201a6f7cc5885b625b078d2",
+      "line_count": 117,
+      "anchors": {
+        "Delta1::render": [
+          114
+        ],
+        "deltaScratch": [
+          36
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/generate.cpp": {
+      "sha256": "3eba7d3d16b2ca997ae68f48652931d0e319e02365c17f4e720dee0a428e7ae5",
+      "line_count": 57,
+      "anchors": {
+        "Generate::render": [
+          55
+        ],
+        "dispatchExtent": [
+          52,
+          56
+        ]
+      }
+    },
+    "engine/mako-backend/src/extraction/shader_registry.cpp": {
+      "sha256": "0a669075518de2865ef387d9c6f7cf39d61dc2ee69edcd6dddbb1ba832067fdb",
+      "line_count": 176,
+      "anchors": {
+        "buildShaderRegistry": [
+          97
+        ]
+      }
+    },
+    "engine/mako-backend/src/extraction/lsfg_shader_set.cpp": {
+      "available": false
+    },
+    "engine/mako-backend/src/helpers/managed_shader.cpp": {
+      "sha256": "c941c0b7f56714897b10bd58b8ceed01d2103a386fc4996468a1ef70b1509e5e",
+      "line_count": 139,
+      "anchors": {
+        "VK_QUEUE_FAMILY_IGNORED": [
+          95,
+          96,
+          111,
+          112
+        ],
+        "ManagedShader::dispatch": [
+          132
+        ]
+      }
+    },
+    "engine/mako-backend/src/helpers/temporal_phases.hpp": {
+      "sha256": "21c2142cc567c1e68212f4839a998451764c652372461e1487fa69517b2647da",
+      "line_count": 18,
+      "anchors": {
+        "alphaHistoryCounts": [
+          11,
+          14
+        ],
+        "std::lcm": [
+          15
+        ]
+      }
+    },
+    "engine/mako-render/src/entrypoint.cpp": {
+      "sha256": "a532e9fffa1b661ec8b5dd8a867672bc248246d661f64dc686038b61afff9353",
+      "line_count": 2984,
+      "anchors": {
+        "myvkQueuePresentKHR": [
+          2479,
+          2924
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/resources.cpp": {
+      "sha256": "d0ccdc502c339ebd34f77370b4a97aeeefd4ec557a9c7357cf099d7056e7ebd0",
+      "line_count": 805,
+      "anchors": {
+        "sourceFds": [
+          166,
+          167,
+          171,
+          181,
+          199
+        ],
+        "openContext": [
+          198
+        ],
+        "effectiveFlowScale": [
+          203,
+          451,
+          537,
+          549
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/present/generated_frames.cpp": {
+      "sha256": "9384a8f271a317470de3771abcae1ab18e17888126fb991b19dbb7090f2d4bc2",
+      "line_count": 569,
+      "anchors": {
+        "blitImage": [
+          395
+        ],
+        "presentGeneratedFrames": [
+          37
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/present/admission.cpp": {
+      "sha256": "abeae477951e7c43c725688c0406d44d71968d56a64db16b26c367c769d2ac41",
+      "line_count": 462,
+      "anchors": {
+        "recoverBackendIfReady": [
+          46
+        ],
+        "prepareFramePlan": [
+          104
+        ]
+      }
+    },
+    "engine/mako-render/src/adaptive_scheduler.cpp": {
+      "sha256": "478b3c57a392ecb9e49edf99bf1134e7fdf822f0df1e2b6eba3e94512a63074d",
+      "line_count": 2705,
+      "anchors": {
+        "desiredOutputsPerRealFrame": [
+          223,
+          224,
+          234,
+          861,
+          878,
+          895,
+          930,
+          938,
+          1037,
+          1316,
+          1326,
+          1334,
+          1414,
+          1468,
+          1478,
+          1769,
+          1782,
+          1811,
+          1819
+        ]
+      }
+    },
+    "engine/mako-cli/src/tools/quality.cpp": {
+      "sha256": "a86302860a91e8d6115e8e90fa9e03b1e13181a82d30a4f5dee3e45fab4e4091",
+      "line_count": 1351,
+      "anchors": {
+        "runTemporal": [
+          550,
+          694
+        ],
+        "sequence.tsv": [
+          618
+        ]
+      }
+    },
+    "engine/mako-cli/src/tools/benchmark.cpp": {
+      "sha256": "9db0dfe73d79f4eb4a8e6056398290309e6344cee78df8f07b3d9f70bc7327b6",
+      "line_count": 204,
+      "anchors": {
+        "benchmark::run": [
+          45
+        ]
+      }
+    }
+  },
+  "mako_current": {
+    "engine/mako-backend/src/mako.cpp": {
+      "sha256": "69a57f5e22c6bb8526d2336bc5391df5fbbb11fc69d3a644d3c498f92437ab3c",
+      "line_count": 1173,
+      "anchors": {
+        "schedulePrepass": [
+          172,
+          945,
+          1073,
+          1096
+        ],
+        "scheduleFrames(std::span": [
+          141,
+          996
+        ],
+        "flowExtent": [
+          611
+        ],
+        "createShaderRegistry": [
+          311,
+          367
+        ],
+        "readFrameProfile": [
+          138,
+          858,
+          859,
+          868
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/mipmaps.cpp": {
+      "sha256": "06e53b9b244e60a711721596a7875993ac48febdd0dc5b86d0be749f49277fe6",
+      "line_count": 54,
+      "anchors": {
+        "Mipmaps::render": [
+          52
+        ],
+        "VK_FORMAT_R8_UNORM": [
+          26
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/alpha0.cpp": {
+      "sha256": "e6af8002d4ac2b046d1dbef1116c93653dd4b4a00fee11d1d5202f19fc8d49f2",
+      "line_count": 73,
+      "anchors": {
+        "Alpha0::render": [
+          69
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/alpha1.cpp": {
+      "sha256": "932dd741642ba9727911ea88192fde69072ace55e15d80ffafee8a05f277ee0c",
+      "line_count": 54,
+      "anchors": {
+        "Alpha1::render": [
+          52
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/beta0.cpp": {
+      "sha256": "5c0a3b3438ac97cfd810c4f3d5f660efa06f6e687c27110bbcabd4102863f0f1",
+      "line_count": 50,
+      "anchors": {
+        "Beta0::render": [
+          48
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/beta1.cpp": {
+      "sha256": "4073b48548e31cfdee8db01d47d88e56e0e5b985c740a045ee036907aa9abbf5",
+      "line_count": 81,
+      "anchors": {
+        "Beta1::render": [
+          76
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/gamma0.cpp": {
+      "sha256": "e0a31aea528ad6fff90b20445112c10f1a294d40e4cf5bba613895265544e588",
+      "line_count": 53,
+      "anchors": {
+        "Gamma0::render": [
+          51
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/gamma1.cpp": {
+      "sha256": "9e7776f2c9fb9c7c3931f9b820f23d0a9274b7e10fec2d8d0cc95847e2013433",
+      "line_count": 89,
+      "anchors": {
+        "Gamma1::render": [
+          86
+        ],
+        "prepassScratch": [
+          22,
+          24,
+          27
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/delta0.cpp": {
+      "sha256": "bad5603114553dabad0638efc4d80a7860782e6d11d34a88fba9d290ba7a4478",
+      "line_count": 65,
+      "anchors": {
+        "Delta0::render": [
+          62
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/delta1.cpp": {
+      "sha256": "3c48a4200b964dd4b75583a1ea95bdd36c27ff6aa201a6f7cc5885b625b078d2",
+      "line_count": 117,
+      "anchors": {
+        "Delta1::render": [
+          114
+        ],
+        "deltaScratch": [
+          36
+        ]
+      }
+    },
+    "engine/mako-backend/src/shaderchains/generate.cpp": {
+      "sha256": "2fdc8d9252b32cb508d9899372648a018bc872a3a1c4c5b108ae78e4c1d45691",
+      "line_count": 58,
+      "anchors": {
+        "Generate::render": [
+          56
+        ],
+        "dispatchExtent": [
+          53,
+          57
+        ]
+      }
+    },
+    "engine/mako-backend/src/extraction/shader_registry.cpp": {
+      "sha256": "1b805f622bdfa9595706f90df35e7b2ada223e14560a82496415ec799298d0a0",
+      "line_count": 148,
+      "anchors": {
+        "buildShaderRegistry": [
+          57
+        ]
+      }
+    },
+    "engine/mako-backend/src/extraction/lsfg_shader_set.cpp": {
+      "sha256": "19e3e0be5f64a643175596260e87039418fb41a11eb93de962d5c100a7f02b74",
+      "line_count": 127,
+      "anchors": {
+        "loadLsfgShaderSet": [
+          35,
+          50
+        ],
+        "translator.translate": [
+          111
+        ]
+      }
+    },
+    "engine/mako-backend/src/helpers/managed_shader.cpp": {
+      "sha256": "c941c0b7f56714897b10bd58b8ceed01d2103a386fc4996468a1ef70b1509e5e",
+      "line_count": 139,
+      "anchors": {
+        "VK_QUEUE_FAMILY_IGNORED": [
+          95,
+          96,
+          111,
+          112
+        ],
+        "ManagedShader::dispatch": [
+          132
+        ]
+      }
+    },
+    "engine/mako-backend/src/helpers/temporal_phases.hpp": {
+      "sha256": "21c2142cc567c1e68212f4839a998451764c652372461e1487fa69517b2647da",
+      "line_count": 18,
+      "anchors": {
+        "alphaHistoryCounts": [
+          11,
+          14
+        ],
+        "std::lcm": [
+          15
+        ]
+      }
+    },
+    "engine/mako-render/src/entrypoint.cpp": {
+      "sha256": "ccd419236f78f7cef358d981030ef420d0b159afdeee6607411817c9bb3f27ca",
+      "line_count": 3376,
+      "anchors": {
+        "myvkQueuePresentKHR": [
+          2821,
+          3312
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/resources.cpp": {
+      "sha256": "15b4c1c8e411430e10355bd26a7223698d51963ffda88ed363c228e3f918df12",
+      "line_count": 814,
+      "anchors": {
+        "sourceFds": [
+          166,
+          167,
+          172,
+          182,
+          200
+        ],
+        "openContext": [
+          199
+        ],
+        "effectiveFlowScale": [
+          204,
+          456,
+          542,
+          554
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/present/generated_frames.cpp": {
+      "sha256": "736e60878d9a57c90f7024913788595a947a203df8dd3b82fa062a4aafb3dbf0",
+      "line_count": 573,
+      "anchors": {
+        "blitImage": [
+          395
+        ],
+        "presentGeneratedFrames": [
+          37
+        ]
+      }
+    },
+    "engine/mako-render/src/swapchain/present/admission.cpp": {
+      "sha256": "ee89b20854431932762cef54be0ce3b0706457d0db50d359638686b57dd3658f",
+      "line_count": 466,
+      "anchors": {
+        "recoverBackendIfReady": [
+          46
+        ],
+        "prepareFramePlan": [
+          104
+        ]
+      }
+    },
+    "engine/mako-render/src/adaptive_scheduler.cpp": {
+      "sha256": "986bf7bea618b67d26508afcf6c2f21291c1468c122238c318cacd423709cf48",
+      "line_count": 3363,
+      "anchors": {
+        "desiredOutputsPerRealFrame": [
+          236,
+          237,
+          247,
+          1040,
+          1060,
+          1077,
+          1112,
+          1120,
+          1212,
+          1501,
+          1511,
+          1519,
+          1599,
+          1653,
+          1686,
+          2026,
+          2039,
+          2068,
+          2076
+        ]
+      }
+    },
+    "engine/mako-cli/src/tools/quality.cpp": {
+      "sha256": "3cb8b2fd2198f5444019c566197fec7679448b67b8cbb13714d3c349359540e6",
+      "line_count": 1194,
+      "anchors": {
+        "runTemporal": [
+          374,
+          522
+        ],
+        "sequence.tsv": [
+          442
+        ]
+      }
+    },
+    "engine/mako-cli/src/tools/benchmark.cpp": {
+      "sha256": "7f13df29e21ec905994feea106aa90c3f7bc96e08af3225d4309f9cd2870aef8",
+      "line_count": 311,
+      "anchors": {
+        "benchmark::run": [
+          129
+        ]
+      }
+    }
+  },
+  "gfg": {
+    "engine/gfg-temporal/src/te_lmc.inc": {
+      "sha256": "969f7ba7c5534ae76aebe833df56231566eb68cfd7fb97bdcf3bd8539d671351",
+      "line_count": 856,
+      "anchors": {
+        "lmc_fit_job": [
+          113,
+          194
+        ],
+        "vkWaitSemaphores": [
+          119
+        ],
+        "slot->lmc_fit_ms": [
+          165
+        ],
+        "lmc_record_analysis": [
+          645
+        ],
+        "lmc_record_output": [
+          817
+        ]
+      }
+    },
+    "engine/gfg-temporal/src/te_engine.c": {
+      "sha256": "5b34b0713b63877bf998e1aa1d979e7a37430c44d31c26151562a84e30a5f5d4",
+      "line_count": 1556,
+      "anchors": {
+        "te_context_idle": [
+          1426
+        ],
+        "ready_ms": [
+          1208
+        ]
+      }
+    },
+    "engine/gfg-temporal/mako/gfg_temporal.cpp": {
+      "sha256": "68d7f043491a6b9595cdb1f937816f7cc11cf1207f7b30f956040146063e63f3",
+      "line_count": 783,
+      "anchors": {
+        "Prepared::openExperimental": [
+          696
+        ],
+        "Prepared::attach": [
+          735
+        ],
+        "LSFG keeps": [
+          776
+        ]
+      }
+    },
+    "engine/gfg-fusion/renderer.patch": {
+      "sha256": "a17ae1bb4039d543e72772abd3a91702d3f44750df3fac68ba5dd3049228c38a",
+      "line_count": 1972,
+      "anchors": {
+        "this->m_temporal =": [
+          258
+        ],
+        "parseMode(std::getenv": [
+          259
+        ]
+      }
+    },
+    "docs/TEMPORAL_ENGINE_BENCHMARK.md": {
+      "sha256": "f56db4a7f564c2f613076868b4214a28a8fa0db2a13587190f8800e043b18c28",
+      "line_count": 204,
+      "anchors": {
+        "lavapipe": [
+          4,
+          18,
+          60,
+          86,
+          112
+        ]
+      }
+    }
+  },
+  "dispatch_models": {
+    "base": {
+      "evidence": "SOURCE VERIFIED",
+      "model": "reviewed SDR full-generation path; no HDR conversion; no runtime trace",
+      "checks": {
+        "chain_counts_match": true,
+        "seven_levels_present": true,
+        "three_delta_levels_present": true,
+        "prepass_called": true
+      },
+      "dispatches_per_chain_call": {
+        "mipmaps": 1,
+        "alpha0": 3,
+        "alpha1": 1,
+        "beta0": 1,
+        "beta1": 4,
+        "gamma0": 1,
+        "gamma1": 4,
+        "delta0": 2,
+        "delta1": 8,
+        "generate": 1
+      },
+      "prepass_dispatches": 34,
+      "per_output_dispatches": 66,
+      "note": "Counts are not GPU time, occupancy, shader workgroup size or image quality."
+    },
+    "current": {
+      "evidence": "SOURCE VERIFIED",
+      "model": "reviewed SDR full-generation path; no HDR conversion; no runtime trace",
+      "checks": {
+        "chain_counts_match": true,
+        "seven_levels_present": true,
+        "three_delta_levels_present": true,
+        "prepass_called": true
+      },
+      "dispatches_per_chain_call": {
+        "mipmaps": 1,
+        "alpha0": 3,
+        "alpha1": 1,
+        "beta0": 1,
+        "beta1": 4,
+        "gamma0": 1,
+        "gamma1": 4,
+        "delta0": 2,
+        "delta1": 8,
+        "generate": 1
+      },
+      "prepass_dispatches": 34,
+      "per_output_dispatches": 66,
+      "note": "Counts are not GPU time, occupancy, shader workgroup size or image quality."
+    }
+  }
+}

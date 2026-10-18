@@ -17,6 +17,19 @@ Workflows tied to the **full GFG Extreme Decky release or frontend** were preser
 
 ## Historical Git ancestry caveat
 
+### Additional research recovered after extraction
+
+The 2026-10-18 branch review found research outside the original snapshot's
+selected paths: the root native-FG/MAKO/LSFG package in
+`codex/native-fg-research` and the divergent FOE documents from GFG PR #152.
+[The historical archive](docs/archive/README.md) now preserves 26 text blobs
+from those two pinned commits. Every imported blob matches its recorded source
+Git SHA-1. The archive manifest also retains pinned references and hashes for
+36 compressed host-recorder traces, which remain in GFG Extreme. Original tools,
+FOE prototype runtime and the old buffered frame-clock experiment were not
+merged into current runtime. This supplements, rather than changes, the initial
+234-file snapshot verification.
+
 **This is a verified snapshot extraction, NOT a true `git-filter-repo` history rewrite.** The GitHub integration used for migration could not clone/push Git history or create a filtered commit graph. New GSF commits start a **new history**; original author/date/blame information for work done before extraction remains in GFG Extreme, at the exact source revision linked above. Do **not** claim `git log` in this repository exposes every earlier original commit.
 
 Relevant original pull requests and their discussions:
