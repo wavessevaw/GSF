@@ -15,6 +15,7 @@ static uint32_t observed_image;
 static unsigned gate_creates,gate_destroys,app_wait_submits;
 static atomic_int pressure;
 static uint64_t seen_ids[8];
+static int require_pressure;
 static VKAPI_ATTR VkResult VKAPI_CALL create_gate(VkDevice d,const VkSemaphoreCreateInfo *ci,
         const VkAllocationCallbacks *a,VkSemaphore *s) {
     (void)d;(void)ci;(void)a;*s=(VkSemaphore)(uintptr_t)(1000+gate_creates++);return VK_SUCCESS;
@@ -26,6 +27,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL consume_app_waits(VkQueue q,uint32_t n,con
     (void)q;(void)f;assert(n==1 && si->waitSemaphoreCount==1);
     assert(si->pWaitSemaphores[0]==(VkSemaphore)(uintptr_t)1);
     assert(si->signalSemaphoreCount==1 && (uintptr_t)si->pSignalSemaphores[0]>=1000);
+    if(require_pressure)assert(atomic_load(&pressure)); /* before host queue submission */
     ++app_wait_submits;return VK_SUCCESS;
 }
 static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL dispatch(VkDevice device,const char *name) {
@@ -137,6 +139,7 @@ int main(void) {
     pthread_mutex_lock(&backend_lock);
     while(!entered) pthread_cond_wait(&backend_changed,&backend_lock);
     assert(observed_image==3); pthread_mutex_unlock(&backend_lock);
+    require_pressure=1;
     p->index=4; p->present_id=43;
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
     assert(app_wait_submits==2);
@@ -171,6 +174,7 @@ int main(void) {
 
     assert(mprotect(p,4096,PROT_READ|PROT_WRITE)==0);
     backend_result=VK_ERROR_DEVICE_LOST;
+    require_pressure=0;
     out=gfg_output_create((gfg_gpu_fg *)(uintptr_t)1,VK_NULL_HANDLE,NULL,NULL,&wsi,
                           VK_NULL_HANDLE,dispatch,5,NULL); assert(out);
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);

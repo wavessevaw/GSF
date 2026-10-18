@@ -47,6 +47,9 @@ int main(void) {
     s=(te_submit){0};prepare_generation(&plan,0,10,89,&s);assert(!s.count);
     plan.clock.period_ns=0;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,UINT64_MAX,&s)==1 && s.count==1);
+    gfg_gpu_fg_set_output_pressure(&plan,1);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,0,&s)==0 && !s.count && s.signal_first==12);
+    gfg_gpu_fg_set_output_pressure(&plan,0);
     double samples[2]={50,10},median,p95;percentile(samples,2,&median,&p95);
     assert(median==30 && p95==48 && p95>=median);
     gfg_gpu_fg fg = fixture(2);

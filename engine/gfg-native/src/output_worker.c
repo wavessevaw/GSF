@@ -185,6 +185,13 @@ VkResult gfg_output_submit(gfg_output *o, const VkPresentInfoKHR *app, uint64_t 
     VkResult r = o->error;
     if (o->stopping) r = VK_ERROR_OUT_OF_DATE_KHR;
     if (r == VK_SUCCESS) {
+        /* Announce the new real frame BEFORE queue host serialization can
+         * wait behind the worker's present/submit. Otherwise the worker sees
+         * pressure only after that wait and cannot yield its optional work. */
+        if(o->busy) {
+            gfg_gpu_fg_set_output_pressure(o->gpu,1);
+            pthread_cond_broadcast(&o->changed);
+        }
         /* vkQueuePresent's waits must be SUBMITTED before returning to the
          * application. Otherwise a conforming app can reuse a render-finished
          * semaphore before our delayed wait exists. Consume them now, handing
