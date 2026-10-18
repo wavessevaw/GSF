@@ -98,10 +98,29 @@ def run(kit, output, before_layer=None, repetitions=2):
                     steady_hz_median=statistics.median(r['rate']['steady_hz'] for r in group),
                     present_p95_ms_median=statistics.median(r['latency']['present_p95_ms'] for r in group),
                     acquire_p95_ms_median=statistics.median(r['latency']['acquire_p95_ms'] for r in group)))
+    guards=[]
+    for row in summary:
+        if row['version']!='current' or row['mode']!='full':
+            continue
+        group=[r for r in results if r['version']=='current' and r['mode']=='full' and
+               r['profile']==row['profile'] and r['detail']==row['detail']]
+        generated=sum(r['stats']['synthetic'] for r in group)
+        real=sum(r['stats']['real'] for r in group)
+        baseline=next(b for b in summary if b['mode']=='baseline' and
+                      b['profile']==row['profile'] and b['detail']==row['detail'])
+        ratio=row['steady_hz_median']/baseline['steady_hz_median']
+        # A near-zero-output fallback must not repeat the observed ~20/45
+        # source-rate collapse. Meaningful generation has a separate GPU and
+        # display budget, exercised by the strict slow-source pixel tests.
+        guards.append(dict(profile=row['profile'],detail=row['detail'],generated=generated,
+                           real=real,source_ratio=ratio,checked=generated<=real*.05,
+                           passed=generated>real*.05 or ratio>=.85))
     (output/'summary.json').write_text(json.dumps(dict(
         source_commit=json.loads((kit/'BUILD_INFO.json').read_text())['source_commit'],
         before_commit='61037766aef41703668d8029a54303e5f1e0da71' if before_layer else None,
-        physical_scanout='UNVERIFIED', steam_deck_performance='UNVERIFIED', rows=summary), indent=2)+'\n')
+        physical_scanout='UNVERIFIED', steam_deck_performance='UNVERIFIED', rows=summary,
+        near_zero_output_fallback_guards=guards), indent=2)+'\n')
+    assert all(g['passed'] for g in guards), guards
     print(f'PACING_AB_PASS runs={len(results)} preserved_real_frames=60 validation_errors=0 hardware_prediction=0')
 
 

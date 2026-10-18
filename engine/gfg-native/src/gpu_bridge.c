@@ -186,9 +186,11 @@ struct gfg_gpu_fg {
     uint64_t gpu_lmc_count[TE_LMC_PROF_COUNT];
     gfg_frame_clock clock;
     int pacing_active;
+    int pace_real; /* only after an actual synthetic handoff in this pair */
     atomic_int output_pressure;
     int diagnostic; /* 0 normal, 1 source-only, 2 compute-only; lab controls */
     uint64_t diagnostic_outputs;
+    uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
     uint64_t pacing_waits, pacing_late;
     int deadline_drop, pressure_drop;
     int cut_drop, duplicate_drop, control_checked;
@@ -226,7 +228,8 @@ int gfg_gpu_fg_waiting_image(gfg_gpu_fg *fg) { return atomic_load(&fg->waiting_i
 
 static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *pi,
                                PFN_vkQueuePresentKHR next,unsigned kind) {
-    if(fg->pacing_active && fg->clock.period_ns && !fg->diagnostic && !atomic_load(&fg->output_pressure)) {
+    if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
+       !fg->diagnostic && !atomic_load(&fg->output_pressure)) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,kind)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
         const uint64_t ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
@@ -256,7 +259,8 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || atomic_load(&fg->output_pressure)?0:gfg_frame_clock_target(&fg->clock,kind);
+        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || atomic_load(&fg->output_pressure)?
+            0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }
     VkResult r = next(queue, &timed);
@@ -299,6 +303,21 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
         gfg_frame_clock_compute_mask(&fg->clock,now,
             fg->display_timing==2?fg->clock.period_ns/4:0):(1u<<(fg->multiplier-1))-1u;
     if(!fg->diagnostic && atomic_load(&fg->output_pressure))mask=0;
+    if(fg->clock.period_ns && !fg->diagnostic && fg->gpu_budget_ns[0]) {
+        unsigned affordable=0,output=0;
+        const uint64_t lead=fg->display_timing==2?fg->clock.period_ns/4:0;
+        for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k)) {
+            const uint64_t cost=fg->gpu_budget_ns[output]?fg->gpu_budget_ns[output]:2*fg->gpu_budget_ns[0];
+            if(fg->clock.target_ns[k]-lead-now>cost+500000ull) {
+                affordable|=1u<<k;++output;
+            }
+        }
+        /* A bounded retry learns recovery after a slow sample/scene. It is
+         * one eligible output every two seconds, never an expired slot. */
+        if(!affordable && mask && now>=fg->last_generation_dispatch_ns &&
+           now-fg->last_generation_dispatch_ns>=2000000000ull)affordable=mask&(~mask+1u);
+        mask=affordable;
+    }
     const int generate=have_pair && mask;
     s->slot=fg->te_slot;
     /* Same-device history updates still signal v+2, with no LMC outputs.
@@ -357,12 +376,15 @@ static void skip_outputs(gfg_gpu_fg *fg, unsigned reason, uint64_t count) {
  * sample collected by its nonblocking fence poll; no GPU wait or pixel read.
  * This is a sample, not an exhaustive trace of every completed pair. */
 static void gpu_sample(gfg_gpu_fg *fg) {
-    if (!fg->context || !fg->gpu_pair_ms || !fg->gpu_first_ms) return;
+    if (!fg->context) return;
     te_pair_stats s;
     if (te_last_stats(fg->context, &s) != VK_SUCCESS ||
         s.sequence <= fg->gpu_last_sequence) return;
     fg->gpu_last_sequence = s.sequence;
     if (s.held) { ++fg->gpu_held_samples; return; }
+    if(s.timed && s.outputs)for(unsigned k=0;k<s.outputs && k<2;++k)
+        if(s.ready_ms[k]>0 && s.ready_ms[k]<10000.0)
+            fg->gpu_budget_ns[k]=(uint64_t)(s.ready_ms[k]*1000000.0);
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_pair\",\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,"
             "\"outputs\":%u,\"timed\":%d,\"ready_ms\":[%.6f,%.6f],\"analysis_ms\":[%.6f,%.6f,%.6f],"
@@ -371,7 +393,7 @@ static void gpu_sample(gfg_gpu_fg *fg) {
             s.ready_ms[0],s.ready_ms[1],s.stage_ms[0],s.stage_ms[1],s.stage_ms[2],
             s.lmc_ms[0],s.lmc_ms[1],s.lmc_ms[2],s.lmc_ms[3],s.lmc_ms[4],s.lmc_ms[5],s.lmc_ms[6],s.lmc_ms[7],s.scene_cut,s.source_duplicate);
     }
-    if (!s.timed || s.outputs < 1 || fg->gpu_count == TIMING_CAP) return;
+    if (!s.timed || s.outputs < 1 || !fg->gpu_pair_ms || !fg->gpu_first_ms || fg->gpu_count == TIMING_CAP) return;
     const uint32_t i = fg->gpu_count++;
     fg->gpu_first_ms[i] = s.ready_ms[0];
     fg->gpu_pair_ms[i] = s.ready_ms[s.outputs-1];
@@ -869,6 +891,8 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     gfg_gpu_fg *fg = calloc(1, sizeof(*fg));
     if (!fg) return NULL;
     const double t0 = now_us();
+    fg->pace_real=0;
+    if(fg->context){te_poll(fg->context);gpu_sample(fg);}
     fg->device = info->device;
     fg->queue = info->queue;
     fg->swapchain = info->swapchain;
@@ -1755,6 +1779,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     compute_admission_ns=(uint64_t)(now_us()*1000.0);
     te_submit s = {0};
     const unsigned compute_mask=prepare_generation(fg,have_pair,v,compute_admission_ns,&s);
+    const unsigned timely_mask=fg->clock.period_ns?gfg_frame_clock_compute_mask(&fg->clock,compute_admission_ns,
+        fg->display_timing==2?fg->clock.period_ns/4:0):compute_mask;
     const int generate=have_pair && compute_mask;
     tp = now_us();
     VkResult tr = inject_te_busy ? VK_NOT_READY : te_submit_frame(fg->context, &s);
@@ -1762,8 +1788,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     gpu_sample(fg);
     int presented = 0;
     drop_reason = have_pair && !compute_mask?(atomic_load(&fg->output_pressure)?DROP_BYPASS:
-        fg->clock.mask?DROP_DEADLINE:DROP_RATE):DROP_HISTORY;
+        !timely_mask && fg->clock.mask?DROP_DEADLINE:DROP_RATE):DROP_HISTORY;
     if (tr == VK_SUCCESS) {
+        if(generate)fg->last_generation_dispatch_ns=compute_admission_ns;
         if(fg->diagnostic==2)fg->diagnostic_outputs+=s.count;
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
@@ -1793,8 +1820,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                     fg->slot_detail[k]="display-refresh-budget";fg->slot_drop[k]=DROP_RATE;skip_outputs(fg,DROP_RATE,1);continue;
                 }
                 if(!(compute_mask&(1u<<k))) {
-                    fg->slot_detail[k]="expired-before-dispatch";fg->slot_drop[k]=DROP_DEADLINE;
-                    skip_outputs(fg,DROP_DEADLINE,1);continue;
+                    const unsigned reason=timely_mask&(1u<<k)?DROP_RATE:DROP_DEADLINE;
+                    fg->slot_detail[k]=reason==DROP_RATE?"gpu-budget":"expired-before-dispatch";
+                    fg->slot_drop[k]=(int)reason;skip_outputs(fg,reason,1);continue;
                 }
                 int g = present_synthetic(fg, rs, (int)k, (int)generated_index++, v+2-s.count, idx, next, ids, app_chain.dynamic_mode, &next_us);
                 VkResult resumed=VK_SUCCESS;
@@ -1857,7 +1885,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         fg->slot_drop[0]=fg->slot_drop[1]=(int)drop_reason;
         if(tr==VK_SUCCESS && have_pair && !compute_mask && fg->clock.mask)
             for(unsigned k=0;k<fg->multiplier-1;++k)if(fg->clock.mask&(1u<<k))
-                fg->slot_detail[k]=drop_reason==DROP_BYPASS?"source-backlog":"expired-before-dispatch";
+                fg->slot_detail[k]=drop_reason==DROP_BYPASS?"source-backlog":
+                    timely_mask&(1u<<k)?"gpu-budget":"expired-before-dispatch";
     }
     /* the ring slot's fence covers everything submitted for this frame */
     tp = now_us();
@@ -1869,6 +1898,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->in_present = 0;
     /* Real-only fences/timing and immutable copied metadata stay on the app's
      * real present; synthetic calls never borrow those completion objects. */
+    fg->pace_real=presented>0;
     result = forward_real(fg, queue, app, &fg->ready[idx], next, ids, &next_us);
     if(fg->recreate_required && (result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR)){
         result=VK_ERROR_OUT_OF_DATE_KHR;
@@ -1883,7 +1913,7 @@ timing:
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
             "\"admitted_ns\":%llu,\"worker_start_ns\":%llu,\"worker_end_ns\":%llu,\"interval_ns\":%llu,"
             "\"refresh_period_ns\":%llu,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
-            "\"compute_admission_ns\":%llu,\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,"
+            "\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,"
             "\"target_ns\":[%llu,%llu,%llu],\"readiness_observed_ns\":[%llu,%llu],"
             "\"wsi_accepted_ns\":[%llu,%llu,%llu],\"wsi_call_ns\":[%llu,%llu,%llu],"
             "\"readiness_wait_ns\":[%llu,%llu],\"google_present_ids\":[%u,%u,%u],\"drop_detail\":[\"%s\",\"%s\"],\"cpu_phase_us\":[%.3f,%.3f,%.3f,%.3f,%.3f],\"te_sequence\":%llu,\"drop_code\":[%d,%d],\"cut\":%d,\"duplicate\":%d,\"physical_displayed\":null,\"visually_unique\":null}\n",
@@ -1892,7 +1922,8 @@ timing:
             (unsigned long long)source0,(unsigned long long)fg->source_ns,
             (unsigned long long)fg->admitted_ns,(unsigned long long)(t0*1000.0),(unsigned long long)(now_us()*1000.0),
             (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
-            (unsigned long long)compute_admission_ns,deferred_g2,(unsigned long long)g2_submit_return_ns,
+            (unsigned long long)compute_admission_ns,(unsigned long long)fg->gpu_budget_ns[0],
+            (unsigned long long)fg->gpu_budget_ns[1],deferred_g2,(unsigned long long)g2_submit_return_ns,
             (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[2],
             (unsigned long long)fg->readiness_ns[0],(unsigned long long)fg->readiness_ns[1],
             (unsigned long long)fg->accepted_ns[0],(unsigned long long)fg->accepted_ns[1],(unsigned long long)fg->accepted_ns[2],

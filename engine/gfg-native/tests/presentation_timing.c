@@ -32,7 +32,7 @@ int main(void) {
     const VkPresentInfoKHR app={.sType=VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,.pNext=&app_id,
         .swapchainCount=1,.pSwapchains=&swapchain,.pImageIndices=&image};
     original_chain=&app_id;
-    gfg_gpu_fg fg={.display_timing=2,.pacing_active=1,.clock={.period_ns=4000000}};
+    gfg_gpu_fg fg={.display_timing=2,.pacing_active=1,.pace_real=1,.clock={.period_ns=4000000}};
     mode=2;
     for(unsigned k=0;k<3;++k) {
         wanted=(uint64_t)(now_us()*1000.0)+2000000;
@@ -55,6 +55,11 @@ int main(void) {
     fg.diagnostic=1;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     fg.diagnostic=0;
+    /* A missed/absent synthetic must never delay the native frame to a
+     * future clock target, including through GOOGLE desiredPresentTime. */
+    fg.pace_real=0;start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(now_us()-start<250000.0);
     /* Bounded flushing: multiple small events stay buffered until 250ms. */
     fg.telemetry=tmpfile();assert(fg.telemetry);fg.telemetry_flush_ns=10;
     fputs("first\nsecond\n",fg.telemetry);
@@ -67,6 +72,6 @@ int main(void) {
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(calls==7 && previous_id==5);
+    assert(calls==8 && previous_id==6);
     puts("presentation-timing: distinct desired G1/G2/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }

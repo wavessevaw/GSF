@@ -20,6 +20,12 @@ handoff. A CPU worker did not isolate those waits from the game or its GPU.
   workload cannot be canceled, but synthetic readiness/handoff waits yield
   within 0.5 ms polling slices when a new source arrives. Timed GOOGLE real
   presents use immediate desired time under pressure, preserving their IDs.
+* If no synthetic was accepted, the original is presented immediately instead
+  of waiting for its planned future slot, including GOOGLE desired times.
+  Completed GPU first/second-output timings provide a pre-dispatch cost floor
+  with a 0.5ms margin. If the work cannot fit, submit history only. A single
+  eligible output may retry after two seconds to learn recovery; expired
+  slots never retry. Measurement is independent of detailed logging.
 * Private gates still consume application waits before Present returns.
   Per-image pending **counts** retain the semaphore-reuse guard even when a
   reacquired image is resubmitted before the preceding CPU job retires.
@@ -63,8 +69,11 @@ The runner asserts original-frame counts, skipped/presented accounting,
 validation success, zero host pixel reads, no capacity fallback in the new
 implementation, and actual compute dispatch in compute-only mode. It archives
 per-run logs, JSONL, source rate, Acquire/Present p50/p95, native output counts,
-and a summary. Timings exclude the first three source samples. No FPS or
-speedup threshold is used to conceal results on a slow software device.
+and a summary. Timings exclude the first three source samples. For near-zero
+generated output (at most 5% of real frames), the new full configuration must
+retain at least 85% of its measured native baseline source rate. This guard
+detects the reproduced ~20/45 collapse; it is not a universal generation
+speedup claim. Other timings are reported without a speedup threshold.
 
 Other existing checks still require distinct generated pixels, swapchain
 recreation/resize, exact extracted plugin install/restore and WSI ordering.
