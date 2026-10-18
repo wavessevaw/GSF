@@ -1,0 +1,28 @@
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+GFG native: validation messenger active sync_validation=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=100
+[gfg-native] GPU bridge active: 96x64 format=44 out=blit sync=same-device images=5 present_mode=2 inflight=2 algo=tiles verify=1 startup_ms=110.28
+[gfg-native] gpu-verify frame=4 distinct=1 ordered=1 mad_g1g2=19.498 mad_g1_prev=19.595 mad_g1_real=34.837 mad_g2_prev=36.149 mad_g2_real=18.210 mad_prev_real=48.117
+[gfg-native] gpu-verify frame=7 distinct=1 ordered=1 mad_g1g2=19.436 mad_g1_prev=19.784 mad_g1_real=34.695 mad_g2_prev=36.260 mad_g2_real=18.165 mad_prev_real=48.117
+[gfg-native] gpu-verify frame=13 distinct=1 ordered=1 mad_g1g2=20.175 mad_g1_prev=20.165 mad_g1_real=35.555 mad_g2_prev=37.143 mad_g2_real=18.372 mad_prev_real=49.035
+[gfg-native] gpu-verify frame=19 distinct=1 ordered=1 mad_g1g2=19.726 mad_g1_prev=19.412 mad_g1_real=35.032 mad_g2_prev=36.120 mad_g2_real=18.260 mad_prev_real=48.119
+[gfg-native] gpu-verify frame=22 distinct=1 ordered=1 mad_g1g2=20.014 mad_g1_prev=19.614 mad_g1_real=35.617 mad_g2_prev=36.539 mad_g2_real=18.766 mad_prev_real=48.637
+[gfg-native] gpu-verify frame=28 distinct=1 ordered=1 mad_g1g2=19.672 mad_g1_prev=19.690 mad_g1_real=35.164 mad_g2_prev=36.410 mad_g2_real=18.371 mad_prev_real=48.527
+[gfg-native] gpu-verify frame=34 distinct=1 ordered=1 mad_g1g2=20.035 mad_g1_prev=19.476 mad_g1_real=35.744 mad_g2_prev=36.484 mad_g2_real=18.848 mad_prev_real=48.613
+[gfg-native] gpu-verify frame=37 distinct=1 ordered=1 mad_g1g2=19.632 mad_g1_prev=20.390 mad_g1_real=34.894 mad_g2_prev=36.830 mad_g2_real=18.232 mad_prev_real=48.613
+[gfg-native] gpu-verify frame=43 distinct=1 ordered=1 mad_g1g2=19.912 mad_g1_prev=19.510 mad_g1_real=35.345 mad_g2_prev=36.397 mad_g2_real=18.393 mad_prev_real=48.516
+[gfg-native] gpu-verify frame=49 distinct=1 ordered=1 mad_g1g2=19.899 mad_g1_prev=20.195 mad_g1_real=35.167 mad_g2_prev=36.928 mad_g2_real=18.274 mad_prev_real=48.625
+[gfg-native] gpu-verify frame=52 distinct=1 ordered=1 mad_g1g2=19.406 mad_g1_prev=19.706 mad_g1_real=34.705 mad_g2_prev=36.153 mad_g2_real=18.175 mad_prev_real=48.105
+[gfg-native] gpu-verify frame=58 distinct=1 ordered=1 mad_g1g2=20.295 mad_g1_prev=19.546 mad_g1_real=36.089 mad_g2_prev=36.785 mad_g2_real=18.946 mad_prev_real=49.011
+[gfg-native] gpu-verify frame=64 distinct=1 ordered=1 mad_g1g2=19.535 mad_g1_prev=19.641 mad_g1_real=34.840 mad_g2_prev=36.203 mad_g2_real=18.253 mad_prev_real=48.131
+[gfg-native] gpu-verify frame=67 distinct=1 ordered=1 mad_g1g2=19.512 mad_g1_prev=19.632 mad_g1_real=34.799 mad_g2_prev=36.115 mad_g2_real=18.250 mad_prev_real=48.131
+[gfg-native] gpu-verify frame=73 distinct=1 ordered=1 mad_g1g2=20.023 mad_g1_prev=20.395 mad_g1_real=35.324 mad_g2_prev=37.223 mad_g2_real=18.374 mad_prev_real=48.986
+[gfg-native] gpu-verify frame=79 distinct=1 ordered=1 mad_g1g2=18.873 mad_g1_prev=20.319 mad_g1_real=34.134 mad_g2_prev=36.286 mad_g2_real=18.143 mad_prev_real=48.117
+[gfg-native] gpu-verify frame=82 distinct=1 ordered=1 mad_g1g2=19.635 mad_g1_prev=19.959 mad_g1_real=35.286 mad_g2_prev=36.491 mad_g2_real=18.824 mad_prev_real=48.625
+[gfg-native] gpu-verify frame=88 distinct=1 ordered=1 mad_g1g2=19.696 mad_g1_prev=19.707 mad_g1_real=35.136 mad_g2_prev=36.423 mad_g2_real=18.394 mad_prev_real=48.480
+[gfg-native] gpu-verify frame=94 distinct=1 ordered=1 mad_g1g2=19.179 mad_g1_prev=20.329 mad_g1_real=34.911 mad_g2_prev=36.499 mad_g2_real=18.834 mad_prev_real=48.613
+[gfg-native] gpu-verify frame=97 distinct=1 ordered=1 mad_g1g2=19.934 mad_g1_prev=20.244 mad_g1_real=35.111 mad_g2_prev=36.967 mad_g2_real=18.241 mad_prev_real=48.625
+GFG native: gpu stats bridges=1 sync_mode=3 real=100 synthetic=120 skipped=78 te_busy=10 ring_busy=10 acquire_not_ready=0 holds=20 errors=0 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=20 verify_distinct=20 verify_host_reads=20
+GFG native: validation errors=0 warnings=2
+GFG native: 100 real frames GPU bridge WSI smoke PASS

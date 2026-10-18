@@ -1,0 +1,1030 @@
+{
+  "schema": 1,
+  "scope": "offscreen Vulkan; not Deck GPU performance or physical scanout",
+  "source_commit": "75ca94678d6743cd7ca4849597ea3c790f413c8d",
+  "worktree_dirty": true,
+  "worktree_status": [
+    " M docs/fg3/ARCHITECTURE_DECISION_1_0.md"
+  ],
+  "code_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "bench_sha256": "5487aaff710c7e68589e1566ece86b9dd5f1224f227d9ed559f2af72d583209c",
+  "timing_warmup_pairs_discarded": 1,
+  "segments": [
+    {
+      "name": "target-strafe-strafe",
+      "input_sha256": "e3d6edacb382b947612bd8561dccd2f99715d8457371508c70d14af6828ac805",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 31.36868942817225,
+          "ssim_y": 0.9732411454729508,
+          "motion_roi_psnr": 27.231336508351674,
+          "temporal_error": 1.2744034810263354,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 21.41666278775276,
+          "motion_edge_psnr_y": 23.733799131773623,
+          "hud_psnr_y": {
+            "hud_ammo": 80.6862403076305,
+            "hud_map": 99.0,
+            "crosshair": 24.29242154886795
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 446.3679,
+          "quality_process_wall_s": 6.8534545870061265,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "680b4a25bfbbdea87659642af03870ed8b0c17822388b523391ef8fb84f91f9c",
+          "device_log": "target-strafe-strafe-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 295.6154,
+            "p95": 345.68766
+          },
+          "s1_ms": {
+            "median": 85.3168,
+            "p95": 97.07908
+          },
+          "s2_ms": {
+            "median": 86.2293,
+            "p95": 95.67006
+          },
+          "first_ready_ms": {
+            "median": 384.1717,
+            "p95": 438.59362
+          },
+          "pair_ready_ms": {
+            "median": 468.3519,
+            "p95": 528.23936
+          },
+          "cpu_submit_ms": {
+            "median": 0.2252,
+            "p95": 0.6587799999999999
+          },
+          "cpu_total_ms": {
+            "median": 469.4546,
+            "p95": 529.17512
+          }
+        },
+        "gsf": {
+          "psnr_y": 31.523083021730127,
+          "ssim_y": 0.9731701616034614,
+          "motion_roi_psnr": 27.39124619519822,
+          "temporal_error": 1.24125213517497,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 21.41666278775276,
+          "motion_edge_psnr_y": 23.826131365519245,
+          "hud_psnr_y": {
+            "hud_ammo": 80.95917118337478,
+            "hud_map": 99.0,
+            "crosshair": 24.3988917761007
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 402.2072,
+          "quality_process_wall_s": 6.61519436299568,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "64393f349c47a9bd2eac3558ce6e2492fba5b95c488c1113beaa2030941aa375",
+          "device_log": "target-strafe-strafe-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 247.1227,
+            "p95": 273.38915999999995
+          },
+          "s1_ms": {
+            "median": 66.8231,
+            "p95": 74.43614
+          },
+          "s2_ms": {
+            "median": 66.0343,
+            "p95": 76.16602
+          },
+          "first_ready_ms": {
+            "median": 313.2948,
+            "p95": 350.66277999999994
+          },
+          "pair_ready_ms": {
+            "median": 377.7131,
+            "p95": 427.61017999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.192,
+            "p95": 0.30661999999999995
+          },
+          "cpu_total_ms": {
+            "median": 379.0809,
+            "p95": 428.62919999999997
+          },
+          "vs_lmc": {
+            "psnr_delta": 0.1543935935578773,
+            "motion_roi_delta": 0.1599096868465466,
+            "temporal_ratio": 0.973986773933898,
+            "pair_gpu_ratio": 0.8064728679439541,
+            "worst_hud_delta": 0.0
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "target-objects-objects",
+      "input_sha256": "8b29b2181e52ac8f559aa626fa4691931177878892d779517edbb2ba26e2ca2f",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 35.93739316097413,
+          "ssim_y": 0.9814646948104219,
+          "motion_roi_psnr": 27.505764943825834,
+          "temporal_error": 1.028971832129173,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 28.52669832571623,
+          "motion_edge_psnr_y": 25.273484832260323,
+          "hud_psnr_y": {
+            "hud_ammo": 89.9779315790579,
+            "hud_map": 99.0,
+            "crosshair": 41.84972031045162
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 426.8835,
+          "quality_process_wall_s": 6.506437062009354,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "8f06311d229f2bce376934ba21978519c51983af691b14be0c1f27689c347e38",
+          "device_log": "target-objects-objects-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 276.534,
+            "p95": 316.14851999999996
+          },
+          "s1_ms": {
+            "median": 80.0186,
+            "p95": 91.0566
+          },
+          "s2_ms": {
+            "median": 79.7354,
+            "p95": 88.66148
+          },
+          "first_ready_ms": {
+            "median": 357.7861,
+            "p95": 401.80557999999996
+          },
+          "pair_ready_ms": {
+            "median": 439.7868,
+            "p95": 490.46006
+          },
+          "cpu_submit_ms": {
+            "median": 0.2226,
+            "p95": 0.3739799999999999
+          },
+          "cpu_total_ms": {
+            "median": 440.6594,
+            "p95": 491.76493999999997
+          }
+        },
+        "gsf": {
+          "psnr_y": 35.821313221696364,
+          "ssim_y": 0.9810056774463133,
+          "motion_roi_psnr": 27.4130929794602,
+          "temporal_error": 1.032183430021784,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 28.52669832571623,
+          "motion_edge_psnr_y": 25.17330029662756,
+          "hud_psnr_y": {
+            "hud_ammo": 92.91061889798623,
+            "hud_map": 99.0,
+            "crosshair": 41.47842032137624
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 388.0987,
+          "quality_process_wall_s": 5.515969675005181,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "c832bdfbe36c2f38a61fe04564589e738356c6b218acedc4659b67f2401eda69",
+          "device_log": "target-objects-objects-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 246.3964,
+            "p95": 302.51063999999997
+          },
+          "s1_ms": {
+            "median": 67.139,
+            "p95": 73.8269
+          },
+          "s2_ms": {
+            "median": 66.0173,
+            "p95": 80.29754
+          },
+          "first_ready_ms": {
+            "median": 313.3612,
+            "p95": 389.88697999999994
+          },
+          "pair_ready_ms": {
+            "median": 380.7744,
+            "p95": 468.11011999999994
+          },
+          "cpu_submit_ms": {
+            "median": 0.1965,
+            "p95": 0.57782
+          },
+          "cpu_total_ms": {
+            "median": 381.6437,
+            "p95": 468.93463999999994
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.11607993927776761,
+            "motion_roi_delta": -0.09267196436563552,
+            "temporal_ratio": 1.00312117182641,
+            "pair_gpu_ratio": 0.8658158907907195,
+            "worst_hud_delta": -0.3712999890753821
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "target-fastturn-fastturn",
+      "input_sha256": "c2ea204a4bde9375ba32a5e59de2c8bd969816ebb9f3330fb0c75890306d2424",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 23.36377129746236,
+          "ssim_y": 0.770706602004214,
+          "motion_roi_psnr": 21.59486758386321,
+          "temporal_error": 10.79046874132473,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 19.060827705469798,
+          "motion_edge_psnr_y": 18.11418387938515,
+          "hud_psnr_y": {
+            "hud_ammo": 78.36352688521305,
+            "hud_map": 92.87706909892036,
+            "crosshair": 23.020165227772583
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 453.4906,
+          "quality_process_wall_s": 7.298976538004354,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "38916056ec897b35842e3dcb25c5c971c98f080bf975af4121f44dc691d1482f",
+          "device_log": "target-fastturn-fastturn-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 280.9369,
+            "p95": 315.21434
+          },
+          "s1_ms": {
+            "median": 76.9239,
+            "p95": 86.68111999999999
+          },
+          "s2_ms": {
+            "median": 76.8221,
+            "p95": 87.7029
+          },
+          "first_ready_ms": {
+            "median": 358.2179,
+            "p95": 397.45444
+          },
+          "pair_ready_ms": {
+            "median": 436.7005,
+            "p95": 483.02252
+          },
+          "cpu_submit_ms": {
+            "median": 0.2216,
+            "p95": 0.5227799999999995
+          },
+          "cpu_total_ms": {
+            "median": 437.6805,
+            "p95": 483.89276
+          }
+        },
+        "gsf": {
+          "psnr_y": 22.93734488501553,
+          "ssim_y": 0.7584079189111191,
+          "motion_roi_psnr": 21.164601281507032,
+          "temporal_error": 11.848148659725362,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 19.060827705469798,
+          "motion_edge_psnr_y": 17.818661362994774,
+          "hud_psnr_y": {
+            "hud_ammo": 83.1031086575917,
+            "hud_map": 92.95242163133993,
+            "crosshair": 22.764800459221775
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 542.5782,
+          "quality_process_wall_s": 6.634116444009123,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "17d8673d4480477276000cd5192f7bbabecb9e25da5525cb42285900205f9c7f",
+          "device_log": "target-fastturn-fastturn-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 264.9656,
+            "p95": 287.51702
+          },
+          "s1_ms": {
+            "median": 74.0398,
+            "p95": 83.937
+          },
+          "s2_ms": {
+            "median": 74.2454,
+            "p95": 84.03540000000001
+          },
+          "first_ready_ms": {
+            "median": 341.7409,
+            "p95": 364.42534
+          },
+          "pair_ready_ms": {
+            "median": 416.1041,
+            "p95": 442.22816
+          },
+          "cpu_submit_ms": {
+            "median": 0.2009,
+            "p95": 0.34299999999999997
+          },
+          "cpu_total_ms": {
+            "median": 416.9209,
+            "p95": 443.05986
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.4264264124468298,
+            "motion_roi_delta": -0.430266302356177,
+            "temporal_ratio": 1.0980198306260773,
+            "pair_gpu_ratio": 0.952836326040387,
+            "worst_hud_delta": -0.2553647685508089
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "target-hud-static_hud",
+      "input_sha256": "44ce8b7e055faed0fd399adc911912b2da340bb48c4ebb267a056baafff8ebbb",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 42.898160596449536,
+          "ssim_y": 0.9975676575432258,
+          "motion_roi_psnr": 21.88825173013015,
+          "temporal_error": 0.11535737416124903,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 35.84586342849337,
+          "motion_edge_psnr_y": 20.466641131028677,
+          "hud_psnr_y": {
+            "hud_ammo": 92.88048724473852,
+            "hud_map": 99.0,
+            "crosshair": 46.11907105605815
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 303.8124,
+          "quality_process_wall_s": 4.888953080007923,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "75d8fa7d299f221a1b4814b014bf34573e7a35620ccfe6b22842bc04e5d76883",
+          "device_log": "target-hud-static_hud-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 218.9992,
+            "p95": 230.9609
+          },
+          "s1_ms": {
+            "median": 46.8431,
+            "p95": 55.19938
+          },
+          "s2_ms": {
+            "median": 48.4962,
+            "p95": 58.49082
+          },
+          "first_ready_ms": {
+            "median": 267.6925,
+            "p95": 280.82184
+          },
+          "pair_ready_ms": {
+            "median": 318.3161,
+            "p95": 337.7475
+          },
+          "cpu_submit_ms": {
+            "median": 0.2079,
+            "p95": 0.931179999999999
+          },
+          "cpu_total_ms": {
+            "median": 319.2225,
+            "p95": 338.6386
+          }
+        },
+        "gsf": {
+          "psnr_y": 42.79705929960145,
+          "ssim_y": 0.9975395608109779,
+          "motion_roi_psnr": 21.758935297825673,
+          "temporal_error": 0.11600277546676807,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 35.84586342849337,
+          "motion_edge_psnr_y": 20.41491239032794,
+          "hud_psnr_y": {
+            "hud_ammo": 92.88048724473852,
+            "hud_map": 99.0,
+            "crosshair": 46.11907105605815
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 318.8244,
+          "quality_process_wall_s": 4.2223513220087625,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "e8109bca35d8f4136660367db86d36325fac998fa9e722dc3a35df000a36a6e9",
+          "device_log": "target-hud-static_hud-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 186.8868,
+            "p95": 207.41746
+          },
+          "s1_ms": {
+            "median": 37.9064,
+            "p95": 40.89207999999999
+          },
+          "s2_ms": {
+            "median": 37.5966,
+            "p95": 48.15146
+          },
+          "first_ready_ms": {
+            "median": 225.7012,
+            "p95": 245.7925
+          },
+          "pair_ready_ms": {
+            "median": 264.1245,
+            "p95": 288.2519
+          },
+          "cpu_submit_ms": {
+            "median": 0.1854,
+            "p95": 0.41821999999999976
+          },
+          "cpu_total_ms": {
+            "median": 264.9657,
+            "p95": 289.07772
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.10110129684808555,
+            "motion_roi_delta": -0.12931643230447776,
+            "temporal_ratio": 1.0055947988605989,
+            "pair_gpu_ratio": 0.8297553909462952,
+            "worst_hud_delta": 0.0
+          },
+          "software_gate_pass": true
+        }
+      }
+    },
+    {
+      "name": "target-postcut-scenecut",
+      "input_sha256": "6937a649a83cb19b8b47c397fc0fb8539df98102246e33f3a241b0c910637343",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 39.338628689590486,
+          "ssim_y": 0.983684219262607,
+          "motion_roi_psnr": 33.88829687577388,
+          "temporal_error": 0.7299688897910528,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 29.85227360445444,
+          "motion_edge_psnr_y": 29.640890704230202,
+          "hud_psnr_y": {
+            "hud_ammo": 77.21038389464569,
+            "hud_map": 84.58112440577905,
+            "crosshair": 32.81040349566988
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 410.7163,
+          "quality_process_wall_s": 6.298363095993409,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "c08384a935295502fc7ce64acae7469d8d428ec3d4662eda56576636511bf3da",
+          "device_log": "target-postcut-scenecut-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 235.0775,
+            "p95": 263.23198
+          },
+          "s1_ms": {
+            "median": 80.6312,
+            "p95": 89.01808
+          },
+          "s2_ms": {
+            "median": 78.8735,
+            "p95": 91.88208
+          },
+          "first_ready_ms": {
+            "median": 314.7112,
+            "p95": 342.61402
+          },
+          "pair_ready_ms": {
+            "median": 393.9754,
+            "p95": 435.41908
+          },
+          "cpu_submit_ms": {
+            "median": 0.2141,
+            "p95": 0.59958
+          },
+          "cpu_total_ms": {
+            "median": 394.8634,
+            "p95": 438.18142
+          }
+        },
+        "gsf": {
+          "psnr_y": 39.33104453360194,
+          "ssim_y": 0.9837564757986565,
+          "motion_roi_psnr": 33.84411454868658,
+          "temporal_error": 0.7134791188097248,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 29.85227360445444,
+          "motion_edge_psnr_y": 29.64644877548632,
+          "hud_psnr_y": {
+            "hud_ammo": 82.7212602400932,
+            "hud_map": 82.57407467686667,
+            "crosshair": 32.83446398193289
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 349.6456,
+          "quality_process_wall_s": 5.0082596209977055,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "7d7b9a7239d35e9b5688f0f1a67fa18694db5d77e1eee7afeccfc725a765f1e6",
+          "device_log": "target-postcut-scenecut-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 218.2074,
+            "p95": 235.4769
+          },
+          "s1_ms": {
+            "median": 59.714,
+            "p95": 65.62338
+          },
+          "s2_ms": {
+            "median": 58.2847,
+            "p95": 65.89148
+          },
+          "first_ready_ms": {
+            "median": 278.2934,
+            "p95": 303.36798
+          },
+          "pair_ready_ms": {
+            "median": 337.8794,
+            "p95": 372.44795999999997
+          },
+          "cpu_submit_ms": {
+            "median": 0.1996,
+            "p95": 1.0488799999999987
+          },
+          "cpu_total_ms": {
+            "median": 338.6703,
+            "p95": 373.32192
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.007584155988546115,
+            "motion_roi_delta": -0.044182327087298745,
+            "temporal_ratio": 0.9774103099297177,
+            "pair_gpu_ratio": 0.8576154754840023,
+            "worst_hud_delta": -2.007049728912378
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "target-crosscut-crosscut",
+      "input_sha256": "4ec1c4d694b332a7a13f56d8e725fad189ff807ef251fdedf91035bc6caca4d3",
+      "source": "render_game_scene.py (synthetic rasterised scene, Mesa llvmpipe)",
+      "fps_source": 90,
+      "fps_real": 30.0,
+      "width": 1280,
+      "height": 800,
+      "start": 0,
+      "pairs": 3,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 32.28880048078215,
+          "ssim_y": 0.8714743010218768,
+          "motion_roi_psnr": 28.50903208425707,
+          "temporal_error": 8.168661053059623,
+          "dynamic_outputs": 6,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 6,
+          "nearest_endpoint_psnr_y": 30.75092822214222,
+          "motion_edge_psnr_y": 24.76438074518226,
+          "hud_psnr_y": {
+            "hud_ammo": 76.93785785922232,
+            "hud_map": 53.183354206081425,
+            "crosshair": 29.894459240359215
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 446.6418,
+          "quality_process_wall_s": 2.6254239679983584,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 1,
+          "quality_output_sha256": "7bdb46a50652c150718ae29e39a44e61f62866b6556e8b272e5a547d97214382",
+          "device_log": "target-crosscut-crosscut-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 6,
+          "analysis_ms": {
+            "median": 253.59159999999997,
+            "p95": 263.153575
+          },
+          "s1_ms": {
+            "median": 77.2413,
+            "p95": 86.653425
+          },
+          "s2_ms": {
+            "median": 71.2832,
+            "p95": 80.99372500000001
+          },
+          "first_ready_ms": {
+            "median": 330.95815,
+            "p95": 350.3427
+          },
+          "pair_ready_ms": {
+            "median": 406.34015,
+            "p95": 425.829125
+          },
+          "cpu_submit_ms": {
+            "median": 0.2363,
+            "p95": 0.38312500000000005
+          },
+          "cpu_total_ms": {
+            "median": 408.71555,
+            "p95": 426.778625
+          }
+        },
+        "gsf": {
+          "psnr_y": 32.3298520631626,
+          "ssim_y": 0.8714878924286998,
+          "motion_roi_psnr": 28.53523419333845,
+          "temporal_error": 8.16539091290906,
+          "dynamic_outputs": 6,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 6,
+          "nearest_endpoint_psnr_y": 30.75092822214222,
+          "motion_edge_psnr_y": 24.81546218184329,
+          "hud_psnr_y": {
+            "hud_ammo": 76.93785785922232,
+            "hud_map": 61.959163269246034,
+            "crosshair": 29.801273039817133
+          },
+          "allocation_bytes": 69374356,
+          "quality_run_first_pair_gpu_ms": 461.7124,
+          "quality_process_wall_s": 1.9677692869881866,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 1,
+          "quality_output_sha256": "52a4714d581bc446c5ee550ce1a78f6e58c1d72d575f2960f19c6875dd8786c9",
+          "device_log": "target-crosscut-crosscut-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 6,
+          "analysis_ms": {
+            "median": 220.8472,
+            "p95": 247.5726
+          },
+          "s1_ms": {
+            "median": 57.8261,
+            "p95": 65.19355
+          },
+          "s2_ms": {
+            "median": 60.05765,
+            "p95": 62.899499999999996
+          },
+          "first_ready_ms": {
+            "median": 282.58574999999996,
+            "p95": 305.23787500000003
+          },
+          "pair_ready_ms": {
+            "median": 343.40725,
+            "p95": 364.59977499999997
+          },
+          "cpu_submit_ms": {
+            "median": 0.2079,
+            "p95": 0.25780000000000003
+          },
+          "cpu_total_ms": {
+            "median": 346.28805,
+            "p95": 365.507575
+          },
+          "vs_lmc": {
+            "psnr_delta": 0.04105158238044737,
+            "motion_roi_delta": 0.026202109081381764,
+            "temporal_ratio": 0.9995996724396666,
+            "pair_gpu_ratio": 0.8451226146370227,
+            "worst_hud_delta": -0.09318620054208182
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "bolt-small-bolt",
+      "input_sha256": "1e6197b4de8ff93c4ede0fcfb4fefc36f4262a4e4099fa3d0619c9e62a029374",
+      "source": "bolt.mp4 intel-iot-devkit/sample-videos, CC-BY-4.0; original 60000/1001 FPS",
+      "fps_source": 59.94005994005994,
+      "fps_real": 19.98001998001998,
+      "width": 384,
+      "height": 216,
+      "start": 0,
+      "pairs": 10,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 45.74429587389714,
+          "ssim_y": 0.9819161224494206,
+          "motion_roi_psnr": 36.260423005743284,
+          "temporal_error": 0.6859772758325562,
+          "dynamic_outputs": 20,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 20,
+          "nearest_endpoint_psnr_y": 43.421935640746746,
+          "motion_edge_psnr_y": 24.416554097021,
+          "hud_psnr_y": {},
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 62.203,
+          "quality_process_wall_s": 1.7367474189959466,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "bdf5b28da62ef99b005687aaa7130ade8dc85995919c960292b1a629291c2c66",
+          "device_log": "bolt-small-bolt-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 27,
+          "analysis_ms": {
+            "median": 25.0616,
+            "p95": 30.74434
+          },
+          "s1_ms": {
+            "median": 4.1599,
+            "p95": 5.49724
+          },
+          "s2_ms": {
+            "median": 4.3685,
+            "p95": 5.69305
+          },
+          "first_ready_ms": {
+            "median": 29.557,
+            "p95": 35.93229
+          },
+          "pair_ready_ms": {
+            "median": 34.7183,
+            "p95": 41.104929999999996
+          },
+          "cpu_submit_ms": {
+            "median": 0.1088,
+            "p95": 0.16760999999999998
+          },
+          "cpu_total_ms": {
+            "median": 35.2324,
+            "p95": 41.47559
+          }
+        },
+        "gsf": {
+          "psnr_y": 45.743858935309746,
+          "ssim_y": 0.9819141262473631,
+          "motion_roi_psnr": 36.25967120874085,
+          "temporal_error": 0.6859778636135161,
+          "dynamic_outputs": 20,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 20,
+          "nearest_endpoint_psnr_y": 43.421935640746746,
+          "motion_edge_psnr_y": 24.416554097021,
+          "hud_psnr_y": {},
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 57.243,
+          "quality_process_wall_s": 1.1390313140000217,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "56dd93e4d6eab4124b6b89e6dd8622e1ff10a4406525f9df2ecfb505749c404b",
+          "device_log": "bolt-small-bolt-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 27,
+          "analysis_ms": {
+            "median": 21.5387,
+            "p95": 23.724140000000002
+          },
+          "s1_ms": {
+            "median": 4.3034,
+            "p95": 5.6720299999999995
+          },
+          "s2_ms": {
+            "median": 4.1298,
+            "p95": 5.332669999999999
+          },
+          "first_ready_ms": {
+            "median": 26.3487,
+            "p95": 28.12357
+          },
+          "pair_ready_ms": {
+            "median": 30.8068,
+            "p95": 33.65233
+          },
+          "cpu_submit_ms": {
+            "median": 0.1004,
+            "p95": 0.15358999999999998
+          },
+          "cpu_total_ms": {
+            "median": 31.2259,
+            "p95": 34.16196
+          },
+          "vs_lmc": {
+            "psnr_delta": -0.0004369385873914666,
+            "motion_roi_delta": -0.0007517970024366605,
+            "temporal_ratio": 1.0000008568519405,
+            "pair_gpu_ratio": 0.8873360734828606,
+            "worst_hud_delta": 0.0
+          },
+          "software_gate_pass": false
+        }
+      }
+    },
+    {
+      "name": "worker-small-worker",
+      "input_sha256": "78c9df051f0ae8ec41217bc2ea37711cc97a37ed8a09f5734e8ea9b3c6066c73",
+      "source": "worker.mp4 intel-iot-devkit/sample-videos@57978890822836f2b4743852f04f62fc511757e4, CC-BY-4.0; native 60000/1001 FPS",
+      "fps_source": 59.94005994005994,
+      "fps_real": 19.98001998001998,
+      "width": 384,
+      "height": 216,
+      "start": 0,
+      "pairs": 12,
+      "methods": {
+        "lmc-gpu": {
+          "psnr_y": 58.39333220514205,
+          "ssim_y": 0.9995144866922357,
+          "motion_roi_psnr": 39.717726002646536,
+          "temporal_error": 0.1213816218660213,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 59.735156928852355,
+          "motion_edge_psnr_y": 39.66041318248182,
+          "hud_psnr_y": {},
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 59.0944,
+          "quality_process_wall_s": 1.6978354869934265,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "df331281a29f0b1fbc838e2d546a111eb81544e57a6b50dd7027e99b2347804a",
+          "device_log": "worker-small-worker-lmc-gpu-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 26.6928,
+            "p95": 29.30836
+          },
+          "s1_ms": {
+            "median": 3.1552,
+            "p95": 4.461339999999999
+          },
+          "s2_ms": {
+            "median": 3.1489,
+            "p95": 4.26418
+          },
+          "first_ready_ms": {
+            "median": 29.8758,
+            "p95": 33.23902
+          },
+          "pair_ready_ms": {
+            "median": 33.2241,
+            "p95": 37.0697
+          },
+          "cpu_submit_ms": {
+            "median": 0.109,
+            "p95": 0.15104
+          },
+          "cpu_total_ms": {
+            "median": 33.7409,
+            "p95": 37.6803
+          }
+        },
+        "gsf": {
+          "psnr_y": 58.39333220514205,
+          "ssim_y": 0.9995144866922357,
+          "motion_roi_psnr": 39.717726002646536,
+          "temporal_error": 0.1213816218660213,
+          "dynamic_outputs": 24,
+          "endpoint_duplicates": 0,
+          "equal_output_pairs": 0,
+          "outputs": 24,
+          "nearest_endpoint_psnr_y": 59.735156928852355,
+          "motion_edge_psnr_y": 39.66041318248182,
+          "hud_psnr_y": {},
+          "allocation_bytes": 5657076,
+          "quality_run_first_pair_gpu_ms": 56.6254,
+          "quality_process_wall_s": 1.1490781720058294,
+          "cut_flags": 0,
+          "input_interval_cut_pairs": 0,
+          "quality_output_sha256": "df331281a29f0b1fbc838e2d546a111eb81544e57a6b50dd7027e99b2347804a",
+          "device_log": "worker-small-worker-gsf-quality.log",
+          "first_output_bit_exact_with_single_output": true,
+          "timing_samples": 33,
+          "analysis_ms": {
+            "median": 19.1495,
+            "p95": 30.846879999999995
+          },
+          "s1_ms": {
+            "median": 2.8661,
+            "p95": 5.097039999999998
+          },
+          "s2_ms": {
+            "median": 2.8619,
+            "p95": 3.4890199999999996
+          },
+          "first_ready_ms": {
+            "median": 22.0421,
+            "p95": 37.76471999999999
+          },
+          "pair_ready_ms": {
+            "median": 25.0214,
+            "p95": 42.00911999999999
+          },
+          "cpu_submit_ms": {
+            "median": 0.0951,
+            "p95": 0.13449999999999998
+          },
+          "cpu_total_ms": {
+            "median": 25.4518,
+            "p95": 42.38895999999999
+          },
+          "vs_lmc": {
+            "psnr_delta": 0.0,
+            "motion_roi_delta": 0.0,
+            "temporal_ratio": 1.0,
+            "pair_gpu_ratio": 0.7531099412775666,
+            "worst_hud_delta": 0.0
+          },
+          "software_gate_pass": false
+        }
+      }
+    }
+  ]
+}

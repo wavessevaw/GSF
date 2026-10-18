@@ -1,0 +1,17 @@
+{
+  "component_sha256": "311e8fb6ba37599eea9c9ca5e8d3c88ebd3f3671fed1bcbf44149b7ec3097a30",
+  "decky_sha256": "ff1a6b0d3deb025180b691df3097adcb159daddaafb172b0d2435c9096081244",
+  "source_commit": "f7d007998f137697d1a186af1afc79c3255a6ef8",
+  "elf_sha256": "eef7e07769202c2d397b024d7843d16b4532624eca2305df9e7335548b49cdc9",
+  "checksums": "PASS",
+  "integrated_component_staging": "PASS",
+  "archive_executable_modes": "PASS",
+  "installed_WSI_diagnostic": "PASS",
+  "retired_status_removed": "PASS",
+  "rollback": "PASS",
+  "physical_displayed": "NOT TESTED",
+  "rebuild_from_included_source": "byte-identical PASS",
+  "actual_glibc_2_31_loader": "PASS",
+  "elf_max_glibc_symbol": "2.17",
+  "hardware_acceptance": "NOT TESTED"
+}

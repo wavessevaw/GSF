@@ -1,0 +1,89 @@
+{
+  "source_commit": "9522288fd0ced30aed703439783e0d1d1561733d",
+  "scope": "software Vulkan functional acceptance; WSI handoffs, not physical scanout",
+  "output_hz": 9,
+  "target_product_hz": 90,
+  "checks": [
+    {
+      "name": "core-gsf",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "borrowed-gsf",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "sync-real-only-fallback",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "pixels-order-0",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "cut-order-0",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "recreate-order-0",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "queue-idle-order-0",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "unknown-order-0",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "pixels-order-1",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "cut-order-1",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "recreate-order-1",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "queue-idle-order-1",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    },
+    {
+      "name": "unknown-order-1",
+      "passed": true,
+      "returncode": 0,
+      "validation_error": false
+    }
+  ],
+  "libVkLayer_gfg_native.so_sha256": "17019a0a49a2e3d851cd100fff3c5af040499648454d1e8cb8ff38c444adaa24",
+  "libgfg-temporal.a_sha256": "509ee18821be7b1af0b6c8b8c305ba541180cc6bced4c4c62e22320dd06b8a64",
+  "passed": true
+}
