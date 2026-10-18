@@ -8,7 +8,7 @@ ENABLE_CPU_BRIDGE ?= 0
 TE_LIB ?= ../gfg-temporal/build/libgfg-temporal.a
 ifeq ($(ENABLE_TE),1)
 NATIVE_SOURCES := src/layer.c src/gpu_bridge.c src/output_worker.c
-NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
+NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
 NATIVE_CPPFLAGS := -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src
 ifeq ($(ENABLE_CPU_BRIDGE),1)
 NATIVE_SOURCES += src/cpu_bridge.c
@@ -312,6 +312,14 @@ $(BUILD)/presentation-timing: tests/presentation_timing.c src/gpu_bridge.c src/g
 presentation-timing: $(BUILD)/presentation-timing
 	$(BUILD)/presentation-timing
 .PHONY: presentation-timing
+
+$(BUILD)/past-timing: tests/past_timing.c src/past_timing.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -o $@ $<
+
+past-timing: $(BUILD)/past-timing
+	$(BUILD)/past-timing
+.PHONY: past-timing
 
 $(BUILD)/device-fallback: tests/device_fallback.c src/layer.c
 	mkdir -p $(BUILD)
