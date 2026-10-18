@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native GSF GPU LMC cold-start recovery, NOT strict 0-skip 3x acceptance."""
+"""Real GSF GPU LMC strict 0-skip proof at 5Hz, NOT 45-to-90 WSI timing."""
 import argparse
 from datetime import datetime,timezone
 import json
@@ -34,10 +34,10 @@ def main():
     so=repo/"build-cold/libVkLayer_gfg_native.so"
     icds=sorted(Path("/usr/share/vulkan/icd.d").glob("lvp_icd*.json"))
     icds=[x for x in icds if "x86_64" in x.name] or icds
-    result={"scope":"ACTUAL_GPU_LMC_cold_recovery_NOT_zero_skips","order":args.order,
+    result={"scope":"ACTUAL_GPU_LMC_strict_5Hz_source_NOT_45_to_90_pacing","order":args.order,
             "utc":datetime.now(timezone.utc).isoformat(),
             "source_frames":FRAMES,"source_hz":5,
-            "physical_oled_scanout":"UNVERIFIED","strict_zero_skips":"NOT_TESTED",
+            "physical_oled_scanout":"UNVERIFIED","strict_zero_skips":"REQUIRED_FOR_5HZ_SOURCE_ONLY",
             "status":"FAIL","checks":{}}
     try:
         if not binary.is_file() or not so.is_file() or not icds:
@@ -54,8 +54,7 @@ def main():
             "GFG_TEST_VALIDATION":"1","GFG_TEST_PROTON_CHAIN":"1",
             "GFG_NATIVE_ALGO":"lmc-gpu","GFG_TEST_FRAMES":str(FRAMES),
             "GFG_TEST_SOURCE_HZ":"5","GFG_NATIVE_GPU_BRIDGE_VERIFY":"1",
-            "GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY":"2",
-            "GFG_TEST_ALLOW_SKIPS":"1"
+            "GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY":"2"
         })
         start=time.monotonic()
         cmd=["timeout",str(args.timeout)+"s","xvfb-run","-a","-s",
@@ -81,7 +80,8 @@ def main():
                 "one_bridge":c["bridges"]==1,
                 "real_preservation":c["real"]==FRAMES,
                 "slot_accounting":c["synthetic"]+c["skipped"]==2*(FRAMES-1),
-                "some_synthetic_wsi":c["synthetic"]>=2,
+                "all_synthetic_wsi":c["synthetic"]==2*(FRAMES-1),
+                "zero_skipped_at_5hz":c["skipped"]==0,
                 "positive_pixel_checks":c["verify_checks"]>=1,
                 "verified_pixels_distinct":c["verify_distinct"]==c["verify_checks"],
                 "no_bridge_errors":c["errors"]==0,
@@ -107,7 +107,7 @@ def main():
         summary=["### Real GPU LMC cold-start recovery / software Vulkan",
                  "",
                  "**"+result["status"]+"**. Source is deliberately slow at 5 Hz.",
-                 "SKIPS MAY BE PRESENT: this does not pass or replace strict 0-skip CI draft PR #4.",
+                 "ZERO SKIPS REQUIRED at 5Hz. Strict unpaced Native FG3 CI draft PR #4 remains separate.",
                  "No Deck RADV / OLED output is inferred.",
                  "",
                  "| Gate | Result |","|---|---|"]
