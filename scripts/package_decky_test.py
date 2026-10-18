@@ -65,7 +65,8 @@ def main():
                   for p in plugin.rglob('*') if p.is_file()}
         (plugin/'CHECKSUMS.json').write_text(json.dumps(hashes, indent=2)+'\n')
         args.out.mkdir(parents=True, exist_ok=True)
-        archive = args.out/'GSF-Decky-Test-0.1.0.zip'
+        version = json.loads((ROOT/'decky/package.json').read_text())['version']
+        archive = args.out/('GSF-Decky-Test-'+version+'.zip')
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
             for p in sorted(plugin.rglob('*')):
                 if p.is_file():

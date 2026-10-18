@@ -9,5 +9,5 @@ type RPC = {
   forget(id: number, actual: string): Promise<unknown>;
 };
 export function readOptions(apps: Apps, id: number, expected?: string, timeout?: number): Promise<string>;
-export function enableGame(apps: Apps, rpc: RPC, id: number): Promise<void>;
+export function enableGame(apps: Apps, rpc: RPC, id: number): Promise<string>;
 export function disableGame(apps: Apps, rpc: RPC, id: number): Promise<string | undefined>;

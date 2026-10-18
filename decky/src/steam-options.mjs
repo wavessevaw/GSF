@@ -31,6 +31,7 @@ export async function enableGame(apps, rpc, appid) {
     catch (error) { await confirmation.catch(() => {}); throw error; }
     await confirmation;
     await rpc.confirm(appid, prepared.options);
+    return prepared.options;
   } catch (error) {
     // Unconfirmed application must never leave active generation armed.
     await rpc.disable(appid, await readOptions(apps, appid).catch(() => previous));
