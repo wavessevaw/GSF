@@ -23,9 +23,12 @@ handoff. A CPU worker did not isolate those waits from the game or its GPU.
 * If no synthetic was accepted, the original is presented immediately instead
   of waiting for its planned future slot, including GOOGLE desired times.
   Completed GPU first/second-output timings provide a pre-dispatch cost floor
-  with a 0.5ms margin. If the work cannot fit, submit history only. A single
-  eligible output may retry after two seconds to learn recovery; expired
-  slots never retry. Measurement is independent of detailed logging.
+  with a 0.5ms margin. If the work cannot fit, forward the original without
+  even the optional source-copy/history work and invalidate that history.
+  After two seconds, rebuild fresh history and allow one eligible output to
+  retry and learn recovery; expired slots never retry. A final recheck after
+  source copy can still reduce admission to a history-only update if its
+  budget expired in the meantime. Sampling does not depend on logging.
 * Private gates still consume application waits before Present returns.
   Per-image pending **counts** retain the semaphore-reuse guard even when a
   reacquired image is resubmitted before the preceding CPU job retires.

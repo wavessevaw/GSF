@@ -1683,14 +1683,20 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         result = forward_real(fg, queue, app, NULL, next, NULL, &next_us);
         goto timing;
     }
-    if(fg->diagnostic==1 || (!fg->diagnostic && atomic_load(&fg->output_pressure))) {
+    te_submit budget_preview={0};
+    const uint64_t preview_ns=(uint64_t)(now_us()*1000.0);
+    const int budget_skip=!fg->diagnostic && fg->clock.period_ns && fg->gpu_budget_ns[0] &&
+        gfg_frame_clock_compute_mask(&fg->clock,preview_ns,fg->display_timing==2?fg->clock.period_ns/4:0) &&
+        !prepare_generation(fg,1,0,preview_ns,&budget_preview);
+    if(fg->diagnostic==1 || budget_skip || (!fg->diagnostic && atomic_load(&fg->output_pressure))) {
         /* Keep the queued real frame and its consumed private gate. Only
          * optional generation/history work is dropped; never overwrite WSI. */
         fg->te_gap=1;
-        if(frame)skip_outputs(fg,DROP_BYPASS,fg->multiplier-1);
+        const unsigned reason=budget_skip && !atomic_load(&fg->output_pressure)?DROP_RATE:DROP_BYPASS;
+        if(frame)skip_outputs(fg,reason,fg->multiplier-1);
         for(unsigned k=0;k<fg->multiplier-1;++k) {
-            fg->slot_drop[k]=DROP_BYPASS;
-            fg->slot_detail[k]=fg->diagnostic?"diagnostic-source-only":"source-backlog";
+            fg->slot_drop[k]=(int)reason;
+            fg->slot_detail[k]=fg->diagnostic?"diagnostic-source-only":reason==DROP_RATE?"gpu-budget":"source-backlog";
         }
         result=forward_real(fg,queue,app,NULL,next,ids,&next_us);
         goto timing;
