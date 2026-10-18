@@ -17,7 +17,8 @@ import zipfile
 
 KIT = Path(__file__).resolve().parent
 PAYLOAD = ('libVkLayer_gfg_native.so', 'layers/VkLayer_gfg_native.json', 'wsi-gpu-smoke',
-           'run-test.py', 'GSF-Test.desktop', 'BUILD_INFO.json', 'README.txt',
+           'run-test.py', 'GSF-Test.desktop', 'game-mode.py', 'install-game-mode.py',
+           'Install-Game-Mode.desktop', 'BUILD_INFO.json', 'README.txt',
            'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md', 'SOURCE.tar.gz')
 
 
@@ -103,11 +104,14 @@ def check_cadence(path, minimum=5):
             'nonuniform_transition_gaps_ms':transitions}
 
 
-def child_env(kit, active, validation, order):
+def child_env(kit, active, validation, order, preserve_layers=False):
     # Only this child is changed; no global manifests, Steam options or settings.
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'LSFGVK_', 'DISABLE_GFG_NATIVE_'))}
     env.pop('VK_INSTANCE_LAYERS', None)
-    paths = [str(kit/'layers'), '/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
+    paths = [str(kit/'layers')]
+    if preserve_layers:
+        paths += [p for p in os.environ.get('VK_LAYER_PATH','').split(':') if p]
+    paths += ['/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
     for base in (os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')),
                  os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config'))):
         paths.append(base+'/vulkan/explicit_layer.d')
@@ -115,6 +119,9 @@ def child_env(kit, active, validation, order):
     layers = ['VK_LAYER_GFG_native'] if active else []
     if validation:
         layers.insert(0 if order=='validation-first' else len(layers), 'VK_LAYER_KHRONOS_validation')
+    if preserve_layers:
+        layers += [p for p in os.environ.get('VK_INSTANCE_LAYERS','').split(':')
+                   if p and p not in ('VK_LAYER_GFG_native','VK_LAYER_KHRONOS_validation')]
     if layers:
         env['VK_INSTANCE_LAYERS'] = ':'.join(layers)
     env.update(GFG_TEST_SOURCE_HZ='5', GFG_TEST_FRAMES='12', GFG_TEST_WIDTH='96', GFG_TEST_HEIGHT='64',

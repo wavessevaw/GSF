@@ -24,9 +24,10 @@ def main():
     manifest = json.loads((args.build/'VkLayer_gfg_native.json').read_text())
     manifest['layer']['library_path'] = '../libVkLayer_gfg_native.so'
     (kit/'layers/VkLayer_gfg_native.json').write_text(json.dumps(manifest,indent=2)+'\n')
-    for name in ('run-test.py','GSF-Test.desktop'):
+    for name in ('run-test.py','GSF-Test.desktop','game-mode.py','install-game-mode.py','Install-Game-Mode.desktop'):
         shutil.copy2(ROOT/'engine/gfg-native/candidate'/name, kit/name)
     (kit/'GSF-Test.desktop').chmod(0o755)
+    (kit/'Install-Game-Mode.desktop').chmod(0o755)
     (kit/'wsi-gpu-smoke').chmod(0o755)
     commit = subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip()
     dirty = subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True)
@@ -49,6 +50,17 @@ B — GPU LMC 5 → 10 кадров/с. Каждый фрагмент движе
 Готовый ZIP с диагностикой находится в ~/GSF-Test-Results/.
 Он содержит журналы теста и сведения о сборке; ничего автоматически не отправляется.
 Этот пакет не подключает генератор к вашим играм и не доказывает OLED 90 Гц.
+Game Mode: откройте Install-Game-Mode.desktop в Desktop Mode.
+Установщик проверит и скопирует пакет в постоянную пользовательскую папку.
+Установщик сам запросит добавление GSF Game Mode Test через штатный
+steamos-add-to-steam. Steam может показать своё подтверждение.
+Затем вернитесь в Game Mode, выберите 90 Гц и отключите лимит FPS
+для этого теста. Совместимость Proton не включать: приложение Linux.
+Запустите GSF Game Mode Test из библиотеки. Весь прогон автоматический.
+Он проверяет baseline/LMC 30→60 и 45→90 на 640×400 и 45→90 на 1280×800.
+Настройки экрана/лимитера сохраняются в отчёте лишь косвенно через тайминги;
+тест не меняет их и не доказывает физический показ OLED.
+Отчёт: ~/GSF-Test-Results/, отдельный ZIP даже при ошибках.
 Запуск напрямую через Python: python3 run-test.py
 ''')
     for name in ('LICENSE.md','NOTICE.md','COPYRIGHT.md'):
