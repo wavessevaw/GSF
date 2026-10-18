@@ -101,7 +101,7 @@ def main():
         "gpu_lmc_pixel_quality": "NOT_TESTED",
         "cases": [],
         "route": ("virtual-source-to-single-output-wsi" if args.layer_order == "native-first"
-                  else "real-driver-wsi-passthrough-only"),
+                  else "real-driver-wsi-passthrough-plus-virtual-fail-closed"),
         "virtual_source_compatible_with_validation_first": False,
         "status": "FAIL"
     }
@@ -118,11 +118,19 @@ def main():
         result["icd_sha256"] = sha256(icd)
         # Outer validation cannot track privately-emulated swapchain creation.
         # Unsupported layer order crashed (VUID + exit 139): GSF issue #14.
-        # This alternate order therefore tests REAL WSI passthrough ONLY.
+        # This alternate order tests REAL WSI passthrough, plus explicit
+        # negative proof that attempted private-handle creation fails safely.
         if args.layer_order == "validation-first":
             scenarios = tuple(("real-wsi-passthrough-{}".format(i), (), (
                 "GFG native: 4 real WSI acquire/submit/present cycles PASS",))
                 for i in range(1, 4))
+            scenarios += (("outer-validation-virtual-rejected", (
+                "GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT",
+                "GFG_NATIVE_TEST_PROXY_CREATE"), (
+                "GSF_LOADER_OWNER_REJECT reason=validation-layer-above-gsf",
+                "fail_closed=1 virtual_handle_returned=0",
+                "vkCreateSwapchainKHR",
+            )),)
         else:
             scenarios = CASES if args.profile == "sustained" else CASES[:-1]
         for name, flags, expected in scenarios:
@@ -150,9 +158,11 @@ def main():
                     env.pop(flag, None)
             for flag in flags:
                 env[flag] = "1"
+            reject_case = name == "outer-validation-virtual-rejected"
             command = ["timeout", str(args.timeout) + "s", "xvfb-run", "-a", "-s",
                        "-screen 0 1024x768x24", str(
-                           binary if args.layer_order == "native-first" else real_wsi_binary)]
+                           binary if args.layer_order == "native-first" or reject_case
+                           else real_wsi_binary)]
             started = time.monotonic()
             try:
                 completed = subprocess.run(
@@ -170,7 +180,9 @@ def main():
             (logs / (name + ".log")).write_text(output, encoding="utf-8")
             missing = [marker for marker in expected if marker not in output]
             errors = VALIDATION_ERROR.findall(output)
-            ok = exitcode == 0 and not missing and not errors
+            # Only this specifically expected negative create test may return
+            # failure (normal feature rejection); no VUID/SEGV/timeout allowed.
+            ok = exitcode == (1 if reject_case else 0) and not missing and not errors
             result["cases"].append({
                 "case": name,
                 "status": "PASS" if ok else "FAIL",

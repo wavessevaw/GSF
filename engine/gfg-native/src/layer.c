@@ -1161,6 +1161,31 @@ native_GetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2 *info,
     if (queue && info) native_record_queue(d, *queue, info->queueFamilyIndex);
 }
 
+#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+/* The test virtual swapchain handle is private to this layer, so a Vulkan
+ * validation layer ABOVE us cannot see its creation and may dereference a
+ * nonexistent tracked VkSwapchainKHR. The explicit test environment's
+ * VK_INSTANCE_LAYERS order lets us reject this KNOWN unsafe stack before
+ * allocating or returning any virtual handle. This is NOT a general layer
+ * negotiation solution; a production virtual WSI needs a proper contract. */
+static int native_test_outer_validation_before_gsf(void) {
+    const char *list=getenv("VK_INSTANCE_LAYERS");
+    if(!list)return 0;
+    int validation=-1,gsf=-1,index=0;
+    for(const char *part=list;*part;) {
+        part+=strspn(part,":;, \t");
+        if(!*part)break;
+        size_t len=strcspn(part,":;, \t");
+        if(len==strlen("VK_LAYER_KHRONOS_validation") &&
+           !strncmp(part,"VK_LAYER_KHRONOS_validation",len))validation=index;
+        if(len==strlen("VK_LAYER_GFG_native") &&
+           !strncmp(part,"VK_LAYER_GFG_native",len))gsf=index;
+        part+=len;++index;
+    }
+    return validation>=0 && gsf>=0 && validation<gsf;
+}
+#endif
+
 static VKAPI_ATTR VkResult VKAPI_CALL
 native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
     const VkAllocationCallbacks *alloc, VkSwapchainKHR *out) {
@@ -1173,6 +1198,14 @@ native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
      * absent from normal GFG builds: its callbacks currently exist only
      * in an isolated test harness, not a real game/Deck pipeline. */
     if (native_env_is_1("GFG_NATIVE_TEST_PROXY_CREATE")) {
+        /* Never hand a private handle to an outer validation layer. A
+         * controlled unsupported test must fail safely at CREATE time,
+         * before acquiring source images or consuming any app semaphore. */
+        if(native_test_outer_validation_before_gsf()) {
+            fprintf(stderr,"GSF_LOADER_OWNER_REJECT reason=validation-layer-above-gsf"
+                    " fail_closed=1 virtual_handle_returned=0\n");
+            return VK_ERROR_FEATURE_NOT_PRESENT;
+        }
         if (ci->oldSwapchain) {
             int old_is_virtual=0;
             pthread_mutex_lock(&d->lock);
