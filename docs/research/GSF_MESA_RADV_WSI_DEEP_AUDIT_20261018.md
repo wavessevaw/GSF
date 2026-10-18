@@ -9,6 +9,7 @@
 - Mesa 26.1.0 (2026-05-06): https://docs.mesa3d.org/relnotes/26.1.0.html
 - Mesa 26.2.0 (2026-08-05): https://docs.mesa3d.org/relnotes/26.2.0.html
 - Mesa 26.2.4 (2026-10-01): https://docs.mesa3d.org/relnotes/26.2.4.html
+- Mesa **26.2.5 (2026-10-14, latest stable release verified for this research date)**: https://docs.mesa3d.org/relnotes/26.2.5.html
 - Source snapshot of Mesa Vulkan common WSI: https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/ecf8f8d26ffd5d9fdfbf67346d58b254aaf882fd/src/vulkan/wsi/wsi_common.c
 - Source snapshot of Wayland WSI: https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/7215c4ef5fba349dbd5debb6c8fd336f1e3fef48/src/vulkan/wsi/wsi_common_wayland.c
 - Valve Gamescope new `VK_EXT_present_timing` implementation as of 2026-10-18: https://github.com/ValveSoftware/gamescope/tree/74a06ff517ed9fc1307227406bd53ae847be3a91
@@ -16,6 +17,8 @@
 - GSF Native: `engine/gfg-native/src/layer.c`, `gpu_bridge.c`, `output_worker.c`, `present_chain.h`.
 - GSF Temporal: `engine/gfg-temporal/src/te_engine.c`, `te_lmc.inc`, `shaders/lmc/*.comp`.
 - Inherited CI red, reproducible and quantified: [GSF PR #4](https://github.com/wavessevaw/GSF/pull/4) and [run 39101728491](https://github.com/wavessevaw/GSF/actions/runs/39101728491).
+
+**Latest-release qualification:** Mesa 26.2.5 was published on October 14, 2026; Mesa's release calendar lists the next 26.2.6 for October 28. 26.2.5 includes RADV shader/compiler and Mesa llvmpipe/Gallivm corrections, but its release notes do not establish a fix for GSF's specific initial GPU LMC CI timeouts. Do not treat a Mesa package upgrade as a diagnosed cure without an A/B reproduction.
 
 **Important provenance distinction:** upstream Mesa current documentation/release notes and mirrored source snapshots are NOT a measurement of the Mesa/RADV/Gamescope versions installed on the user's SteamOS. Obtain the exact package build, driver ID, layer list and target surface first.
 
