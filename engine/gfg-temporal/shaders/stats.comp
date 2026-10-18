@@ -1,0 +1,79 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Per-tile statistics, one workgroup per tile (reference: analyze_pair).
+// E0/M0 over the full tile, probe residual on a sparse grid, vector
+// smoothness and the scene-cut counters.
+#include "common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+
+shared float s_sum[64];
+shared float s_max[64];
+shared uint s_cnt[64];
+shared float s_probe[64];
+
+void main() {
+    ivec2 tc = ivec2(gl_WorkGroupID.xy);
+    int id = tc.y * P.tiles.x + tc.x;
+    uint li = gl_LocalInvocationIndex;
+    ivec2 lp = ivec2(gl_LocalInvocationID.xy);
+    float sum = 0.0, mx = 0.0;
+    uint cnt = 0u;
+    for (int by = 0; by < P.tile; by += 8) {
+        for (int bx = 0; bx < P.tile; bx += 8) {
+            ivec2 p = tc * P.tile + ivec2(bx, by) + lp;
+            if (all(lessThan(p, P.size))) {
+                float d = abs(texelFetch(lumaA0, p, 0).r - texelFetch(lumaB0, p, 0).r);
+                sum += d;
+                mx = max(mx, d);
+                cnt += 1u;
+            }
+        }
+    }
+    s_sum[li] = sum;
+    s_max[li] = mx;
+    s_cnt[li] = cnt;
+    int n = P.probe;
+    float pr = 0.0;
+    if (int(li) < n * n) {
+        float T = float(P.tile);
+        int i = int(li) % n, j = int(li) / n;
+        vec2 off = (vec2(i, j) + 0.5) * (T / float(n)) - 0.5;
+        vec2 g = vec2(tc) * T + off;
+        vec2 v = smooth_vector(g, 0.5);
+        pr = abs(luma_a(0, g - 0.5 * v) - luma_b(0, g + 0.5 * v));
+    }
+    s_probe[li] = pr;
+    barrier();
+    for (uint w = 32u; w > 0u; w >>= 1) {
+        if (li < w) {
+            s_sum[li] += s_sum[li + w];
+            s_max[li] = max(s_max[li], s_max[li + w]);
+            s_cnt[li] += s_cnt[li + w];
+            s_probe[li] += s_probe[li + w];
+        }
+        barrier();
+    }
+    if (li != 0u) return;
+    vec2 v = tile_vector(0, tc);
+    float sm = 0.0, ng = 0.0;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            vec2 o = tile_vector(0, tc + ivec2(dx, dy));
+            vec2 d = abs(o - v);
+            sm = max(sm, max(d.x, d.y));
+            ng = max(ng, max(abs(o.x), abs(o.y)));
+        }
+    }
+    TileStats st = stats[id];
+    st.diff = s_sum[0] / float(max(s_cnt[0], 1u));
+    st.diff_max = s_max[0];
+    st.probe = s_probe[0] / float(n * n);
+    st.smooth_ = sm;
+    st.neigh = ng;
+    stats[id] = st;
+    uint par = uint(PC.parity);
+    if (st.err > P.cut_thr) atomicAdd(G.count_err[par], 1u);
+    if (st.diff > P.cut_thr) atomicAdd(G.count_diff[par], 1u);
+    float conf = clamp(1.0 - st.probe / P.cut_thr, 0.0, 1.0);
+    atomicAdd(G.conf_milli[par], uint(conf * 1000.0 + 0.5));
+}

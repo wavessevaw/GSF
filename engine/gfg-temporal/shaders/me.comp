@@ -1,0 +1,133 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Hierarchical bilateral motion estimation, one workgroup per tile and level
+// (reference: MotionEstimator.estimate).  Coarsest level: full search plus
+// temporal predictor.  Finer levels: predictors from the coarser level, then
+// 3x3 refinement (step 1, and step 0.5 at level 0).
+//
+// The 64 threads evaluate 8 candidates at a time, one window row per thread;
+// thread 0 then takes the first minimum in candidate order, so the choice is
+// the reference's sequential "first strictly smaller cost wins".
+#include "common.glsl"
+layout(local_size_x = 64) in;
+
+#define MAX_CANDS 290  /* temporal predictor + (2*8+1)^2 grid */
+
+shared vec2 s_cand[MAX_CANDS];
+shared float s_cost[MAX_CANDS];
+shared float s_part[64];
+shared vec2 s_best;
+shared float s_best_cost;
+
+vec2 g_c;      // window centre in level pixels
+int g_level;
+
+float row_cost(vec2 v, int row) {
+    int n = me_n(g_level);
+    float st = me_step(g_level);
+    vec2 h = v * 0.5;
+    float acc = 0.0;
+    float y = (float(row) - float(n - 1) * 0.5) * st;
+    for (int i = 0; i < n; ++i) {
+        vec2 q = g_c + vec2((float(i) - float(n - 1) * 0.5) * st, y);
+        acc += abs(luma_a(g_level, q - h) - luma_b(g_level, q + h));
+    }
+    return acc;
+}
+
+// Costs of s_cand[0 .. count); then s_best / s_best_cost = first minimum.
+void evaluate(int count, bool bias) {
+    uint lid = gl_LocalInvocationIndex;
+    int n = me_n(g_level);
+    for (int base = 0; base < count; base += 8) {
+        int c = base + int(lid / 8u);
+        int row = int(lid % 8u);
+        float part = 0.0;
+        if (c < count && row < n) part = row_cost(s_cand[c], row);
+        s_part[lid] = part;
+        barrier();
+        if (lid < 8u && base + int(lid) < count) {
+            float acc = 0.0;
+            for (int r = 0; r < 8; ++r) acc += s_part[lid * 8u + uint(r)];
+            vec2 v = s_cand[base + int(lid)];
+            float cost = acc / float(n * n);
+            if (bias) cost += P.me_bias * (abs(v.x) + abs(v.y));
+            s_cost[base + int(lid)] = cost;
+        }
+        barrier();
+    }
+    if (lid == 0u) {
+        int best = 0;
+        for (int k = 1; k < count; ++k)
+            if (s_cost[k] < s_cost[best]) best = k;
+        s_best = s_cand[best];
+        s_best_cost = s_cost[best];
+    }
+    barrier();
+}
+
+void refine(float stp) {
+    uint lid = gl_LocalInvocationIndex;
+    if (lid == 0u) {
+        vec2 centre = s_best;
+        s_cand[0] = centre;
+        int k = 1;
+        for (int dy = -1; dy <= 1; ++dy)
+            for (int dx = -1; dx <= 1; ++dx)
+                if (dx != 0 || dy != 0) s_cand[k++] = centre + vec2(dx, dy) * stp;
+    }
+    barrier();
+    evaluate(9, true);
+}
+
+void main() {
+    int id = int(gl_WorkGroupID.x);
+    if (id >= tile_count()) return;  // uniform per workgroup
+    uint lid = gl_LocalInvocationIndex;
+    ivec2 tc = ivec2(id % P.tiles.x, id / P.tiles.x);
+    int l = PC.level;
+    g_level = l;
+    float s = float(1 << l);
+    float T = float(P.tile);
+    vec2 c0 = vec2(tc) * T + (T - 1.0) * 0.5;
+    g_c = (c0 - (s - 1.0) * 0.5) / s;
+    bool hist = G.history_valid[PC.parity ^ 1] != 0u;
+    vec2 tp = hist ? vec_prev[id] / s : vec2(0.0);
+    if (l == P.levels) {
+        int r = min(P.coarse_range, 8);
+        int side = 2 * r + 1;
+        for (int k = int(lid); k < side * side; k += 64)
+            s_cand[1 + k] = vec2(k % side - r, k / side - r);
+        if (lid == 0u) s_cand[0] = tp;
+        barrier();
+        evaluate(1 + side * side, true);
+    } else {
+        if (lid == 0u) {
+            s_cand[0] = 2.0 * tile_vector(l + 1, tc);
+            s_cand[1] = 2.0 * tile_vector(l + 1, tc + ivec2(0, -1));
+            s_cand[2] = 2.0 * tile_vector(l + 1, tc + ivec2(0, 1));
+            s_cand[3] = 2.0 * tile_vector(l + 1, tc + ivec2(-1, 0));
+            s_cand[4] = 2.0 * tile_vector(l + 1, tc + ivec2(1, 0));
+            s_cand[5] = vec2(0.0);
+            s_cand[6] = tp;
+        }
+        barrier();
+        evaluate(7, true);
+        refine(1.0);
+        if (l == 0) refine(0.5);
+    }
+    if (l == 0) {
+        // match error E at the final vector, without the length bias
+        if (lid == 0u) s_cand[0] = s_best;
+        barrier();
+        vec2 best = s_best;
+        g_c = c0;
+        evaluate(1, false);
+        if (lid == 0u) {
+            vec_cur[id] = best;
+            stats[id].err = s_best_cost;
+        }
+    } else if (lid == 0u) {
+        vec_cur[l * tile_count() + id] = s_best;
+    }
+}
