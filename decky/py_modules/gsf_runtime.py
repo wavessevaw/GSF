@@ -164,7 +164,8 @@ class Runtime:
         base.verify_payload(dest)
         for source, name in ((self.plugin/'launch.py', 'launch.py'),
                              (self.plugin/'py_modules/gsf_runtime.py', 'gsf_runtime.py'),
-                             (self.plugin/'py_modules/gsf_diagnostic.py', 'gsf_diagnostic.py')):
+                             (self.plugin/'py_modules/gsf_diagnostic.py', 'gsf_diagnostic.py'),
+                             (self.plugin/'py_modules/gsf_amdgpu.py', 'gsf_amdgpu.py')):
             temp = self.root/(name+'.new')
             shutil.copyfile(source, temp)
             temp.chmod(0o600)
@@ -215,7 +216,7 @@ class Runtime:
             atomic_json(self.root/'config.json', cfg)
 
     def set_diagnostic_mode(self, appid, mode):
-        if mode not in ('normal', 'normal-no-watch', 'source-only', 'compute-only', 'matched-compute'):
+        if mode not in ('normal', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'source-only', 'compute-only', 'matched-compute'):
             raise ValueError('Неверный диагностический режим')
         aid = app_id(appid)
         cfg = self.config()

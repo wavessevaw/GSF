@@ -185,6 +185,11 @@ uint32_t te_context_outputs(const te_context* ctx);
 VkResult te_output_control(te_context* ctx,uint32_t output,uint64_t ready_value,
                          uint32_t* scene_cut,int* held,int* duplicate);
 VkResult te_last_stats(te_context* ctx, te_pair_stats* stats);
+/* ABI-safe optional timestamp details. Does NOT alter te_pair_stats layout,
+ * which is also consumed by older native layers in regression tests. */
+VkResult te_last_calibration_fields(te_context* ctx, uint64_t *sequence,
+    uint64_t *submit_return_ns, uint64_t *gpu_start_ticks,
+    double *gpu_timestamp_period_ns, uint32_t *gpu_timestamp_valid_bits);
 VkResult te_download_rgb(te_context* ctx, uint32_t output, uint8_t* rgb);
 
 /* Diagnostics copies of the newest pair (after te_wait_idle). */

@@ -100,6 +100,7 @@ typedef struct {
     uint32_t outputs;
     uint32_t parity;
     uint64_t sequence;
+    uint64_t submit_return_ns;
     int generated;
     int held;
     int profiled;
@@ -180,6 +181,9 @@ struct te_context {
     uint64_t submits;          /* submissions so far */
     uint64_t output_ready[TE_MAX_OUTPUTS];
     uint64_t outputs_completed;/* outputs whose GPU work finished */
+    uint64_t last_timing_sequence, last_submit_return_ns, last_gpu_start_ticks;
+    double last_gpu_timestamp_period_ns;
+    uint32_t last_gpu_timestamp_valid_bits;
 };
 
 static VkResult lmc_create(te_context* ctx);
@@ -1426,6 +1430,11 @@ static void collect(te_context* ctx, te_slot* slot) {
     st->profiled = slot->profiled;
     st->held = slot->held;
     st->sequence = slot->sequence;
+    ctx->last_timing_sequence=slot->sequence;
+    ctx->last_submit_return_ns=slot->submit_return_ns;
+    ctx->last_gpu_timestamp_period_ns=ctx->dev->props.limits.timestampPeriod;
+    ctx->last_gpu_timestamp_valid_bits=ctx->dev->ts_bits;
+    ctx->last_gpu_start_ticks=0;
     ctx->outputs_completed += slot->outputs;
     st->outputs_completed_total = ctx->outputs_completed;
     uint64_t ts[TE_QUERIES];
@@ -1437,6 +1446,7 @@ static void collect(te_context* ctx, te_slot* slot) {
     uint64_t mask = ctx->dev->ts_bits >= 64 ? ~0ull : ((1ull << ctx->dev->ts_bits) - 1);
 #define DELTA(a, b) ((double)((ts[b] - ts[a]) & mask) * period)
     if (st->timed) {
+        ctx->last_gpu_start_ticks = ts[0];
         st->stage_ms[TE_STAGE_PYRAMID] = DELTA(0, 1);
         st->stage_ms[TE_STAGE_ANALYZE] = DELTA(1, 2);
         st->stage_ms[TE_STAGE_CLASSIFY] = DELTA(2, 3);
@@ -1689,6 +1699,8 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
             ctx->deferred_slot=slot;
         }
     }
+    struct timespec te_submitted_at;clock_gettime(CLOCK_MONOTONIC,&te_submitted_at);
+    const uint64_t te_submit_return_ns=(uint64_t)te_submitted_at.tv_sec*1000000000ull+(uint64_t)te_submitted_at.tv_nsec;
     for(uint32_t i=0;i<TE_MAX_OUTPUTS;++i)ctx->output_ready[i]=i<outs?s->signal_first+i:0;
     slot->in_flight = 1;
     slot->outputs = outs;
@@ -1697,6 +1709,7 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
     slot->pair = ctx->pairs;
     slot->parity = s->slot;
     slot->sequence = ++ctx->submits;
+    slot->submit_return_ns=te_submit_return_ns;
     slot->profiled = ctx->desc.profile || s->profile;
     if (ctx->upload_pending[s->slot]) {
         ctx->upload_pending[s->slot] = 0;
@@ -1838,6 +1851,21 @@ VkResult te_output_control(te_context* ctx,uint32_t output,uint64_t ready_value,
 VkResult te_last_stats(te_context* ctx, te_pair_stats* stats) {
     if (!ctx->have_last) return VK_NOT_READY;
     *stats = ctx->last;
+    return VK_SUCCESS;
+}
+
+VkResult te_last_calibration_fields(te_context* ctx,uint64_t *sequence,
+    uint64_t *submit_return_ns,uint64_t *gpu_start_ticks,
+    double *gpu_timestamp_period_ns,uint32_t *gpu_timestamp_valid_bits) {
+    if (!ctx || !ctx->have_last) return VK_NOT_READY;
+    if (!sequence || !submit_return_ns || !gpu_start_ticks ||
+        !gpu_timestamp_period_ns || !gpu_timestamp_valid_bits)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    *sequence=ctx->last_timing_sequence;
+    *submit_return_ns=ctx->last_submit_return_ns;
+    *gpu_start_ticks=ctx->last_gpu_start_ticks;
+    *gpu_timestamp_period_ns=ctx->last_gpu_timestamp_period_ns;
+    *gpu_timestamp_valid_bits=ctx->last_gpu_timestamp_valid_bits;
     return VK_SUCCESS;
 }
 

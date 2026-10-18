@@ -120,6 +120,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(env['GFG_NATIVE_VISIBILITY_PROBE'], '1')
         self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
         self.assertEqual(env['GFG_NATIVE_TIMELINE_WATCH'], '1')
+        self.assertEqual(env['GFG_NATIVE_CALIBRATED_TIMESTAMPS'], '1')
         with patch.object(launch, 'candidate_module', return_value=Base):
             watch_off = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-watch')
         self.assertEqual(watch_off['GFG_NATIVE_TIMELINE_WATCH'], '0')
@@ -127,6 +128,12 @@ class RuntimeTests(unittest.TestCase):
         with patch.object(launch, 'candidate_module', return_value=Base):
             matched = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'matched-compute')
         self.assertEqual(matched['GFG_NATIVE_DIAGNOSTIC_MODE'], 'matched-compute')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            no_cal = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-calibration')
+        self.assertEqual(no_cal['GFG_NATIVE_CALIBRATED_TIMESTAMPS'], '0')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            every = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-calibration-every-frame')
+        self.assertEqual(every['GFG_NATIVE_CALIBRATION_EVERY_FRAMES'], '1')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[0], 'VK_LAYER_GFG_native')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[-1], 'VK_LAYER_FROG_gamescope_wsi_x86_64')
         self.assertIn('/steam/explicit', env['VK_LAYER_PATH'])
