@@ -1,5 +1,5 @@
-name: GSF Real GPU LMC Cold Recovery
-# NOT the strict zero-skips warm steady-state FG3 test (see draft PR #4).
+name: GSF Actual GPU LMC 5Hz Strict Correctness
+# Strict 0-skips and distinct GPU pixels at 5Hz source. This is NOT real-time 45-to-90 WSI pacing; draft PR #4 remains distinct.
 on:
   schedule:
     - cron: '41 3 * * *'
@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   actual-gpu-compute:
-    name: Real LMC cold start / ${{ matrix.order }}
+    name: Real GPU LMC 5Hz strict / ${{ matrix.order }}
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     strategy:
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           make -C engine/gfg-native ENABLE_TE=1 BUILD=build-cold VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-cold/wsi-gpu-smoke 2>&1 | tee "gsf-lmc-${{ matrix.order }}/native-build.log"
           test -s engine/gfg-native/build-cold/libVkLayer_gfg_native.so
-      - name: Cold-start GPU LMC pixel recovery and real frame preservation
+      - name: Actual LMC GPU pixels: strict 12 real + 22 synthetic, zero skips at 5Hz
         run: |
           python3 engine/gfg-native/scripts/gsf_lmc_cold_recovery.py \
             --order "${{ matrix.order }}" --timeout 180 --out "gsf-lmc-${{ matrix.order }}"
