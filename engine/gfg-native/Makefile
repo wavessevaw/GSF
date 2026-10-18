@@ -30,7 +30,7 @@ $(BUILD)/frame-clock: tests/frame_clock.c src/frame_clock.h
 	$(CC) $(CFLAGS) -o $@ tests/frame_clock.c
 
 frame-clock: $(BUILD)/frame-clock
-	$(BUILD)/frame-clock
+	$(BUILD)/frame-clock tests/fixtures/ac-origins-deadline-slack.csv
 .PHONY: frame-clock
 
 # Test-only VkImage source allocations; NOT wired into live swapchain create.
