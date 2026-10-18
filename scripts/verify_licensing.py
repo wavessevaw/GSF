@@ -21,7 +21,7 @@ REQUIRED = {
         "Steam Deck Homebrew components",
     ),
     "COPYRIGHT.md": (
-        "respective original contributions",
+        "The project does not claim ownership of third-party code.",
         "1b600fbc4e6a03a9616fd65ee2f5b16f5224da00",
     ),
     "NOTICE.md": ("MAKO", "AFMF-Linux", "FidelityFX", "BSD-3-Clause"),
