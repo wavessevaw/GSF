@@ -40,6 +40,8 @@ This is a *thought-experiment lower bound*, not a real-world Deck target. Includ
 
 This is self-consistent at zero compute cost; with nonzero compute and display margin, shift the lattice later or reduce generated output. A simple implementation **choosing to wait and display A only after B is available** adds ≥T, but that is an algorithmic policy, not an information-theoretic lower bound for all buffered schedules.
 
+**Necessary scheduling distinction:** to reach D<T, the owner must show A *before B is available*, reserving future intermediate slots speculatively and abandoning synthetic if B is late. Existing `gfg_owner_capture` deliberately holds A until B arrives and schedules the first real ticket on capture of B, so its current behavior can indeed incur a full source-frame delay. A lower phase-shift bound does not mean this current owner achieves it. Test both the early-A/late-B dropout policy and the original wait-for-B owner strategy; real-frame timing must remain bounded.
+
 **Latency accounting:** D is a **frame-availability-to-display output shift** under this abstract schedule. **Input-to-photon latency** additionally depends on when game input was sampled, simulation, CPU queueing, source render duration, compositor/DRM and screen scanout; no exact user-perceived added latency can be claimed from D alone. Three displayed images do not mean three new game simulation/input updates.
 
 **For 3× with unequal readiness:** G_2 may be larger than G_1; test both deadlines. If G1=3ms, G2=20ms at 30→90, j=2 would require D≥31.11ms and dominate. Pipeline/profile first and second synthetic separately.
@@ -111,7 +113,7 @@ Controller paths are **future experimental policies**, not an automatic merge in
 | Priority | Task | Exit criterion |
 | --- | --- | --- |
 | P0 | Native real-game virtual WSI + single real-owner chain | A real Vulkan game captures frames through virtual images without stalling, correct semaphores, recreates and fallback |
-| P0 | Add separate `output_owner` 30→90 **two-synthetic** reference ticket test, accounting for individual readiness `G1/G2` | 30 real IDs → 30 real IDs + 58 distinct synthetic tickets after warmup, ordered, no real drop or >bounded deadline |
+| P1 (after 45→90 proof) | Add separate `output_owner` 30→90 **two-synthetic** reference ticket test, accounting for individual readiness `G1/G2` | 30 real IDs → 30 real IDs + 58 distinct synthetic tickets after warmup, ordered, no real drop or >bounded deadline |
 | P0 | Hardware proof, actual Steam Deck Gamescope / OLED | 45 real→90 physically distinct SDR frames, safe resume/recreate, genuine IDs and recorded scanout/optical evidence |
 | P0 | Reproduce LMC warm-first-dispatch and restore strict CI | Pixel checks and no unexpected skipped pairs within clearly declared warmed budget; cold-start failure classified separately |
 | P1 | Mathematical causality and latency model (added) | 30→90 and 45→90 schedule inequalities pass, impossible too-early synth fails |
