@@ -8,6 +8,7 @@
 #define GSF_CALIBRATED_CLOCK_H
 #include <vulkan/vulkan.h>
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -132,7 +133,7 @@ static gsf_clock_estimate gsf_calibration_estimate(
         long double dist=p->gpu_ticks>=gpu_start_ticks?
             (long double)(p->gpu_ticks-gpu_start_ticks)*timestamp_period_ns:
             (long double)(gpu_start_ticks-p->gpu_ticks)*timestamp_period_ns;
-        if(dist<best_ns){best_ns=dist;best=p;}
+        if(dist<=best_ns){best_ns=dist;best=p;}
     }
     if(!best)return out;
     snprintf(out.calibration_text,sizeof(out.calibration_text),"%llu",

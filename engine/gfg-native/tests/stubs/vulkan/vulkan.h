@@ -1,5 +1,6 @@
 #ifndef GSF_TEST_VULKAN_STUB_H
 #define GSF_TEST_VULKAN_STUB_H
+#define VKAPI_PTR
 #include <stdint.h>
 typedef void *VkDevice;
 typedef void *VkInstance;
