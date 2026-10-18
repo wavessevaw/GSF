@@ -105,6 +105,8 @@ def main():
         report['payload_verified']=True
         report['build']=json.loads((KIT/'BUILD_INFO.json').read_text())
         report['library_sha256']=base.digest(KIT/'libVkLayer_gfg_native.so')
+        order=base.prepare_gamescope_layer(run)
+        if order:report['gamescope_layer_order']=order['metadata']
         if not args.smoke and not (os.environ.get('SteamAppId') or os.environ.get('SteamGameId')):
             raise ValueError('Запустите GSF Game Mode Test из библиотеки Steam в Game Mode')
         if platform.machine()!='x86_64' or not os.environ.get('DISPLAY'):
@@ -120,6 +122,9 @@ def main():
             report['stage']=label
             print('GSF Game Mode: '+label,flush=True)
             env=base.child_env(KIT,active,False,'native-first',preserve_layers=True)
+            if order:
+                env.update(order['disable_environment'])
+                env['VK_LAYER_PATH']=str(order['directory'])+':'+env['VK_LAYER_PATH']
             env.update(GFG_TEST_WIDTH=str(w),GFG_TEST_HEIGHT=str(h),GFG_TEST_SOURCE_HZ=str(source),
                        GFG_TEST_FRAMES=str(frames),GFG_TEST_ABSOLUTE_PACING='1',
                        GFG_TEST_TITLE='GSF '+label,
@@ -162,8 +167,8 @@ def main():
         (run/'RESULT.txt').write_text(text)
         archive=run.with_suffix('.zip')
         with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
-            for p in sorted(run.iterdir()):
-                if p.is_file():z.write(p,run.name+'/'+p.name)
+            for p in sorted(run.rglob('*')):
+                if p.is_file():z.write(p,run.name+'/'+p.relative_to(run).as_posix())
         latest=args.results/'GSF-Game-Mode-Latest.zip'
         fd,tmp=tempfile.mkstemp(prefix='.latest-',dir=args.results);os.close(fd)
         try:

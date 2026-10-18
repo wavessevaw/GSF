@@ -104,6 +104,61 @@ def check_cadence(path, minimum=5):
             'nonuniform_transition_gaps_ms':transitions}
 
 
+def prepare_gamescope_layer(run):
+    """Private explicit alias of the SAME WSI binary, including old loaders.
+
+    Old loaders cannot reorder an implicit-only manifest via INSTANCE_LAYERS.
+    Suppress only the original implicit activation using its declared switch;
+    explicitly enable a per-run copy without implicit-only environment gates.
+    No global manifests, compositor settings or shared libraries are modified.
+    """
+    if os.environ.get('ENABLE_GAMESCOPE_WSI') != '1':
+        return None
+    name = 'VK_LAYER_FROG_gamescope_wsi_x86_64'
+    roots = []
+    for key in ('VK_IMPLICIT_LAYER_PATH','VK_LAYER_PATH','VK_ADD_LAYER_PATH'):
+        roots += [Path(p) for p in os.environ.get(key,'').split(':') if p]
+    homes = [os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')),
+             os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share')),
+             str(Path.home()/'.config'),str(Path.home()/'.local/share'),
+             '/etc','/usr/local/share','/usr/share']
+    homes += [p for p in os.environ.get('XDG_CONFIG_DIRS','/etc/xdg').split(':') if p]
+    homes += [p for p in os.environ.get('XDG_DATA_DIRS','/usr/local/share:/usr/share').split(':') if p]
+    roots += [Path(p)/'vulkan'/kind for p in homes for kind in ('implicit_layer.d','explicit_layer.d')]
+    for root in dict.fromkeys(roots):
+        for manifest in sorted(root.glob('*.json')):
+            try:
+                data = json.loads(manifest.read_text())
+            except (OSError,ValueError):
+                continue
+            layer = data.get('layer',{})
+            if layer.get('name') != name:
+                continue
+            disable = layer.get('disable_environment',{})
+            if disable != {'DISABLE_GAMESCOPE_WSI':'1'}:
+                raise ValueError('Неподдерживаемое описание выключателя Gamescope WSI: '+str(manifest))
+            if os.environ.get('DISABLE_GAMESCOPE_WSI') == '1':
+                raise ValueError('Gamescope WSI отключён во входном окружении')
+            library = layer.get('library_path','')
+            if not library:
+                raise ValueError('Нет library_path Gamescope WSI')
+            if '/' in library and not Path(library).is_absolute():
+                library = str((manifest.parent/library).resolve())
+            layer['library_path'] = library
+            layer.pop('enable_environment',None)
+            layer.pop('disable_environment',None)
+            directory = run/'explicit-wsi'
+            directory.mkdir()
+            private = directory/'VkLayer_FROG_gamescope_wsi_x86_64.json'
+            private.write_text(json.dumps(data,indent=2)+'\n')
+            metadata = {'name':name,'original_manifest':str(manifest),
+                        'explicit_manifest':str(private),'library_path':library,
+                        'implicit_activation_suppressed':True,'explicit_activation_required':True}
+            (run/'GAMESCOPE_LAYER_ORDER.json').write_text(json.dumps(metadata,indent=2)+'\n')
+            return {'directory':directory,'disable_environment':disable,'metadata':metadata}
+    raise ValueError('Не найден manifest штатного Gamescope WSI x86_64')
+
+
 def child_env(kit, active, validation, order, preserve_layers=False):
     # Only this child is changed; no global manifests, Steam options or settings.
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'LSFGVK_', 'DISABLE_GFG_NATIVE_'))}
@@ -124,7 +179,7 @@ def child_env(kit, active, validation, order, preserve_layers=False):
         layers += [p for p in os.environ.get('VK_INSTANCE_LAYERS','').split(':')
                    if p and p not in ('VK_LAYER_GFG_native','VK_LAYER_KHRONOS_validation')]
         if os.environ.get('ENABLE_GAMESCOPE_WSI') == '1' and gamescope not in layers:
-            # Vulkan Loader moves an explicitly named implicit layer into this
+            # An explicit per-run manifest lets old and new loaders honor this
             # ordered list. Otherwise Gamescope runs before every explicit layer
             # and GSF sees its driver-only MAILBOX create chain, not app FIFO.
             # Keep Gamescope enabled; all synthetic presents must pass through it.
