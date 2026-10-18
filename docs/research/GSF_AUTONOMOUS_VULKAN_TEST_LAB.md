@@ -14,7 +14,7 @@ The isolated **TEST-ONLY** layer receives a real Vulkan test client's `vkCreateS
 4. Paced 45→90, 8+7 frames.
 5. Sustained paced 45→90, **120 source + 119 intermediate = 239 X11-composited unique images**.
 
-**Important:** the full virtual WSI suite is valid only with **GSF native layer before validation** in the Vulkan dispatch chain. An independent discovery run with validation **above** the GSF private virtual handle failed with `VUID-vkGetSwapchainImagesKHR-swapchain-parameter` and exit 139 (documented in [P0 issue #14](https://github.com/wavessevaw/GSF/issues/14)). The second job therefore runs **real Vulkan WSI passthrough only** with validation first, three clean 4-frame cycles and no virtual GSF handle. This is **not** evidence of virtual WSI compatibility in that order. We do not silence the error, reclassify the crash as success, or enable unsupported virtual handles. Each tested scenario creates a fresh X server; no graphics test is `continue-on-error`.
+**Important:** the full virtual WSI suite is valid only with **GSF native layer before validation** in the Vulkan dispatch chain. An independent discovery run with validation **above** the GSF private virtual handle failed with `VUID-vkGetSwapchainImagesKHR-swapchain-parameter` and exit 139 (documented in [P0 issue #14](https://github.com/wavessevaw/GSF/issues/14)). The second job runs three **real Vulkan WSI passthrough** 4-frame cycles, PLUS a new **explicit negative safety test**. It deliberately asks to create a test-only virtual swapchain with validation ABOVE GSF and requires `VK_ERROR_FEATURE_NOT_PRESENT`, an explicit `virtual_handle_returned=0` diagnostic, NO VUID and NO crash. This proof covers only the exact `VK_INSTANCE_LAYERS` order visible to our controlled test process; it does **not** establish production-wide layer-chain detection or compatibility with a private virtual handle. We do not silence errors or classify the historical crash as success. Each tested scenario creates a fresh X server; no graphics test is `continue-on-error`.
 
 **Hard limitation:** Intermediate images are deterministic **A/B split test patterns, not GSF's optical-flow/LMC output**. X11 pixel checks and 90-target pacing do not prove 90 physical OLED scanouts. No real Deck, RADV, Gamescope embedded session, Proton game, HDR, VRR, motion quality, power or user-input latency is tested. The older [strict real Native GPU LMC regression in experimental PR #4](https://github.com/wavessevaw/GSF/pull/4) must remain a separate non-weakened GPU correctness gate until its warm/cold issues are resolved.
 
@@ -25,7 +25,7 @@ The isolated **TEST-ONLY** layer receives a real Vulkan test client's `vkCreateS
 - Scheduled **daily at 03:17 UTC** on the default GitHub branch (subject to GitHub Actions schedule delays).
 - Runs on PRs changing Native layer source, source WSI test, the test lab script, or its build/workflow contract. Also supports manual `workflow_dispatch`.
 - Builds the isolated test-only output-layer probe using **Khronos Vulkan-Headers tag v1.4.365** and distro Mesa/validation packages.
-- 2 matrix jobs with **different explicit scopes**: `native-first` = full virtual WSI 8→15/120→239 pixel checks; `validation-first` = Vulkan Loader **real-Wsi passthrough** 3×4 real frames and strict validation. General virtual WSI compatibility for the second order is an **open failure**, not solved by this lab.
+- 2 matrix jobs with **different explicit scopes**: `native-first` = full virtual WSI 8→15/120→239 pixel checks; `validation-first` = Vulkan Loader **real-WSI passthrough** 3×4 real frames, plus a separate safely rejected attempt to create an experimental virtual handle. General virtual WSI compatibility for the second order is an **open failure**, not solved by this lab.
 - Saves the **entire stdout/stderr of each scenario**, provenance (`dpkg-query`, Linux kernel, Vulkan-Headers commit, library checksum, `vulkaninfo`), `results.json`, and `SUMMARY.md` in downloadable GitHub Actions artifacts for **21 days**, including failed runs.
 - Hard wall-time limit per process and entire job. Nonzero graphics failures make the workflow red.
 
@@ -52,6 +52,7 @@ gsf-vulkan-lab-validation-first/
   real-wsi-passthrough-1.log
   real-wsi-passthrough-2.log
   real-wsi-passthrough-3.log
+  outer-validation-virtual-rejected.log
 ```
 
 The result's declared evidence level is `software_vulkan_x11_test_lab`. Never quote `X11 visible` as `Steam Deck OLED physically displayed`.
@@ -74,7 +75,7 @@ python3 engine/gfg-native/scripts/gsf_test_lab.py \
   --build-dir engine/gfg-native/build-lab --output gsf-lab-results
 ```
 
-Run `--layer-order validation-first` separately to test **safe nonvirtual real WSI passthrough only**. Do not enable virtual source interception in that order until [issue #14](https://github.com/wavessevaw/GSF/issues/14) is addressed. Local errors do not require changing Steam or Deck settings.
+Run `--layer-order validation-first` separately to test **real WSI passthrough and pre-creation rejection of known unsupported virtual-handle ordering**. This remains a narrow explicit-environment fail-closed guard, **not** general virtual WSI compatibility; [issue #14](https://github.com/wavessevaw/GSF/issues/14) remains open. Local errors do not require changing Steam or Deck settings.
 
 ## What a failure means
 
