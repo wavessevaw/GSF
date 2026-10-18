@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -156,7 +157,13 @@ def main():
         with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
             for p in sorted(run.iterdir()):
                 if p.is_file():z.write(p,run.name+'/'+p.name)
-        print(text+'\nАрхив: '+str(archive),flush=True)
+        latest=args.results/'GSF-Game-Mode-Latest.zip'
+        fd,tmp=tempfile.mkstemp(prefix='.latest-',dir=args.results);os.close(fd)
+        try:
+            shutil.copyfile(archive,tmp);os.replace(tmp,latest)
+        finally:
+            if os.path.exists(tmp):os.unlink(tmp)
+        print(text+'\nАрхив: '+str(latest),flush=True)
     return code
 
 

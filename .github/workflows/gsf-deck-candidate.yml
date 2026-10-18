@@ -80,7 +80,13 @@ jobs:
           SH
           chmod +x "$RUNNER_TEMP/steam-stub/steamos-add-to-steam"
           export PATH="$RUNNER_TEMP/steam-stub:$PATH"
-          python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/install-game-mode.py" --noninteractive
+          python3 - "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/Install-Game-Mode.desktop" <<'PY'
+          import pathlib,shlex,subprocess,sys
+          entry=pathlib.Path(sys.argv[1])
+          command=next(l[5:] for l in entry.read_text().splitlines() if l.startswith('Exec='))
+          argv=[entry.as_uri() if x=='%k' else x for x in shlex.split(command)]
+          subprocess.run(argv,check=True)
+          PY
           python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/install-game-mode.py" --noninteractive
           test "$(wc -l < "$HOME/steam-add-requests.txt")" -eq 1
           desktop-file-validate "$HOME/.local/share/applications/GSF-Game-Mode-Test.desktop"
@@ -98,6 +104,7 @@ jobs:
           reports=list((home/'results').glob('*/REPORT.json'));assert len(reports)==1
           r=json.loads(reports[0].read_text());assert r['status']=='PASS' and r['suite']=='launch-smoke',r
           assert len(r['cases'])==2 and not r['gamescope_environment_hint'],r
+          assert (home/'results/GSF-Game-Mode-Latest.zip').is_file()
           spec=importlib.util.spec_from_file_location('candidate',pathlib.Path(state['bundle'])/'run-test.py')
           m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
           os.environ['VK_LAYER_PATH']='/steam/runtime/explicit-layers'
