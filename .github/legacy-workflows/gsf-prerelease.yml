@@ -1,0 +1,119 @@
+name: GSF prerelease checks and publication
+on:
+  push:
+    branches: [codex/fg3-integration]
+    tags: [v2.1.5-gsf.10]
+    paths:
+      - .github/workflows/gsf-prerelease.yml
+      - scripts/prepare_gsf_prerelease.py
+      - docs/fg3/PRERELEASE_2_1_5_GSF_10.ru.md
+      - docs/fg3/evidence/prerelease-internal_10.*
+      - docs/fg3/artifacts/*internal_10.zip
+      - docs/fg3/artifacts/*gsf.10.zip
+permissions:
+  contents: read
+concurrency:
+  group: gsf-prerelease-${{ github.ref }}
+  # Superseded branch candidates cannot publish. Retain an in-flight tag release.
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    env:
+      CC: gcc-12
+      CXX: g++-12
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-12 make libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers libxcb1-dev libx11-dev xvfb glslang-tools spirv-tools
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+          mkdir -p ci-evidence
+      - name: Full backend and committed frontend
+        run: |
+          set -euo pipefail
+          python3 scripts/check_generated_config.py
+          python3 -m unittest discover -s tests -p 'test_*.py' 2>&1 | tee ci-evidence/backend.log
+          npm ci
+          node frontend/build.mjs "$RUNNER_TEMP/index.js"
+          cmp dist/index.js "$RUNNER_TEMP/index.js"
+          npx playwright install --with-deps chromium
+          node frontend/harness/smoke.mjs 2>&1 | tee ci-evidence/frontend.log
+      - name: Native contracts and software Vulkan pipeline
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-temporal VK_CFLAGS="-I$RUNNER_TEMP/vkh/include" all lib 2>&1 | tee ci-evidence/build-core.log
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-te VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-te/borrowed-device build-te/observer-layer/libVkLayer_gfg_native.so build-te/async-observer-app build-te/wsi-gpu-smoke build-te/hdr-precision device-fallback frame-clock presentation-timing output-worker queue-serialization swapchain-policy memory-policy present-chain present-ids gpu-ring 2>&1 | tee ci-evidence/build-native.log
+          xvfb-run -a python3 scripts/check_gsf_pipeline.py --native-build engine/gfg-native/build-te --core-build engine/gfg-temporal/build --validation-layers /usr/share/vulkan/explicit_layer.d --out ci-evidence/pipeline
+          python3 scripts/check_hdr_pq.py --native-build engine/gfg-native/build-te --validation-layers /usr/share/vulkan/explicit_layer.d --out ci-evidence/hdr
+      - name: Test the exact SDK-built release archives
+        run: |
+          xvfb-run -a python3 scripts/check_native_package.py --component docs/fg3/artifacts/GFG-Native-FG-v0_0_0-fg3-internal_10.zip --decky docs/fg3/artifacts/GFG-Extreme-2.1.5-gsf.10.zip --wsi-app "$GITHUB_WORKSPACE/engine/gfg-native/build-te/wsi-gpu-smoke" --validation-layers /usr/share/vulkan/explicit_layer.d --out ci-evidence/package
+          python3 scripts/prepare_gsf_prerelease.py --out release-assets --ci-evidence ci-evidence
+          (cd release-assets && sha256sum --check SHA256SUMS.txt)
+      - name: Preserve checks on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GSF-prerelease-checks-${{ github.sha }}
+          path: |
+            ci-evidence/*.log
+            ci-evidence/*/*.log
+            ci-evidence/*/*.json
+            ci-evidence/*/*.jsonl
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GSF-verified-release-assets
+          path: release-assets/*
+          if-no-files-found: error
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: verify
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: GSF-verified-release-assets
+          path: release-assets
+      - name: Publish checked prerelease without changing latest stable
+        run: |
+          set -euo pipefail
+          (cd release-assets && sha256sum --check SHA256SUMS.txt)
+          gh release create "$GITHUB_REF_NAME" release-assets/* --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease --latest=false --title 'GFG Extreme 2.1.5-gsf.10 — Native GSF ×2 / ×3' --notes-file release-assets/RELEASE_NOTES.ru.md
+      - name: Verify the published release and download every asset
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" > published.json
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          release=json.loads(Path('published.json').read_text())
+          assert release['prerelease'] and not release['draft']
+          assets={a['name']:a for a in release['assets']}
+          for path in Path('release-assets').iterdir():
+              asset=assets[path.name]
+              assert asset['size']==path.stat().st_size
+              assert asset['digest']=='sha256:'+hashlib.sha256(path.read_bytes()).hexdigest()
+          print(release['html_url'])
+          PY
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.sha')" = "$GITHUB_SHA"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir downloaded
+          (cd downloaded && sha256sum --check SHA256SUMS.txt)
+          cmp release-assets/SHA256SUMS.txt downloaded/SHA256SUMS.txt

@@ -1,0 +1,29 @@
+name: Temporal Engine
+# Experimental GFG Temporal Engine: real compute on Mesa lavapipe (a CPU
+# implementation of Vulkan). These runs prove correctness, not Steam Deck speed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vulkan software device, shader tools, numpy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools python3-numpy python3-skimage
+      - name: Build engine, bench and native tests
+        run: make -C engine/gfg-temporal all lib
+      - name: Native tests (validation layer on)
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          engine/gfg-temporal/build/te-tests
+      - name: Reference algorithm and GPU parity
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          /usr/bin/python3 -m unittest discover -s engine/gfg-temporal/tests -p 'test_*.py' -v

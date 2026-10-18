@@ -1,0 +1,201 @@
+name: GSF Direct Real WSI Deck Kit (experimental)
+on:
+  push:
+    branches:
+      - experiment/gsf-real-wsi-direct-owner-20261017
+  pull_request:
+    branches:
+      - experiment/gsf-offscreen-source-pool-20261017
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-real-wsi-kit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native Vulkan shader build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb
+      - name: Fetch matching Vulkan-Headers for the GFG layer
+        run: git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build actual GFG Temporal Engine (including LMC shaders)
+        run: |
+          make -C engine/gfg-temporal lib
+          test -s engine/gfg-temporal/build/libgfg-temporal.a
+      - name: Build FULL real game GPU bridge (not virtual owner test layer)
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-real-wsi VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" \
+            layer build-real-wsi/wsi-gpu-smoke
+          test -s engine/gfg-native/build-real-wsi/libVkLayer_gfg_native.so
+          test -s engine/gfg-native/build-real-wsi/wsi-gpu-smoke
+          readelf -h engine/gfg-native/build-real-wsi/libVkLayer_gfg_native.so | grep -q 'DYN (Shared object file)'
+      - name: Exercise exact Steam Deck launcher against older Vulkan Loader
+        run: |
+          set -euo pipefail
+          install -m 755 engine/gfg-native/scripts/real-wsi-game-launch.sh \
+            engine/gfg-native/build-real-wsi/real-wsi-game-launch.sh
+          # Lavapipe shares CPU with CI and can miss synthetic deadlines:
+          # test lifetime/bridge integrity, count real output and require at
+          # least one actual generated present, but record expected drops.
+          GFG_TEST_ALLOW_SKIPS=1 \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1280x800x24' \
+            bash engine/gfg-native/build-real-wsi/real-wsi-game-launch.sh --smoke --mode=2 \
+            > /tmp/real-wsi-launcher.out 2>&1 || {
+              cat /tmp/real-wsi-launcher.out
+              logdir="$(sed -n 's/.*GSF_REAL_WSI_KIT_LOG_DIR=//p' /tmp/real-wsi-launcher.out | tail -1)"
+              if [[ -n "$logdir" && -f "$logdir/game.log" ]]; then
+                echo '=== Exact child Vulkan process failure ==='
+                tail -n 160 "$logdir/game.log"
+                echo '=== Child metadata ==='
+                cat "$logdir/metadata.txt"
+              fi
+              exit 1
+            }
+          cat /tmp/real-wsi-launcher.out
+          grep 'GSF_REAL_WSI_KIT_FINISHED exit=0' /tmp/real-wsi-launcher.out
+          logdir="$(sed -n 's/.*GSF_REAL_WSI_KIT_LOG_DIR=//p' /tmp/real-wsi-launcher.out | tail -1)"
+          test -f "$logdir/game.log"
+          grep 'GSF_REAL_WSI_GATE gpu_requested=1 gpu_capable=1' "$logdir/game.log"
+          grep 'GSF_REAL_WSI_GPU_BRIDGE_CREATE active=1' "$logdir/game.log"
+          grep 'real frames GPU bridge WSI smoke PASS' "$logdir/game.log"
+          grep -E 'gpu stats bridges=1 .*real=24 synthetic=[1-9][0-9]* .*errors=0' "$logdir/game.log"
+          grep -q 'GSF_REAL_WSI_PREFLIGHT_OK' "$logdir/../launcher-preflight.log"
+          echo 'Lavapipe may miss synthetic deadlines under CPU pressure; check skipped count'
+          echo "GSF_REAL_WSI_CHILD_LAUNCHER=PASS on older Vulkan Loader"
+      - name: Preserve early Steam startup preflight failure in persistent log
+        run: |
+          set -euo pipefail
+          probe_home="$RUNNER_TEMP/gfg-early-failure"
+          mkdir -p "$probe_home"
+          if HOME="$probe_home" bash engine/gfg-native/scripts/real-wsi-game-launch.sh --check > /tmp/gfg-early-failure.stdout 2>&1; then
+            echo 'Preflight must reject missing layer files' >&2
+            exit 1
+          fi
+          grep 'GSF_REAL_WSI_KIT_ERROR missing libVkLayer_gfg_native.so' /tmp/gfg-early-failure.stdout
+          test -f "$probe_home/GFG-Real-WSI-Tests/launcher-preflight.log"
+          grep 'GSF_REAL_WSI_PREFLIGHT_START' "$probe_home/GFG-Real-WSI-Tests/launcher-preflight.log"
+          grep 'GSF_REAL_WSI_KIT_ERROR missing libVkLayer_gfg_native.so' "$probe_home/GFG-Real-WSI-Tests/launcher-preflight.log"
+      - name: Child launcher bypass does not require Vulkan or GFG files
+        run: |
+          set -euo pipefail
+          bash -n engine/gfg-native/scripts/real-wsi-game-launch.sh
+          bash engine/gfg-native/scripts/real-wsi-game-launch.sh --mode=off -- \
+            /bin/sh -c 'test -z "${GFG_NATIVE_FG:-}" && printf "GSF_NO_GFG_BYPASS_PASS\\n"' \
+            > /tmp/gfg-safe-bypass.log 2>&1
+          grep GSF_NO_GFG_BYPASS_PASS /tmp/gfg-safe-bypass.log
+      - name: SYNCHRONOUS direct real WSI 2x (lavapipe, not Steam Deck)
+        id: integration
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          GFG_NATIVE_FG=1 GFG_NATIVE_GPU_BRIDGE=1 GFG_NATIVE_FORCE_FIFO=1 \
+            GFG_NATIVE_ASYNC=0 GFG_NATIVE_MODE=2 GFG_NATIVE_REAL_WSI_PROBE=1 \
+            GFG_NATIVE_ALGO=tiles GFG_TEST_EXPECT_GPU=1 GFG_TEST_FRAMES=24 \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build-real-wsi:/usr/share/vulkan/explicit_layer.d" \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1280x800x24' \
+              engine/gfg-native/build-real-wsi/wsi-gpu-smoke > /tmp/real-wsi-integration.log 2>&1 || {
+                cat /tmp/real-wsi-integration.log
+                exit 1
+              }
+          grep 'GSF_REAL_WSI_GATE gpu_requested=1 gpu_capable=1' /tmp/real-wsi-integration.log
+          grep 'GSF_REAL_WSI_GPU_BRIDGE_CREATE active=1' /tmp/real-wsi-integration.log
+          grep 'real WSI' /tmp/real-wsi-integration.log
+      - name: SYNCHRONOUS direct real WSI 3x (+3 image headroom)
+        id: integration3
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          GFG_NATIVE_FG=1 GFG_NATIVE_GPU_BRIDGE=1 GFG_NATIVE_FORCE_FIFO=1 \
+            GFG_NATIVE_ASYNC=0 GFG_NATIVE_MODE=3 GFG_NATIVE_REAL_WSI_PROBE=1 \
+            GFG_NATIVE_ALGO=tiles GFG_TEST_EXPECT_GPU=1 GFG_TEST_FRAMES=24 \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build-real-wsi:/usr/share/vulkan/explicit_layer.d" \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1280x800x24' \
+              engine/gfg-native/build-real-wsi/wsi-gpu-smoke > /tmp/real-wsi-integration-3x.log 2>&1 || {
+                cat /tmp/real-wsi-integration-3x.log
+                exit 1
+              }
+          grep 'GSF_REAL_WSI_GATE gpu_requested=1 gpu_capable=1' /tmp/real-wsi-integration-3x.log
+          grep 'GSF_REAL_WSI_GPU_BRIDGE_CREATE active=1' /tmp/real-wsi-integration-3x.log
+          grep 'spare=3' /tmp/real-wsi-integration-3x.log
+          grep 'real frames GPU bridge WSI smoke PASS' /tmp/real-wsi-integration-3x.log
+      - name: Package child-process-only Deck launcher and actual GPU bridge
+        run: |
+          set -euo pipefail
+          kit="$RUNNER_TEMP/gsf-real-wsi-game-kit"
+          mkdir -p "$kit"
+          install -m 755 engine/gfg-native/scripts/real-wsi-game-launch.sh "$kit/real-wsi-game-launch.sh"
+          install -m 755 engine/gfg-native/build-real-wsi/libVkLayer_gfg_native.so "$kit/libVkLayer_gfg_native.so"
+          install -m 644 engine/gfg-native/build-real-wsi/VkLayer_gfg_native.json "$kit/VkLayer_gfg_native.json"
+          install -m 755 engine/gfg-native/build-real-wsi/wsi-gpu-smoke "$kit/wsi-gpu-smoke"
+          cat > "$kit/README.txt" <<'README'
+          GFG direct REAL swapchain experimental game test.\n          Uses synchronous direct acquire/copy/present of intermediates; no GFG async output worker.
+          Build source: PR #155, branch experiment/gsf-real-wsi-direct-owner-20261017.
+          No stable release, no virtual WSI hooks. Source GPU bridge + TE compute + LMC.
+          Extract tar.gz to /home/deck/gsf-real-wsi/ preserving executable permissions:
+             mkdir -p /home/deck/gsf-real-wsi
+             tar -xzf gsf-real-wsi-game-kit.tar.gz -C /home/deck/gsf-real-wsi --strip-components=1
+          Desktop: bash /home/deck/gsf-real-wsi/real-wsi-game-launch.sh --check
+          Optional Deck Gaming Mode Non-Steam test shortcut /usr/bin/bash:
+             "/home/deck/gsf-real-wsi/real-wsi-game-launch.sh" --smoke --mode=2
+          For an existing Vulkan or Proton game, put in its Steam Launch Options:
+             "/home/deck/gsf-real-wsi/real-wsi-game-launch.sh" --mode=2 -- %command%
+          Safe launch without injecting GFG (use if the game exits at startup):
+             "/home/deck/gsf-real-wsi/real-wsi-game-launch.sh" --mode=off -- %command%
+          Launcher reconstructs the usual Vulkan explicit layer XDG search paths and
+          retains existing Steam VK_LAYER_PATH/VK_INSTANCE_LAYERS rather than
+          wiping them (including older Vulkan Loaders without VK_ADD_LAYER_PATH).
+          Note: this is a 64-bit-only Vulkan layer; 32-bit games are not qualified.
+          Start with 2x; 3x is exploratory. Check ~/GFG-Real-WSI-Tests logs.
+          Do not inject system-wide; do not modify SteamOS, Gamescope, or Decky.
+          Real physical OLED frame generation is UNVERIFIED until external evidence.
+          Experimental layer can be incompatible with individual Proton games.
+          Ubuntu 22.04 x86_64 build is NOT a verified Steam Deck binary.
+          README
+          (cd "$kit" && sha256sum libVkLayer_gfg_native.so VkLayer_gfg_native.json wsi-gpu-smoke real-wsi-game-launch.sh README.txt > SHA256SUMS)
+          bash "$kit/real-wsi-game-launch.sh" --check
+          printf 'GITHUB_RUN_ID=%s\nSOURCE_SHA=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$kit/BUILD_INFO.txt"
+          if [[ "${{ steps.integration.outcome }}" == success ]]; then
+            echo "GSF_DIRECT_REAL_WSI_CI_SOFTWARE=PASS" > "$kit/CI_STATUS.txt"
+          else
+            echo "GSF_DIRECT_REAL_WSI_CI_SOFTWARE=FAIL_UNVERIFIED" > "$kit/CI_STATUS.txt"
+          fi
+          if [[ "${{ steps.integration3.outcome }}" == success ]]; then
+            echo "GSF_DIRECT_REAL_WSI_3X_SOFTWARE=PASS" >> "$kit/CI_STATUS.txt"
+          else
+            echo "GSF_DIRECT_REAL_WSI_3X_SOFTWARE=FAIL_UNVERIFIED" >> "$kit/CI_STATUS.txt"
+          fi
+          echo "OLED_SCANOUT=UNVERIFIED" >> "$kit/CI_STATUS.txt"
+          # GitHub's automatic artifact ZIP discards executable permissions.
+          # Wrap the kit in tar.gz so the Deck launcher and smoke ELF stay executable.
+          tar -czf "$RUNNER_TEMP/gsf-real-wsi-game-kit.tar.gz" -C "$RUNNER_TEMP" gsf-real-wsi-game-kit
+      - name: Upload standalone full GFG real WSI game kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsf-direct-real-wsi-game-kit-${{ github.sha }}
+          path: ${{ runner.temp }}/gsf-real-wsi-game-kit.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+      - name: Qualify software result honestly
+        run: |
+          if [[ "${{ steps.integration.outcome }}" != success ]]; then
+            echo "::warning::Direct real WSI GPU software integration FAILED. Artifact is diagnostic, not a demonstrated FG path."
+            echo 'GSF_DIRECT_REAL_WSI_CI_SOFTWARE=FAIL_UNVERIFIED' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'GSF_DIRECT_REAL_WSI_CI_SOFTWARE=PASS (lavapipe/Xvfb only)' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ "${{ steps.integration3.outcome }}" != success ]]; then
+            echo "::warning::Direct real WSI 3x software integration FAILED; 3x is not hardware qualified."
+            echo 'GSF_DIRECT_REAL_WSI_3X_SOFTWARE=FAIL_UNVERIFIED' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'GSF_DIRECT_REAL_WSI_3X_SOFTWARE=PASS (lavapipe/Xvfb only)' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'GSF_DIRECT_REAL_WSI_OLED_SCANOUT=UNVERIFIED' >> "$GITHUB_STEP_SUMMARY"

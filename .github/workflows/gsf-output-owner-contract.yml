@@ -1,0 +1,496 @@
+name: GSF Output Owner Contract (experimental)
+on:
+  push:
+    branches:
+      - experiment/gsf-output-owner-contract-20261017
+      - experiment/gsf-real-wsi-direct-owner-20261017
+  pull_request:
+    branches:
+      - fix/gsf-borrowed-physical-dispatch-20261017
+      - experiment/gsf-output-owner-contract-20261017
+      - experiment/gsf-offscreen-source-pool-20261017
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  output-owner:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native output-owner proof at O2 with warnings as errors
+        run: make -C engine/gfg-native output-owner
+      - name: Virtual source image ownership under O2 and warnings-as-errors
+        run: make -C engine/gfg-native virtual-source
+      - name: Virtual source state machine undefined behavior sanitizer
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/virtual_source.c -o /tmp/gfg-virtual-source-ubsan
+          /tmp/gfg-virtual-source-ubsan
+      - name: Undefined behavior sanitizer contract tests
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/output_owner.c -o /tmp/gfg-output-owner-ubsan
+          /tmp/gfg-output-owner-ubsan
+      - name: Install software Vulkan WSI test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb
+      - name: Transactional offscreen Vulkan source images with simulated GPU allocation failures
+        run: make -C engine/gfg-native offscreen-source-pool
+      - name: Source VkImage/VkDeviceMemory allocation sanitizer
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/offscreen_source_pool.c -o /tmp/gfg-source-pool-ubsan
+          /tmp/gfg-source-pool-ubsan
+      - name: Validate virtual game PRESENT layout rewrites and isolation
+        run: make -C engine/gfg-native virtual-layouts
+      - name: Virtual layout rewrite undefined behavior sanitizer
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/virtual_layouts.c -o /tmp/gfg-virtual-layouts-ubsan
+          /tmp/gfg-virtual-layouts-ubsan
+      - name: Fetch up-to-date Vulkan-Headers for native layer ABI
+        run: git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Gamescope MAILBOX source restored to test-only FIFO output without relaxing other safeguards
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -O2 -I"$RUNNER_TEMP/vkh/include" \
+            engine/gfg-native/tests/test_gamescope_mailbox_policy.c -o /tmp/gsf-gamescope-mailbox-policy
+          /tmp/gsf-gamescope-mailbox-policy
+          grep -q 'gfg_test_gamescope_prepare_pair' engine/gfg-native/src/layer.c
+          grep -q 'GSF_LOADER_OWNER_REJECT' engine/gfg-native/src/layer.c
+          echo 'MAILBOX bridge opt-in and fail-closed safety contract PASS'
+      - name: Direct real-swapchain insertion policy independent of virtual WSI
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -O2 -I"$RUNNER_TEMP/vkh/include" \
+            engine/gfg-native/tests/real_wsi_direct_policy.c -o /tmp/gsf-real-wsi-direct-policy
+          /tmp/gsf-real-wsi-direct-policy
+          grep -q 'GSF_REAL_WSI_GATE gpu_requested=' engine/gfg-native/src/layer.c
+          grep -q 'GSF_REAL_WSI_GPU_BRIDGE_CREATE' engine/gfg-native/src/layer.c
+          grep -q 'gfg_real_wsi_extra_images' engine/gfg-native/src/layer.c
+          grep -q 'fifo-mode-list-incompatible-or-unknown-chain' engine/gfg-native/src/layer.c
+          echo 'Direct real WSI negotiation and image headroom PASS'
+
+      - name: Steam Deck WSI SUBOPTIMAL acquire and present regression
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -O2 -I"$RUNNER_TEMP/vkh/include" \
+            engine/gfg-native/tests/test_wsi_results.c -o /tmp/gsf-wsi-results
+          /tmp/gsf-wsi-results
+          grep -q 'gfg_test_wsi_result_usable' engine/gfg-native/tests/loader_live_output.c
+          echo 'Deck WSI suboptimal regression PASS'
+
+      - name: Real Vulkan Loader installed GFG experimental create-only proxy
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" \
+            build/loader-proxy-create \
+            build/loader-probe/libVkLayer_gfg_native.so \
+            build/loader-probe/VkLayer_gfg_native.json
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_CREATE_PROBE=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TRACE=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-proxy-create > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_CREATE_PROBE virtual_image_count=' "$log"
+          grep 'GSF_LOADER_APP virtual_images=' "$log"
+          grep 'GSF_LOADER_APP optout_passthrough=1' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"
+            exit 1
+          fi
+          echo 'Loader installed real GPU create-only virtual WSI PASS; does NOT accept virtual app presents'
+      - name: Loader-installed GFG layer keeps ordered real output WSI visible
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native build/owned-wsi-smoke
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TRACE=1 GFG_NATIVE_TEST_PROXY_CREATE=0 \
+            GFG_OWNER_TEST_X11_SCANOUT=1 GFG_NATIVE_TEST_FRAMES=10 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/owned-wsi-smoke > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep '\[gfg-native\] instance initialized enabled=1' "$log"
+          grep '\[gfg-native\] swapchain ' "$log"
+          grep 'GSF X11 compositor visible ordered frames=19 real=10 intermediate=9 PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Vulkan Loader -> GFG layer -> single real output WSI -> X11 visible pixels PASS'
+      - name: Loader-installed actual virtual Acquire Render Present to ONE real X11 output WSI
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" \
+            build/loader-live-output
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TRACE=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_LOADER_LIVE_INIT virtual_images=' "$log"
+          grep 'GSF_LOADER_LIVE_APP 8 GPU-rendered real source frames visible through one output WSI PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Loader installed app virtual Acquire->render->Present->private output->X11 pixels PASS (not FG or OLED)'
+
+      - name: Loader-installed 8 originals PLUS 7 distinct A-B GPU frames verified AFTER X11 composition
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 \
+            GFG_NATIVE_TRACE=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_LOADER_LIVE_INIT virtual_images=3 one_real_output=1 GPU_worker=1' "$log"
+          grep 'GSF_LOADER_SPLIT_APP output_visible=15 original=8 intermediate=7 x11_distinct_pixels=1 PASS' "$log"
+          grep 'GSF_LOADER_LIVE AB_SPLIT output_present=14 originals=7 intermediate=7' "$log"
+          grep 'GSF_LOADER_LIVE ORIGINAL output_present=15 originals=8 intermediate=7' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Vulkan Loader game input 8 -> X11-visible 15 distinct real plus A/B GPU frames, one output WSI PASS (not LMC/Deck)'
+
+      - name: Paced 30Hz Vulkan source to 60Hz OUTPUT with 15 independent X11 frame samples
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 \
+            GFG_NATIVE_TEST_PACED_30_60=1 GFG_NATIVE_TRACE=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_PACED_30_TO_60_X11 paced_source=8 originals=8 intermediate=7 visible=15 app_to_worker_distinct_frames=1 PASS' "$log"
+          grep 'GSF_OUTPUT_PACER rate=60 emitted=15 originals=8 intermediate=7' "$log"
+          grep 'GSF_LOADER_SPLIT_APP output_visible=15 original=8 intermediate=7 x11_distinct_pixels=1 PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Paced 30Hz source -> approx 60Hz output Xvfb ordering validated; NOT DRM 60Hz, Deck or LMC'
+
+      - name: Deck OLED-like 45Hz virtual Vulkan source to 90Hz OUTPUT with X11 timing evidence
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 \
+            GFG_NATIVE_TEST_PACED_45_90=1 GFG_NATIVE_TRACE=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_PACED_45_TO_90_X11 paced_source=8 originals=8 intermediate=7 visible=15 app_to_worker_distinct_frames=1 PASS' "$log"
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=15 originals=8 intermediate=7' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo '90Hz target software Vulkan/X11 output pacing validated; NOT OLED scanout/Proton/LMC'
+
+      - name: SUSTAINED 120 source originals plus 119 A-B X11 intermediate frames paced 45 to 90
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 \
+            GFG_NATIVE_TEST_PACED_45_90=1 GFG_NATIVE_TEST_SUSTAINED=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            timeout 35s xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { tail -n 90 "$log"; exit 1; }
+          grep 'GSF_PACED_45_TO_90_X11 paced_source=120 originals=120 intermediate=119 visible=239 app_to_worker_distinct_frames=1 PASS' "$log"
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=239 originals=120 intermediate=119' "$log"
+          grep 'GSF_LOADER_SPLIT_APP output_visible=239 original=120 intermediate=119 x11_distinct_pixels=1 PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            tail -n 90 "$log"; exit 1
+          fi
+          grep 'GSF_PACED_45_TO_90_X11 visible=239' "$log"
+          grep 'GSF_OUTPUT_PACER rate=90' "$log"
+          echo 'Sustained 120 originals, 119 GPU split intermediates after live Vulkan Loader X11 pixel proof PASS (not Deck)'
+
+      - name: Native test-only intercepted vkCreateSwapchainKHR and owned output source images
+        run: make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" output-proxy-layer-create
+      - name: Intercepted virtual swapchain creation sanitizer
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Wno-unused-function -pthread -I"$RUNNER_TEMP/vkh/include" -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/output_proxy_layer_create.c -o /tmp/gfg-proxy-layer-ubsan -lvulkan
+          /tmp/gfg-proxy-layer-ubsan
+      - name: Controlled actual Vulkan Layer GIPA and GDPA output-owner dispatch
+        run: make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" output-layer-dispatch
+      - name: Source versus output layer dispatch UBSan
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Wno-unused-function -pthread -I"$RUNNER_TEMP/vkh/include" -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/output_layer_dispatch.c -o /tmp/gfg-output-layer-ubsan -lvulkan
+          /tmp/gfg-output-layer-ubsan
+      - name: Virtual Vulkan WSI acquire, get-images, present and retire contract
+        run: make -C engine/gfg-native virtual-wsi-facade
+      - name: WSI facade undefined behavior sanitizer
+        run: |
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -pthread -fsanitize=undefined -fno-sanitize-recover=all \
+            engine/gfg-native/tests/virtual_wsi_facade.c -o /tmp/gfg-virtual-wsi-ubsan
+          /tmp/gfg-virtual-wsi-ubsan
+      - name: Compile and run PRIVATE one-surface Vulkan WSI smoke (lavapipe)
+        run: |
+          make -C engine/gfg-native build/owned-wsi-smoke
+          GFG_NATIVE_TEST_FRAMES=10 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke
+      - name: Verify ACTUAL X11 displayed pixel sequence after Vulkan WSI handoff
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_OWNER_TEST_X11_SCANOUT=1 GFG_NATIVE_TEST_FRAMES=10 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF X11 compositor visible ordered frames=19 real=10 intermediate=9 PASS' "$log"
+          grep 'GSF X11 visibility after WSI:' "$log"
+          echo 'X11 display server pixel sequence (not physical OLED) PASS'
+      - name: REAL Vulkan driver GPU images through output proxy and X11 composited pixels
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_OWNER_TEST_PROXY_REAL_DEVICE=1 GFG_OWNER_TEST_X11_SCANOUT=1 \
+            GFG_NATIVE_TEST_FRAMES=10 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/owned-wsi-smoke > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF PROXY real Vulkan driver output WSI=1 app_images=' "$log"
+          grep 'GSF X11 compositor visible ordered frames=19 real=10 intermediate=9 PASS' "$log"
+          grep 'GSF PROXY real driver separate app/out WSI teardown PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"
+            exit 1
+          fi
+          echo 'Real driver GPU allocation + one output WSI + X11 pixels PASS (NOT real game/OLED)'
+      - name: Actual native Vulkan layer dispatch against lavapipe and one output WSI
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" build/owned-wsi-real-layer
+          log="$(mktemp)"
+          GFG_OWNER_TEST_LAYER_PROXY_REAL_DEVICE=1 GFG_OWNER_TEST_X11_SCANOUT=1 \
+            GFG_NATIVE_TEST_FRAMES=10 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/owned-wsi-real-layer > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF PROXY real-driver native layer Create/GetImages/Acquire/Present/Destroy PASS' "$log"
+          grep 'GSF X11 compositor visible ordered frames=19 real=10 intermediate=9 PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Real Vulkan driver + actual native layer WSI dispatch PASS; NOT loader-installed/live game/OLED'
+      - name: Async GPU capture retirement through real driver native-layer dispatch and visible X11 output
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_OWNER_TEST_LAYER_PROXY_REAL_DEVICE=1 GFG_OWNER_TEST_ASYNC_RETIRE=1 \
+            GFG_OWNER_TEST_X11_SCANOUT=1 GFG_NATIVE_TEST_FRAMES=10 \
+            VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/owned-wsi-real-layer > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF async capture worker GPU fence waits=10 presents=10 app_thread_gpu_waits=0 PASS' "$log"
+          grep 'GSF X11 compositor visible ordered frames=19 real=10 intermediate=9 PASS' "$log"
+          grep 'GSF PROXY real-driver native layer Create/GetImages/Acquire/Present/Destroy PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'GPU snapshot retirement via worker, no vkWaitForFences inside virtual Present PASS'
+
+      - name: Virtual Present returns before worker GPU fence retirement with induced delay
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_OWNER_TEST_LAYER_PROXY_REAL_DEVICE=1 GFG_OWNER_TEST_ASYNC_RETIRE=1 \
+            GFG_OWNER_TEST_DELAYED_RETIRE=1 GFG_NATIVE_TEST_FRAMES=8 \
+            VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/owned-wsi-real-layer > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF slow-fence source stays COPYING after every virtual Present, deferred retirement=8 PASS' "$log"
+          grep 'GSF GPU output submitted BEFORE worker source release=' "$log"
+          grep 'GSF async capture worker GPU fence waits=8 presents=8 app_thread_gpu_waits=0 PASS' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+
+      - name: GPU snapshot WSI with 836ms loading gap, 27Hz source, 90Hz output and GPU drops
+        run: |
+          GFG_NATIVE_TEST_FRAMES=12 GFG_OWNER_TEST_OUTPUT_HZ=90 GFG_OWNER_TEST_SOURCE_HZ=27 GFG_OWNER_TEST_GAP_AT=7 GFG_OWNER_TEST_GPU_DROP_EVERY=3 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke
+      - name: WSI real-only priority when 60Hz source competes for 90Hz slots
+        run: |
+          GFG_NATIVE_TEST_FRAMES=10 GFG_OWNER_TEST_OUTPUT_HZ=90 GFG_OWNER_TEST_SOURCE_HZ=60 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke
+      - name: Reuse one game image while retaining two separate GSF history images
+        run: |
+          set -euo pipefail
+          GFG_NATIVE_TEST_FRAMES=14 GFG_OWNER_TEST_APP_IMAGES=1 GFG_OWNER_TEST_OUTPUT_HZ=60 GFG_OWNER_TEST_SOURCE_HZ=30 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke
+      - name: Sustained virtual game WSI output 120 real frames with source reuse, pause and CPU/GPU synchronization
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_TEST_FRAMES=120 GFG_OWNER_TEST_APP_IMAGES=1 GFG_OWNER_TEST_SOURCE_HZ=30 GFG_OWNER_TEST_OUTPUT_HZ=60 GFG_OWNER_TEST_GAP_AT=61 GFG_OWNER_TEST_GPU_DROP_EVERY=7 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke > "$log" 2>&1
+          grep 'GSF virtual app source buffers=1 history_buffers=2 render_release_count=120 PASS' "$log"
+          grep 'GSF virtual PRESENT layouts old=119 new=120 downstream_present_layout_on_offscreen=0 PASS' "$log"
+          grep 'GSF GPU source snapshots copied and readback verified: real=120' "$log"
+          echo 'Sustained isolated GPU source -> WSI output PASS'
+      - name: Vulkan validation for GPU-copy and real-only WSI transport
+        run: |
+          set -euo pipefail
+          test -f /usr/share/vulkan/explicit_layer.d/VkLayer_khronos_validation.json
+          log="$(mktemp)"
+          GFG_NATIVE_TEST_FRAMES=8 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/owned-wsi-smoke 2>&1 | tee "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            echo 'GPU owned-output Vulkan validation FAILED'
+            exit 1
+          fi
+          echo 'Owned-output Vulkan validation CLEAN'
+      - name: Verify safe SteamOS launcher and package isolated hardware qualification kit
+        run: |
+          set -euo pipefail
+          bash -n engine/gfg-native/scripts/deck-output-test.sh
+          kit="$RUNNER_TEMP/gsf-output-deck-kit"
+          mkdir -p "$kit"
+          install -m 644 engine/gfg-native/build/loader-probe/libVkLayer_gfg_native.so "$kit/libVkLayer_gfg_native.so"
+          install -m 644 engine/gfg-native/build/loader-probe/VkLayer_gfg_native.json "$kit/VkLayer_gfg_native.json"
+          install -m 755 engine/gfg-native/build/loader-live-output "$kit/loader-live-output"
+          install -m 644 engine/gfg-native/scripts/deck-output-test.sh "$kit/deck-output-test.sh"
+          install -m 644 engine/gfg-native/docs/GSF_DECK_QUALIFICATION.md "$kit/GSF_DECK_QUALIFICATION.md"
+          {
+            echo "repository=wavessevaw/GFG-Extreme"
+            echo "head_sha=$GITHUB_SHA"
+            echo "qualification=HARDWARE_UNVERIFIED"
+            echo "test_layer=GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS"
+            echo "ci_platform=ubuntu-22.04_x86_64"
+            echo "intermediate=GPU_AB_SPLIT_NOT_LMC"
+            echo "no_system_install=true"
+          } > "$kit/BUILD_INFO.txt"
+          (
+            cd "$kit"
+            sha256sum libVkLayer_gfg_native.so VkLayer_gfg_native.json loader-live-output deck-output-test.sh GSF_DECK_QUALIFICATION.md BUILD_INFO.txt > SHA256SUMS
+          )
+          bash "$kit/deck-output-test.sh" --check
+          # Simulate the 0644 executable permission caused by downloading
+          # GitHub's ZIP artifact. The launcher may correct ONLY its own
+          # checksum-verified binary inside this disposable test directory.
+          chmod 0644 "$kit/loader-live-output"
+          bash "$kit/deck-output-test.sh" --check
+          test -x "$kit/loader-live-output"
+          if bash "$kit/deck-output-test.sh" > /tmp/gsf-deck-kit-requires-explicit-opt-in.log 2>&1; then
+            echo "Safety gate FAIL: Deck launcher accepted an unspecified --run"
+            exit 1
+          fi
+          grep 'Pass --check or --run explicitly' /tmp/gsf-deck-kit-requires-explicit-opt-in.log
+          echo 'Isolated opt-in Deck test kit prepared. No actual Deck GPU/OLED hardware was tested.'
+      - name: MAILBOX intercepted through Vulkan Loader -> test-only FIFO virtual source -> distinct GPU output presents
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_GAME_MODE=1 \
+            GFG_NATIVE_TEST_REQUEST_MAILBOX=1 \
+            GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_PACED_45_90=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_TEST_APP_MAILBOX requested=1 surface_supported=1' "$log"
+          grep 'GSF_GAMESCOPE_WSI_PAIR virtual_mode=2 real_mode=1 real_pnext_type=-1 preserved=1' "$log"
+          grep 'GSF_LOADER_LIVE_INIT virtual_images=3 one_real_output=1 GPU_worker=1' "$log"
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=15 originals=8 intermediate=7' "$log"
+          grep 'GSF_GAMESCOPE_SUBMIT source_originals=8 expected_diagnostic_intermediates=7' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'MAILBOX app request retained virtual-WSI owner path; downstream physical scanout still unverified'
+      - name: Strict maintenance1 extension test (SKIP only if lavapipe driver lacks it)
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          set +e
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+            GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_GAME_MODE=1 \
+            GFG_NATIVE_TEST_REQUEST_MAILBOX=1 GFG_NATIVE_TEST_INJECT_MAINTENANCE1=1 \
+            GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_PACED_45_90=1 \
+            VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+            VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+            VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+            xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build/loader-live-output > "$log" 2>&1
+          rc=$?
+          set -e
+          cat "$log"
+          if [ "$rc" -eq 77 ]; then
+            grep -q 'GSF_TEST_APP_MAINTENANCE1_DRIVER_UNAVAILABLE lavapipe_cannot_validate_real_pnext=1' "$log" || {
+              echo 'FAIL: exit 77 without exact driver-unsupported evidence'; exit 1;
+            }
+            if grep -Eq 'GSF_GAMESCOPE_WSI_PAIR|GSF_OUTPUT_PACER rate=90' "$log"; then
+              echo 'FAIL: unsupported-driver SKIP must not pretend a full WSI pass'; exit 1
+            fi
+            echo 'GSF_REAL_MAINTENANCE1_DEVICE_VALIDATION=SKIPPED driver_no_extension=1'
+            echo '::warning::Real VkSwapchainPresentModesCreateInfoEXT WSI integration SKIPPED: lavapipe lacks VK_EXT_swapchain_maintenance1. The policy unit test passed; only the actual Deck can close this gate.'
+            echo 'Real maintenance1 downstream WSI: **NOT TESTED (software driver extension unavailable)**' >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$rc" -eq 0 ]; then
+            if grep -q 'GSF_TEST_APP_MAINTENANCE1_DRIVER_UNAVAILABLE' "$log"; then
+              echo 'FAIL: refused to treat driver-not-supported marker as PASS'; exit 1
+            fi
+            grep 'GSF_TEST_APP_MAINTENANCE1 injected_pnext=1000275002' "$log"
+            grep 'GSF_GAMESCOPE_WSI_PAIR virtual_mode=2 real_mode=1 real_pnext_type=1000275002 preserved=1' "$log"
+            grep 'GSF_LOADER_LIVE_INIT virtual_images=3 one_real_output=1 GPU_worker=1' "$log"
+            grep 'GSF_OUTPUT_PACER rate=90 emitted=15 originals=8 intermediate=7' "$log"
+            echo 'GSF_REAL_MAINTENANCE1_DEVICE_VALIDATION=PASS real_driver=1'
+            echo 'Real maintenance1 downstream WSI: **PASS on supported software driver**' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "FAIL: actual maintenance1 Vulkan test exited $rc"; exit 1
+          fi
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            echo 'FAIL: validation errors in maintenance1 probe'; exit 1
+          fi
+
+      - name: Gaming Mode X11-unobservable gate still performs actual Vulkan output submits
+        run: |
+          set -euo pipefail
+          kit="$RUNNER_TEMP/gsf-output-deck-kit"
+          log="$(mktemp)"
+          timeout 25s xvfb-run -a -s '-screen 0 1280x800x24' \
+            bash "$kit/deck-output-test.sh" --run --mode=gaming --phase=both --frames=8 \
+            > "$log" 2>&1 || { tail -n 75 "$log"; exit 1; }
+          cat "$log"
+          grep 'GSF_DECK_KIT_PHASE=baseline VULKAN_SUBMISSIONS_PASS physical_scanout=UNVERIFIED' "$log"
+          grep 'GSF_DECK_KIT_PHASE=output VULKAN_SUBMISSIONS_PASS physical_scanout=UNVERIFIED' "$log"
+          grep 'GSF_DECK_KIT_GAMESCOPE_SUBMIT_PASS physical_scanout=UNVERIFIED' "$log"
+          if grep -q 'SOFTWARE_EVIDENCE_PASS\|OLED_SCANOUT_PASS' "$log"; then
+            echo 'FAIL: Gaming mode falsely claimed visible frames/physical scanout'
+            exit 1
+          fi
+          echo 'Gaming Mode separately reports Vulkan GPU/WSI submissions, NOT XCB/OLED visibility'
+      - name: Upload opt-in SteamOS qualification kit (NOT a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsf-output-deck-test-kit-${{ github.sha }}
+          path: ${{ runner.temp }}/gsf-output-deck-kit/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Report qualification boundary
+        run: |
+          echo 'Transport-neutral scheduler validated.'
+          echo 'Private WSI output, GPU image ownership and actual OLED scanout remain UNVERIFIED.'

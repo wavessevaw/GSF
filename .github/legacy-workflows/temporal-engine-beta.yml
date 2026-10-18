@@ -1,0 +1,199 @@
+name: Temporal Engine beta
+
+# Pre-release of the experimental GFG Temporal Engine (with GFG Shell) from its
+# feature branch.  Publishes when .github/beta/temporal-engine.json changes (or
+# on manual dispatch), only as a GitHub pre-release; never "latest", never main.
+# The zip is also kept as a workflow artifact, so a refused publish loses nothing.
+on:
+  push:
+    branches: [claude/busy-bardeen-rmv05o, codex/temporal-90-te8]
+    paths: [.github/beta/temporal-engine.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporal-engine-beta
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CXX: g++-12
+      CC: gcc-12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read beta version
+        id: version
+        run: |
+          version="$(python3 -c 'import json; print(json.load(open(".github/beta/temporal-engine.json"))["version"])')"
+          [[ "$version" == *-te.* ]] || { echo "::error::beta versions must carry a -te.N suffix"; exit 1; }
+          tag="v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::$tag already exists; raise the beta number"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Backend tests
+        run: |
+          python3 scripts/check_generated_config.py
+          python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: CPU motion fit parity and relative cost versus te.7
+        run: python3 tools/benchmark_lmc_fit.py --out fit-benchmark.json
+
+      - name: Frame OS and HUD native tests
+        run: |
+          export TMPDIR="$RUNNER_TEMP"
+          VULKAN_DEPS="$RUNNER_TEMP/vk" engine/gfg-pacer/tests/setup_vulkan_deps.sh
+          make -C engine/gfg-pacer VULKAN_DEPS="$RUNNER_TEMP/vk" test layer abi integration ordering
+          make -C engine/gfg-hud VULKAN_DEPS="$RUNNER_TEMP/vk" test layer abi integration
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Frontend build is current and passes the smoke test
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code dist/index.js || { echo "::error::dist/index.js is stale"; exit 1; }
+          npx playwright install --with-deps chromium
+          node frontend/harness/smoke.mjs
+
+      - name: Identify Flatpak payload source
+        id: payload_source
+        run: |
+          previous="$(gh release list --limit 50 --json tagName,isDraft,createdAt --jq '[.[] | select((.isDraft | not) and (.tagName | test("-governor$|^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.createdAt) | last | .tagName // empty')"
+          test -n "$previous" || { echo "::error::no previous Governor release to take Flatpak payloads from"; exit 1; }
+          echo "Flatpak payloads from $previous"
+          echo "tag=$previous" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$previous" > "$RUNNER_TEMP/payload-source.json"
+          cache_key="$(python3 -c 'import hashlib,json; d=json.load(open(__import__("os").path.join(__import__("os").environ["RUNNER_TEMP"],"payload-source.json"))); a=[(x["id"],x["name"],x["updated_at"],x.get("digest")) for x in d["assets"] if x["name"].endswith(".zip") or x["name"]=="SHA256SUMS.txt"]; assert len(a)>=2, "release payload assets missing"; print(hashlib.sha256(json.dumps(sorted(a)).encode()).hexdigest())')"
+          echo "cache_key=verified-flatpak-zip-v1-$cache_key" >> "$GITHUB_OUTPUT"
+
+      - name: Cache previous release payload archive
+        id: payload_cache
+        uses: actions/cache@v4
+        with:
+          path: prev
+          key: ${{ steps.payload_source.outputs.cache_key }}
+
+      - name: Fetch Flatpak payloads from the previous release
+        run: |
+          mkdir -p prev payloads
+          if [ "${{ steps.payload_cache.outputs.cache-hit }}" != true ]; then
+            gh release download "${{ steps.payload_source.outputs.tag }}" --pattern '*.zip' --pattern 'SHA256SUMS.txt' --dir prev
+          else
+            echo "Using cached archive; checksums and ZIP CRC are verified again."
+          fi
+          (cd prev && sha256sum --check SHA256SUMS.txt)
+          unzip -tq prev/*.zip
+          unzip -q -j prev/*.zip 'GFG-Extreme/bin/*.flatpak' -d payloads
+          ls -la payloads
+
+      - name: Native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y g++-12 cmake libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers libx11-dev libxcb1-dev glslang-tools spirv-tools p7zip-full
+
+      - name: Build and verify Frame Fusion native renderer
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: |
+          git -c advice.detachedHead=false clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/fusion-vkh"
+          python3 scripts/build_frame_fusion.py --work "$RUNNER_TEMP/fusion" --headers "$RUNNER_TEMP/fusion-vkh/include"
+
+      - name: Godot runtime for the shell bundle (pinned, sha256-checked)
+        run: |
+          . shell/tools/godot.env
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -fsSL -o "$RUNNER_TEMP/godot/godot.zip" "$GODOT_URL"
+          echo "$GODOT_SHA256  $RUNNER_TEMP/godot/godot.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
+          echo "GODOT=$RUNNER_TEMP/godot/$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: GFG Shell tests
+        run: |
+          python3 -m pip install --quiet pillow
+          "$GODOT" --headless --path shell --import > "$RUNNER_TEMP/import.log" 2>&1 || true
+          if grep -E "SCRIPT ERROR|Parse Error|Compile Error" "$RUNNER_TEMP/import.log"; then exit 1; fi
+          python3 shell/tools/make_fake_steam.py "$RUNNER_TEMP/fake" --art
+          GFG_SHELL_LOG_DIR="$RUNNER_TEMP/logs" "$GODOT" --headless --path shell -s res://tests/run_tests.gd -- --fixture="$RUNNER_TEMP/fake" 2>&1 | tee "$RUNNER_TEMP/tests.log"
+          if grep -q "SCRIPT ERROR" "$RUNNER_TEMP/tests.log"; then exit 1; fi
+          GFG_SHELL_DRY_POWER=1 GFG_SHELL_LOG_DIR="$RUNNER_TEMP/logs" GFG_SHELL_STEAM_ROOT="$RUNNER_TEMP/fake/Steam" HOME="$RUNNER_TEMP/navhome" \
+            "$GODOT" --headless --path shell -s res://tests/ui_nav.gd 2>&1 | tee "$RUNNER_TEMP/nav.log"
+          if grep -q "SCRIPT ERROR" "$RUNNER_TEMP/nav.log"; then exit 1; fi
+
+      - name: Build zip
+        run: |
+          python3 scripts/bump_version.py "${{ steps.version.outputs.version }}"
+          # build_release.sh packages HEAD (git archive): record the beta version in a
+          # local commit inside this job only; nothing is pushed
+          if ! git diff --quiet; then
+            git -c user.name=gfg-beta -c user.email=gfg-beta@localhost commit -qam "beta ${{ steps.version.outputs.version }}"
+          fi
+          git -c advice.detachedHead=false clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+          FRAME_FUSION_BUILD="$RUNNER_TEMP/fusion/build" VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" scripts/build_release.sh "${{ steps.version.outputs.version }}" payloads out
+
+      - name: Verify Frame OS and Rings HUD packaged in Decky zip
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          if [[ "$version" =~ ^0\. ]]; then
+            zip="out/GFG-Extreme-Governor-v${version//./_}.zip"
+          else
+            zip="out/GFG-Extreme-v${version//./_}.zip"
+          fi
+          test -s "$zip"
+          python3 scripts/check_release_archive.py "$zip" "$version"
+          for payload in libVkLayer_gfg_pacer.so VkLayer_gfg_pacer.json libVkLayer_gfg_hud.so VkLayer_gfg_hud.json; do
+            unzip -Z1 "$zip" | grep -Fx "GFG-Extreme/bin/gfg-frame-os/$payload"
+          done
+
+      - name: GFG Shell bundled in the Decky zip
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          zip="out/GFG-Extreme-v${version//./_}.zip"
+          for f in gfg-shell.pck gfg-shell.sh godot.json VERSION licenses/GODOT-LICENSE.txt; do
+            unzip -Z1 "$zip" | grep -Fx "GFG-Extreme/bin/gfg-shell/$f"
+          done
+          if unzip -Z1 "$zip" | grep -q '^GFG-Extreme/shell/'; then echo "::error::shell sources leaked into the zip"; exit 1; fi
+
+      - name: Temporal Engine native tests and GPU parity (lavapipe)
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: |
+          python3 -m pip install --quiet numpy scikit-image
+          make -C engine/gfg-temporal all
+          engine/gfg-temporal/build/te-tests
+          python3 -m unittest discover -s engine/gfg-temporal/tests -p 'test_*.py'
+
+      - name: Keep the test build as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GFG-Extreme-${{ steps.version.outputs.version }}
+          path: |
+            out/*.zip
+            out/SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish pre-release
+        run: |
+          sha="$(cut -d' ' -f1 out/SHA256SUMS.txt)"
+          sed "s/\`<sha256>\`/\`$sha\`/" .github/beta/temporal-engine.md > notes.md
+          gh release create "${{ steps.version.outputs.tag }}" out/*.zip out/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "GFG Extreme ${{ steps.version.outputs.version }} (Temporal Engine beta)" --notes-file notes.md
