@@ -2,13 +2,25 @@ name: GSF Output Owner Contract (experimental)
 on:
   push:
     branches:
+      - main
       - experiment/gsf-output-owner-contract-20261017
       - experiment/gsf-real-wsi-direct-owner-20261017
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/**'
+      - 'engine/gfg-native/Makefile'
+      - '.github/workflows/gsf-output-owner-contract.yml'
   pull_request:
     branches:
+      - main
       - fix/gsf-borrowed-physical-dispatch-20261017
       - experiment/gsf-output-owner-contract-20261017
       - experiment/gsf-offscreen-source-pool-20261017
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/**'
+      - 'engine/gfg-native/Makefile'
+      - '.github/workflows/gsf-output-owner-contract.yml'
   workflow_dispatch:
 permissions:
   contents: read
