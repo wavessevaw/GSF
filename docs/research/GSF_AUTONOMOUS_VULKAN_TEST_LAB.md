@@ -14,7 +14,7 @@ The isolated **TEST-ONLY** layer receives a real Vulkan test client's `vkCreateS
 4. Paced 45→90, 8+7 frames.
 5. Sustained paced 45→90, **120 source + 119 intermediate = 239 X11-composited unique images**.
 
-Every scenario is run with the game's layer **before** and **after** `VK_LAYER_KHRONOS_validation`; each run creates a fresh test app and fresh X server. The test script resets scenario-specific environment variables between cases. There is no `continue-on-error` or `|| true` around any graphics test.
+**Important:** the full virtual WSI suite is valid only with **GSF native layer before validation** in the Vulkan dispatch chain. An independent discovery run with validation **above** the GSF private virtual handle failed with `VUID-vkGetSwapchainImagesKHR-swapchain-parameter` and exit 139 (documented in [P0 issue #14](https://github.com/wavessevaw/GSF/issues/14)). The second job therefore runs **real Vulkan WSI passthrough only** with validation first, three clean 4-frame cycles and no virtual GSF handle. This is **not** evidence of virtual WSI compatibility in that order. We do not silence the error, reclassify the crash as success, or enable unsupported virtual handles. Each tested scenario creates a fresh X server; no graphics test is `continue-on-error`.
 
 **Hard limitation:** Intermediate images are deterministic **A/B split test patterns, not GSF's optical-flow/LMC output**. X11 pixel checks and 90-target pacing do not prove 90 physical OLED scanouts. No real Deck, RADV, Gamescope embedded session, Proton game, HDR, VRR, motion quality, power or user-input latency is tested. The older [strict real Native GPU LMC regression in experimental PR #4](https://github.com/wavessevaw/GSF/pull/4) must remain a separate non-weakened GPU correctness gate until its warm/cold issues are resolved.
 
@@ -25,7 +25,7 @@ Every scenario is run with the game's layer **before** and **after** `VK_LAYER_K
 - Scheduled **daily at 03:17 UTC** on the default GitHub branch (subject to GitHub Actions schedule delays).
 - Runs on PRs changing Native layer source, source WSI test, the test lab script, or its build/workflow contract. Also supports manual `workflow_dispatch`.
 - Builds the isolated test-only output-layer probe using **Khronos Vulkan-Headers tag v1.4.365** and distro Mesa/validation packages.
-- 2 matrix jobs: `native-first` and `validation-first`.
+- 2 matrix jobs with **different explicit scopes**: `native-first` = full virtual WSI 8→15/120→239 pixel checks; `validation-first` = Vulkan Loader **real-Wsi passthrough** 3×4 real frames and strict validation. General virtual WSI compatibility for the second order is an **open failure**, not solved by this lab.
 - Saves the **entire stdout/stderr of each scenario**, provenance (`dpkg-query`, Linux kernel, Vulkan-Headers commit, library checksum, `vulkaninfo`), `results.json`, and `SUMMARY.md` in downloadable GitHub Actions artifacts for **21 days**, including failed runs.
 - Hard wall-time limit per process and entire job. Nonzero graphics failures make the workflow red.
 
@@ -45,7 +45,13 @@ gsf-vulkan-lab-native-first/
   paced-45-to-90.log
   sustained-45-to-90.log
 gsf-vulkan-lab-validation-first/
-  ...
+  environment.txt
+  vulkaninfo.txt
+  results.json
+  SUMMARY.md
+  real-wsi-passthrough-1.log
+  real-wsi-passthrough-2.log
+  real-wsi-passthrough-3.log
 ```
 
 The result's declared evidence level is `software_vulkan_x11_test_lab`. Never quote `X11 visible` as `Steam Deck OLED physically displayed`.
@@ -68,7 +74,7 @@ python3 engine/gfg-native/scripts/gsf_test_lab.py \
   --build-dir engine/gfg-native/build-lab --output gsf-lab-results
 ```
 
-Run `--layer-order validation-first` as a separate process to verify alternate interception layering. Local errors do not require anyone to change Steam or Deck settings.
+Run `--layer-order validation-first` separately to test **safe nonvirtual real WSI passthrough only**. Do not enable virtual source interception in that order until [issue #14](https://github.com/wavessevaw/GSF/issues/14) is addressed. Local errors do not require changing Steam or Deck settings.
 
 ## What a failure means
 
@@ -76,7 +82,7 @@ Run `--layer-order validation-first` as a separate process to verify alternate i
 - **Vulkan validation error:** real Vulkan object/sync/lifetime incompatibility in this test route; fix rather than suppress.
 - **Missing X11 pixel marker:** cannot claim the expected software output. Inspect log + source IDs and X11 readback before any driver or shader change.
 - **Hang / timeout:** suspect virtual Acquire reuse, source retire waits, output pacing or Xvfb startup; preserve original failed case.
-- **Only validation-first fails:** isolate dispatch and loader ordering; *do not make validation optional*.
+- **Virtual WSI with validation above GSF:** a reproducible **known interoperability crash**, issue #14; not a supported test configuration. Validation-first tests must keep real WSI passthrough and report that scope. Do not present that result as a virtual-owner pass.
 - **Both pass:** proves exactly the test-only Vulkan/X11 contract; does not certify Steam Deck.
 
 ## Further validation ladder
