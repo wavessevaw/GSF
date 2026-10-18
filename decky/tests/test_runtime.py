@@ -45,6 +45,14 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.forget(42, old)
             self.assertNotIn('42', self.runtime.config()['games'])
 
+    def test_selection_persists_without_installing_or_enabling(self):
+        self.assertEqual(self.runtime.selection(), {'appid': 0})
+        self.runtime.select(42)
+        reloaded = Runtime(self.home, PLUGIN)
+        self.assertEqual(reloaded.selection(), {'appid': 42})
+        self.assertEqual(reloaded.config()['games'], {})
+        self.assertFalse((reloaded.root/'current.json').exists())
+
     def test_user_edits_never_overwritten_on_restore(self):
         with patch.object(self.runtime, 'install', return_value={}):
             p = self.runtime.prepare(42, '-windowed')

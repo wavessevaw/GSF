@@ -33,6 +33,7 @@ jobs:
           npm --prefix decky run check
           npm --prefix decky test
           npm --prefix decky run build
+          npm --prefix decky run test:panel
           python3 -m unittest discover -s decky/tests -p 'test_*.py'
           make -C engine/gfg-native frame-clock
       - name: Build GPU layer and package exact source
@@ -44,11 +45,11 @@ jobs:
       - name: Extracted offline plugin actual install, GPU generation, diagnostics and uninstall bypass
         run: |
           export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
-          xvfb-run -a -s '-screen 0 1024x768x24' python3 decky/tests/extracted_smoke.py --archive "$RUNNER_TEMP/decky/GSF-Decky-Test-0.1.0.zip" --output "$RUNNER_TEMP/decky-evidence"
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 decky/tests/extracted_smoke.py --archive "$RUNNER_TEMP/decky/GSF-Decky-Test-"*.zip --output "$RUNNER_TEMP/decky-evidence"
       - uses: actions/upload-artifact@v4
         with:
-          name: GSF-Decky-Test-0.1.0
-          path: ${{ runner.temp }}/decky/GSF-Decky-Test-0.1.0.zip
+          name: GSF-Decky-Test
+          path: ${{ runner.temp }}/decky/GSF-Decky-Test-*.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:

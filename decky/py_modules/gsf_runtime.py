@@ -118,6 +118,15 @@ class Runtime:
     def config(self):
         return load_json(self.root/'config.json', {'schema': 1, 'games': {}})
 
+    def selection(self):
+        saved = load_json(self.root/'selection.json', {})
+        return {'appid': int(app_id(saved['appid'])) if saved.get('appid') else 0}
+
+    def select(self, appid):
+        selected = {'appid': int(app_id(appid))}
+        atomic_json(self.root/'selection.json', selected)
+        return selected
+
     def install(self):
         kit = self.plugin/'payload'
         base = candidate_module(kit)
@@ -232,6 +241,7 @@ class Runtime:
         records = live_records(run) if run else []
         active = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
+                'launch_options': saved.get('expected', ''),
                 'state': 'generating' if active else 'bridge' if records else 'waiting',
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,
                 'session': str(run) if run else None}

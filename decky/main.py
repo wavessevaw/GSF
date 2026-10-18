@@ -18,6 +18,13 @@ class Plugin:
     async def get_games(self):
         return await asyncio.to_thread(self.runtime.games)
 
+    async def get_selection(self):
+        return await asyncio.to_thread(self.runtime.selection)
+
+    async def select_game(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.select, appid)
+
     async def prepare_game(self, appid: int, options: str):
         async with self.lock:
             return await asyncio.to_thread(self.runtime.prepare, appid, options)
