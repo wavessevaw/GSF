@@ -1386,7 +1386,9 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         }
         if(r!=VK_SUCCESS){fail_log(fg,"output readiness",r);return -1;}
         fg->readiness_ns[k]=(uint64_t)(now_us()*1000.0);
-        if(!fg->control_checked) {
+        /* Only SharedFlow exports its cut/duplicate control header.
+         * LMC pacing uses readiness and deadlines, as its unpaced path does. */
+        if(fg->shared_flow && !fg->control_checked) {
             uint32_t cut=0;int held=0,duplicate=0;
             r=te_output_control(fg->context,(uint32_t)output_index,value,&cut,&held,&duplicate);
             if(r!=VK_SUCCESS){fail_log(fg,"output control",r);return -1;}

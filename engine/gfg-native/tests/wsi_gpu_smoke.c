@@ -181,6 +181,10 @@ int main(void) {
     const uint32_t opts[] = {it.data->black_pixel, XCB_EVENT_MASK_EXPOSURE};
     xcb_create_window(xc, XCB_COPY_FROM_PARENT, window, it.data->root, 0, 0, want_w, want_h, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, it.data->root_visual, XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, opts);
+    const char *title = getenv("GFG_TEST_TITLE");
+    if (!title) title = "GSF Vulkan diagnostic";
+    xcb_change_property(xc, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME,
+                        XCB_ATOM_STRING, 8, (uint32_t)strlen(title), title);
     xcb_map_window(xc, window);
     REQUIRE(xcb_flush(xc) > 0);
 

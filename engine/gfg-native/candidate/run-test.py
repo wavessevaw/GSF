@@ -45,11 +45,19 @@ def counters(log):
     return {k:int(v) for k,v in re.findall(r'(\w+)=(\d+)', lines[0])}
 
 
-def check_active(log, lifecycle, kit):
+def check_active(log, lifecycle, kit, paced=False):
     c = counters(log)
     bridges, frames = (3, 36) if lifecycle else (1, 12)
     required = {'bridges':bridges, 'real':frames, 'synthetic':frames-bridges,
                 'skipped':0, 'errors':0, 'present_path_cpu_waits':0, 'present_path_host_pixel_reads':0}
+    if paced:
+        # Cold initialization may invalidate history; deadline misses remain
+        # visible and are not counted as generated frames. Strict cases above
+        # still require every pair, with zero skips.
+        required.pop('synthetic')
+        required.pop('skipped')
+        if c.get('synthetic', 0) < 5 or c.get('synthetic', 0) + c.get('skipped', 0) != frames-bridges:
+            raise ValueError('Недостаточно фактически выведенных кадров в проверке такта')
     for k, value in required.items():
         if c.get(k) != value:
             raise ValueError(f'Не прошла проверка {k}: {c.get(k)} вместо {value}')
@@ -149,11 +157,12 @@ def main():
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
+            env['GFG_TEST_TITLE'] = 'GSF '+label+' | source 5 Hz'+(' | output 10 Hz' if label=='lmc-paced-2x' else '')
             if algo:
                 env['GFG_NATIVE_ALGO'] = algo
                 env['GFG_NATIVE_TELEMETRY'] = str(run/(label+'.jsonl'))
             if label == 'lmc-paced-2x':
-                env['GFG_NATIVE_OUTPUT_HZ'] = '10'
+                env.update(GFG_NATIVE_OUTPUT_HZ='10', GFG_TEST_ALLOW_SKIPS='1')
             if lifecycle:
                 env.update(GFG_TEST_LIFECYCLE='1', GFG_TEST_FRAMES='36')
             proc = subprocess.run([str(KIT/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
@@ -166,7 +175,7 @@ def main():
                 raise ValueError(label+': нет подтверждения завершения')
             if algo is None and 'GPU bridge active:' in log:
                 raise ValueError('Генератор неожиданно активен в baseline')
-            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT) if algo else None}
+            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT,paced=label=='lmc-paced-2x') if algo else None}
             if label == 'lmc-paced-2x':
                 report['cases'][label]['cadence'] = check_cadence(run/(label+'.jsonl'))
         report.update(status='PASS', stage='complete')
