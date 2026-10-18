@@ -102,7 +102,7 @@ Real frames A/B
 
 **Tier C (optional, later):** game-MV/depth attachment from a trusted integration contract (controlled test application, documented engine callback, explicit XR-like producer) before investing in generic Vulkan heuristics. Every imported source is selected **by provenance**, not only a format/size guess; confidence threshold must be able to reject it, including deliberate adversarial plausible data. Generic command-stream tracker only if opt-in benchmark shows value in enough games to justify hot-path overhead.
 
-**Do not replace GSF LMC with untested FFX sources.** Open-source SDK licensing must be verified at the pinned upstream revision, and benchmarked against GSF's proprietary-to-GSF architecture goals (although the project's code is GPL). The official AMD FSR3 package may be MIT under some components, but the presence of a published SDK alone does not grant permission to copy unrelated drivers, shader assets or vendor DLLs.
+**Do not replace GSF LMC with untested FFX sources.** Open-source SDK licensing must be verified at the pinned upstream revision, and benchmarked against GSF's independent, GPL-licensed architecture. The official AMD FSR3 package may be MIT under some components, but the presence of a published SDK alone does not grant permission to copy unrelated drivers, shader assets or vendor DLLs.
 
 ## 4. Small falsifiable research experiments, independent of Deck WSI delivery
 
