@@ -2,6 +2,7 @@
 #include "../src/frame_clock.h"
 #include <assert.h>
 #include <stdio.h>
+#include <inttypes.h>
 static const uint64_t ns=1000000000ull;
 static unsigned replay(unsigned fps,unsigned mul,unsigned n) {
     const uint64_t p=ns/90,origin=1000000000ull;
@@ -45,7 +46,46 @@ static void jittered_integer_ratio(unsigned output_hz,unsigned multiplier) {
     }
 }
 
-int main(void) {
+static void dispatch_deadlines(void) {
+    gfg_frame_clock c={.mask=3,.target_ns={100,200,300}};
+    assert(gfg_frame_clock_compute_mask(&c,89,10)==3);
+    assert(gfg_frame_clock_compute_mask(&c,90,10)==2);
+    assert(gfg_frame_clock_compute_mask(&c,189,10)==2);
+    assert(gfg_frame_clock_compute_mask(&c,190,10)==0);
+    assert(gfg_frame_clock_compute_mask(&c,100,0)==2);
+    assert(gfg_frame_clock_compute_mask(&c,200,0)==0);
+    assert(gfg_frame_clock_compute_mask(&c,0,201)==0);
+    assert(c.mask==3 && c.target_ns[2]==300); /* real/planned targets unchanged */
+    c.mask=0;assert(!gfg_frame_clock_compute_mask(&c,0,0));
+}
+static void hardware_trace(const char *path) {
+    FILE *f=fopen(path,"r");assert(f);
+    char line[256];unsigned rows=0,old_compute=0,rejected=0,accepted=0;
+    while(fgets(line,sizeof line,f)) {
+        if(line[0]=='#')continue;
+        int64_t slack;unsigned planned,computed,shown;
+        assert(sscanf(line,"%" SCNd64 ",%u,%u,%u",&slack,&planned,&computed,&shown)==4);
+        /* The old trace lacks a pre-dispatch timestamp. Worker start is a
+         * conservative lower bound: rejection here proves it was already
+         * too late, but cannot count expirations later during source submit. */
+        const uint64_t origin=10*ns,lead=11110617/4;
+        assert(slack>-(int64_t)origin && slack<(int64_t)origin);
+        gfg_frame_clock c={.mask=planned,.target_ns={origin+lead+slack,0,origin+ns}};
+        const unsigned mask=gfg_frame_clock_compute_mask(&c,origin,lead);
+        assert((mask&~planned)==0 && c.target_ns[2]==origin+ns);
+        if(shown){assert(computed==1 && mask==1);++accepted;}
+        if(computed){++old_compute;if(!(mask&1))++rejected;}
+        ++rows;
+    }
+    assert(!ferror(f));fclose(f);
+    assert(rows==7546 && old_compute==2474 && accepted==162);
+    assert(rejected==303);
+    printf("AC Origins replay: %u pairs, %u old dispatches, >=%u already expired at worker start; all %u accepted G1 retained\n",
+           rows,old_compute,rejected,accepted);
+}
+int main(int argc,char **argv) {
+    dispatch_deadlines();
+    if(argc==2)hardware_trace(argv[1]);
     jittered_integer_ratio(10,2);
     jittered_integer_ratio(90,2);
     jittered_integer_ratio(90,3);

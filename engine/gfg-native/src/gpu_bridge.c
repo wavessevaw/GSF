@@ -275,6 +275,31 @@ static double now_us(void) {
     return (double)t.tv_sec * 1e6 + (double)t.tv_nsec / 1e3;
 }
 static int ok(VkResult r) { return r == VK_SUCCESS; }
+static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v,
+                                   uint64_t now,te_submit *s) {
+    const unsigned mask=fg->clock.period_ns?
+        gfg_frame_clock_compute_mask(&fg->clock,now,
+            fg->display_timing==2?fg->clock.period_ns/4:0):(1u<<(fg->multiplier-1))-1u;
+    const int generate=have_pair && mask;
+    s->slot=fg->te_slot;
+    /* Same-device history updates still signal v+2, with no LMC outputs.
+     * Cross-device transport keeps its existing history/hold allocation. */
+    s->count=generate?(uint32_t)__builtin_popcount(mask):!fg->same_device?fg->multiplier-1:0u;
+    s->timestamps[0]=1.0f/(float)fg->multiplier;
+    s->timestamps[1]=2.0f/3.0f;
+    if(generate) {
+        unsigned output=0;
+        for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k))
+            s->timestamps[output++]=(float)(k+1)/(float)fg->multiplier;
+    }
+    s->wait_value=v;
+    s->signal_first=s->count?v+3-s->count:v+2;
+    s->nonblocking=1;
+    s->discontinuity=fg->te_frames>0 && fg->te_gap;
+    s->lmc_tier=fg->lmc_tier;
+    s->defer_second=generate && s->count==2 && fg->same_device && fg->shared_flow;
+    return mask;
+}
 static void fail_log(gfg_gpu_fg *fg, const char *what, VkResult r) {
     (void)fg;
     fprintf(stderr, "[gfg-native] gpu-bridge %s vkresult=%d\n", what, (int)r);
@@ -1377,7 +1402,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         const uint64_t target=gfg_frame_clock_target(&fg->clock,(unsigned)k)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         uint64_t now=(uint64_t)(now_us()*1000.0),value=v+1+(uint64_t)output_index;
         if(fg->cut_drop || fg->duplicate_drop)return 0;
-        if(!gfg_frame_clock_admit(&fg->clock,(unsigned)k,now)) {
+        if(!(gfg_frame_clock_compute_mask(&fg->clock,now,fg->display_timing==2?fg->clock.period_ns/4:0)&(1u<<k))) {
             fg->slot_detail[k]="expired-before-readiness";fg->deadline_drop=1;return 0;
         }
         VkSemaphoreWaitInfo wait={.sType=VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
@@ -1575,6 +1600,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     }
     fg->output_deadline_us = t0 + (double)gfg_gpu_fg_source_period_ns(fg)/1000.0;
     unsigned dispatched_outputs=0,dispatched_mask=0;
+    uint64_t compute_admission_ns=0;
     unsigned deferred_g2=0;uint64_t g2_submit_return_ns=0;
     double next_us = 0.0;
     STAT_ADD(real_presents, 1);
@@ -1677,32 +1703,16 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->next_value += 3;
     /* From here ready[idx] is signalled: the real present below waits it. */
     const int have_pair = fg->te_frames > 0 && !fg->te_gap;
-    const unsigned compute_mask=fg->clock.period_ns?fg->clock.mask:(1u<<(fg->multiplier-1))-1u;
-    const int generate = have_pair && compute_mask;
+    compute_admission_ns=(uint64_t)(now_us()*1000.0);
     te_submit s = {0};
-    s.slot = fg->te_slot;
-    /* Initial/gap frames only rebuild history. The former two full-size hold
-     * outputs were never presented, but still consumed GPU memory bandwidth. */
-    s.count = generate ? (uint32_t)__builtin_popcount(compute_mask) : !fg->same_device ? fg->multiplier-1 : 0u;
-    s.timestamps[0] = 1.0f / (float)fg->multiplier;
-    s.timestamps[1] = 2.0f / 3.0f;
-    if(generate) {
-        unsigned output=0;
-        for(unsigned k=0;k<fg->multiplier-1;++k)if(compute_mask&(1u<<k))
-            s.timestamps[output++]=(float)(k+1)/(float)fg->multiplier;
-    }
-    s.wait_value = v;
-    s.signal_first = s.count ? v + 3-s.count : v + 2;
-    s.nonblocking = 1;
-    s.discontinuity = fg->te_frames > 0 && fg->te_gap;
-    s.lmc_tier = fg->lmc_tier;
-    s.defer_second=generate && s.count==2 && fg->same_device && fg->shared_flow;
+    const unsigned compute_mask=prepare_generation(fg,have_pair,v,compute_admission_ns,&s);
+    const int generate=have_pair && compute_mask;
     tp = now_us();
     VkResult tr = inject_te_busy ? VK_NOT_READY : te_submit_frame(fg->context, &s);
     fg->phase_us[1] += now_us() - tp;
     gpu_sample(fg);
     int presented = 0;
-    drop_reason = have_pair && !compute_mask?DROP_RATE:DROP_HISTORY;
+    drop_reason = have_pair && !compute_mask?(fg->clock.mask?DROP_DEADLINE:DROP_RATE):DROP_HISTORY;
     if (tr == VK_SUCCESS) {
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
@@ -1726,6 +1736,10 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                 }
                 if(fg->clock.period_ns && !(fg->clock.mask&(1u<<k))) {
                     fg->slot_detail[k]="display-refresh-budget";fg->slot_drop[k]=DROP_RATE;skip_outputs(fg,DROP_RATE,1);continue;
+                }
+                if(!(compute_mask&(1u<<k))) {
+                    fg->slot_detail[k]="expired-before-dispatch";fg->slot_drop[k]=DROP_DEADLINE;
+                    skip_outputs(fg,DROP_DEADLINE,1);continue;
                 }
                 int g = present_synthetic(fg, rs, (int)k, (int)generated_index++, v+2-s.count, idx, next, ids, app_chain.dynamic_mode, &next_us);
                 VkResult resumed=VK_SUCCESS;
@@ -1786,6 +1800,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     if (frame && !(tr==VK_SUCCESS && generate)) {
         skip_outputs(fg,drop_reason,fg->multiplier-1);
         fg->slot_drop[0]=fg->slot_drop[1]=(int)drop_reason;
+        if(tr==VK_SUCCESS && have_pair && !compute_mask && fg->clock.mask)
+            for(unsigned k=0;k<fg->multiplier-1;++k)if(fg->clock.mask&(1u<<k))
+                fg->slot_detail[k]="expired-before-dispatch";
     }
     /* the ring slot's fence covers everything submitted for this frame */
     tp = now_us();
@@ -1811,7 +1828,7 @@ timing:
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
             "\"admitted_ns\":%llu,\"worker_start_ns\":%llu,\"worker_end_ns\":%llu,\"interval_ns\":%llu,"
             "\"refresh_period_ns\":%llu,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
-            "\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,"
+            "\"compute_admission_ns\":%llu,\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,"
             "\"target_ns\":[%llu,%llu,%llu],\"readiness_observed_ns\":[%llu,%llu],"
             "\"wsi_accepted_ns\":[%llu,%llu,%llu],\"wsi_call_ns\":[%llu,%llu,%llu],"
             "\"readiness_wait_ns\":[%llu,%llu],\"google_present_ids\":[%u,%u,%u],\"drop_detail\":[\"%s\",\"%s\"],\"cpu_phase_us\":[%.3f,%.3f,%.3f,%.3f,%.3f],\"te_sequence\":%llu,\"drop_code\":[%d,%d],\"cut\":%d,\"duplicate\":%d,\"physical_displayed\":null,\"visually_unique\":null}\n",
@@ -1820,7 +1837,7 @@ timing:
             (unsigned long long)source0,(unsigned long long)fg->source_ns,
             (unsigned long long)fg->admitted_ns,(unsigned long long)(t0*1000.0),(unsigned long long)(now_us()*1000.0),
             (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
-            deferred_g2,(unsigned long long)g2_submit_return_ns,
+            (unsigned long long)compute_admission_ns,deferred_g2,(unsigned long long)g2_submit_return_ns,
             (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[2],
             (unsigned long long)fg->readiness_ns[0],(unsigned long long)fg->readiness_ns[1],
             (unsigned long long)fg->accepted_ns[0],(unsigned long long)fg->accepted_ns[1],(unsigned long long)fg->accepted_ns[2],

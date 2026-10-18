@@ -86,4 +86,15 @@ static inline uint64_t gfg_frame_clock_target(const gfg_frame_clock *c,unsigned 
 static inline int gfg_frame_clock_admit(const gfg_frame_clock *c,unsigned kind,uint64_t now) {
     return (c->mask&(1u<<kind)) && now<c->target_ns[kind];
 }
+/* Recheck immediately before dispatch, after queue/ring/source-copy delays.
+ * GOOGLE timed presents need the same early handoff as the readiness wait.
+ * This only removes impossible slots; it does not predict GPU completion. */
+static inline unsigned gfg_frame_clock_compute_mask(const gfg_frame_clock *c,
+                                                   uint64_t now,uint64_t lead_ns) {
+    unsigned mask=0;
+    for(unsigned k=0;k<2;++k)
+        if((c->mask&(1u<<k)) && c->target_ns[k]>lead_ns &&
+           now<c->target_ns[k]-lead_ns)mask|=1u<<k;
+    return mask;
+}
 #endif

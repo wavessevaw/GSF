@@ -28,6 +28,25 @@ static gfg_gpu_fg fixture(unsigned n) {
 }
 
 int main(void) {
+    /* Actual TE packet preparation: expiration must remove GPU work, keep
+     * history synchronization, and compact G2-only outputs without confusing
+     * its 2/3 timestamp or enabling a deferred nonexistent G1. */
+    gfg_gpu_fg plan={.same_device=1,.multiplier=3,.shared_flow=1,.display_timing=2,
+        .te_slot=1,.te_frames=5,.clock={.period_ns=40,.mask=3,.target_ns={100,200,300}}};
+    te_submit s={0};
+    assert(prepare_generation(&plan,1,10,89,&s)==3);
+    assert(s.count==2 && s.defer_second && s.wait_value==10 && s.signal_first==11);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,90,&s)==2);
+    assert(s.count==1 && !s.defer_second && s.timestamps[0]==2.0f/3.0f && s.signal_first==12);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,190,&s)==0);
+    assert(!s.count && !s.defer_second && s.wait_value==10 && s.signal_first==12 && s.slot==1 && s.nonblocking);
+    plan.multiplier=2;plan.clock.mask=1;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,90,&s)==0 && !s.count);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,89,&s)==1 && s.count==1);
+    assert(s.timestamps[0]==0.5f && s.signal_first==12);
+    s=(te_submit){0};prepare_generation(&plan,0,10,89,&s);assert(!s.count);
+    plan.clock.period_ns=0;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,UINT64_MAX,&s)==1 && s.count==1);
     double samples[2]={50,10},median,p95;percentile(samples,2,&median,&p95);
     assert(median==30 && p95==48 && p95>=median);
     gfg_gpu_fg fg = fixture(2);
