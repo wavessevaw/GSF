@@ -40,7 +40,8 @@ async def test(archive, output):
         env = os.environ.copy()
         env.update(HOME=str(home), GFG_TEST_FRAMES='70', GFG_TEST_WIDTH='96', GFG_TEST_HEIGHT='64',
                    GFG_TEST_SOURCE_HZ='5', GFG_TEST_ABSOLUTE_PACING='1', GFG_TEST_EXPECT_GPU='1',
-                   GFG_TEST_ALLOW_SKIPS='1', GFG_TEST_EXPECT_LAYER_PATH=str(kit/'libVkLayer_gfg_native.so'))
+                   GFG_TEST_ALLOW_SKIPS='1', GFG_TEST_MUTABLE_SWAPCHAIN='1',
+                   GFG_TEST_EXPECT_LAYER_PATH=str(kit/'libVkLayer_gfg_native.so'))
         launcher = [sys.executable, str(backend.runtime.root/'launch.py'), '--appid', '42', '--']
         launched = subprocess.run(launcher+[str(app)], env=env, capture_output=True, text=True, timeout=100)
         (output/'launcher.log').write_text(launched.stdout+launched.stderr)
@@ -48,6 +49,7 @@ async def test(archive, output):
         log = (run/'game.log').read_text()
         (output/'game.log').write_text(log)
         assert launched.returncode == 0, log[-5000:]
+        assert 'GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS' in log
         line = next(s for s in log.splitlines() if s.startswith('GFG native: gpu stats '))
         stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', line)}
         assert stats['real'] == 70 and stats['synthetic'] >= 60, stats

@@ -297,8 +297,13 @@ int main(void) {
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo qi = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .queueFamilyIndex = family, .queueCount = 1, .pQueuePriorities = &priority};
-    const char *dext[3] = {"VK_KHR_swapchain"};
+    const char *dext[4] = {"VK_KHR_swapchain"};
     uint32_t dext_count = 1;
+    const int mutable_format=env_1("GFG_TEST_MUTABLE_SWAPCHAIN");
+    if(mutable_format) {
+        REQUIRE(device_ext(physical,VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME));
+        dext[dext_count++]=VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME;
+    }
     VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT maintenance = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT};
     int maintenance_chain = 0;
@@ -361,10 +366,14 @@ int main(void) {
     REQUIRE(formats && nformats);
     TRY(vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &nformats, formats));
     VkSurfaceFormatKHR color = formats[0];
-    const VkFormat wanted = (env_1("GFG_TEST_SRGB") || env_1("GFG_NATIVE_TEST_SRGB")) ? VK_FORMAT_B8G8R8A8_SRGB : VK_FORMAT_B8G8R8A8_UNORM;
+    const int want_srgb=env_1("GFG_TEST_SRGB") || env_1("GFG_NATIVE_TEST_SRGB");
+    const VkFormat wanted = env_1("GFG_TEST_RGBA") ?
+        (want_srgb?VK_FORMAT_R8G8B8A8_SRGB:VK_FORMAT_R8G8B8A8_UNORM):
+        (want_srgb?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM);
     for (uint32_t i = 0; i < nformats; i++)
         if (formats[i].format == wanted) { color = formats[i]; break; }
     free(formats);
+    if(env_1("GFG_TEST_RGBA"))REQUIRE(color.format==wanted);
     uint32_t minimum = caps.minImageCount < 2 ? 2 : caps.minImageCount;
     if (caps.maxImageCount && minimum > caps.maxImageCount) minimum = caps.maxImageCount;
     VkSwapchainCreateInfoKHR swci = {.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -380,6 +389,18 @@ int main(void) {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODES_CREATE_INFO_EXT,
         .presentModeCount = 1, .pPresentModes = &compatible_mode};
     if (maintenance_chain) swci.pNext = &compatible;
+    const VkFormat alias=color.format==VK_FORMAT_B8G8R8A8_UNORM?VK_FORMAT_B8G8R8A8_SRGB:
+        color.format==VK_FORMAT_B8G8R8A8_SRGB?VK_FORMAT_B8G8R8A8_UNORM:
+        color.format==VK_FORMAT_R8G8B8A8_UNORM?VK_FORMAT_R8G8B8A8_SRGB:VK_FORMAT_R8G8B8A8_UNORM;
+    const VkFormat view_formats[2]={color.format,alias};
+    const VkImageFormatListCreateInfo format_list={.sType=VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO,
+        .pNext=swci.pNext,.viewFormatCount=2,.pViewFormats=view_formats};
+    if(mutable_format) {
+        REQUIRE(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+        swci.imageUsage|=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        swci.flags|=VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR;
+        swci.pNext=&format_list;
+    }
     if (!(caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
         for (uint32_t bit = 1; bit <= 8; bit *= 2)
             if (caps.supportedCompositeAlpha & bit) { swci.compositeAlpha = (VkCompositeAlphaFlagBitsKHR)bit; break; }
@@ -390,6 +411,17 @@ int main(void) {
     VkImage *images = calloc(image_count, sizeof(*images));
     REQUIRE(images);
     TRY(vkGetSwapchainImagesKHR(device, swapchain, &image_count, images));
+    if(mutable_format) {
+        VkImageViewCreateInfo vi={.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,.image=images[0],
+            .viewType=VK_IMAGE_VIEW_TYPE_2D,.format=alias,
+            .subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1}};
+        VkImageView view=VK_NULL_HANDLE;
+        TRY(vkCreateImageView(device,&vi,NULL,&view));
+        vkDestroyImageView(device,view,NULL);
+        REQUIRE(swci.flags==VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR && swci.pNext==&format_list);
+        REQUIRE(format_list.viewFormatCount==2 && view_formats[0]==color.format && view_formats[1]==alias);
+        puts("GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS original_metadata_unchanged=PASS");
+    }
     fprintf(stderr, "GFG native: gpu smoke %ux%u format=%d min_images=%u images=%u frames=%u\n",
             ext.width, ext.height, (int)color.format, minimum, image_count, frames);
 

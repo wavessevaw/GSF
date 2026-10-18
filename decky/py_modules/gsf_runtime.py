@@ -109,6 +109,18 @@ def live_records(run):
     return records
 
 
+def gate_rejection(run):
+    try:
+        with (Path(run)/'game.log').open('rb') as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell()-65536))
+            tail = f.read().decode(errors='replace')
+        rows = re.findall(r'^GSF_REAL_WSI_GATE .*candidate=(\d+) reason=(\S+)', tail, re.M)
+        return rows[-1][1] if rows and rows[-1][0] == '0' else None
+    except OSError:
+        return None
+
+
 class Runtime:
     def __init__(self, home, plugin):
         self.home, self.plugin = Path(home), Path(plugin)
@@ -240,9 +252,11 @@ class Runtime:
         run = self.latest(appid)
         records = live_records(run) if run else []
         active = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
+        blocked = gate_rejection(run) if run else None
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
-                'state': 'generating' if active else 'bridge' if records else 'waiting',
+                'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
+                'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,
                 'session': str(run) if run else None}
 
