@@ -47,6 +47,7 @@
 #include "gpu_bridge.h"
 #include "frame_clock.h"
 #include "present_chain.h"
+#include "past_timing.h"
 #include "te_engine.h"
 #include <stdatomic.h>
 #include <stddef.h>
@@ -1827,9 +1828,9 @@ timing:
         fflush(fg->telemetry);
     }
     if(fg->display_timing==2 && fg->past_timing && fg->telemetry) {
-        VkPastPresentationTimingGOOGLE past[16];uint32_t n=16;
+        VkPastPresentationTimingGOOGLE past[16];uint32_t n=0;
         if(fg->output_wsi)pthread_mutex_lock(fg->output_wsi);
-        VkResult feedback=fg->past_timing(fg->device,fg->swapchain,&n,past);
+        VkResult feedback=gfg_past_timing_read(fg->past_timing,fg->device,fg->swapchain,16,past,&n);
         if(fg->output_wsi)pthread_mutex_unlock(fg->output_wsi);
         if(feedback==VK_SUCCESS || feedback==VK_INCOMPLETE)for(uint32_t j=0;j<n && j<16;++j)
             fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"compositor_feedback\",\"pid\":%ld,\"generation\":%llu,"

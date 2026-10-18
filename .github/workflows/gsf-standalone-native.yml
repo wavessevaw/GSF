@@ -27,6 +27,11 @@ jobs:
       - name: Native deterministic ownership and FIFO contracts
         run: |
           make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" output-owner virtual-source frame-clock present-ids present-chain output-worker offscreen-source-pool
+      - name: Legacy Gamescope feedback and production desired-time packets
+        run: |
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" past-timing presentation-timing
+          cc -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all -I"$RUNNER_TEMP/vkh/include" engine/gfg-native/tests/past_timing.c -o /tmp/gsf-past-timing-sanitized
+          /tmp/gsf-past-timing-sanitized
       - name: Check build artifacts exist
         run: |
           test -s engine/gfg-temporal/build/libgfg-temporal.a
