@@ -54,11 +54,14 @@ async def test(archive, output):
         stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', line)}
         assert stats['real'] == 70 and stats['synthetic'] >= 60, stats
         assert stats['errors'] == stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
+        assert '[gfg-native] visibility_probe frame=' in log, '0.1.4 probe path was never exercised'
         status = await backend.get_status(42)
         assert status['report']['result'] == 'GENERATION_OBSERVED', status
         assert status['state'] == 'waiting', 'retired GPU process must not be shown live'
         metadata = json.loads((run/'LAUNCH.json').read_text())['native_environment']
         assert metadata['GFG_NATIVE_MODE'] == '2' and metadata['GFG_NATIVE_PACING'] == '1'
+        assert metadata['GFG_NATIVE_VISIBILITY_PROBE'] == '1'
+        assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:

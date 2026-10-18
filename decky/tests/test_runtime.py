@@ -107,6 +107,8 @@ class RuntimeTests(unittest.TestCase):
             env = launch.game_environment(self.home/'kit', self.home/'run', inherited)
         self.assertEqual(env['GFG_NATIVE_MODE'], '2')
         self.assertEqual(env['GFG_NATIVE_PACING'], '1')
+        self.assertEqual(env['GFG_NATIVE_VISIBILITY_PROBE'], '1')
+        self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[0], 'VK_LAYER_GFG_native')
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(':')[-1], 'VK_LAYER_FROG_gamescope_wsi_x86_64')
         self.assertIn('/steam/explicit', env['VK_LAYER_PATH'])
