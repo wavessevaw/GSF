@@ -59,6 +59,7 @@ async def test(archive, output):
         assert status['state'] == 'waiting', 'retired GPU process must not be shown live'
         metadata = json.loads((run/'LAUNCH.json').read_text())['native_environment']
         assert metadata['GFG_NATIVE_MODE'] == '2' and metadata['GFG_NATIVE_PACING'] == '1'
+        assert metadata['GFG_NATIVE_VISIBILITY_PROBE'] == '1'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:
