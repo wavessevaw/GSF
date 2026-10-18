@@ -17,7 +17,7 @@ LOG_LIMIT = 16*1024*1024
 TELEMETRY_LIMIT = 32*1024*1024
 
 
-def game_environment(kit, run, inherited):
+def game_environment(kit, run, inherited, diagnostic_mode="normal"):
     # Call before changing the environment: use the stock WSI manifest and
     # disable switch exactly as in the controlled Game Mode qualification.
     base = candidate_module(kit)
@@ -46,8 +46,14 @@ def game_environment(kit, run, inherited):
     env.update(GFG_NATIVE_FG='1', GFG_NATIVE_GPU_BRIDGE='1', GFG_NATIVE_GPU_SYNC='same-device',
                GFG_NATIVE_ASYNC='1', GFG_NATIVE_FORCE_FIFO='1', GFG_NATIVE_MODE='2',
                GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
-               GFG_NATIVE_TIMING='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
+               GFG_NATIVE_TIMING='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'))
+    if diagnostic_mode not in ("normal", "normal-no-watch", "source-only", "compute-only", "matched-compute"):
+        raise ValueError("Unsupported GSF diagnostic mode")
+    if diagnostic_mode not in ("normal", "normal-no-watch"):
+        env["GFG_NATIVE_DIAGNOSTIC_MODE"] = diagnostic_mode
+    if diagnostic_mode == "normal-no-watch":
+        env["GFG_NATIVE_TIMELINE_WATCH"] = "0"
     # Never set SOURCE_HZ, OUTPUT_HZ, a game limiter, pixel readbacks or test badges.
     return env
 
@@ -59,7 +65,8 @@ def run_game(root, aid, command):
     run = Path(tempfile.mkdtemp(prefix='game-'+aid+'-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-'),
                                 dir=runtime.results))
     (run/'status').mkdir(mode=0o700)
-    report = {'schema': 1, 'appid': int(aid), 'stage': 'preflight', 'multiplier': 2,
+    mode = load_json(root/'config.json', {'games': {}}).get('games', {}).get(aid, {}).get('diagnostic_mode', 'normal')
+    report = {'schema': 1, 'diagnostic_mode': mode, 'appid': int(aid), 'stage': 'preflight', 'multiplier': 2,
               'physical_scanout': 'UNVERIFIED', 'result': 'NO_GENERATION_EVIDENCE',
               'last_live': [], 'max_generated_wsi_accepted': 0, 'source_fps_target': None}
     code = 2
@@ -70,7 +77,7 @@ def run_game(root, aid, command):
         kit = Path(current['kit'])
         candidate_module(kit).verify_payload(kit)
         report['build'] = load_json(kit/'BUILD_INFO.json')
-        env = game_environment(kit, run, os.environ)
+        env = game_environment(kit, run, os.environ, mode)
         # No full argv or inherited environment dump: these may contain secrets.
         atomic_json(run/'LAUNCH.json', {'appid': int(aid), 'program': Path(command[0]).name,
                     'build': report['build'], 'native_environment':
@@ -113,6 +120,11 @@ def run_game(root, aid, command):
         print('GSF: '+str(error), file=sys.stderr)
     finally:
         report['gate_rejection'] = gate_rejection(run)
+        try:
+            from gsf_diagnostic import diagnostic_summary
+            report['timeline_diagnostic'] = diagnostic_summary(run/'frames.jsonl')
+        except ImportError:
+            report['timeline_diagnostic'] = {'available': False}
         if not report['max_generated_wsi_accepted'] and report['gate_rejection']:
             report['result'] = 'GENERATION_BLOCKED'
         report['finished_unix_ms'] = int(time.time()*1000)

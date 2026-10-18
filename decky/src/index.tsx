@@ -5,7 +5,7 @@ import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number};
-type Status = {enabled: boolean; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; configured?: boolean; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -15,7 +15,8 @@ const rpc = {
   disable: callable<[number, string], {options: string; restore: boolean; message?: string}>('disable_game'),
   forget: callable<[number, string], void>('finish_restore'),
   status: callable<[number], Status>('get_status'),
-  export: callable<[number], {path: string}>('export_report')
+  export: callable<[number], {path: string}>('export_report'),
+  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode')
 };
 
 function Content() {
@@ -97,6 +98,20 @@ function Content() {
       onChange={o => void choose(o)} /></PanelSectionRow>
     {appid > 0 && <>
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
+      <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
+        <Dropdown rgOptions={[
+          {data: 'normal', label: 'Обычный 2× + Timeline Watch'},
+          {data: 'normal-no-watch', label: 'Контроль: 2× без Timeline Watch'},
+          {data: 'source-only', label: 'Контроль: только исходные кадры'},
+          {data: 'compute-only', label: 'Стресс-тест: только вычисления'},
+          {data: 'matched-compute', label: 'Тот же допуск, без показа synthetic'}
+        ]} selectedOption={status?.diagnostic_mode || 'normal'} disabled={busy || !status?.configured}
+          onChange={option => void act(async () => {
+            const value = typeof option === 'object' && option && 'data' in option ? String(option.data) : String(option);
+            await rpc.diagnostic(appid, value);
+            return 'Диагностика сохранена. Перезапустите игру.';
+          }, 'Записываю диагностический режим…')} />
+      </PanelSectionRow>
       <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
@@ -119,7 +134,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.4 · Ограниченные проверки реальных LMC-кадров. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.5 Diagnostic · Анализ GPU timeline и контрольные режимы. Ограниченные проверки реальных LMC-кадров. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

@@ -49,6 +49,7 @@
 #include "present_chain.h"
 #include "past_timing.h"
 #include "te_engine.h"
+#include "timeline_watch.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -143,6 +144,7 @@ struct gfg_gpu_fg {
     int te_gap;                  /* a frame since the last accepted one was not fed to TE */
     uint64_t next_value;         /* first value of the next block */
     uint64_t last_te_value;      /* last value TE will signal */
+    timeline_watch *timeline_observer;
     int lmc_tier;
 
     /* test-only verification (GFG_NATIVE_GPU_BRIDGE_VERIFY=1) */
@@ -188,7 +190,7 @@ struct gfg_gpu_fg {
     int pacing_active;
     int pace_real; /* only after an actual synthetic handoff in this pair */
     atomic_int output_pressure;
-    int diagnostic; /* 0 normal, 1 source-only, 2 compute-only; lab controls */
+    int diagnostic; /* 0 normal, 1 source-only, 2 compute-only, 3 matched-compute */
     uint64_t diagnostic_outputs;
     uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
     uint64_t pacing_waits, pacing_late;
@@ -309,8 +311,8 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
      * It never fabricates a slot on an overspeed/invalid frame lattice. */
     if(fg->probe_active && have_pair && !mask)mask=fg->clock.mask&1u;
     if(fg->probe_active)mask&=1u;
-    if(!fg->diagnostic && atomic_load(&fg->output_pressure))mask=0;
-    if(fg->clock.period_ns && !fg->diagnostic && fg->gpu_budget_ns[0]) {
+    if(fg->diagnostic!=1 && fg->diagnostic!=2 && atomic_load(&fg->output_pressure))mask=0;
+    if(fg->clock.period_ns && (fg->diagnostic==0 || fg->diagnostic==3) && fg->gpu_budget_ns[0]) {
         unsigned affordable=0,output=0;
         const uint64_t lead=fg->display_timing==2?fg->clock.period_ns/4:0;
         for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k)) {
@@ -1084,7 +1086,8 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     }
     const char *diagnostic=getenv("GFG_NATIVE_DIAGNOSTIC_MODE");
     fg->diagnostic=diagnostic && !strcmp(diagnostic,"source-only")?1:
-        diagnostic && !strcmp(diagnostic,"compute-only")?2:0;
+        diagnostic && !strcmp(diagnostic,"compute-only")?2:
+        diagnostic && !strcmp(diagnostic,"matched-compute")?3:0;
     if(fg->diagnostic)fprintf(stderr,"[gfg-native] diagnostic_mode=%s game_performance_claim=0\n",diagnostic);
     cd.export_fds = !fg->same_device;
     cd.application_timeline = fg->same_device ? fg->timeline : VK_NULL_HANDLE;
@@ -1196,6 +1199,13 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         fg->gpu_first_ms = calloc(TIMING_CAP, sizeof(double));
         fg->gpu_pair_ms = calloc(TIMING_CAP, sizeof(double));
     }
+    if(env_flag("GFG_NATIVE_TIMELINE_WATCH") && fg->same_device &&
+       cd.params.algorithm==TE_ALGO_LMC_GPU) {
+        fg->timeline_observer=tw_start(fg->device,fg->timeline,fg->WaitSemaphores,
+            fg->GetSemaphoreCounterValue,fg->telemetry);
+        fprintf(stderr,"[gfg-native] timeline_watch enabled=%d poll_ms=2 observation_max_ms=200\n",
+            fg->timeline_observer!=NULL);
+    }
     STAT_ADD(bridges_created, 1);
     STAT_SET(sync_mode, fg->same_device ? 3 : 1);
     fprintf(stderr,
@@ -1230,6 +1240,7 @@ static void percentile(double *v, uint32_t n, double *median, double *p95) {
 
 void gfg_gpu_fg_destroy(gfg_gpu_fg *fg) {
     if (!fg) return;
+    tw_stop(fg->timeline_observer);fg->timeline_observer=NULL;
     if(fg->diagnostic)fprintf(stderr,"[gfg-native] diagnostic_retired mode=%d dispatched_outputs=%llu\n",
         fg->diagnostic,(unsigned long long)fg->diagnostic_outputs);
     if(fg->clock.period_ns)fprintf(stderr,"[gfg-native] output_clock hz=%.3f handoff_waits=%llu late_handoffs=%llu resyncs=%llu skipped_deadline=%llu skipped_cut=%llu physical_scanout=unverified\n",
@@ -1476,6 +1487,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         /* The probe gets at most 12ms for GPU readiness, independent of a
          * past output deadline. Normal scheduling retains strict deadlines. */
         const uint64_t ready_until=probe?now+12000000ull:target;
+        tw_deadline(fg->timeline_observer,v,(unsigned)output_index,ready_until);
         if(fg->cut_drop || fg->duplicate_drop)return 0;
         if(!probe && !(gfg_frame_clock_compute_mask(&fg->clock,now,fg->display_timing==2?fg->clock.period_ns/4:0)&(1u<<k))) {
             fg->slot_detail[k]="expired-before-readiness";fg->deadline_drop=1;return 0;
@@ -1706,10 +1718,10 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     }
     te_submit budget_preview={0};
     const uint64_t preview_ns=(uint64_t)(now_us()*1000.0);
-    const int budget_skip=!fg->diagnostic && fg->clock.period_ns && fg->gpu_budget_ns[0] &&
+    const int budget_skip=(fg->diagnostic==0 || fg->diagnostic==3) && fg->clock.period_ns && fg->gpu_budget_ns[0] &&
         gfg_frame_clock_compute_mask(&fg->clock,preview_ns,fg->display_timing==2?fg->clock.period_ns/4:0) &&
         !prepare_generation(fg,1,0,preview_ns,&budget_preview);
-    if(fg->diagnostic==1 || budget_skip || (!fg->diagnostic && atomic_load(&fg->output_pressure))) {
+    if(fg->diagnostic==1 || budget_skip || ((fg->diagnostic==0 || fg->diagnostic==3) && atomic_load(&fg->output_pressure))) {
         /* Keep the queued real frame and its consumed private gate. Only
          * optional generation/history work is dropped; never overwrite WSI. */
         fg->te_gap=1;
@@ -1809,16 +1821,33 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     const unsigned timely_mask=fg->clock.period_ns?gfg_frame_clock_compute_mask(&fg->clock,compute_admission_ns,
         fg->display_timing==2?fg->clock.period_ns/4:0):compute_mask;
     const int generate=have_pair && compute_mask;
+    /* Observations do not prove individual submission when a later signal
+     * jumps over a skipped timeline value. */
+    if(generate && s.count) {
+        const uint64_t lead=fg->display_timing==2?fg->clock.period_ns/4:0;
+        for(unsigned j=0;j<s.count;++j) {
+            unsigned k=0,seen=0;
+            for(;k<fg->multiplier-1;++k)if(compute_mask&(1u<<k)) {
+                if(seen++==j)break;
+            }
+            const uint64_t deadline=fg->probe_active?
+                compute_admission_ns+12000000ull:
+                fg->clock.target_ns[k]>lead?fg->clock.target_ns[k]-lead:0;
+            tw_register(fg->timeline_observer,v,fg->te_frames+1,j,
+                v+1+(uint64_t)j,s.signal_first+j,deadline,fg->probe_active);
+        }
+    }
     tp = now_us();
     VkResult tr = inject_te_busy ? VK_NOT_READY : te_submit_frame(fg->context, &s);
     fg->phase_us[1] += now_us() - tp;
+    if(generate && s.count)tw_submitted(fg->timeline_observer,v,tr==VK_SUCCESS);
     gpu_sample(fg);
     int presented = 0;
     drop_reason = have_pair && !compute_mask?(atomic_load(&fg->output_pressure)?DROP_BYPASS:
         !timely_mask && fg->clock.mask?DROP_DEADLINE:DROP_RATE):DROP_HISTORY;
     if (tr == VK_SUCCESS) {
         if(generate)fg->last_generation_dispatch_ns=compute_admission_ns;
-        if(fg->diagnostic==2)fg->diagnostic_outputs+=s.count;
+        if(fg->diagnostic==2 || fg->diagnostic==3)fg->diagnostic_outputs+=s.count;
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
         fg->last_te_value = v + 2;
@@ -1832,8 +1861,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
             unsigned canceled_second=DROP_COUNT;
             for (unsigned k = 0; k < fg->multiplier-1; ++k) {
                 fg->deadline_drop=0;
-                if(fg->diagnostic==2) {
-                    fg->slot_detail[k]="diagnostic-compute-only";fg->slot_drop[k]=DROP_BYPASS;
+                if(fg->diagnostic==2 || fg->diagnostic==3) {
+                    fg->slot_detail[k]=fg->diagnostic==3?"diagnostic-matched-compute":"diagnostic-compute-only";fg->slot_drop[k]=DROP_BYPASS;
                     skip_outputs(fg,DROP_BYPASS,1);continue;
                 }
                 if(k==1 && canceled_second<DROP_COUNT) {

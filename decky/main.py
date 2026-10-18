@@ -44,5 +44,9 @@ class Plugin:
     async def get_status(self, appid: int):
         return await asyncio.to_thread(self.runtime.status, appid)
 
+    async def set_diagnostic_mode(self, appid: int, mode: str):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.set_diagnostic_mode, appid, mode)
+
     async def export_report(self, appid: int):
         return await asyncio.to_thread(self.runtime.export, appid)
