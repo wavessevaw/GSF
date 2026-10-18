@@ -85,6 +85,7 @@ def main():
     binary_dir = (ROOT / args.build_dir).resolve()
     layer_dir = binary_dir / "loader-probe"
     binary = binary_dir / "loader-live-output"
+    real_wsi_binary = binary_dir / "wsi-smoke"
     layer = layer_dir / "libVkLayer_gfg_native.so"
     manifest = layer_dir / "VkLayer_gfg_native.json"
     result = {
@@ -99,6 +100,9 @@ def main():
         "proton_game_compatibility": "UNVERIFIED",
         "gpu_lmc_pixel_quality": "NOT_TESTED",
         "cases": [],
+        "route": ("virtual-source-to-single-output-wsi" if args.layer_order == "native-first"
+                  else "real-driver-wsi-passthrough-only"),
+        "virtual_source_compatible_with_validation_first": False,
         "status": "FAIL"
     }
     try:
@@ -107,17 +111,24 @@ def main():
         for executable in ("timeout", "xvfb-run"):
             if not shutil.which(executable):
                 raise RuntimeError("Missing executable: " + executable)
-        for path in (binary, layer, manifest):
+        for path in (binary, real_wsi_binary, layer, manifest):
             if not path.is_file():
                 raise RuntimeError("Build first, missing " + str(path))
-        result["artifact_sha256"] = {str(path.relative_to(ROOT)): sha256(path) for path in (binary, layer, manifest)}
+        result["artifact_sha256"] = {str(path.relative_to(ROOT)): sha256(path) for path in (binary, real_wsi_binary, layer, manifest)}
         result["icd_sha256"] = sha256(icd)
-        for name, flags, expected in (CASES if args.profile == "sustained" else CASES[:-1]):
+        # Outer validation cannot track privately-emulated swapchain creation.
+        # Unsupported layer order crashed (VUID + exit 139): GSF issue #14.
+        # This alternate order therefore tests REAL WSI passthrough ONLY.
+        if args.layer_order == "validation-first":
+            scenarios = tuple(("real-wsi-passthrough-{}".format(i), (), (
+                "GFG native: 4 real WSI acquire/submit/present cycles PASS",))
+                for i in range(1, 4))
+        else:
+            scenarios = CASES if args.profile == "sustained" else CASES[:-1]
+        for name, flags, expected in scenarios:
             env = dict(os.environ)
             env.update({
                 "GFG_NATIVE_FG": "1",
-                "GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT": "1",
-                "GFG_NATIVE_TEST_PROXY_CREATE": "1",
                 "GFG_NATIVE_TRACE": "1",
                 "VK_LAYER_PATH": str(layer_dir) + ":/usr/share/vulkan/explicit_layer.d",
                 "VK_ICD_FILENAMES": str(icd),
@@ -127,6 +138,12 @@ def main():
                     else "VK_LAYER_KHRONOS_validation:VK_LAYER_GFG_native"
                 )
             })
+            if args.layer_order == "native-first":
+                env["GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT"] = "1"
+                env["GFG_NATIVE_TEST_PROXY_CREATE"] = "1"
+            else:
+                env.pop("GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT", None)
+                env.pop("GFG_NATIVE_TEST_PROXY_CREATE", None)
             # No accidental inheritance of another scenario's switches.
             for _, all_flags, _ in CASES:
                 for flag in all_flags:
@@ -134,7 +151,8 @@ def main():
             for flag in flags:
                 env[flag] = "1"
             command = ["timeout", str(args.timeout) + "s", "xvfb-run", "-a", "-s",
-                       "-screen 0 1024x768x24", str(binary)]
+                       "-screen 0 1024x768x24", str(
+                           binary if args.layer_order == "native-first" else real_wsi_binary)]
             started = time.monotonic()
             try:
                 completed = subprocess.run(
