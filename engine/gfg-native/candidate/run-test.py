@@ -253,7 +253,7 @@ def main():
                 env['GFG_NATIVE_ALGO'] = algo
                 env['GFG_NATIVE_TELEMETRY'] = str(run/(label+'.jsonl'))
             if paced:
-                env.update(GFG_NATIVE_OUTPUT_HZ='10', GFG_TEST_ALLOW_SKIPS='1')
+                env.update(GFG_NATIVE_OUTPUT_HZ='10', GFG_TEST_ALLOW_SKIPS='1', GFG_TEST_ABSOLUTE_PACING='1')
             if lifecycle:
                 env.update(GFG_TEST_LIFECYCLE='1', GFG_TEST_FRAMES='36')
             proc = subprocess.run([str(KIT/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,

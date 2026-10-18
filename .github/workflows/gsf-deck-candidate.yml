@@ -17,6 +17,10 @@ permissions:
 jobs:
   extracted-candidate:
     runs-on: ubuntu-22.04
+    env:
+      # Avoid host-core autodetection/oversubscription in the software GPU.
+      # This is a CI driver control, never part of the game launcher.
+      LP_NUM_THREADS: '2'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -69,6 +73,10 @@ jobs:
           cat "$RUNNER_TEMP/results/"*/RESULT.txt
       - name: Actual Vulkan pacing A/B with prior implementation and variable source
         if: matrix.order == 'native-first' && matrix.wm == 'bare'
+        env:
+          # Deliberately oversubscribe the software GPU for fallback stress;
+          # both implementations get the same setting and native baseline.
+          LP_NUM_THREADS: '16'
         run: |
           git fetch --depth=1 origin 61037766aef41703668d8029a54303e5f1e0da71
           git worktree add --detach "$RUNNER_TEMP/gsf-before" 61037766aef41703668d8029a54303e5f1e0da71

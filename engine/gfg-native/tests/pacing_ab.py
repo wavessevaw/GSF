@@ -4,6 +4,7 @@
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -119,6 +120,7 @@ def run(kit, output, before_layer=None, repetitions=2):
         source_commit=json.loads((kit/'BUILD_INFO.json').read_text())['source_commit'],
         before_commit='61037766aef41703668d8029a54303e5f1e0da71' if before_layer else None,
         physical_scanout='UNVERIFIED', steam_deck_performance='UNVERIFIED', rows=summary,
+        software_render_threads=os.environ.get('LP_NUM_THREADS','driver-default'),
         near_zero_output_fallback_guards=guards), indent=2)+'\n')
     assert all(g['passed'] for g in guards), guards
     print(f'PACING_AB_PASS runs={len(results)} preserved_real_frames=60 validation_errors=0 hardware_prediction=0')

@@ -58,6 +58,16 @@ changed; the test application and Temporal Engine are identical. Each has
 steady 45Hz and variable 30..45Hz profiles with short bursts and a 120ms scene
 gap, detailed JSONL off/on, and two repetitions in reversed order: 40 runs.
 No test changes a real game's limiter or display configuration.
+The cadence CI pins the software driver's render threads to two, rather
+than inherit a host-core count that can exceed the runner's CPU budget.
+Its controlled 5-to-10Hz cadence source uses absolute scheduling so per-call
+CPU overhead cannot accumulate into a different nominal source rate. Pixel
+and generated-count requirements are unchanged. These controls are not set
+by the real game launcher.
+The A/B stress step instead uses sixteen software render threads for both
+implementations, intentionally stressing scheduling on the CPU-limited
+runner; its summary records the setting. Its native baseline is measured
+under that same setting, rather than compare timings from different hosts.
 
 The source-only lab control forwards real presents through the same worker
 without source-copy/LMC work. Compute-only dispatches LMC without synthetic
