@@ -659,7 +659,7 @@ static int verify_setup(gfg_gpu_fg *fg) {
     return ok(fg->CreateFence(fg->device, &fci, NULL, &fg->verify_fence));
 }
 
-/* Copies G1, G2, R(n-1), R(n) to the host buffer; waits V+2 on the GPU only. */
+/* Copy generated outputs and both real neighbours; 2x has no G2. */
 static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     if (fg->verify_pending) return;
     VkCommandBuffer cb = fg->verify_cb;
@@ -667,12 +667,14 @@ static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     VkImage imgs[4] = {fg->dst[0].image, fg->dst[1].image,
                        fg->verify_hist[cur_slot ^ 1u], fg->verify_hist[cur_slot]};
     VkImageMemoryBarrier acq[4], rel[2];
-    for (int i = 0; i < 2; ++i) {
-        acq[i] = acquire_external(fg, imgs[i], VK_ACCESS_TRANSFER_READ_BIT);
+    const unsigned outputs = fg->multiplier - 1;
+    unsigned barriers = 0;
+    for (unsigned i = 0; i < outputs; ++i) {
+        acq[barriers++] = acquire_external(fg, imgs[i], VK_ACCESS_TRANSFER_READ_BIT);
         rel[i] = release_external(fg, imgs[i], 0);
     }
     for (int i = 2; i < 4; ++i)
-        acq[i] = image_barrier(imgs[i], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+        acq[barriers++] = image_barrier(imgs[i], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
             VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED);
     /* the global barrier orders this write of the readback buffer after the
@@ -680,21 +682,22 @@ static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     VkMemoryBarrier waw = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
     fg->CmdPipelineBarrier(cb, fg->same_device?VK_PIPELINE_STAGE_ALL_COMMANDS_BIT:VK_PIPELINE_STAGE_TRANSFER_BIT,
-                           VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &waw, 0, NULL, 4, acq);
+                           VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &waw, 0, NULL, barriers, acq);
     const VkDeviceSize one = (VkDeviceSize)fg->extent.width * fg->extent.height * (fg->hdr10 ? 8u : 4u);
     for (int i = 0; i < 4; ++i) {
+        if (i == 1 && outputs == 1) continue;
         VkBufferImageCopy region = {.bufferOffset = one * (VkDeviceSize)i,
             .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
             .imageExtent = {fg->extent.width, fg->extent.height, 1}};
         fg->CmdCopyImageToBuffer(cb, imgs[i], VK_IMAGE_LAYOUT_GENERAL, fg->verify_buffer, 1, &region);
     }
-    cmd_barrier(fg, cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 2, rel);
+    cmd_barrier(fg, cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, outputs, rel);
     VkMemoryBarrier host = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, .dstAccessMask = VK_ACCESS_HOST_READ_BIT};
     fg->CmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
                            1, &host, 0, NULL, 0, NULL);
     if (!ok(fg->EndCommandBuffer(cb))) return;
-    const uint64_t wait_value = v + 2;
+    const uint64_t wait_value = v + outputs;
     VkTimelineSemaphoreSubmitInfo tsi = {.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
         .waitSemaphoreValueCount = fg->same_device ? 0u : 1u, .pWaitSemaphoreValues = &wait_value};
     const VkPipelineStageFlags stage = fg->same_device ?
@@ -748,14 +751,16 @@ static void verify_collect(gfg_gpu_fg *fg, int final) {
     const uint8_t *g1 = map, *g2 = g1 + one, *rp = g2 + one, *rn = rp + one;
     const int sb = fg->src_bgra;
     const int gb = fg->same_device && fg->src_bgra;
-    uint64_t d12 = rgb_delta(g1, gb, g2, gb, px, fg->hdr10);
+    const int two_outputs = fg->multiplier == 3;
+    uint64_t d12 = two_outputs ? rgb_delta(g1, gb, g2, gb, px, fg->hdr10) : 0;
     uint64_t d1p = rgb_delta(g1, gb, rp, sb, px, fg->hdr10), d1n = rgb_delta(g1, gb, rn, sb, px, fg->hdr10);
-    uint64_t d2p = rgb_delta(g2, gb, rp, sb, px, fg->hdr10), d2n = rgb_delta(g2, gb, rn, sb, px, fg->hdr10);
+    uint64_t d2p = two_outputs ? rgb_delta(g2, gb, rp, sb, px, fg->hdr10) : 0;
+    uint64_t d2n = two_outputs ? rgb_delta(g2, gb, rn, sb, px, fg->hdr10) : 0;
     uint64_t dpn = rgb_delta(rp, sb, rn, sb, px, fg->hdr10);
     if(fg->hdr10) { d12/=257;d1p/=257;d1n/=257;d2p/=257;d2n/=257;dpn/=257; }
-    int distinct = d12 && d1p && d1n && d2p && d2n;
+    int distinct = d1p && d1n && (two_outputs ? (d12 && d2p && d2n) : dpn);
     /* interpolation sanity: G1 nearer R(n-1), G2 nearer R(n) */
-    int ordered = d1p < d1n && d2n < d2p;
+    int ordered = two_outputs ? (d1p < d1n && d2n < d2p) : -1; /* midpoint: N/A */
     fg->UnmapMemory(fg->device, fg->verify_memory);
     STAT_ADD(verify_checks, 1);
     if (distinct) STAT_ADD(verify_distinct, 1);
@@ -1755,7 +1760,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
             if(s.defer_second && te_resume_outputs(fg->context)!=VK_SUCCESS) {
                 fg->disabled=1;STAT_ADD(errors,1);
             }
-            if (fg->verify && presented == 2 && frame % fg->verify_every == 0)
+            if (fg->verify && presented == (int)(fg->multiplier - 1) && frame % fg->verify_every == 0)
                 verify_submit(fg, v, fg->te_slot ^ 1u);
         }
     } else {

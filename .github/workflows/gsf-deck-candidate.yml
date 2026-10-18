@@ -1,0 +1,98 @@
+name: GSF One-Launch Deck Test Candidate
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/wsi_gpu_smoke.c'
+      - 'engine/gfg-native/candidate/**'
+      - 'engine/gfg-temporal/src/**'
+      - 'engine/gfg-temporal/shaders/**'
+      - 'scripts/package_deck_candidate.py'
+      - '.github/workflows/gsf-deck-candidate.yml'
+permissions:
+  contents: read
+jobs:
+  extracted-candidate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [native-first, validation-first]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software Vulkan and build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools xvfb xauth desktop-file-utils
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build actual GPU LMC native layer and test application
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-candidate VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-candidate/wsi-gpu-smoke
+          desktop-file-validate engine/gfg-native/candidate/GSF-Test.desktop
+      - name: Package and extract exactly what the owner will download
+        run: |
+          python3 scripts/package_deck_candidate.py --build engine/gfg-native/build-candidate --out "$RUNNER_TEMP/candidate"
+          mkdir -p "$RUNNER_TEMP/extracted with spaces"
+          python3 -m zipfile -e "$RUNNER_TEMP/candidate/GSF-Deck-Test.zip" "$RUNNER_TEMP/extracted with spaces"
+          chmod a-x "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/wsi-gpu-smoke"
+      - name: Actual extracted baseline, 2x pixels and three live swapchain generations
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/run-test.py" \
+            --noninteractive --order '${{ matrix.order }}' --results "$RUNNER_TEMP/results"
+          cat "$RUNNER_TEMP/results/"*/RESULT.txt
+      - name: Tampering and missing payload fail before Vulkan with an archived explanation
+        run: |
+          printf '\ntampered\n' >> "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/README.txt"
+          if python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/run-test.py" --noninteractive --results "$RUNNER_TEMP/negative"; then
+            echo 'Corrupted payload must fail' >&2; exit 1
+          fi
+          python3 - "$RUNNER_TEMP/negative" <<'PY'
+          import json,pathlib,sys,zipfile
+          root=pathlib.Path(sys.argv[1]); reports=list(root.glob('*/REPORT.json'))
+          assert len(reports)==1
+          r=json.loads(reports[0].read_text())
+          assert r['status']=='FAIL' and r['stage']=='preflight' and not r['cases']
+          assert len(list(root.glob('*.zip')))==1
+          assert zipfile.is_zipfile(next(root.glob('*.zip')))
+          print('Corrupted install fails before Vulkan; diagnosis archive exists')
+          PY
+          python3 - "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test" "$RUNNER_TEMP/desktop-home" <<'PY'
+          import json,os,pathlib,shlex,subprocess,sys
+          kit=pathlib.Path(sys.argv[1]); home=pathlib.Path(sys.argv[2]); home.mkdir()
+          entry=kit/'GSF-Test.desktop'
+          command=next(x[5:] for x in entry.read_text().splitlines() if x.startswith('Exec='))
+          # Exercise the actual desktop Exec payload, including file URI + spaces.
+          argv=[entry.as_uri() if x=='%k' else x for x in shlex.split(command)]
+          p=subprocess.run(argv,env=dict(os.environ,HOME=str(home)),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+          assert p.returncode==1,p.stdout
+          reports=list(home.glob('GSF-Test-Results/*/REPORT.json'))
+          assert len(reports)==1 and json.loads(reports[0].read_text())['stage']=='preflight',p.stdout
+          print('Desktop Exec with spaced file URI produces an archived corruption report')
+          PY
+          rm "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/libVkLayer_gfg_native.so"
+          if python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/run-test.py" --noninteractive --results "$RUNNER_TEMP/missing"; then
+            echo 'Missing library must fail' >&2; exit 1
+          fi
+      - name: Preserve exact user-facing tested ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: GSF-Deck-Test-${{ matrix.order }}
+          path: ${{ runner.temp }}/candidate/GSF-Deck-Test.zip
+          if-no-files-found: error
+          retention-days: 21
+      - name: Preserve hardware-proxy and setup failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GSF-candidate-evidence-${{ matrix.order }}
+          path: |
+            ${{ runner.temp }}/results/
+            ${{ runner.temp }}/negative/
+            ${{ runner.temp }}/missing/
+            ${{ runner.temp }}/desktop-home/GSF-Test-Results/
+          if-no-files-found: warn
+          retention-days: 21
