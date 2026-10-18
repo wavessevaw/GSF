@@ -1,0 +1,72 @@
+name: GSF Autonomous Vulkan Test Lab
+# Independent unattended Linux software-GPU diagnostics. NO Steam Deck involved.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/loader_live_output.c'
+      - 'engine/gfg-native/tests/x11_output_probe.h'
+      - 'engine/gfg-native/scripts/gsf_test_lab.py'
+      - 'engine/gfg-native/Makefile'
+      - '.github/workflows/gsf-autonomous-lab.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gsf-lab-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  software-vulkan-x11:
+    name: lavapipe X11 / ${{ matrix.order }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [native-first, validation-first]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned-software test dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb xauth vulkan-tools python3
+      - name: Download matching Vulkan 1.4.365 headers
+        run: git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build isolated TEST-ONLY Vulkan Loader layer and X11 client
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-native BUILD=build-lab VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" \
+            build-lab/loader-probe/libVkLayer_gfg_native.so \
+            build-lab/loader-probe/VkLayer_gfg_native.json \
+            build-lab/loader-live-output \
+            build-lab/wsi-smoke
+      - name: Capture driver/toolchain provenance
+        run: |
+          set -euo pipefail
+          mkdir -p "gsf-lab-${{ matrix.order }}"
+          {
+            date -u
+            uname -a
+            dpkg-query -W mesa-vulkan-drivers libvulkan1 libvulkan-dev vulkan-validationlayers || true
+            git -C "$RUNNER_TEMP/vkh" rev-parse HEAD
+            sha256sum engine/gfg-native/build-lab/loader-probe/libVkLayer_gfg_native.so
+          } > "gsf-lab-${{ matrix.order }}/environment.txt"
+          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json vulkaninfo --summary \
+            > "gsf-lab-${{ matrix.order }}/vulkaninfo.txt" 2>&1 || true
+      - name: Native-first virtual WSI OR validation-first real WSI passthrough, strictly checked
+        run: |
+          python3 engine/gfg-native/scripts/gsf_test_lab.py \
+            --profile sustained --layer-order "${{ matrix.order }}" \
+            --build-dir engine/gfg-native/build-lab \
+            --output "gsf-lab-${{ matrix.order }}" --timeout 45
+      - name: Upload machine-readable results and raw logs even if red
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsf-vulkan-lab-${{ matrix.order }}
+          path: gsf-lab-${{ matrix.order }}/
+          retention-days: 21
+          if-no-files-found: warn
