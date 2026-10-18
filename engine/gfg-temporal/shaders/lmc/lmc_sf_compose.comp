@@ -1,0 +1,78 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// GFG Shared Flow: time-dependent visibility and full-resolution reconstruction.
+// Pair fields are reused; visibility at 1/3 and 2/3 is evaluated separately.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+#include "lmc_color.glsl"
+#ifndef OUTPUT_FMT
+#define OUTPUT_FMT rgba8
+#endif
+layout(set=1,binding=0,OUTPUT_FMT) uniform writeonly image2D dst;
+layout(local_size_x=8,local_size_y=8) in;
+vec2 pixel_;float time_,best_;vec3 colour_;int mode_;
+vec4 field(int grid,vec2 p) {
+    ivec2 nb=lblocks(1),b=clamp(ivec2(floor(p/8.0)),ivec2(0),nb-1);
+    int i=b.y*nb.x+b.x;return grid==0?ORB.ob[i]:ORA.oa[i];
+}
+void consider(vec2 v) {
+    vec2 a=pixel_-time_*v*2.0,b=pixel_+(1.0-time_)*v*2.0;
+    bool ia=inside(a,P.size.xy),ib=inside(b,P.size.xy);
+    float tol=P.tol_px+0.1*length(v);
+    float ea=length(field(1,a).xy-v),eb=length(field(0,b).xy-v);
+    bool va=ia && ea<tol,vb_=ib && eb<tol;
+    if(!va && !vb_)return;
+    vec3 ca=ia?full_rgb(0,a):vec3(0.0),cb=ib?full_rgb(1,b):vec3(0.0);
+    vec3 d=abs(ca-cb);float residual=(d.r+d.g+d.b)/3.0;
+    bool both=va && vb_;
+    float score=both?residual+0.002*(ea+eb):0.075+0.002*(va?ea:eb);
+    if(score<best_){best_=score;mode_=both?3:(va?1:2);
+#ifdef GFG_LINEAR_PQ
+        colour_=both?mix(composition_rgb(0,a),composition_rgb(1,b),time_):composition_rgb(va?0:1,va?a:b);
+#else
+        colour_=both?mix(ca,cb,time_):(va?ca:cb);
+#endif
+    }
+}
+void main() {
+    ivec2 p=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(p,P.size.xy)))return;
+    pixel_=vec2(p);time_=PC.t;
+    vec3 ca=texelFetch(srcA,p,0).rgb,cb=texelFetch(srcB,p,0).rgb;
+    if((PC.flags&1)!=0 || G.pal_count!=0u) {
+        vec3 c=(PC.flags&1)!=0 || time_>=0.5?cb:ca;
+        imageStore(dst,p,P.pad1!=0?vec4(c.bgr,1):vec4(c,1));return;
+    }
+    vec2 vb_=field(0,pixel_).xy,va=field(1,pixel_).xy;
+    vb_=field(0,pixel_+(1.0-time_)*2.0*vb_).xy;
+    va=field(1,pixel_-time_*2.0*va).xy;
+    best_=1e30;mode_=0;
+#ifdef GFG_LINEAR_PQ
+    colour_=mix(composition_rgb(0,pixel_),composition_rgb(1,pixel_),time_);
+#else
+    colour_=mix(ca,cb,time_);
+#endif
+    consider(vb_);if(va!=vb_)consider(va);
+    // High-confidence patches take two trajectories. Difficult regions get
+    // neighboring surface hypotheses, bounded at 18 additional candidates.
+    if(best_>3.0/255.0 || mode_!=3) {
+        for(int grid=0;grid<2;++grid)for(int k=0;k<9;++k) {
+            vec2 v=field(grid,pixel_+vec2(k%3-1,k/3-1)*8.0).xy;
+            if(v==vb_ || v==va)continue;consider(v);
+        }
+    }
+    // Stable HUD still requires moving-scene history. Static scene pixels
+    // with zero motion take their exact texel, avoiding unnecessary filtering.
+    if(imageLoad(hudCount,p).r>=uint(P.hud_pairs) ||
+            (vb_==vec2(0) && va==vec2(0) && ca==cb)) {
+#ifdef GFG_LINEAR_PQ
+        vec4 exact=vec4(time_<0.5?ca:cb,1);imageStore(dst,p,P.pad1!=0?exact.bgra:exact);return;
+#else
+        colour_=time_<0.5?ca:cb;
+#endif
+    }
+#ifdef GFG_LINEAR_PQ
+    vec4 outc=vec4(composition_encode(colour_),1);imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
+#else
+    vec4 outc=vec4(colour_,1);imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
+#endif
+}

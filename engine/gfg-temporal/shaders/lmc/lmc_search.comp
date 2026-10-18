@@ -1,0 +1,290 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Predictive block search, one level of one grid (reference: gen_lmc.estimate).
+// One thread per block; candidate order and the "first strictly smaller cost
+// wins" rule match the reference's argmin.
+//
+// The level and the grid are specialization constants (one pipeline each):
+// every texture choice folds at compile time, and each pass evaluates its
+// candidates in one loop with one cost site, so the code stays small enough
+// for the instruction cache.
+//
+// PC.pass_: 0 = candidates + refinement (z = cost)
+//           1 = one propagation sweep (z = cost)
+//           2 = vector median, with its cost
+//           3 = A grid from B (level 1, one thread per B block): carry the B
+//               vector to where its content was in A; the cheapest wins
+//           4 = A grid from B: the carried vector, or a hole marked in w
+//               (holes take the neighbours' median in pass 0)
+// PC.flags: bit 0 = temporal predictor valid
+//           bit 1 = read the scratch buffer (else the grid buffer)
+//           bit 2 = write the scratch buffer (else the grid buffer)
+//           bit 3 = pass 0 from the carried B vectors (single-grid tier;
+//               reference: gen_lmc2.estimate_a_from_b) instead of the parents
+// The passes of a level ping-pong between the grid buffer and the scratch
+// buffer (no copy passes); the last one of a level writes the grid buffer.
+//
+// A candidate equal to an earlier one with no smaller penalty can never win
+// (strict <), so such repeats are skipped; in coherent motion most are.
+#include "lmc_common.glsl"
+layout(local_size_x = 64) in;
+// the scratch buffer as words, for the carry's atomics (key = cost << 16 | block)
+layout(std430, set = 0, binding = 24) buffer ScratchU { uint scratch_u[]; };
+layout(constant_id = 0) const int SPEC_LEVEL = 1;
+layout(constant_id = 1) const int SPEC_GRID = 0;   // 0 = B grid, 1 = A grid
+
+#define L_ SPEC_LEVEL
+#define GRID SPEC_GRID
+
+ivec2 g_b;
+
+vec4 load_v(ivec2 b) {
+    ivec2 n = lblocks(L_);
+    b = clamp(b, ivec2(0), n - 1);
+    int i = blk_offset(L_) + b.y * n.x + b.x;
+    if ((PC.flags & 2) != 0) return scratch[i];
+    return GRID == 0 ? vb[i] : va[i];
+}
+
+void store_v(ivec2 b, vec4 v) {
+    int i = blk_offset(L_) + b.y * lblocks(L_).x + b.x;
+    if ((PC.flags & 4) != 0) scratch[i] = v;
+    else if (GRID == 0) vb[i] = v;
+    else va[i] = v;
+}
+
+// the block's own pixels, fetched on the first cost (constant indices only: registers)
+float g_own[LMC_BLK * LMC_BLK];
+vec2 g_chroma[4];
+bool g_have_own = false;
+
+// 4x4 texels with top-left t from four 2x2 gathers, in raster order
+void gather4x4(int which, ivec2 t, out float o[16]) {
+    [[unroll]] for (int gy = 0; gy < 2; ++gy)
+        [[unroll]] for (int gx = 0; gx < 2; ++gx) {
+            ivec2 c = t + ivec2(gx, gy) * 2;
+            vec4 g = which == 0 ? gather_a(L_, c) : gather_b(L_, c);
+            int i = gy * 8 + gx * 2;
+            o[i] = g.w;
+            o[i + 1] = g.z;
+            o[i + 4] = g.x;
+            o[i + 5] = g.y;
+        }
+}
+
+// mean |own - other| over the 4x4 block (reference: Level.cost).  Whole-pixel
+// offsets take four gathers instead of 16 bilinear fetches.
+float cost(vec2 v, float upper, float penalty) {
+    if (!g_have_own) {
+        gather4x4(GRID == 0 ? 1 : 0, g_b * LMC_BLK, g_own);
+        if (L_ > 1) {
+            // Luma alone aliases coloured/repeating textures into unrelated
+            // motions. Four chroma probes keep the candidate tied to the actual
+            // surface without tripling every pyramid/search texture fetch.
+            [[unroll]] for (int k = 0; k < 4; ++k) {
+                vec2 q = vec2(g_b * LMC_BLK + ivec2(k & 1, k >> 1) * 3);
+                q = (q + 0.5) * float(1 << L_) * 0.5 - 0.5;
+                vec3 c = half_rgb(GRID == 0 ? 1 : 0, q);
+                g_chroma[k] = vec2(c.r - c.g, c.b - c.g);
+            }
+        }
+        g_have_own = true;
+    }
+    float acc = 0.0;
+    vec2 o = GRID == 0 ? -v : v;
+    if (o == floor(o)) {
+        float t[16];
+        gather4x4(GRID == 0 ? 0 : 1, g_b * LMC_BLK + ivec2(o), t);
+        [[unroll]] for (int k = 0; k < 16; ++k) acc += abs(g_own[k] - t[k]);
+    } else {
+        [[unroll]] for (int k = 0; k < 16; ++k) {
+            vec2 q = vec2(g_b * LMC_BLK + ivec2(k % 4, k / 4)) + o;
+            acc += abs(g_own[k] - (GRID == 0 ? luma_a(L_, q) : luma_b(L_, q)));
+        }
+    }
+    float luma_cost = acc / float(LMC_BLK * LMC_BLK);
+    // Chroma is a non-negative penalty. A luma candidate that already loses
+    // cannot win after adding it; avoid the four colour probes in that case.
+    if (luma_cost + penalty >= upper) return luma_cost;
+    float chroma = 0.0;
+    if (L_ > 1) {
+        [[unroll]] for (int k = 0; k < 4; ++k) {
+            vec2 q = vec2(g_b * LMC_BLK + ivec2(k & 1, k >> 1) * 3) + o;
+            q = (q + 0.5) * float(1 << L_) * 0.5 - 0.5;
+            vec3 c = half_rgb(GRID == 0 ? 0 : 1, q);
+            vec2 d = abs(g_chroma[k] - vec2(c.r - c.g, c.b - c.g));
+            chroma += d.x + d.y;
+        }
+    }
+    // Small colour changes are illumination/specular variation, not evidence
+    // of a different surface. Penalise only gross chroma disagreement; the
+    // luma search keeps control on ordinary textured and reflective scenes.
+    return luma_cost + 0.25 * max(chroma / 8.0 - 0.08, 0.0);
+}
+
+float cost(vec2 v) { return cost(v, 1e30, 0.0); }
+
+vec2 temporal_cand() {
+    // reference resample_field: nearest block of a level-1 field (full-res px),
+    // scaled to this level.  B grid: the previous pair's B field; A grid: this
+    // pair's B field (reference: estimate(..., "a", layers, vb)).
+    ivec2 n = lblocks(L_), tn = lblocks(1);
+    ivec2 i = clamp((g_b * tn) / n, ivec2(0), tn - 1);
+    int j = i.y * tn.x + i.x;
+    vec2 v = (GRID == 0 ? temporal[j].xy : vb[P.blk_off.x + j].xy) * 2.0;  // level-1 px -> full res
+    return v / float(1 << L_);
+}
+
+vec2 camera_cand(int k) {
+    Layer L = LY.layers[k];
+    float s = float(1 << L_);
+    vec2 c = vec2(g_b * LMC_BLK) + (float(LMC_BLK) - 1.0) * 0.5;
+    vec2 f = (c + 0.5) * s - 0.5;
+    if (GRID == 1) return (apply_h(L, f) - f) / s;
+    return (f - apply_h(inv_h(L), f)) / s;
+}
+
+vec2 median3(ivec2 b) {
+    vec2 nb[9];
+    [[unroll]] for (int k = 0; k < 9; ++k) nb[k] = load_v(b + ivec2(k % 3 - 1, k / 3 - 1)).xy;
+    int best = 0;
+    float bd = 1e30;
+    [[unroll]] for (int i = 0; i < 9; ++i) {
+        float d = 0.0;
+        [[unroll]] for (int j = 0; j < 9; ++j) d += abs(nb[i].x - nb[j].x) + abs(nb[i].y - nb[j].y);
+        if (d < bd) { bd = d; best = i; }
+    }
+    vec2 r = nb[0];
+    [[unroll]] for (int i = 1; i < 9; ++i) if (best == i) r = nb[i];
+    return r;
+}
+
+void main() {
+    ivec2 n = lblocks(L_);
+    int id = int(gl_GlobalInvocationID.x);
+    if (id >= n.x * n.y) return;
+    g_b = ivec2(id % n.x, id / n.x);
+
+    if (PC.pass_ == 3) {
+        // B block id: its content sits at (block - v / BLK) in A (np.round: half to even)
+        vec4 b = vb[blk_offset(1) + id];
+        ivec2 t = clamp(ivec2(roundEven(vec2(g_b) - b.xy / float(LMC_BLK))), ivec2(0), n - 1);
+        uint key = (uint(clamp(b.z, 0.0, 1.0) * 65535.0) << 16) | uint(id);
+        atomicMin(scratch_u[4 * (blk_offset(1) + t.y * n.x + t.x)], key);
+        return;
+    }
+    if (PC.pass_ == 4) {
+        uint key = scratch_u[4 * (blk_offset(1) + id)];
+        bool hole = key == 0xffffffffu;
+        int j = hole ? id : int(key & 0xffffu);
+        store_v(g_b, vec4(vb[blk_offset(1) + j].xy, 0.0, hole ? 1.0 : 0.0));
+        return;
+    }
+
+    if (PC.pass_ == 0) {
+        float best_c = 1e30, best_p = 1e30;
+        vec2 best_v = vec2(0.0);
+        // parents (x2) of the coarser level: centre, up, down, left, right
+        vec2 p0 = vec2(1e30), p1 = p0, p2 = p0, p3 = p0, p4 = p0;
+        bool from_b = (PC.flags & 8) != 0;
+        if (from_b) {
+            // the carried vector; a hole takes the median of the carried field
+            vec4 own = load_v(g_b);
+            p0 = own.w > 0.5 ? median3(g_b) : own.xy;
+            p1 = p0; p2 = p0; p3 = p0; p4 = p0;
+        } else if (L_ < LMC_LEVELS) {
+            int pl = L_ + 1;
+            ivec2 pn = lblocks(pl);
+            ivec2 pi = clamp(g_b / 2, ivec2(0), pn - 1);
+            const ivec2 O[5] = ivec2[5](ivec2(0, 0), ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0));
+            vec2 pv[5];
+            [[unroll]] for (int k = 0; k < 5; ++k) {
+                ivec2 q = clamp(pi + O[k], ivec2(0), pn - 1);
+                int j = blk_offset(pl) + q.y * pn.x + q.x;
+                pv[k] = 2.0 * (GRID == 0 ? vb[j].xy : va[j].xy);
+            }
+            p0 = pv[0]; p1 = pv[1]; p2 = pv[2]; p3 = pv[3]; p4 = pv[4];
+        }
+        int r = P.coarse_r, side = 2 * r + 1;
+        int nbase = from_b ? 1 : L_ == LMC_LEVELS ? side * side : 5;
+        int nl = int(LY.layer_count);
+        int steps = L_ == 1 ? 2 : 1;
+        int k_t = nbase, k_l = k_t + 1, k_z = k_l + nl, k_r = k_z + 1;
+        int total = k_r + 8 * steps;
+        vec2 c0 = vec2(0.0);
+        float st = 1.0;
+        for (int k = 0; k < total; ++k) {
+            vec2 v;
+            float pen = 0.0;
+            bool skip = false;
+            if (k < nbase) {
+                if (from_b) {
+                    v = p0;
+                } else if (L_ == LMC_LEVELS) {
+                    int dy = k / side - r, dx = k % side - r;
+                    v = vec2(dx, dy);
+                    pen = P.pen_update * 0.25 * float(abs(dx) + abs(dy));
+                } else {
+                    v = k == 0 ? p0 : k == 1 ? p1 : k == 2 ? p2 : k == 3 ? p3 : p4;
+                    skip = (k > 0 && v == p0) || (k > 1 && v == p1) || (k > 2 && v == p2) || (k > 3 && v == p3);
+                }
+            } else {
+                if (k == k_t) {
+                    skip = (PC.flags & 1) == 0 || from_b || ((PC.flags & 16) != 0 && G.pal_count != 0u) ||
+                        (GRID==0 && (PC.flags&32)!=0 && G.pad_g0!=0u);
+                    v = skip ? vec2(0.0) : temporal_cand();
+                } else if (k < k_z) {
+                    v = camera_cand(k - k_l);
+                } else if (k == k_z) {
+                    v = vec2(0.0);
+                    pen = P.pen_update;
+                } else {
+                    // refinement: +-1 level pixel, then +-0.5 at level 1, around the best so far
+                    int j = (k - k_r) % 8, s = (k - k_r) / 8;
+                    if (j == 0) {
+                        c0 = best_v;
+                        best_c = best_p;  // the refinement restarts from the cost without the penalty
+                        st = s == 0 ? 1.0 : 0.5;
+                    }
+                    int jj = j < 4 ? j : j + 1;
+                    v = c0 + vec2(jj % 3 - 1, jj / 3 - 1) * st;
+                    pen = P.pen_update * st;
+                }
+                // penalty-0 candidates and the zero vector repeat the parents at no smaller penalty
+                if (k < k_r && (L_ < LMC_LEVELS || from_b))
+                    skip = skip || v == p0 || v == p1 || v == p2 || v == p3 || v == p4;
+            }
+            if (skip) continue;
+            float p = cost(v, best_c, pen);
+            float c = p + pen;
+            if (c < best_c) {
+                best_c = c;
+                best_v = v;
+                best_p = p;
+            }
+        }
+        store_v(g_b, vec4(best_v, best_p, 0.0));  // z = cost of the vector (no penalty)
+    } else if (PC.pass_ == 1) {
+        vec4 own = load_v(g_b);  // z is this vector's cost
+        vec2 med = median3(g_b);
+        vec2 c1 = load_v(g_b + ivec2(0, -1)).xy, c2 = load_v(g_b + ivec2(0, 1)).xy;
+        vec2 c3 = load_v(g_b + ivec2(-1, 0)).xy, c4 = load_v(g_b + ivec2(1, 0)).xy;
+        float bc = 1e30, bp = 0.0;
+        vec2 bv = own.xy;
+        for (int k = 0; k < 6; ++k) {
+            vec2 v = k == 0 ? own.xy : k == 1 ? med : k == 2 ? c1 : k == 3 ? c2 : k == 4 ? c3 : c4;
+            bool rep = (k > 0 && v == own.xy) || (k > 1 && v == med) || (k > 2 && v == c1) ||
+                       (k > 3 && v == c2) || (k > 4 && v == c3);
+            if (rep) continue;
+            float penalty = P.smooth_ * (abs(v.x - med.x) + abs(v.y - med.y));
+            float p = k == 0 ? own.z : cost(v, bc, penalty);
+            float c = p + penalty;
+            if (c < bc) { bc = c; bv = v; bp = p; }
+        }
+        store_v(g_b, vec4(bv, bp, 0.0));
+    } else {
+        vec4 cur = load_v(g_b);
+        vec2 v = median3(g_b);
+        store_v(g_b, vec4(v, v == cur.xy ? cur.z : cost(v), 0.0));  // the median is mostly the vector itself
+    }
+}

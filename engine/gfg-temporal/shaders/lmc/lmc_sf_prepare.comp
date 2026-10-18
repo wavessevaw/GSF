@@ -1,0 +1,79 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// GFG Shared Flow prototype. A pair-wide compact field replaces mandatory
+// camera-model fit, dense fields and orphan search. Original GFG code.
+#include "lmc_common.glsl"
+layout(local_size_x=64) in;
+shared uvec2 fit_votes[64];
+
+float patch_error(int grid,vec2 centre,vec2 v) {
+    float e=0.0;int n=0;
+    for(int y=-3;y<=3;y+=2)for(int x=-3;x<=3;x+=2) {
+        vec2 p=centre+vec2(x,y),q=p+(grid==0?-2.0:2.0)*v;
+        if(!inside(p,P.size.xy)||!inside(q,P.size.xy))continue;
+        vec3 a=full_rgb(grid==0?1:0,p),b=full_rgb(grid==0?0:1,q);
+        vec3 d=abs(a-b);e+=(d.r+d.g+d.b)/3.0;++n;
+    }
+    return n>=4?e/float(n):1.0;
+}
+vec2 reverse_raw(int grid,vec2 half_pos) {
+    ivec2 nb=lblocks(1),b=clamp(ivec2(floor(half_pos/4.0)),ivec2(0),nb-1);
+    int i=blk_offset(1)+b.y*nb.x+b.x;
+    return grid==0?va[i].xy:vb[i].xy;
+}
+void main() {
+    int i=int(gl_GlobalInvocationID.x);
+    if(PC.pass_==4) {
+        // A geometric consistency check uses current matched blocks, never
+        // held-out targets. Only a poor predictor pays for full projective fit.
+        uint lid=gl_LocalInvocationIndex;uvec2 votes=uvec2(0);
+        for(int j=int(lid);j<P.counts.y;j+=64)if(LY.live[j]!=0u) {
+            vec2 v=vb[P.blk_off.x+j].xy*2.0;
+            ivec2 bb=ivec2(j%lblocks(1).x,j/lblocks(1).x);
+            vec2 b=vec2(bb*8)+3.5;
+            bool bad=LY.layer_count==0u;
+            if(!bad)bad=distance(apply_h(LY.layers[0],b-v),b)>1.5+0.03*length(v);
+            votes+=uvec2(bad?1u:0u,1u);
+        }
+        fit_votes[lid]=votes;barrier();
+        for(uint s=32u;s>0u;s>>=1u){if(lid<s)fit_votes[lid]+=fit_votes[lid+s];barrier();}
+        if(lid==0u) {
+            G.hist[0]=G.pad_g0==0u && fit_votes[0].y>=12u && fit_votes[0].x*2u>fit_votes[0].y?1u:0u;
+            if(G.hist[0]!=0u)LY.layer_count=0u;
+        }
+        return;
+    }
+    if(i>=P.counts.y)return;
+    if(PC.pass_==3){if(i==0){G.moving=G.moving_votes*2u>uint(P.counts.y)?1u:0u;G.pal_count=0u;
+        G.pad_g0=G.pad_g1*4u>uint(P.counts.y)*3u?1u:0u;G.hist[0]=0u;}return;}
+    if(PC.pass_==2) {
+        bool cut=G.orphans_a>uint(P.counts.y)*3u/2u;
+        if(i==0){G.pal_count=cut?1u:0u;G.moving=G.moving_votes>uint(P.counts.y)/50u?1u:0u;}
+        temporal[i]=cut?vec4(0.0):ORB.ob[i];
+        return;
+    }
+    int grid=PC.grid;ivec2 nb=lblocks(1),bb=ivec2(i%nb.x,i/nb.x);
+    vec2 h=vec2(bb*4)+1.5,centre=h*2.0+0.5;
+    vec2 v=grid==0?vb[blk_offset(1)+i].xy:va[blk_offset(1)+i].xy;
+    float best=patch_error(grid,centre,v);
+    vec2 other=h+(grid==0?-1.0:1.0)*v;
+    float fb=length(reverse_raw(grid,other)-v);
+    // Fixed work cap: at most 16 local candidates, only on uncertain blocks.
+    if(best>3.0/255.0 || fb>P.tol_px+0.1*length(v)) {
+        for(int scale=0;scale<2;++scale) {
+            vec2 base=v;float step_=scale==0?0.5:0.25;
+            for(int k=0;k<9;++k) {
+                if(k==4)continue;
+                vec2 candidate=base+vec2(k%3-1,k/3-1)*step_;
+                float e=patch_error(grid,centre,candidate);
+                if(e+0.0002<best){best=e;v=candidate;}
+            }
+        }
+    }
+    fb=length(reverse_raw(grid,h+(grid==0?-1.0:1.0)*v)-v);
+    vec4 value=vec4(v,best,fb);
+    if(grid==0)ORB.ob[i]=value;else ORA.oa[i]=value;
+    if(length(v)>0.5)atomicAdd(G.moving_votes,1u);
+    if(best>0.03 || fb>1.5)atomicAdd(G.orphans_b,1u);
+    if(best>0.12)atomicAdd(G.orphans_a,1u);
+}

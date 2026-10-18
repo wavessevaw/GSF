@@ -1,0 +1,101 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Trajectory test at half resolution for the output at time PC.t
+// (reference: LMC2._select_half).  A trajectory is valid on the side where
+// that frame's own pixel moves with it.  mode 3 = both sides valid (blend),
+// 1 = previous only (being covered), 2 = newest only (being uncovered),
+// 0 = none (co-located blend).
+#include "lmc_common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+
+ivec2 g_p;
+vec2 g_pvb, g_pva;
+float g_t;
+float best_s;
+vec2 best_v;
+int best_m;
+vec2 last;   // the previous candidate: a repeat can never score higher, so it is skipped
+
+vec2 field_at(int grid, vec2 q) {
+    vec2 s = vec2(P.size.zw);
+    vec2 uv = (clamp(q, vec2(0.0), s - 1.0001) + 0.5) / s;
+    return grid == 0 ? textureLod(fieldB, uv, 0.0).xy : textureLod(fieldA, uv, 0.0).xy;
+}
+
+void consider(vec2 v, float pen) {
+    // Candidates come in priority order and a later one never has a smaller
+    // penalty, so an exact repeat never wins (score > best_s is strict): skipping
+    // repeats changes nothing.  Only the cheap cases are tested (no list in
+    // registers: a dynamically indexed array would go to scratch memory).
+    if (v == last || v == g_pvb || v == g_pva) return;
+    last = v;
+    ivec2 hs = P.size.zw;
+    vec2 p = vec2(g_p);
+    vec2 a = p - g_t * v, b = p + (1.0 - g_t) * v;
+    float tol = P.tol_px + 0.1 * length(v);
+    bool ok_a = inside(a, hs) && length(field_at(1, a) - v) < tol;
+    bool ok_b = inside(b, hs) && length(field_at(0, b) - v) < tol;
+    vec3 d = abs(half_rgb(0, a) - half_rgb(1, b));
+    float err = (d.r + d.g + d.b) / 3.0;
+    bool both = ok_a && ok_b;
+    float score = (both ? 2.0 - err : ((ok_a || ok_b) ? 1.0 : -err)) - pen;
+    if (score > best_s) {
+        best_s = score;
+        best_v = v;
+        best_m = both ? 3 : (ok_a ? 1 : (ok_b ? 2 : 0));
+    }
+}
+
+shared Layer s_inv[LMC_MAX_LAYERS];
+
+void main() {
+    g_p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 hs = P.size.zw;
+    int nl = int(LY.layer_count);
+    uint lid = gl_LocalInvocationIndex;
+    if (lid < uint(nl)) s_inv[lid] = inv_h(LY.layers[lid]);
+    barrier();
+    if (any(greaterThanEqual(g_p, hs))) return;
+    g_t = PC.t;
+    best_s = -1e30;
+    best_v = vec2(0.0);
+    best_m = 0;
+    last = vec2(1e30);
+    ivec2 nb = lblocks(1);
+    ivec2 bb = clamp(g_p / 4, ivec2(0), nb - 1);
+    vec2 pvb = texelFetch(fieldB, g_p, 0).xy;
+    vec2 pva = texelFetch(fieldA, g_p, 0).xy;
+    g_pvb = g_pva = vec2(1e30);
+    consider(pvb, 0.0);
+    g_pvb = pvb;
+    consider(pva, 0.0);
+    g_pva = pva;
+    const int O[3] = int[3](0, -1, 1);
+    for (int grid = 0; grid < 2; ++grid) {
+        uint cnt = grid == 0 ? G.orphans_b : G.orphans_a;
+        if (cnt == 0u) continue;
+        for (int a = 0; a < 3; ++a)
+            for (int c = 0; c < 3; ++c) {
+                ivec2 q = clamp(bb + ivec2(O[c], O[a]), ivec2(0), nb - 1);
+                vec4 o = orphan_at(grid, q.y * nb.x + q.x);
+                if (o.z > 0.5) consider(o.xy * 0.5, 0.01);  // else pvb again, a repeat
+            }
+    }
+    // the 9 block vectors (level-1 px == half px), repeats among them skipped
+    // (unrolled: constant indices, the list stays in registers)
+    vec2 nv[9];
+    [[unroll]] for (int k = 0; k < 9; ++k) {
+        ivec2 q = clamp(bb + ivec2(k % 3 - 1, k / 3 - 1), ivec2(0), nb - 1);
+        nv[k] = vb[P.blk_off.x + q.y * nb.x + q.x].xy;
+    }
+    [[unroll]] for (int k = 0; k < 9; ++k) {
+        bool rep = false;
+        [[unroll]] for (int u = 0; u < k; ++u) rep = rep || nv[u] == nv[k];
+        if (!rep) consider(nv[k], 0.01);
+    }
+    for (int L = 0; L < nl; ++L) consider(camera_vec(LY.layers[L], s_inv[L], vec2(g_p), 2.0, 0), 0.01);
+    for (int q = 0; q < int(G.pal_count); ++q) consider(G.palette[q].xy * 0.5, 0.01);
+    consider(vec2(0.0), 0.01);
+    if (best_s < 0.5) best_m = 0;
+    SEL.sel[g_p.y * hs.x + g_p.x] = vec4(best_v, float(best_m), 0.0);
+}

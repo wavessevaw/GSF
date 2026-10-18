@@ -1,0 +1,64 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// GSF: one robust affine candidate from existing matched blocks. It is only
+// a reconstruction hypothesis, not trusted motion or a replacement for local
+// visibility. Three weighted least-squares iterations, one 64-lane workgroup;
+// no random hypotheses, CPU fit or global motion palette.
+#include "lmc_common.glsl"
+layout(local_size_x=64) in;
+shared float sums[64][12];
+shared vec3 fit_x,fit_y;
+shared uint valid_fit;
+
+void main() {
+    uint lid=gl_LocalInvocationIndex;
+    if(G.pad_g0!=0u){if(lid==0u)LY.layer_count=0u;return;}
+    if(lid==0u){fit_x=vec3(0);fit_y=vec3(0);valid_fit=0u;LY.layer_count=0u;}
+    barrier();
+    for(int iter=0;iter<3;++iter) {
+        for(int k=0;k<12;++k)sums[lid][k]=0.0;
+        for(int i=int(lid);i<P.counts.y;i+=64) {
+            if(LY.live[i]==0u)continue;
+            vec2 v=vb[P.blk_off.x+i].xy*2.0;
+            ivec2 bb=ivec2(i%lblocks(1).x,i/lblocks(1).x);
+            vec2 a=vec2(bb*8)+3.5-v;
+            vec3 p=vec3((a-vec2(P.size.xy)*0.5)/(vec2(P.size.xy)*0.5),1.0);
+            float weight=1.0;
+            if(iter>0 && valid_fit!=0u) {
+                float residual=length(v-vec2(dot(fit_x,p),dot(fit_y,p)));
+                weight=min(1.0,2.0/max(residual,0.0001));
+            }
+            sums[lid][0]+=weight*p.x*p.x;sums[lid][1]+=weight*p.x*p.y;
+            sums[lid][2]+=weight*p.x;sums[lid][3]+=weight*p.y*p.y;
+            sums[lid][4]+=weight*p.y;sums[lid][5]+=weight;
+            for(int k=0;k<3;++k){sums[lid][6+k]+=weight*p[k]*v.x;sums[lid][9+k]+=weight*p[k]*v.y;}
+        }
+        barrier();
+        for(uint s=32u;s>0u;s>>=1u) {
+            if(lid<s)for(int k=0;k<12;++k)sums[lid][k]+=sums[lid+s][k];
+            barrier();
+        }
+        if(lid==0u) {
+            mat3 normal=mat3(sums[0][0],sums[0][1],sums[0][2],
+                              sums[0][1],sums[0][3],sums[0][4],
+                              sums[0][2],sums[0][4],sums[0][5]);
+            float count=sums[0][5];
+            valid_fit=count>=max(12.0,float(P.counts.y)*P.min_layer_share) &&
+                abs(determinant(normal))>0.00001*count*count*count?1u:0u;
+            if(valid_fit!=0u) {
+                mat3 inv=inverse(normal);
+                fit_x=inv*vec3(sums[0][6],sums[0][7],sums[0][8]);
+                fit_y=inv*vec3(sums[0][9],sums[0][10],sums[0][11]);
+                if(any(isnan(fit_x))||any(isinf(fit_x))||any(isnan(fit_y))||any(isinf(fit_y)))valid_fit=0u;
+            }
+        }
+        barrier();
+    }
+    if(lid==0u && valid_fit!=0u) {
+        vec2 scale=2.0/vec2(P.size.xy);
+        LY.layers[0].h0=vec4(1.0+fit_x.x*scale.x,fit_x.y*scale.y,fit_x.z-fit_x.x-fit_x.y,0);
+        LY.layers[0].h1=vec4(fit_y.x*scale.x,1.0+fit_y.y*scale.y,fit_y.z-fit_y.x-fit_y.y,0);
+        LY.layers[0].h2=vec4(0,0,1,sums[0][5]/float(P.counts.y));
+        LY.layer_count=1u;
+    }
+}
