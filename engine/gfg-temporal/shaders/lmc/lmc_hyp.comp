@@ -1,0 +1,168 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+// Motion planes (reference: gen_lmc2.fit_layers, ransac_plane, irls_h, fit_h_ls).
+//
+// PC.pass_: 0 = block statistics (one thread per level-1 block): usable
+//               weight w0, scene-motion votes; keeps the previous layers as
+//               hypotheses and starts a new fit
+//           2 = RANSAC: one workgroup per hypothesis (previous layers first,
+//               then PCG32 samples of 4 blocks at least 120 px apart)
+// lmc_irls.comp has pass 1 (the list of unexplained blocks) and pass 3 (the
+// fit).  Passes 1-3 run once per layer; a rejected layer stops the rest.
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+layout(local_size_x = 64) in;
+
+// LY.live[0 .. n)      : 1 while the block is usable and unexplained
+// LY.live[n .. 2n)     : ordered list of those blocks (pass 1)
+// LY.live[2n]          : list length;  [2n + 1]: usable total;  [2n + 2]: stop
+// (the host clears the three counters and G.moving_votes before pass 0)
+#define NB (P.counts.y)
+#define LIST(i) LY.live[NB + (i)]
+#define NLIVE LY.live[2 * NB]
+#define TOTAL LY.live[2 * NB + 1]
+#define STOP LY.live[2 * NB + 2]
+
+#include "lmc_plane.glsl"
+
+// --------------------------------------------------------------- PCG32
+
+uint pcg(inout uint state) {
+    state = state * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+// --------------------------------------------------------------- shared
+
+shared float s_red[64][4];
+shared Layer s_h;
+shared uint s_flag;
+
+#define LVB ((2 * NB + 6) & ~3)
+uvec4 lv_at(uint j) {
+    int b = LVB + 4 * int(j);
+    return uvec4(LY.live[b], LY.live[b + 1], LY.live[b + 2], LY.live[b + 3]);
+}
+
+float lv_inlier(Layer H, uvec4 e) {
+    vec2 s = uintBitsToFloat(e.xy);
+    vec2 d = blk_centre(int(e.w));
+    vec2 q = apply_h(H, s);
+    bool finite_ = !(isnan(q.x) || isnan(q.y) || isinf(q.x) || isinf(q.y));
+    return (finite_ && distance(q, d) < uintBitsToFloat(e.z)) ? 1.0 : 0.0;
+}
+
+float wg_sum(float v) {
+    // subgroup sum, then across subgroups through LDS (64 threads)
+    float s = subgroupAdd(v);
+    uint sg = gl_SubgroupID;
+    if (subgroupElect()) s_red[sg][0] = s;
+    barrier();
+    float t = 0.0;
+    for (uint k = 0; k < gl_NumSubgroups; ++k) t += s_red[k][0];
+    barrier();
+    return t;
+}
+
+void main() {
+    if((PC.flags&32)!=0 && G.hist[0]==0u)return;
+    int n = NB;
+    uint lid = gl_LocalInvocationIndex;
+
+    if (PC.pass_ == 0) {
+        int i = int(gl_GlobalInvocationID.x);
+        if (i == 0) {
+            G.pairs += 1u;  // reference: self.pairs += 1 before fit_layers (RANSAC seed)
+            LY.prev_count = LY.layer_count;
+            for (int k = 0; k < LMC_MAX_LAYERS; ++k) LY.prev_layers[k] = LY.layers[k];
+            LY.layer_count = 0u;
+        }
+        if (i >= n) return;
+        int w = lblocks(1).x;
+        ivec2 bb = ivec2(i % w, i / w);
+        // texture: mean |dx| + |dy| of B's luma over the 8x8 block (np.diff, prepend)
+        float tex = 0.0;
+        uint hud = 0u;
+        for (int oy = 0; oy < 8; ++oy) {
+            for (int ox = 0; ox < 8; ++ox) {
+                ivec2 p = bb * 8 + ivec2(ox, oy);
+                float c = texelFetch(lumaB0, p, 0).r;
+                float l = p.x > 0 ? texelFetch(lumaB0, p - ivec2(1, 0), 0).r : c;
+                float u = p.y > 0 ? texelFetch(lumaB0, p - ivec2(0, 1), 0).r : c;
+                tex += abs(c - l) + abs(c - u);
+                if (imageLoad(hudCount, p).r >= uint(P.hud_pairs)) hud += 1u;
+            }
+        }
+        tex /= 64.0;
+        // reference: (tex > 0.01) & ~hudb & (cb < 0.05), hudb = HUD share > 0.2
+        uint usable = (tex > 0.01 && float(hud) <= 0.2 * 64.0 && vb[P.blk_off.x + i].z < 0.05) ? 1u : 0u;
+        LY.live[i] = usable;
+        vb[P.blk_off.x + i].w = float(hud) > 0.2 * 64.0 ? 1.0 : 0.0;  // hudb, read by the palette
+        if (usable != 0u) atomicAdd(TOTAL, 1u);
+        vec2 v = blk_vec(i);
+        if (max(abs(v.x), abs(v.y)) > 1.0) atomicAdd(G.moving_votes, 1u);
+        return;
+    }
+
+    if (PC.pass_ == 2) {
+        uint wgi = gl_WorkGroupID.x;
+        if (lid == 0u) {
+            s_flag = 0u;
+            uint nl = NLIVE;
+            if (STOP == 0u && nl >= 12u) {
+                if (wgi < LY.prev_count) {
+                    s_h = LY.prev_layers[wgi];
+                    s_flag = 1u;
+                } else if (wgi - LY.prev_count < uint(LMC_HYPS)) {
+                    uint it = wgi - LY.prev_count;
+                    uint seed = G.pairs * 4u + LY.layer_count;
+                    uint st = seed * 9781u + it * 6271u + 1u;
+                    int pick[4];
+                    for (int k = 0; k < 4; ++k) pick[k] = int(LIST(int(pcg(st) % nl)));
+                    vec2 ps[4], pd[4];
+                    bool ok = true;
+                    for (int k = 0; k < 4; ++k) {
+                        pd[k] = blk_centre(pick[k]);
+                        ps[k] = pd[k] - blk_vec(pick[k]);
+                    }
+                    for (int a = 0; a < 4; ++a)
+                        for (int c = a + 1; c < 4; ++c)
+                            if (distance(ps[a], ps[c]) < 120.0) ok = false;
+                    if (ok) {
+                        vec2 cs = (ps[0] + ps[1] + ps[2] + ps[3]) * 0.25, cd = (pd[0] + pd[1] + pd[2] + pd[3]) * 0.25;
+                        float ds = 0.0, dd = 0.0;
+                        for (int k = 0; k < 4; ++k) { ds += distance(ps[k], cs); dd += distance(pd[k], cd); }
+                        vec3 ns = vec3(cs, sqrt(2.0) / max(ds * 0.25, 1e-6));
+                        vec3 nd = vec3(cd, sqrt(2.0) / max(dd * 0.25, 1e-6));
+                        float M[8][8], b[8], h[8];
+                        for (int r = 0; r < 8; ++r) { b[r] = 0.0; for (int c = 0; c < 8; ++c) M[r][c] = r == c ? 1e-9 : 0.0; }
+                        for (int k = 0; k < 4; ++k)
+                            accum(M, b, (ps[k] - ns.xy) * ns.z, (pd[k] - nd.xy) * nd.z, 1.0);
+                        solve8(M, b, h);
+                        s_h = denorm(h, ns, nd);
+                        s_flag = 1u;
+                    }
+                }
+            }
+            LY.hyps[wgi] = s_h;
+        }
+        barrier();
+        if (s_flag == 0u) {
+            if (lid == 0u) LY.hyp_inliers[wgi] = 0u;
+            return;
+        }
+        Layer H = s_h;
+        uint nl = NLIVE;
+        float cnt = 0.0;
+        // Match TE_LMC_FIT_SCORE=512: deterministic evenly strided ranking.
+        // All hypotheses use the same list/stride, preserving tie ordering.
+        uint stride=max(1u,(nl+511u)/512u);
+        uint scored=(nl+stride-1u)/stride;
+        for(uint j=lid;j<scored;j+=64u) cnt+=lv_inlier(H,lv_at(j*stride));
+        float tot=wg_sum(cnt);
+        if(lid==0u) LY.hyp_inliers[wgi]=uint(tot+0.5)*stride;
+        return;
+    }
+}

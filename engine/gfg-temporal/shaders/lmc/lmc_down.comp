@@ -1,0 +1,16 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Pyramid level PC.level + 1 from PC.level by 2x2 box, odd edge dropped
+// (reference: gen_lmc.down).
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    int l = PC.level;
+    if (any(greaterThanEqual(p, lpix(l + 1)))) return;
+    ivec2 q = 2 * p;
+    float s = load_l(l, q) + load_l(l, q + ivec2(1, 0)) + load_l(l, q + ivec2(0, 1)) + load_l(l, q + ivec2(1, 1));
+    store_l(l + 1, p, s * 0.25);
+}

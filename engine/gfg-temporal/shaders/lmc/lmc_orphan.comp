@@ -1,0 +1,189 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Wide search for level-1 blocks the camera and block field leave unexplained
+// (reference: gen_lmc.orphan_search).  Only residual pixels take part on both
+// sides: an object is matched to the object, not to the background around it.
+//
+// PC.pass_: 0 = count the residual pixels of every 8x8 block (one workgroup
+//               per block; result cleared, count kept in w) and histogram the
+//               candidates (share above ORPHAN_SHARE)
+//           1 = per grid, the count threshold that keeps at most
+//               P.orphan_cap candidates, strongest first (ties at the limit
+//               are all left out, so the choice is deterministic)
+//           2 = list the blocks above the threshold (order is irrelevant)
+//           3 = search, one workgroup per listed block: the 1/4-res candidates
+//               and then the +-3 px full-res candidates are spread over the
+//               threads and reduced to the reference argmin (lowest cost,
+//               first in scan order on a tie)
+// PC.grid: 0 = B grid (own B, other A, sign -1), 1 = A grid (own A, other B, +1)
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+layout(local_size_x = 64) in;
+
+shared float s_c[64];
+shared int s_i[64];
+shared float s_y[64], s_w[64];
+// Avoid reusing the std430 ohist[130] array type in older glslang.
+shared uint s_oh[131];
+
+bool hud_at(ivec2 p) { return imageLoad(hudCount, p).r >= uint(P.hud_pairs); }
+
+float field_cost(int which, ivec2 h) { return which == 1 ? texelFetch(fieldB, h, 0).z : texelFetch(fieldA, h, 0).z; }
+
+float resid(int which, ivec2 p) {
+    if (hud_at(p)) return 0.0;
+    return field_cost(which, min(p / 2, P.size.zw - 1)) > P.orphan_resid ? 1.0 : 0.0;
+}
+
+void store_o(int grid, int i, vec4 v) { if (grid == 0) ORB.ob[i] = v; else ORA.oa[i] = v; }
+
+// workgroup argmin: lowest cost, then lowest index
+void reduce_min(uint lid) {
+    barrier();
+    for (uint s = 32u; s > 0u; s >>= 1u) {
+        if (lid < s) {
+            float c2 = s_c[lid + s];
+            int i2 = s_i[lid + s];
+            if (c2 < s_c[lid] || (c2 == s_c[lid] && i2 < s_i[lid])) {
+                s_c[lid] = c2;
+                s_i[lid] = i2;
+            }
+        }
+        barrier();
+    }
+}
+
+void main() {
+    int grid = PC.grid;
+    ivec2 nb = lblocks(1);
+    int own = grid == 0 ? 1 : 0, oth = 1 - own;
+    float sgn = grid == 0 ? -1.0 : 1.0;
+    // a block qualifies with more than this many residual pixels of 64
+    int cmin = int(floor(P.orphan_share * 64.0));
+
+    if (PC.pass_ == 0) {
+        // one workgroup per block, one thread per pixel (coalesced reads)
+        uint lid = gl_LocalInvocationIndex;
+        int id = int(gl_WorkGroupID.x);
+        if (id >= nb.x * nb.y) return;   // uniform
+        ivec2 bb = ivec2(id % nb.x, id / nb.x);
+        ivec2 p = bb * 8 + ivec2(int(lid % 8u), int(lid / 8u));
+        s_i[lid] = resid(own, p) > 0.0 ? 1 : 0;
+        barrier();
+        for (uint s = 32u; s > 0u; s >>= 1u) {
+            if (lid < s) s_i[lid] += s_i[lid + s];
+            barrier();
+        }
+        if (lid != 0u) return;
+        int cnt = s_i[0];
+        store_o(grid, id, vec4(0.0, 0.0, 0.0, float(cnt)));
+        if (float(cnt) / 64.0 > P.orphan_share) atomicAdd(G.ohist[grid * 65 + cnt], 1u);
+        return;
+    }
+    if (PC.pass_ == 1) {
+        uint lid = gl_LocalInvocationIndex;
+        for (uint k = lid; k < 130u; k += 64u) s_oh[k] = G.ohist[k];  // loads in parallel
+        barrier();
+        if (lid >= 2u) return;
+        int g = int(lid);
+        uint acc = 0u;
+        int thr = 64;
+        for (int c = 64; c > cmin; --c) {
+            uint h = s_oh[g * 65 + c];
+            if (acc + h > uint(P.orphan_cap)) break;
+            acc += h;
+            thr = c - 1;
+        }
+        G.othr[g] = uint(thr);
+        return;
+    }
+    if (PC.pass_ == 2) {
+        int id = int(gl_GlobalInvocationID.x);
+        if (id >= nb.x * nb.y) return;
+        float cnt = orphan_at(grid, id).w;
+        if (cnt / 64.0 > P.orphan_share && cnt > float(G.othr[grid])) {
+            uint k = atomicAdd(G.olist_n[grid], 1u);
+            if (k < uint(LMC_ORPHAN_MAX)) G.olist[grid * LMC_ORPHAN_MAX + int(k)] = uint(id);
+        }
+        return;
+    }
+
+    // pass 3: one listed block per workgroup
+    uint lid = gl_LocalInvocationIndex;
+    uint li = gl_WorkGroupID.x;
+    if (li >= min(G.olist_n[grid], uint(P.orphan_cap))) return;
+    int id = int(G.olist[grid * LMC_ORPHAN_MAX + int(li)]);
+    ivec2 bb = ivec2(id % nb.x, id / nb.x);
+    float cnt = orphan_at(grid, id).w;
+    ivec2 qn = P.size.xy / 4;
+    // own 2x2 quarter cells (uniform)
+    float yo[4], wo[4];
+    float wsum = 0.0;
+    [[unroll]] for (int k = 0; k < 4; ++k) {
+        ivec2 cell = bb * 2 + ivec2(k & 1, k >> 1);
+        vec4 m = MQ.mq[min(cell.y, qn.y - 1) * qn.x + min(cell.x, qn.x - 1)];
+        yo[k] = own == 1 ? m.x : m.z;
+        wo[k] = own == 1 ? m.y : m.w;
+        wsum += wo[k];
+    }
+    int r = P.orphan_r / 4;
+    int side = 2 * r + 1;
+    float best = 1e30;
+    int bi = 0x7fffffff;
+    for (int i = int(lid); i < side * side; i += 64) {
+        int dy = i / side - r, dx = i % side - r;
+        float num = 0.0, den = 0.0;
+        [[unroll]] for (int k = 0; k < 4; ++k) {
+            ivec2 t = bb * 2 + ivec2(k & 1, k >> 1) + ivec2(round(sgn * float(dx)), round(sgn * float(dy)));
+            bool in_ = all(greaterThanEqual(t, ivec2(0))) && all(lessThan(t, qn));
+            ivec2 tc = clamp(t, ivec2(0), qn - 1);
+            vec4 m = MQ.mq[tc.y * qn.x + tc.x];
+            float yt = oth == 1 ? m.x : m.z;
+            float wt = (oth == 1 ? m.y : m.w) * (in_ ? 1.0 : 0.0);
+            float wg = wo[k] * wt;
+            num += abs(yo[k] - yt) * wg;
+            den += wg;
+        }
+        float c = num / max(den, 1e-6);
+        if (!(den >= 0.5 * max(wsum, 1e-6))) c = 1e30;
+        c += 0.0005 * float(abs(dx) + abs(dy));
+        if (c < best) { best = c; bi = i; }
+    }
+    s_c[lid] = best;
+    s_i[lid] = bi;
+    // the block's full-res pixels and residual weights, for the refinement
+    ivec2 p = bb * 8 + ivec2(int(lid % 8u), int(lid / 8u));
+    s_w[lid] = resid(own, p);
+    s_y[lid] = own == 1 ? texelFetch(lumaB0, p, 0).r : texelFetch(lumaA0, p, 0).r;
+    reduce_min(lid);
+    float cbest = s_c[0];
+    int ibest = s_i[0];
+    vec2 bv = ibest == 0x7fffffff ? vec2(0.0) : vec2(ibest % side - r, ibest / side - r) * 4.0;
+    float den = 0.0;
+    for (int k = 0; k < 64; ++k) den += s_w[k];
+    barrier();
+    // refine at full resolution, +-3 px, on the residual pixels (one candidate per thread)
+    float fb = 1e30;
+    if (lid < 49u) {
+        vec2 v = bv + vec2(int(lid % 7u) - 3, int(lid / 7u) - 3);
+        float num = 0.0;
+        for (int k = 0; k < 64; ++k) {
+            if (s_w[k] == 0.0) continue;  // uniform: every thread looks at the same pixel
+            vec2 q = vec2(bb * 8 + ivec2(k % 8, k / 8)) + sgn * v;
+            num += abs(s_y[k] - luma_at(oth, 0, q)) * s_w[k];
+        }
+        fb = num / max(den, 1.0);
+    }
+    s_c[lid] = fb;
+    s_i[lid] = int(lid);
+    reduce_min(lid);
+    if (lid == 0u) {
+        float fbest = s_c[0];
+        int fi = s_i[0];
+        vec2 fv = bv + vec2(fi % 7 - 3, fi / 7 - 3);
+        if (cbest < 1e29 && fbest < P.orphan_max_cost) {
+            store_o(grid, id, vec4(fv, 1.0, cnt));
+            if (grid == 0) atomicAdd(G.orphans_b, 1u); else atomicAdd(G.orphans_a, 1u);
+        }
+    }
+}
