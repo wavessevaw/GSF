@@ -1,0 +1,8 @@
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+VALIDATION WARNING: env var 'VK_INSTANCE_LAYERS' defined and adding layers "VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation"
+GFG native: validation messenger active sync_validation=1
+GFG native: gpu smoke 96x64 format=44 min_images=3 images=5 frames=2
+[gfg-native] GPU bridge active: 96x64 format=44 out=copy sync=same-device images=5 present_mode=2 inflight=2 algo=tiles verify=0 startup_ms=107.42
+GFG native: gpu stats bridges=1 sync_mode=3 real=2 synthetic=0 skipped=2 te_busy=0 ring_busy=0 acquire_not_ready=0 holds=1 errors=1 present_path_host_pixel_reads=0 present_path_cpu_waits=0 teardown_cpu_waits=3 verify_checks=0 verify_distinct=0 verify_host_reads=0
+GFG native: validation errors=0 warnings=2
+GFG native: 2 real frames GPU bridge WSI smoke PASS

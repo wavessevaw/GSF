@@ -1,0 +1,39 @@
+utc=2026-10-16T00:55:05Z
+command: meson setup /tmp/gfg-gamescope-build /workspace/gfg-research-sources/gamescope --wrap-mode=nodownload --buildtype=debugoptimized
+The Meson build system
+Version: 1.12.1
+Source dir: /workspace/gfg-research-sources/gamescope
+Build dir: /tmp/gfg-gamescope-build
+Build type: native build
+Project name: gamescope
+Project version: undefined
+C compiler for the host machine: cc (gcc 14.2.0 "cc (Debian 14.2.0-19) 14.2.0")
+C linker for the host machine: cc ld.bfd 2.44
+C++ compiler for the host machine: c++ (gcc 14.2.0 "c++ (Debian 14.2.0-19) 14.2.0")
+C++ linker for the host machine: c++ ld.bfd 2.44
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Compiler for C++ supports arguments -Wno-unused-parameter: YES
+Compiler for C++ supports arguments -Wno-missing-field-initializers: YES
+Compiler for C++ supports arguments -Wno-c99-designator: NO
+Compiler for C++ supports arguments -Wno-invalid-offsetof: YES
+Compiler for C++ supports arguments -Wno-unused-const-variable: YES
+Compiler for C++ supports arguments -Wno-volatile: YES
+Compiler for C++ supports arguments -Wno-deprecated-volatile: NO
+Compiler for C++ supports arguments -Wno-ignored-qualifiers: YES
+Compiler for C++ supports arguments -Wno-missing-braces: YES
+Compiler for C++ supports arguments -fno-cxx-modules: NO
+Compiler for C++ supports arguments -fno-exceptions: YES
+Compiler for C++ supports arguments -ffast-math: YES
+Found pkg-config: YES (/usr/bin/pkg-config) 1.8.1
+Did not find CMake 'cmake'
+Found CMake: NO
+Run-time dependency libpipewire-0.3 found: NO  (tried pkg-config and cmake)
+Library rt found: YES
+Run-time dependency hwdata found: NO  (tried pkg-config and cmake)
+Run-time dependency x11 found: NO  (tried pkg-config)
+
+../gfg-research-sources/gamescope/meson.build:50:10: ERROR: Dependency "x11" not found (tried pkg-config)
+
+A full log can be found at /tmp/gfg-gamescope-build/meson-logs/meson-log.txt
+meson_exit=1

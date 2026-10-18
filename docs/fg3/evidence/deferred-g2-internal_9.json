@@ -1,0 +1,394 @@
+{
+  "scope": "experimental launch recovery, linear HDR PQ and G1-before-G2 submission; NOT SteamOS/Deck acceptance",
+  "source_commit": "7e8a9660a0c40e00275f87f0977c0758e6f3ebe3",
+  "version": "2.1.5-gsf.9",
+  "component_sha256": "bdae131bfb8847e2cb66e2db504372844082873fe926391e300ff91fca438c2f",
+  "decky_sha256": "c7daf0aa77bbe10304342e90ce710e8a622537f0b8dae51c53c19ada59fd2b10",
+  "elf_sha256": "7ddc744f42c5956fb33100977cea2884d8ded2fea2beea2c4597b4ac88771b30",
+  "checks": [
+    "archive-checksums-executable-modes-and-build-identity",
+    "backend-startup",
+    "startup-off-actual-wsi",
+    "backend-2",
+    "installed-x2",
+    "backend-3",
+    "installed-x3",
+    "explicit-off-inherited-layer-actual-wsi",
+    "unavailable-diagnostics-actual-wsi",
+    "missing-component-actual-wsi",
+    "installed-x3-g1-before-g2-submission-and-x2-unchanged",
+    "two-local-pair-reports-and-retired-status-cleanup",
+    "first-install-rollback",
+    "rollback-off-actual-wsi"
+  ],
+  "passed": true,
+  "hardware_acceptance": "NOT TESTED",
+  "physical_displayed_fps": null,
+  "pipeline": {
+    "source_commit": "7e8a9660a0c40e00275f87f0977c0758e6f3ebe3",
+    "scope": "software Vulkan functional acceptance; WSI handoffs, not physical scanout",
+    "output_hz": 9,
+    "target_product_hz": 90,
+    "checks": [
+      {
+        "name": "core-gsf",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "borrowed-gsf",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "sync-real-only-fallback",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "pixels-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "x2-pixels-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "duplicate-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 2
+      },
+      {
+        "name": "cut-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 2
+      },
+      {
+        "name": "recreate-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "queue-idle-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "unknown-order-0",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "pixels-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "x2-pixels-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      },
+      {
+        "name": "duplicate-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 2
+      },
+      {
+        "name": "cut-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 2
+      },
+      {
+        "name": "recreate-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "queue-idle-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 2,
+        "g1_before_g2_submit": 2,
+        "canceled_g2": 0
+      },
+      {
+        "name": "unknown-order-1",
+        "passed": true,
+        "returncode": 0,
+        "validation_error": false,
+        "deferred_pairs": 0,
+        "g1_before_g2_submit": 0,
+        "canceled_g2": 0
+      }
+    ],
+    "libVkLayer_gfg_native.so_sha256": "a5c5a07a8463dbe7cc10922a8ff5ba4044650f34e8daa390e84353d9c4000ccd",
+    "libgfg-temporal.a_sha256": "1eee0576ad74f63f9cdbb4d0a911424d81bb3b7be617c16c805ee85d068e918e",
+    "passed": true
+  },
+  "hdr_host": {
+    "scope": "software GPU numerical PQ reconstruction, not HDR WSI or scanout",
+    "physical_displayed_fps": null,
+    "hardware_acceptance": "NOT TESTED",
+    "checks": [
+      {
+        "name": "gsf-linear-x3",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "gsf-linear-x2",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "gsf-duplicate-10bit",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "lmc-linear-x3",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "tiles-old-precision",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "lmc-old-precision",
+        "passed": true,
+        "returncode": 0,
+        "unsupported_formats": [
+          "58"
+        ]
+      },
+      {
+        "name": "legacy-shader-byte-identity",
+        "passed": true
+      }
+    ],
+    "legacy_shaders": {
+      "classify.spv": {
+        "identical": true,
+        "baseline_sha256": "846cdc1b1e05dc8b144f4bb5481ceee5caf6a8e376df57b2658030a3b813ad68"
+      },
+      "down_r16f.spv": {
+        "identical": true,
+        "baseline_sha256": "4fd58dd35ff8e60c2d4d414462f2cc48dbe00fb1da7af43e17d9c7100c02d232"
+      },
+      "down_r32f.spv": {
+        "identical": true,
+        "baseline_sha256": "60733c173ad64a3b4e083bca3d357c5c939498338ad2bb94cb40f19fe3e2df52"
+      },
+      "full.spv": {
+        "identical": true,
+        "baseline_sha256": "b00d478d2e6cf316a0d625f38e27d0886bd20676d4ed2570c15da38b1e9fc2c3"
+      },
+      "full_fp16.spv": {
+        "identical": true,
+        "baseline_sha256": "a333242d8b57e6a6cebd70c3a837f1a2fa9071cfe7e7671055a4222607fcdf8b"
+      },
+      "light.spv": {
+        "identical": true,
+        "baseline_sha256": "8a15cfcd1c86b4a26b19c3f8ac16a3780ad5a5315d34ec2db42014648b35ffb0"
+      },
+      "light_fp16.spv": {
+        "identical": true,
+        "baseline_sha256": "db43b43da42420a87206b11604850048a4e147d8cd617c301c563114794766c3"
+      },
+      "lists.spv": {
+        "identical": true,
+        "baseline_sha256": "d43cda2dffbb1e43cf81072d61497b597285ad804534562c7baefae95784ff3d"
+      },
+      "lmc_compose.spv": {
+        "identical": true,
+        "baseline_sha256": "32438593cdb98b0a70bb60effceb7d2ab89be218a99fbc5eecfdd355fe5e33b0"
+      },
+      "lmc_compose_fp16.spv": {
+        "identical": true,
+        "baseline_sha256": "433dd1dd5d9681565102a71c2f0f9fb7ab40f44a008b07a749e8c073cd01c5f8"
+      },
+      "lmc_down.spv": {
+        "identical": true,
+        "baseline_sha256": "6d8e41de54d73bb7efbbee6432c8ca932323916e87b3fec70587798aec57f1c6"
+      },
+      "lmc_field.spv": {
+        "identical": true,
+        "baseline_sha256": "6d687c4a15e66e0d9a178a9d651f4f0bca60ecaed947071780e6f0af92663a84"
+      },
+      "lmc_hyp.spv": {
+        "identical": true,
+        "baseline_sha256": "cb70cd5026a12e2640d43fec5543b955b179af63bc388a7b56834f1d133db736"
+      },
+      "lmc_irls.spv": {
+        "identical": true,
+        "baseline_sha256": "498503448f7d1c0e45cbb3cf5e7825a6704a79b7e7474e17f6ab609a950ded04"
+      },
+      "lmc_layers.spv": {
+        "identical": true,
+        "baseline_sha256": "70f2f96b1c1bd0d8ac0bdeec0314b6713a573b0a4f17c300a9727d82edcc01f5"
+      },
+      "lmc_masked.spv": {
+        "identical": true,
+        "baseline_sha256": "b8c40e5ea4a011fa8c0fe6965e39ca5b1324d1be0baff52f79cb6b2863eb6f11"
+      },
+      "lmc_orphan.spv": {
+        "identical": true,
+        "baseline_sha256": "fd4051b9750c9ee7d74ac613eca4abdf1b1e3752cda1845e7ce4adbc3fa9ad1f"
+      },
+      "lmc_palette.spv": {
+        "identical": true,
+        "baseline_sha256": "2c25d5807620a82c52850db95b71ce6aaae8fc79b24497dc919a88c1ecf99fe9"
+      },
+      "lmc_prep.spv": {
+        "identical": true,
+        "baseline_sha256": "a35f1778fdb41edc83ee205863abc9498c8c0f2acb740f04a827b3e438e96a23"
+      },
+      "lmc_search.spv": {
+        "identical": true,
+        "baseline_sha256": "104b2fd74d8f381e38e4d2a046fa3dfe80b3738ae3ccffe683ce10493e9593a6"
+      },
+      "lmc_select.spv": {
+        "identical": true,
+        "baseline_sha256": "daa27d7d66968073ffe44a07bee70063215e1a9f5b6cb4d352f8d5441f661b5e"
+      },
+      "lmc_sf_compose.spv": {
+        "identical": true,
+        "baseline_sha256": "4c53d94e86b4886be6d6dc9b0a87dce3360b643f50505c619044b19f9d015045"
+      },
+      "lmc_sf_compose_fp16.spv": {
+        "identical": true,
+        "baseline_sha256": "2b9d90618ece42db1fc567212e16b44b69302dd158eeb7ce6d582592fd6d2ba5"
+      },
+      "lmc_sf_model.spv": {
+        "identical": true,
+        "baseline_sha256": "2cafa99b7503b60e768d5780abefe3026d5e37aa6b7f75cd8975e6fd0537bb4e"
+      },
+      "lmc_sf_prepare.spv": {
+        "identical": true,
+        "baseline_sha256": "3e61cc7d19fc360aeadf835e725d5a5047ff82c39fda02b8b9afe09b6ed856d1"
+      },
+      "luma_r16f.spv": {
+        "identical": true,
+        "baseline_sha256": "7c9c04950869832f48a526e740280249c2e6b01c99714eb0f69057b896bba1eb"
+      },
+      "luma_r32f.spv": {
+        "identical": true,
+        "baseline_sha256": "8ea08dbe805ecceafe7004aee37f45f249719ebba5d8e3e91a9896650c7af7de"
+      },
+      "me.spv": {
+        "identical": true,
+        "baseline_sha256": "bbf5d2600892eaf1c9eed50a652c546a7107d534425dc55f1e78f66c14f09c11"
+      },
+      "reuse.spv": {
+        "identical": true,
+        "baseline_sha256": "135b8ffe7a12154511d91d68df10d0ba171f0e4401d02d5066757cb8ad9fcbce"
+      },
+      "reuse_fp16.spv": {
+        "identical": true,
+        "baseline_sha256": "aa52ed2b5be84538c56c32d32eec74d7e9f26c561d0a173fd7e2dfa714a18f10"
+      },
+      "stats.spv": {
+        "identical": true,
+        "baseline_sha256": "9e24b4a8f99caf00f8713b3c9391feedaa6f8e07aa345b12ea9c98a298cc51e4"
+      }
+    },
+    "passed": true
+  },
+  "native_python_tests": {
+    "run": 47,
+    "passed": true
+  },
+  "native_contracts": "PASS",
+  "borrowed_device": "G1 readable before unsent G2; resume/cancel/idle/destroy and injected failed-final-submit cleanup PASS",
+  "actual_glibc_2_31_load": "PASS",
+  "source_rebuild": "byte-identical",
+  "production_glibc_requirement": "2.17",
+  "unchanged_backend_ui_prior_evidence": "1409 backend tests (1 root-only skip) and123 browser screens on the launch-recovery checkpoint; not rerun for this C-only queue correction",
+  "hdr_sdk_prior_evidence": "internal.8 numerical SDK checks passed; shaders unchanged in internal.9",
+  "remaining": [
+    "owner all-game Deck exit cause unconfirmed on hardware",
+    "missed renderer cut",
+    "shared app queue contention and GPU cost unmeasured on Deck",
+    "SteamOS/Gamescope/DRM/OLED physical 30-to-90, quality and latency NOT TESTED"
+  ]
+}
