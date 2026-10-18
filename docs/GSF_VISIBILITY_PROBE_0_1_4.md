@@ -8,6 +8,7 @@ This is a **diagnostic test build**, not a 2x performance claim. Enable GFG_NATI
 
 ## Algorithm
 
+* Decky launcher sets GFG_NATIVE_LMC_TIER=2: use the existing cheapest motion-search tier on the actual game path. This trades fidelity for a better chance to finish before a deadline, never for fabricated frames.
 * On each twelfth source pair, after history warm-up, consider **G1 only**, provided the frame clock has an intermediate display slot, the game is not overspeed and no source backlog is present.
 * Admit that one output even when a stale predicted compute-cost or elapsed handoff deadline would reject it. Do not admit on an unsupported swapchain, a nonexistent intermediate slot or a failed source-history pair.
 * Wait for the **real TE timeline completion**, with a hard 12ms ceiling, checking source pressure in 0.5ms slices. No fabricated pixels, no source-frame duplication for success.
