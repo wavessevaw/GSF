@@ -33,3 +33,6 @@ Tests cover eligibility rejection boundaries and an actual mutable WSI
 swapchain with an alternate SRGB/UNORM image view, immutable caller metadata,
 GPU LMC intermediates/pixel checks, and the extracted Decky launcher. This is
 software-driver validation, not hardware acceptance for this game.
+The XCB software-driver WSI test uses its advertised BGRA surface format;
+RGBA eligibility is tested separately. Explicit RGBA WSI probing remains
+available with GFG_TEST_RGBA=1, and fails if the driver does not advertise it.

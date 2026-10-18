@@ -48,6 +48,10 @@ int main(void) {
     aliases[0]=aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
     assert(!strcmp(native_ineligible_reason(&ci),"mutable-format-base-missing"));
     aliases[0]=VK_FORMAT_B8G8R8A8_UNORM;aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
+    ci.imageFormat=VK_FORMAT_R8G8B8A8_UNORM;
+    aliases[0]=VK_FORMAT_R8G8B8A8_UNORM;aliases[1]=VK_FORMAT_R8G8B8A8_SRGB;
+    assert(native_ineligible_reason(&ci)==NULL);
+    aliases[0]=VK_FORMAT_B8G8R8A8_UNORM;aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
     ci.imageFormat=VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     assert(!strcmp(native_ineligible_reason(&ci),"mutable-format-family-unsupported"));
     ci.imageFormat=VK_FORMAT_B8G8R8A8_UNORM;ci.pNext=NULL;

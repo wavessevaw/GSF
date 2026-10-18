@@ -244,7 +244,6 @@ def main():
             env = child_env(KIT, algo is not None, validation, args.order)
             if label=='lmc-mutable-2x':
                 env['GFG_TEST_MUTABLE_SWAPCHAIN']='1'
-                env['GFG_TEST_RGBA']='1'
                 env['GFG_TEST_PROTON_CHAIN']='1'
             env['GFG_TEST_TITLE'] = 'GSF '+label+' | source 5 Hz'+(' | output 10 Hz' if paced else ' | no generation' if algo is None else '')
             if visual:
@@ -260,9 +259,9 @@ def main():
             proc = subprocess.run([str(KIT/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT, text=True, timeout=180)
             log = proc.stdout
-            if label=='lmc-mutable-2x' and 'GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS original_metadata_unchanged=PASS' not in log:
-                raise ValueError('Нет проверки изменяемых форматов DXVK')
             (run/(label+'.log')).write_text(log)
+            if label=='lmc-mutable-2x' and 'GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS original_metadata_unchanged=PASS' not in log:
+                raise ValueError('Нет проверки изменяемых форматов DXVK: '+log[-1000:])
             if proc.returncode or re.search(r'VUID-|VALIDATION ERROR|Validation Error|UNASSIGNED-.*ERROR',log):
                 raise ValueError(f'{label}: ошибка Vulkan или приложения (exit={proc.returncode}), см. журнал')
             if 'GPU bridge WSI smoke PASS' not in log:
