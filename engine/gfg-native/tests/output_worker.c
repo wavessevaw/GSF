@@ -45,6 +45,11 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue q, const VkPresentInfoKHR *p
         PFN_vkQueuePresentKHR next, const gfg_present_id_hooks *ids) {
     (void)fg; (void)q; (void)next; (void)ids;
     assert(pi->waitSemaphoreCount==1 && (uintptr_t)pi->pWaitSemaphores[0]>=1000);
+    const VkPresentTimingsInfoEXT *times=pi->pNext;
+    assert(times && times->sType==VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT);
+    assert(times->pTimingInfos==NULL && times->swapchainCount==1);
+    const VkPresentId2KHR *id=times->pNext;
+    assert(id && id->sType==VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR && !id->pNext);
     pthread_mutex_lock(&backend_lock);
     observed_image = pi->pImageIndices[0]; ++entered;
     pthread_cond_broadcast(&backend_changed);
@@ -98,11 +103,20 @@ int main(void) {
     assert(mprotect(p,4096,PROT_READ|PROT_WRITE)==0);
     p->timing.pNext=&p->id; assert(copy_job(&p->pi,0)==NULL); p->timing.pNext=NULL;
 
+    p->times.pTimingInfos=NULL;
+    j=copy_job(&p->pi,0); assert(j);
+    assert(mprotect(p,4096,PROT_NONE)==0);
+    id=j->pi.pNext; fence=id->pNext; mode=fence->pNext; times=mode->pNext;
+    assert(times->pTimingInfos==NULL && times->swapchainCount==1 && !times->pNext);
+    assert(id->pPresentIds[0]==42 && j->pi.pResults==NULL);
+    free(j);
+    assert(mprotect(p,4096,PROT_READ|PROT_WRITE)==0);
+
     pthread_mutex_t wsi=PTHREAD_MUTEX_INITIALIZER;
     gfg_output *out=gfg_output_create((gfg_gpu_fg *)(uintptr_t)1,VK_NULL_HANDLE,NULL,NULL,&wsi,
                                      VK_NULL_HANDLE,dispatch,5,NULL); assert(out);
     gfg_output_acquired(out,3,(VkSemaphore)(uintptr_t)7);
-    p->pi.pNext=&p->id; p->id.pNext=NULL;
+    p->pi.pNext=&p->times; p->times.pNext=&p->id; p->id.pNext=NULL;
     int handled=0;
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled && p->result==VK_SUCCESS);
     assert(app_wait_submits==1); /* already consumed even while backend is paused */

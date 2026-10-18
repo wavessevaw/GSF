@@ -93,6 +93,24 @@ int main(void) {
     assert(out.nodes[0].timings.pTimingInfos == &timing && out.app_id == 77);
     timing.flags = VK_PRESENT_TIMING_INFO_PRESENT_AT_RELATIVE_TIME_BIT_EXT;
     assert(!strcmp(gfg_pc_prepare(&out, &app, 0), "relative-present-timing"));
+    /* Optional array: retain the no-op node, application ID and suffix. */
+    timings.pTimingInfos = NULL;
+    const VkPresentTimingsInfoEXT unchanged = timings;
+    assert(!gfg_pc_prepare(&out, &app, 0));
+    assert(out.count == 2 && out.app_id == 77);
+    const VkPresentTimingsInfoEXT *no_times = gfg_pc_head(&out);
+    assert(no_times != &timings && no_times->pTimingInfos == NULL);
+    const VkPresentId2KHR *kept_id = no_times->pNext;
+    assert(kept_id->pPresentIds == &input->app_id && !kept_id->pNext);
+    assert(!memcmp(&timings, &unchanged, sizeof(timings)));
+    timings.swapchainCount = 2;
+    assert(!strcmp(gfg_pc_prepare(&out, &app, 0), "invalid-present-timings"));
+    timings.swapchainCount = 1;
+    timings.pNext = &timings;
+    assert(!strcmp(gfg_pc_prepare(&out, &app, 0), "duplicate-present-metadata"));
+    timings.pNext = &input->id;
+    timings.pTimingInfos = &timing;
+    assert(!strcmp(gfg_pc_prepare(&out, &app, 2), "present-timing-needs-application-owned-ids"));
     VkPresentRegionsKHR full = {.sType = VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR, .swapchainCount = 1};
     app.pNext = &full;
     assert(!gfg_pc_prepare(&out, &app, 0) && !gfg_pc_head(&out));
