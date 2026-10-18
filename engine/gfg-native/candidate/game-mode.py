@@ -128,20 +128,27 @@ def main():
                 env.update(GFG_NATIVE_ALGO='lmc-gpu',GFG_NATIVE_OUTPUT_HZ=str(output),
                            GFG_TEST_ALLOW_SKIPS='1',GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY=str(max(2,source)),
                            GFG_NATIVE_TELEMETRY=str(run/(label+'.jsonl')))
+            observed={'requested_layers':env.get('VK_INSTANCE_LAYERS','')}
             try:
                 p=subprocess.run([str(KIT/'wsi-gpu-smoke')],env=env,stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,text=True,timeout=180)
                 (run/(label+'.log')).write_text(p.stdout)
+                if 'GFG native: gpu stats ' in p.stdout:
+                    observed['counters']=base.counters(p.stdout)
+                gate=re.search(r'GSF_REAL_WSI_GATE ([^\n]+)',p.stdout)
+                if gate:observed['create_gate']=gate[1]
+                if active and observed.get('counters',{}).get('bridges') == 0:
+                    raise ValueError('Генератор не включился: '+observed.get('create_gate','нет create gate'))
                 if p.returncode or re.search(r'VUID-|VALIDATION ERROR|Validation Error',p.stdout):
                     raise ValueError(f'Ошибка Vulkan/приложения, exit={p.returncode}')
                 if 'GPU bridge WSI smoke PASS' not in p.stdout:raise ValueError('Нет завершения приложения')
                 metrics=inspect_case(p.stdout,run/(label+'.jsonl'),frames,source,output if active else 0)
-                report['cases'][label]={'status':'PASS',**metrics}
+                report['cases'][label]={'status':'PASS',**observed,**metrics}
             except (ValueError,subprocess.TimeoutExpired) as error:
                 if isinstance(error,subprocess.TimeoutExpired):
                     out=error.stdout or b''
                     (run/(label+'.log')).write_text(out.decode(errors='replace') if isinstance(out,bytes) else out)
-                report['cases'][label]={'status':'FAIL','error':str(error)}
+                report['cases'][label]={'status':'FAIL',**observed,'error':str(error)}
                 failed=True
         report.update(status='FAIL' if failed else 'PASS',stage='complete')
         code=int(failed)

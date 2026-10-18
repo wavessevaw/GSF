@@ -6,6 +6,7 @@ on:
       - 'engine/gfg-native/src/**'
       - 'engine/gfg-native/tests/wsi_gpu_smoke.c'
       - 'engine/gfg-native/tests/delayed_xcb_wm.c'
+      - 'engine/gfg-native/tests/implicit_wsi_order_probe.c'
       - 'engine/gfg-native/candidate/**'
       - 'engine/gfg-temporal/src/**'
       - 'engine/gfg-temporal/shaders/**'
@@ -114,6 +115,60 @@ jobs:
           assert env['VK_INSTANCE_LAYERS']=='VK_LAYER_MESA_overlay'
           print('Stable installed Steam Exec with spaces/percent: actual GPU launch smoke PASS')
           PY
+      - name: Implicit WSI order regression with actual loader, driver and GPU LMC
+        if: matrix.order == 'native-first' && matrix.wm == 'bare'
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -shared -Wl,-z,defs \
+            -I"$RUNNER_TEMP/vkh/include" engine/gfg-native/tests/implicit_wsi_order_probe.c \
+            -o "$RUNNER_TEMP/implicit-wsi-order-probe.so"
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          export XDG_DATA_HOME="$RUNNER_TEMP/order-probe-data"
+          export GSF_ORDER_PROBE_ACTIVE=1 ENABLE_GAMESCOPE_WSI=1
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['XDG_DATA_HOME'])/'vulkan/implicit_layer.d';root.mkdir(parents=True)
+          layer={'file_format_version':'1.0.0','layer':{'name':'VK_LAYER_FROG_gamescope_wsi_x86_64',
+            'type':'GLOBAL','library_path':os.environ['RUNNER_TEMP']+'/implicit-wsi-order-probe.so',
+            'api_version':'1.3.0','implementation_version':1,'description':'CI-only order probe, not Gamescope',
+            'enable_environment':{'GSF_ORDER_PROBE_ACTIVE':'1'},
+            'disable_environment':{'GSF_ORDER_PROBE_DISABLE':'1'}}}
+          (root/'order-probe.json').write_text(json.dumps(layer))
+          PY
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 - <<'PY'
+          import importlib.util,json,os,pathlib,re,subprocess
+          root=pathlib.Path(os.environ['RUNNER_TEMP']);kit=root/'extracted with spaces/GSF-Deck-Test'
+          evidence=root/'order-probe';evidence.mkdir()
+          spec=importlib.util.spec_from_file_location('candidate',kit/'run-test.py')
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          env=m.child_env(kit,True,False,'native-first',preserve_layers=True)
+          env.update(GFG_NATIVE_ALGO='lmc-gpu',GFG_NATIVE_OUTPUT_HZ='10',GFG_TEST_ALLOW_SKIPS='1')
+          # Negative control: original configuration left Gamescope implicit,
+          # placing it above GSF. Observe the rewritten mode at GSF's gate.
+          wrong=dict(env);wrong['VK_INSTANCE_LAYERS']='VK_LAYER_GFG_native'
+          p=subprocess.run([str(kit/'wsi-gpu-smoke')],env=wrong,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=180)
+          (evidence/'implicit-before-gsf.log').write_text(p.stdout)
+          assert p.returncode==0,p.stdout
+          assert 'original_mode=1 effective_mode=2' in p.stdout,p.stdout
+          before=re.search(r'GSF_ORDER_PROBE_CREATE input_mode=2 images=(\d+) usage=0x([0-9a-f]+)',p.stdout);assert before,p.stdout
+          # Positive: run the actual installed-test harness with the implicit
+          # layer explicitly ordered AFTER GSF. No fake handles or image pixels.
+          p=subprocess.run(['python3',str(kit/'game-mode.py'),'--smoke','--results',str(evidence/'results')],
+                           stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=180)
+          (evidence/'runner.log').write_text(p.stdout)
+          assert p.returncode==0,p.stdout
+          report_path=next((evidence/'results').glob('*/REPORT.json'));r=json.loads(report_path.read_text())
+          assert r['status']=='PASS' and r['suite']=='launch-smoke',r
+          log=next((evidence/'results').glob('*/*B-LMC.log')).read_text()
+          assert 'original_mode=2 effective_mode=2' in log,log
+          after=re.search(r'GSF_ORDER_PROBE_CREATE input_mode=2 images=(\d+) usage=0x([0-9a-f]+)',log);assert after,log
+          assert int(after[1])==int(before[1])+2,(before.groups(),after.groups())
+          assert int(after[2],16)&3==3 and int(before[2],16)&3!=3
+          counts=m.counters(log)
+          assert log.count('GSF_ORDER_PROBE_PRESENT ')==counts['real']+counts['synthetic'],counts
+          assert counts['synthetic']>=10 and counts['errors']==0,counts
+          assert r['cases']['96x64-5to10-B-LMC']['requested_layers'].endswith(':VK_LAYER_FROG_gamescope_wsi_x86_64')
+          print('Implicit-layer promotion: GSF before WSI, every real/generated handoff reaches WSI probe PASS')
+          PY
       - name: Tampering and missing payload fail before Vulkan with an archived explanation
         run: |
           printf '\ntampered\n' >> "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/README.txt"
@@ -160,6 +215,7 @@ jobs:
         with:
           name: GSF-candidate-evidence-${{ matrix.order }}-${{ matrix.wm }}
           path: |
+            ${{ runner.temp }}/order-probe/
             ${{ runner.temp }}/game mode home % percent/
             ${{ runner.temp }}/window-manager.log
             ${{ runner.temp }}/results/

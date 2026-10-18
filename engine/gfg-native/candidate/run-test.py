@@ -120,8 +120,15 @@ def child_env(kit, active, validation, order, preserve_layers=False):
     if validation:
         layers.insert(0 if order=='validation-first' else len(layers), 'VK_LAYER_KHRONOS_validation')
     if preserve_layers:
+        gamescope = 'VK_LAYER_FROG_gamescope_wsi_x86_64'
         layers += [p for p in os.environ.get('VK_INSTANCE_LAYERS','').split(':')
                    if p and p not in ('VK_LAYER_GFG_native','VK_LAYER_KHRONOS_validation')]
+        if os.environ.get('ENABLE_GAMESCOPE_WSI') == '1' and gamescope not in layers:
+            # Vulkan Loader moves an explicitly named implicit layer into this
+            # ordered list. Otherwise Gamescope runs before every explicit layer
+            # and GSF sees its driver-only MAILBOX create chain, not app FIFO.
+            # Keep Gamescope enabled; all synthetic presents must pass through it.
+            layers.append(gamescope)
     if layers:
         env['VK_INSTANCE_LAYERS'] = ':'.join(layers)
     env.update(GFG_TEST_SOURCE_HZ='5', GFG_TEST_FRAMES='12', GFG_TEST_WIDTH='96', GFG_TEST_HEIGHT='64',
