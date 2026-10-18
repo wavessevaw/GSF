@@ -68,6 +68,25 @@ def check_active(log, lifecycle, kit):
     return c
 
 
+def check_cadence(path):
+    pairs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    pairs = [p for p in pairs if p.get('event') == 'pair']
+    gaps = []
+    for pair in pairs:
+        if pair['refresh_period_ns'] != 100_000_000:
+            raise ValueError('LMC не включил заданный выходной такт 10 Гц')
+        accepted = pair['wsi_accepted_ns']
+        if accepted[0] and accepted[2]:
+            gap = accepted[2] - accepted[0]
+            if not 70_000_000 <= gap <= 130_000_000:
+                raise ValueError(f'G1 и real отправлены с неверным интервалом: {gap/1e6:.3f} мс')
+            gaps.append(gap/1e6)
+    if len(gaps) < 5:
+        raise ValueError('Недостаточно равномерно разделённых пар G1/real')
+    return {'scope':'WSI handoff, physical display unverified', 'pairs':len(gaps),
+            'g1_to_real_ms_min':min(gaps), 'g1_to_real_ms_max':max(gaps)}
+
+
 def child_env(kit, active, validation, order):
     # Only this child is changed; no global manifests, Steam options or settings.
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'LSFGVK_', 'DISABLE_GFG_NATIVE_'))}
@@ -126,13 +145,15 @@ def main():
                          for p in child_env(KIT, False, False, args.order)['VK_LAYER_PATH'].split(':'))
         report['validation_layer_available'] = validation
         for label, algo, lifecycle in (('baseline',None,False), ('tiles-2x','tiles',False),
-                                       ('lmc-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True)):
+                                       ('lmc-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True), ('lmc-paced-2x','lmc-gpu',False)):
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
             if algo:
                 env['GFG_NATIVE_ALGO'] = algo
                 env['GFG_NATIVE_TELEMETRY'] = str(run/(label+'.jsonl'))
+            if label == 'lmc-paced-2x':
+                env['GFG_NATIVE_OUTPUT_HZ'] = '10'
             if lifecycle:
                 env.update(GFG_TEST_LIFECYCLE='1', GFG_TEST_FRAMES='36')
             proc = subprocess.run([str(KIT/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
@@ -146,6 +167,8 @@ def main():
             if algo is None and 'GPU bridge active:' in log:
                 raise ValueError('Генератор неожиданно активен в baseline')
             report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT) if algo else None}
+            if label == 'lmc-paced-2x':
+                report['cases'][label]['cadence'] = check_cadence(run/(label+'.jsonl'))
         report.update(status='PASS', stage='complete')
         code = 0
     except (Exception, KeyboardInterrupt) as error:
