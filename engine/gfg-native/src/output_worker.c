@@ -30,7 +30,8 @@ struct gfg_output {
     pthread_cond_t changed;
     pthread_t thread;
     pthread_mutex_t *wsi;
-    output_job *pending;
+    output_job *jobs[64];
+    uint32_t head, queued, peak_queued;
     int busy, stopping, joined;
     VkResult error;
     VkResult advisory;
@@ -98,9 +99,11 @@ static void *output_main(void *arg) {
     gfg_output *o = arg;
     for (;;) {
         pthread_mutex_lock(&o->lock);
-        while (!o->pending && !o->stopping) pthread_cond_wait(&o->changed, &o->lock);
-        if (!o->pending && o->stopping) { pthread_mutex_unlock(&o->lock); break; }
-        output_job *j = o->pending; o->pending = NULL; o->busy = 1;
+        while (!o->queued && !o->stopping) pthread_cond_wait(&o->changed, &o->lock);
+        if (!o->queued && o->stopping) { pthread_mutex_unlock(&o->lock); break; }
+        output_job *j = o->jobs[o->head];
+        o->head=(o->head+1)%o->image_count;--o->queued;o->busy=1;
+        gfg_gpu_fg_set_output_pressure(o->gpu,o->queued!=0);
         pthread_cond_broadcast(&o->changed);
         pthread_mutex_unlock(&o->lock);
         /* Two real periods: preserve the real frame, but never synthesize a
@@ -117,7 +120,7 @@ static void *output_main(void *arg) {
         if (r == VK_SUBOPTIMAL_KHR) o->advisory = r;
         if (r >= 0 && j->id > o->completed_id) o->completed_id = j->id;
         ++o->completed; o->stale += stale; o->busy = 0;
-        o->image_pending[j->image]=0;
+        --o->image_pending[j->image];
         free(j); pthread_cond_broadcast(&o->changed);
         pthread_mutex_unlock(&o->lock);
     }
@@ -155,8 +158,8 @@ gfg_output *gfg_output_create(gfg_gpu_fg *gpu, VkQueue queue,
         gfg_gpu_fg_set_output_thread(gpu, NULL);
         goto fail;
     }
-    fprintf(stderr, "[gfg-native] output-worker active queued_capacity=1 executing_capacity=1 stale_after_ms=%.3f\n",
-        (double)o->stale_after_ns/1e6);
+    fprintf(stderr, "[gfg-native] output-worker active queued_capacity=%u executing_capacity=1 admission=nonblocking source_priority=1 stale_after_ms=%.3f\n",
+        image_count,(double)o->stale_after_ns/1e6);
     return o;
 fail:
     if(o->gates) for(uint32_t i=0;i<image_count;++i)
@@ -172,8 +175,12 @@ VkResult gfg_output_submit(gfg_output *o, const VkPresentInfoKHR *app, uint64_t 
     if(source_ns)j->queued_ns=source_ns;
     if(j->image>=o->image_count){free(j);return VK_SUCCESS;}
     pthread_mutex_lock(&o->lock);
-    if (o->pending) ++o->backpressure;
-    while (o->pending && !o->stopping && !o->error) pthread_cond_wait(&o->changed, &o->lock);
+    /* Acquired swapchain images bound real jobs naturally. Never park a valid
+     * app present behind generation. This guard preserves ordered fallback
+     * instead of overwriting a real job if that capacity is ever exceeded. */
+    if(o->queued==o->image_count) {
+        ++o->backpressure;pthread_mutex_unlock(&o->lock);free(j);return VK_SUCCESS;
+    }
     *handled = 1;
     VkResult r = o->error;
     if (o->stopping) r = VK_ERROR_OUT_OF_DATE_KHR;
@@ -193,8 +200,11 @@ VkResult gfg_output_submit(gfg_output *o, const VkPresentInfoKHR *app, uint64_t 
             j->waits[0]=o->gates[j->image];j->pi.waitSemaphoreCount=1;
             j->admitted_ns=tick_ns(); /* capture time must survive mailbox backpressure */
             j->serial=o->submitted+1;
-            o->image_pending[j->image]=1;
-            o->pending = j; ++o->submitted; pthread_cond_broadcast(&o->changed); r = o->advisory;
+            ++o->image_pending[j->image];
+            o->jobs[(o->head+o->queued)%o->image_count]=j;++o->queued;
+            if(o->queued>o->peak_queued)o->peak_queued=o->queued;
+            gfg_gpu_fg_set_output_pressure(o->gpu,o->busy && o->queued!=0);
+            ++o->submitted; pthread_cond_broadcast(&o->changed); r = o->advisory;
         } else {o->error=r;free(j);}
     }
     else free(j);
@@ -208,7 +218,7 @@ VkResult gfg_output_drain(gfg_output *o, uint64_t id, uint64_t timeout, uint64_t
     const uint64_t deadline = timeout > UINT64_MAX - start ? UINT64_MAX : start + timeout;
     pthread_mutex_lock(&o->lock);
     VkResult r = VK_SUCCESS;
-    while ((o->pending || o->busy) && (!id || o->completed_id < id)) {
+    while ((o->queued || o->busy) && (!id || o->completed_id < id)) {
         if (!timeout || (deadline != UINT64_MAX && tick_ns() >= deadline)) { r = VK_TIMEOUT; break; }
         if (deadline == UINT64_MAX) pthread_cond_wait(&o->changed, &o->lock);
         else {
@@ -252,9 +262,9 @@ void gfg_output_stop(gfg_output *o) {
     pthread_cond_broadcast(&o->changed); pthread_mutex_unlock(&o->lock);
     pthread_join(o->thread, NULL);
     o->joined=1;
-    fprintf(stderr, "[gfg-native] output-worker retired submitted=%llu completed=%llu stale=%llu backpressure=%llu error=%d\n",
+    fprintf(stderr, "[gfg-native] output-worker retired submitted=%llu completed=%llu stale=%llu backpressure=%llu peak_queued=%u error=%d\n",
         (unsigned long long)o->submitted, (unsigned long long)o->completed,
-        (unsigned long long)o->stale, (unsigned long long)o->backpressure, (int)o->error);
+        (unsigned long long)o->stale, (unsigned long long)o->backpressure,o->peak_queued,(int)o->error);
 }
 void gfg_output_destroy(gfg_output *o) {
     if(!o) return;

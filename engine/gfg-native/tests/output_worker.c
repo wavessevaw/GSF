@@ -5,6 +5,7 @@
 #include "../src/output_worker.c"
 #include <assert.h>
 #include <sys/mman.h>
+#include <stdatomic.h>
 
 static pthread_mutex_t backend_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t backend_changed = PTHREAD_COND_INITIALIZER;
@@ -12,6 +13,8 @@ static int entered, release_backend, history_restarts;
 static VkResult backend_result;
 static uint32_t observed_image;
 static unsigned gate_creates,gate_destroys,app_wait_submits;
+static atomic_int pressure;
+static uint64_t seen_ids[8];
 static VKAPI_ATTR VkResult VKAPI_CALL create_gate(VkDevice d,const VkSemaphoreCreateInfo *ci,
         const VkAllocationCallbacks *a,VkSemaphore *s) {
     (void)d;(void)ci;(void)a;*s=(VkSemaphore)(uintptr_t)(1000+gate_creates++);return VK_SUCCESS;
@@ -38,6 +41,7 @@ void gfg_gpu_fg_set_source(gfg_gpu_fg *fg,uint64_t capture,uint64_t admission,ui
     (void)fg;observed_source=capture;observed_admission=admission;observed_serial=serial;
 }
 void gfg_gpu_fg_set_output_pacing(gfg_gpu_fg *fg,int active) { (void)fg;(void)active; }
+void gfg_gpu_fg_set_output_pressure(gfg_gpu_fg *fg,int active) { (void)fg;atomic_store(&pressure,active); }
 uint64_t gfg_gpu_fg_source_period_ns(gfg_gpu_fg *fg) {(void)fg;return 33333333ull;}
 void gfg_gpu_fg_restart_history(gfg_gpu_fg *fg) { (void)fg; ++history_restarts; }
 int gfg_gpu_fg_waiting_image(gfg_gpu_fg *fg) { (void)fg; return 0; }
@@ -51,11 +55,20 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue q, const VkPresentInfoKHR *p
     const VkPresentId2KHR *id=times->pNext;
     assert(id && id->sType==VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR && !id->pNext);
     pthread_mutex_lock(&backend_lock);
-    observed_image = pi->pImageIndices[0]; ++entered;
+    observed_image = pi->pImageIndices[0];seen_ids[entered]=id->pPresentIds[0];++entered;
     pthread_cond_broadcast(&backend_changed);
     while (!release_backend) pthread_cond_wait(&backend_changed,&backend_lock);
     VkResult r = backend_result;
     pthread_mutex_unlock(&backend_lock); return r;
+}
+static int third_done,third_handled;
+static gfg_output *third_out;
+static VkPresentInfoKHR *third_pi;
+static void *third_submit(void *unused) {
+    (void)unused;
+    assert(gfg_output_submit(third_out,third_pi,0,&third_handled)==VK_SUCCESS);
+    pthread_mutex_lock(&backend_lock);third_done=1;
+    pthread_cond_broadcast(&backend_changed);pthread_mutex_unlock(&backend_lock);return NULL;
 }
 
 int main(void) {
@@ -127,21 +140,32 @@ int main(void) {
     p->index=4; p->present_id=43;
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
     assert(app_wait_submits==2);
+    /* A third acquired real image must be admitted while the first backend
+     * is deliberately frozen. The former one-pending mailbox blocks here. */
+    p->index=2;p->present_id=44;third_out=out;third_pi=&p->pi;
+    pthread_t producer;assert(!pthread_create(&producer,NULL,third_submit,NULL));
+    struct timespec limit;clock_gettime(CLOCK_REALTIME,&limit);++limit.tv_sec;
+    pthread_mutex_lock(&backend_lock);
+    while(!third_done)if(pthread_cond_timedwait(&backend_changed,&backend_lock,&limit)==ETIMEDOUT)break;
+    assert(third_done && third_handled && !release_backend);
+    pthread_mutex_unlock(&backend_lock);pthread_join(producer,NULL);
+    assert(app_wait_submits==3 && atomic_load(&pressure));
     /* Caller storage is now invalid. Both the executing and pending job must
      * retain scalar arrays, ID, semaphore handles and no pResults pointer. */
     assert(mprotect(p,4096,PROT_NONE)==0);
     assert(gfg_output_drain(out,42,0,NULL)==VK_TIMEOUT);
     uint64_t remaining=99;
     assert(gfg_output_drain(out,0,1000000,&remaining)==VK_TIMEOUT && remaining==0);
-    pthread_mutex_lock(&out->lock); assert(out->busy && out->pending && out->submitted==2);
-    out->pending->queued_ns=tick_ns()-100000000ull; /* deterministic expired job */
+    pthread_mutex_lock(&out->lock); assert(out->busy && out->queued==2 && out->submitted==3 && out->peak_queued<=out->image_count);
+    out->jobs[out->head]->queued_ns=tick_ns()-100000000ull; /* deterministic expired job */
     pthread_mutex_unlock(&out->lock);
     pthread_mutex_lock(&backend_lock); release_backend=1;
     pthread_cond_broadcast(&backend_changed); pthread_mutex_unlock(&backend_lock);
     assert(gfg_output_drain(out,0,1000000000,&remaining)==VK_SUCCESS);
-    assert(out->completed==2 && out->completed_id==43 && observed_image==4);
+    assert(out->completed==3 && out->completed_id==44 && observed_image==2);
+    assert(seen_ids[0]==42 && seen_ids[1]==43 && seen_ids[2]==44 && !atomic_load(&pressure));
     assert(out->stale==1 && history_restarts==1);
-    assert(observed_serial==2 && observed_source<observed_admission && observed_admission>0);
+    assert(observed_serial==3 && observed_source<=observed_admission && observed_admission>0);
     assert(gfg_output_sem_reusable(out,(VkSemaphore)(uintptr_t)7));
     gfg_output_destroy(out);
 
@@ -153,7 +177,7 @@ int main(void) {
     assert(gfg_output_drain(out,0,1000000000,NULL)==VK_ERROR_DEVICE_LOST);
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_ERROR_DEVICE_LOST && handled);
     assert(p->result==VK_ERROR_DEVICE_LOST);
-    assert(gfg_output_status(out)==VK_ERROR_DEVICE_LOST && app_wait_submits==3);
+    assert(gfg_output_status(out)==VK_ERROR_DEVICE_LOST && app_wait_submits==4);
     gfg_output_destroy(out); pthread_mutex_destroy(&wsi); munmap(p,4096);
     assert(gate_creates==10 && gate_destroys==10);
     puts("GFG output worker: deep immutable metadata, bounded jobs, timed drain and deferred errors PASS");

@@ -5,6 +5,11 @@
 #define GFG_NATIVE_WITH_TE
 #include "../src/gpu_bridge.c"
 #include <assert.h>
+#include <sys/stat.h>
+static void *queue_pressure(void *arg) {
+    const struct timespec delay={.tv_nsec=1000000};nanosleep(&delay,NULL);
+    gfg_gpu_fg_set_output_pressure(arg,1);return NULL;
+}
 static unsigned calls, mode;
 static const void *original_chain;
 static uint32_t previous_id;
@@ -36,11 +41,32 @@ int main(void) {
         assert(app.pNext==&app_id && app_id.pPresentIds[0]==77);
         assert(fg.accepted_ns[k] && fg.google_ids[k]==k+1);
     }
+    /* A target two seconds away cannot hold a newly arrived real frame. */
+    fg.output_wsi=(pthread_mutex_t *)NULL;
+    pthread_mutex_t wsi=PTHREAD_MUTEX_INITIALIZER;fg.output_wsi=&wsi;
+    fg.clock.target_ns[2]=(uint64_t)(now_us()*1000.0)+2000000000ull;
+    wanted=0;
+    pthread_t producer;assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
+    double start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(now_us()-start<250000.0);
+    pthread_join(producer,NULL);pthread_mutex_destroy(&wsi);fg.output_wsi=NULL;
+    gfg_gpu_fg_set_output_pressure(&fg,0);
+    fg.diagnostic=1;
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    fg.diagnostic=0;
+    /* Bounded flushing: multiple small events stay buffered until 250ms. */
+    fg.telemetry=tmpfile();assert(fg.telemetry);fg.telemetry_flush_ns=10;
+    fputs("first\nsecond\n",fg.telemetry);
+    struct stat st;assert(!fstat(fileno(fg.telemetry),&st) && !st.st_size);
+    telemetry_flush(&fg,249000010);assert(!fstat(fileno(fg.telemetry),&st) && !st.st_size);
+    telemetry_flush(&fg,250000010);assert(!fstat(fileno(fg.telemetry),&st) && st.st_size==13);
+    fclose(fg.telemetry);fg.telemetry=NULL;
     /* App-owned namespace: preserve its entire chain; no injected GOOGLE IDs. */
     mode=1;fg.display_timing=1;fg.pacing_active=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(calls==5 && previous_id==3);
+    assert(calls==7 && previous_id==5);
     puts("presentation-timing: distinct desired G1/G2/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }

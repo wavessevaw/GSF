@@ -5,7 +5,7 @@
 #include "gpu_bridge.h"
 
 typedef struct gfg_output gfg_output;
-/* One executing job + at most one queued job. No caller pointers survive submit. */
+/* One executing job; real FIFO bounded by swapchain images. No caller pointers survive submit. */
 gfg_output *gfg_output_create(gfg_gpu_fg *gpu, VkQueue queue,
     PFN_vkQueuePresentKHR present, const gfg_present_id_hooks *ids, pthread_mutex_t *wsi,
     VkDevice device, PFN_vkGetDeviceProcAddr gdpa, uint32_t image_count, const VkSemaphore *acquired);

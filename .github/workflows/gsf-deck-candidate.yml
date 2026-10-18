@@ -67,6 +67,23 @@ jobs:
           fi
           if grep -E 'Manifest .*missing required field|loader_add_layer_properties:' "$RUNNER_TEMP/results/"*/*.log; then exit 1; fi
           cat "$RUNNER_TEMP/results/"*/RESULT.txt
+      - name: Actual Vulkan pacing A/B with prior implementation and variable source
+        if: matrix.order == 'native-first' && matrix.wm == 'bare'
+        run: |
+          git fetch --depth=1 origin 61037766aef41703668d8029a54303e5f1e0da71
+          git worktree add --detach "$RUNNER_TEMP/gsf-before" 61037766aef41703668d8029a54303e5f1e0da71
+          make -C "$RUNNER_TEMP/gsf-before/engine/gfg-native" ENABLE_TE=1 BUILD=build-before VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" TE_LIB="$GITHUB_WORKSPACE/engine/gfg-temporal/build/libgfg-temporal.a" layer
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 engine/gfg-native/tests/pacing_ab.py \
+            --kit "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test" \
+            --before-layer "$RUNNER_TEMP/gsf-before/engine/gfg-native/build-before/libVkLayer_gfg_native.so" \
+            --output "$RUNNER_TEMP/pacing-ab"
+      - name: Preserve pacing A/B evidence
+        if: always() && matrix.order == 'native-first' && matrix.wm == 'bare'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GSF-pacing-AB
+          path: ${{ runner.temp }}/pacing-ab
       - name: Automatic Game Mode install and exact Steam entry launch smoke
         if: matrix.order == 'native-first' && matrix.wm == 'bare'
         run: |
