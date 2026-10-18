@@ -231,7 +231,7 @@ def main():
                          for p in child_env(KIT, False, False, args.order)['VK_LAYER_PATH'].split(':'))
         report['validation_layer_available'] = validation
         cases = [('baseline',None,False), ('tiles-2x','tiles',False),
-                 ('lmc-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True),
+                 ('lmc-2x','lmc-gpu',False), ('lmc-mutable-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True),
                  ('lmc-paced-2x','lmc-gpu',False)]
         if args.visual or not args.noninteractive:
             cases += [('A-baseline-visual',None,False), ('B-lmc-visual','lmc-gpu',False)]
@@ -242,6 +242,9 @@ def main():
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
+            if label=='lmc-mutable-2x':
+                env['GFG_TEST_MUTABLE_SWAPCHAIN']='1'
+                env['GFG_TEST_PROTON_CHAIN']='1'
             env['GFG_TEST_TITLE'] = 'GSF '+label+' | source 5 Hz'+(' | output 10 Hz' if paced else ' | no generation' if algo is None else '')
             if visual:
                 print(('A: исходные 5 кадров/с' if algo is None else 'B: GPU LMC 5 → 10 кадров/с')+' — окно 480×320, 8 секунд движения.', flush=True)
@@ -257,6 +260,8 @@ def main():
                                   stderr=subprocess.STDOUT, text=True, timeout=180)
             log = proc.stdout
             (run/(label+'.log')).write_text(log)
+            if label=='lmc-mutable-2x' and 'GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS original_metadata_unchanged=PASS' not in log:
+                raise ValueError('Нет проверки изменяемых форматов DXVK: '+log[-1000:])
             if proc.returncode or re.search(r'VUID-|VALIDATION ERROR|Validation Error|UNASSIGNED-.*ERROR',log):
                 raise ValueError(f'{label}: ошибка Vulkan или приложения (exit={proc.returncode}), см. журнал')
             if 'GPU bridge WSI smoke PASS' not in log:

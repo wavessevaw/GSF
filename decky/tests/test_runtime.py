@@ -53,6 +53,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(reloaded.config()['games'], {})
         self.assertFalse((reloaded.root/'current.json').exists())
 
+    def test_game_gate_refusal_is_visible_without_gpu_bridge(self):
+        run = self.runtime.results/'game-42-20261018-test'
+        run.mkdir(parents=True)
+        (run/'game.log').write_text('GSF_REAL_WSI_GATE gpu_requested=1 candidate=0 reason=unsupported-swapchain-flags\n')
+        result = self.runtime.status(42)
+        self.assertEqual(result['state'], 'blocked')
+        self.assertEqual(result['gate_rejection'], 'unsupported-swapchain-flags')
+        with (run/'game.log').open('a') as f:
+            f.write('GSF_REAL_WSI_GATE gpu_requested=1 candidate=1 reason=extended-usage-ready\n')
+        self.assertEqual(self.runtime.status(42)['state'], 'waiting')
+
     def test_user_edits_never_overwritten_on_restore(self):
         with patch.object(self.runtime, 'install', return_value={}):
             p = self.runtime.prepare(42, '-windowed')

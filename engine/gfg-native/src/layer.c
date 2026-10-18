@@ -1084,8 +1084,33 @@ static const char *native_ineligible_reason(const VkSwapchainCreateInfoKHR *ci) 
     const VkSwapchainCreateFlagsKHR present_protocol =
         VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR |
         VK_SWAPCHAIN_CREATE_PRESENT_WAIT_2_BIT_KHR;
-    if (ci->flags & ~present_protocol)
+    if (ci->flags & ~(present_protocol | VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR))
         return "unsupported-swapchain-flags";
+    /* DXVK uses UNORM/SRGB aliases of the same 8-bit storage. GSF copies
+     * the base-format pixels; it never reinterprets the game's WSI views.
+     * Keep the flag/list unchanged and reject unverified alias families. */
+    if(ci->flags & VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR) {
+        const VkBaseInStructure *node=ci->pNext;unsigned count=0;
+        for(;node && count<16 && node->sType!=VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO;
+            node=node->pNext,++count) {}
+        if(!node || count==16)return "mutable-format-list-missing";
+        const VkImageFormatListCreateInfo *list=(const VkImageFormatListCreateInfo *)node;
+        if(!list->viewFormatCount || list->viewFormatCount>16 || !list->pViewFormats)
+            return "mutable-format-list-invalid";
+        VkFormat unorm,srgb;
+        if(ci->imageFormat==VK_FORMAT_R8G8B8A8_UNORM || ci->imageFormat==VK_FORMAT_R8G8B8A8_SRGB) {
+            unorm=VK_FORMAT_R8G8B8A8_UNORM;srgb=VK_FORMAT_R8G8B8A8_SRGB;
+        }else if(ci->imageFormat==VK_FORMAT_B8G8R8A8_UNORM || ci->imageFormat==VK_FORMAT_B8G8R8A8_SRGB) {
+            unorm=VK_FORMAT_B8G8R8A8_UNORM;srgb=VK_FORMAT_B8G8R8A8_SRGB;
+        }else return "mutable-format-family-unsupported";
+        int has_base=0;
+        for(uint32_t i=0;i<list->viewFormatCount;++i) {
+            VkFormat f=list->pViewFormats[i];
+            if(f!=unorm && f!=srgb)return "mutable-format-alias-unsupported";
+            if(f==ci->imageFormat)has_base=1;
+        }
+        if(!has_base)return "mutable-format-base-missing";
+    }
     if (native_gamescope_packed10_unsafe(ci))
         return "gamescope-packed10-physical-dispatch-unverified";
     /* Gamescope's embedded WSI implements MAILBOX directly at the driver and
@@ -1408,13 +1433,15 @@ native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
         fprintf(stderr,"GSF_REAL_WSI_GATE gpu_requested=%d gpu_capable=%d async=%d"
                 " fifo_requested=%d original_mode=%d effective_mode=%d"
                 " original_pnext=%d image_count_requested=%u spare=%u"
+                " create_flags=0x%x image_format=%d image_usage=0x%x"
                 " real_swapchain=1 virtual_swapchain=0 candidate=%d reason=%s\n",
                 native_env_is_1("GFG_NATIVE_GPU_BRIDGE"),d->gpu_capable,
                 d->async_output,native_env_is_1("GFG_NATIVE_FORCE_FIFO"),
                 (int)ci->presentMode,(int)extended.presentMode,
                 head?(int)head->sType:-1,
                 candidate?extended.minImageCount:ci->minImageCount,
-                spare_images,candidate,reason?reason:"none");
+                spare_images,(unsigned)ci->flags,(int)ci->imageFormat,(unsigned)ci->imageUsage,
+                candidate,reason?reason:"none");
     }
     VkResult result = d->create_swapchain(device, candidate ? &extended : ci,
                                            alloc, out);

@@ -35,7 +35,26 @@ int main(void) {
     ci.flags = VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR;
     assert(!strcmp(native_ineligible_reason(&ci), "unsupported-swapchain-flags"));
     ci.flags = VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR;
-    assert(!strcmp(native_ineligible_reason(&ci), "unsupported-swapchain-flags"));
+    assert(!strcmp(native_ineligible_reason(&ci), "mutable-format-list-missing"));
+    VkFormat aliases[2]={VK_FORMAT_B8G8R8A8_UNORM,VK_FORMAT_B8G8R8A8_SRGB};
+    const VkImageFormatListCreateInfo list={.sType=VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO,
+        .viewFormatCount=2,.pViewFormats=aliases};
+    ci.pNext=&list;
+    assert(native_ineligible_reason(&ci)==NULL);
+    ci.flags|=VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR|VK_SWAPCHAIN_CREATE_PRESENT_WAIT_2_BIT_KHR;
+    assert(native_ineligible_reason(&ci)==NULL);
+    aliases[1]=VK_FORMAT_R8G8B8A8_SRGB;
+    assert(!strcmp(native_ineligible_reason(&ci),"mutable-format-alias-unsupported"));
+    aliases[0]=aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
+    assert(!strcmp(native_ineligible_reason(&ci),"mutable-format-base-missing"));
+    aliases[0]=VK_FORMAT_B8G8R8A8_UNORM;aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
+    ci.imageFormat=VK_FORMAT_R8G8B8A8_UNORM;
+    aliases[0]=VK_FORMAT_R8G8B8A8_UNORM;aliases[1]=VK_FORMAT_R8G8B8A8_SRGB;
+    assert(native_ineligible_reason(&ci)==NULL);
+    aliases[0]=VK_FORMAT_B8G8R8A8_UNORM;aliases[1]=VK_FORMAT_B8G8R8A8_SRGB;
+    ci.imageFormat=VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+    assert(!strcmp(native_ineligible_reason(&ci),"mutable-format-family-unsupported"));
+    ci.imageFormat=VK_FORMAT_B8G8R8A8_UNORM;ci.pNext=NULL;
     ci.flags = 0x1000;
     assert(!strcmp(native_ineligible_reason(&ci), "unsupported-swapchain-flags"));
     ci.flags = VK_SWAPCHAIN_CREATE_PRESENT_WAIT_2_BIT_KHR;

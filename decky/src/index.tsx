@@ -5,7 +5,7 @@ import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number};
-type Status = {enabled: boolean; state: string; live: Live[]; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -89,6 +89,7 @@ function Content() {
   const live = status?.live?.[0];
   const state = status?.state === 'generating' ? 'Генерация кадров подтверждена' :
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
+    status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? '2× настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
   return <PanelSection title="GSF · игровой тест 2×">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
@@ -118,7 +119,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.1 · Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.2 · Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

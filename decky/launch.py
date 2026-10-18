@@ -11,7 +11,7 @@ import sys
 import tempfile
 import time
 
-from gsf_runtime import Runtime, app_id, atomic_json, candidate_module, live_records, load_json
+from gsf_runtime import Runtime, app_id, atomic_json, candidate_module, gate_rejection, live_records, load_json
 
 LOG_LIMIT = 16*1024*1024
 TELEMETRY_LIMIT = 32*1024*1024
@@ -112,6 +112,9 @@ def run_game(root, aid, command):
         report['error'] = str(error)
         print('GSF: '+str(error), file=sys.stderr)
     finally:
+        report['gate_rejection'] = gate_rejection(run)
+        if not report['max_generated_wsi_accepted'] and report['gate_rejection']:
+            report['result'] = 'GENERATION_BLOCKED'
         report['finished_unix_ms'] = int(time.time()*1000)
         atomic_json(run/'REPORT.json', report)
         try:
