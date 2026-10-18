@@ -96,7 +96,7 @@ def diagnostic_summary(path):
     report = {'available': True, **totals, **counts,
               'conversion_dispatched_to_wsi': round(counts['accepted_outputs'] / counts['submitted_outputs'], 4)
                   if counts['submitted_outputs'] else None,
-              'gpu_queue_wait_ms': None,  # no calibrated CPU/GPU clock in 0.1.5
+              'gpu_queue_wait_ms': None,  # never report an unproven pure queue wait
               'windows_10s': result_windows, 'admission_bins': admission_bins}
     if overruns:
         ordered = sorted(overruns)

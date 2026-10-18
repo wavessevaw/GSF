@@ -1,3 +1,9 @@
+# GSF Decky Test 0.1.6 Diagnostic (GPU calibration + AMDGPU sensors)
+
+Opt-in VK_KHR/VK_EXT_calibrated_timestamps is enabled on the application's Vulkan device only when supported. For GPU pairs, te_submit_frame captures CLOCK_MONOTONIC directly after successful queue submission and GPU raw query 0 is exported by te_sequence. The field **submit_to_gpu_start_ns** is not a pure queue-wait measurement. Calibration is attempted every 10 generated frames or 100 ms, with per-pair maxDeviation gating (<=1ms), stale pair detection and null fields when untrustworthy. All timestamps are diagnostic, no change to frame_clock, LMC, admission or timeouts.
+
+A launcher-side Python sampler records available /sys/class/drm/card*/device gpu_busy_percent, pp_dpm_sclk, power1_average and temp1_input every ~100ms in amdgpu.jsonl without root. Data is global GPU usage, not game-specific; ambiguous/missing GPU yields unavailable. Game Mode diagnostics include normal-no-calibration and normal-calibration-every-frame for A/B overhead checks.
+
 # GSF Test 0.1.5 Diagnostic — Decky, Game Mode
 
 **0.1.5 measures completion of real LMC GPU jobs after WSI missed its deadline.**
