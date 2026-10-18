@@ -1,0 +1,89 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// FULL: per-pixel choice among the 9 neighbouring tile vectors and the
+// interpolated field by a 3x3 bilateral luma cost at time t, then an
+// occlusion-aware blend (reference: full_executor).
+#include "common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+#ifndef OUTPUT_FMT
+#define OUTPUT_FMT rgba8
+#endif
+layout(set = 1, binding = 0, OUTPUT_FMT) uniform writeonly image2D dst;
+
+const ivec2 NB[9] = ivec2[9](ivec2(0, 0), ivec2(0, -1), ivec2(0, 1), ivec2(-1, 0), ivec2(1, 0),
+                             ivec2(-1, -1), ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1));
+
+float cand_cost(vec2 pf, vec2 c, vec2 vs, float t) {
+    float acc = 0.0;
+    for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+            vec2 q = pf + vec2(ox, oy);
+            acc += abs(luma_a(0, q - t * c) - luma_b(0, q + (1.0 - t) * c));
+        }
+    }
+    return acc * (1.0 / 9.0) + P.smooth_bias * (abs(c.x - vs.x) + abs(c.y - vs.y));
+}
+
+void shade(ivec2 p, vec2 v, float t) {
+    vec2 pf = vec2(p);
+    vec3 a = rgb_a(pf - t * v);
+    vec3 b = rgb_b(pf + (1.0 - t) * v);
+    vec3 dd = abs(a - b);
+    float d = (dd.r + dd.g + dd.b) / 3.0;
+    float w = smoothstep(P.occ_lo, P.occ_hi, d);
+    vec3 blend = a * (1.0 - t) + b * t;
+    vec3 near = t < 0.5 ? a : b;
+    imageStore(dst, p, output_color(vec4(blend + (near - blend) * w, 1.0)));
+}
+
+vec2 candidate(int k, ivec2 ct, vec2 vs) { return k < 9 ? tile_vector(0, ct + NB[k]) : vs; }
+
+void main() {
+    uint id = G.list[CLASS_FULL * uint(tile_count()) + gl_WorkGroupID.x];
+    ivec2 tc = ivec2(int(id) % P.tiles.x, int(id) / P.tiles.x);
+    float t = PC.t;
+    if (P.full_density == 2) {
+        // one candidate decision per 2x2 block, at the block centre, with the
+        // lead (top-left) pixel's interpolated field (reference: experiment B2x2)
+        int half_ = P.tile / 2;
+        for (int blk = int(gl_LocalInvocationIndex); blk < half_ * half_; blk += 64) {
+            ivec2 p0 = tc * P.tile + ivec2(blk % half_, blk / half_) * 2;
+            if (any(greaterThanEqual(p0, P.size))) continue;
+            ivec2 ct = min(p0 / P.tile, P.tiles - 1);
+            vec2 vs0 = smooth_vector(vec2(p0), t);
+            vec2 cen = vec2(p0) + 0.5;
+            int best = 0;
+            float bc = cand_cost(cen, candidate(0, ct, vs0), vs0, t);
+            for (int k = 1; k < 10; ++k) {
+                float cc = cand_cost(cen, candidate(k, ct, vs0), vs0, t);
+                if (cc < bc) { bc = cc; best = k; }
+            }
+            for (int dy = 0; dy < 2; ++dy) {
+                for (int dx = 0; dx < 2; ++dx) {
+                    ivec2 p = p0 + ivec2(dx, dy);
+                    if (any(greaterThanEqual(p, P.size))) continue;
+                    vec2 v = best < 9 ? tile_vector(0, ct + NB[best]) : smooth_vector(vec2(p), t);
+                    shade(p, v, t);
+                }
+            }
+        }
+        return;
+    }
+    for (int by = 0; by < P.tile; by += 8) {
+        for (int bx = 0; bx < P.tile; bx += 8) {
+            ivec2 p = tc * P.tile + ivec2(bx, by) + ivec2(gl_LocalInvocationID.xy);
+            if (any(greaterThanEqual(p, P.size))) continue;
+            vec2 pf = vec2(p);
+            ivec2 ct = min(p / P.tile, P.tiles - 1);
+            vec2 vs = smooth_vector(pf, t);
+            vec2 best = tile_vector(0, ct);
+            float bc = cand_cost(pf, best, vs, t);
+            for (int k = 1; k < 10; ++k) {
+                vec2 c = candidate(k, ct, vs);
+                float cc = cand_cost(pf, c, vs, t);
+                if (cc < bc) { bc = cc; best = c; }
+            }
+            shade(p, best, t);
+        }
+    }
+}

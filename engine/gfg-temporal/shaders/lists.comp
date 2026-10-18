@@ -1,0 +1,30 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Per output frame: apply residual promotions from the previous output of
+// this pair, then append every tile to the list of its class.  The list
+// counts are the indirect dispatch sizes of the executors.
+#include "common.glsl"
+layout(local_size_x = 64) in;
+
+void main() {
+    int id = int(gl_GlobalInvocationID.x);
+    int n = tile_count();
+    if (id >= n) return;
+    uint par = uint(PC.parity);
+    TileState ts = tstate[id];
+    uint c;
+    if (G.cut[par] != 0u) {
+        c = CLASS_REUSE;
+    } else {
+        if ((PC.flags & 2) == 0 && PC.frame > 0 && ts.frame_cls == CLASS_LIGHT && residual[id] > P.residual_thr) {
+            ts.state = CLASS_FULL;
+            ts.count = 0u;
+            atomicAdd(G.promoted, 1u);
+        }
+        c = ts.state;
+    }
+    ts.frame_cls = c;
+    tstate[id] = ts;
+    uint slot = atomicAdd(G.args[c].x, 1u);
+    G.list[c * uint(n) + slot] = uint(id);
+}

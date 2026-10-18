@@ -1,0 +1,47 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// LIGHT: two-sided warp along the interpolated tile field, plus the tile
+// residual that drives promotion (reference: light_executor).
+#include "common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+#ifndef OUTPUT_FMT
+#define OUTPUT_FMT rgba8
+#endif
+layout(set = 1, binding = 0, OUTPUT_FMT) uniform writeonly image2D dst;
+
+shared float s_sum[64];
+shared uint s_cnt[64];
+
+void main() {
+    uint id = G.list[CLASS_LIGHT * uint(tile_count()) + gl_WorkGroupID.x];
+    ivec2 tc = ivec2(int(id) % P.tiles.x, int(id) / P.tiles.x);
+    uint li = gl_LocalInvocationIndex;
+    float t = PC.t;
+    float sum = 0.0;
+    uint cnt = 0u;
+    for (int by = 0; by < P.tile; by += 8) {
+        for (int bx = 0; bx < P.tile; bx += 8) {
+            ivec2 p = tc * P.tile + ivec2(bx, by) + ivec2(gl_LocalInvocationID.xy);
+            if (any(greaterThanEqual(p, P.size))) continue;
+            vec2 pf = vec2(p);
+            vec2 v = smooth_vector(pf, t);
+            vec3 a = rgb_a(pf - t * v);
+            vec3 b = rgb_b(pf + (1.0 - t) * v);
+            imageStore(dst, p, output_color(vec4(a * (1.0 - t) + b * t, 1.0)));
+            vec3 d = abs(a - b);
+            sum += (d.r + d.g + d.b) / 3.0;
+            cnt += 1u;
+        }
+    }
+    s_sum[li] = sum;
+    s_cnt[li] = cnt;
+    barrier();
+    for (uint w = 32u; w > 0u; w >>= 1) {
+        if (li < w) {
+            s_sum[li] += s_sum[li + w];
+            s_cnt[li] += s_cnt[li + w];
+        }
+        barrier();
+    }
+    if (li == 0u) residual[id] = s_sum[0] / float(max(s_cnt[0], 1u));
+}
