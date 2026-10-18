@@ -105,6 +105,8 @@ def main():
         report['payload_verified']=True
         report['build']=json.loads((KIT/'BUILD_INFO.json').read_text())
         report['library_sha256']=base.digest(KIT/'libVkLayer_gfg_native.so')
+        order=base.prepare_gamescope_layer(run)
+        if order:report['gamescope_layer_order']=order['metadata']
         if not args.smoke and not (os.environ.get('SteamAppId') or os.environ.get('SteamGameId')):
             raise ValueError('Запустите GSF Game Mode Test из библиотеки Steam в Game Mode')
         if platform.machine()!='x86_64' or not os.environ.get('DISPLAY'):
@@ -120,6 +122,9 @@ def main():
             report['stage']=label
             print('GSF Game Mode: '+label,flush=True)
             env=base.child_env(KIT,active,False,'native-first',preserve_layers=True)
+            if order:
+                env.update(order['disable_environment'])
+                env['VK_LAYER_PATH']=str(order['directory'])+':'+env['VK_LAYER_PATH']
             env.update(GFG_TEST_WIDTH=str(w),GFG_TEST_HEIGHT=str(h),GFG_TEST_SOURCE_HZ=str(source),
                        GFG_TEST_FRAMES=str(frames),GFG_TEST_ABSOLUTE_PACING='1',
                        GFG_TEST_TITLE='GSF '+label,
@@ -128,20 +133,27 @@ def main():
                 env.update(GFG_NATIVE_ALGO='lmc-gpu',GFG_NATIVE_OUTPUT_HZ=str(output),
                            GFG_TEST_ALLOW_SKIPS='1',GFG_NATIVE_GPU_BRIDGE_VERIFY_EVERY=str(max(2,source)),
                            GFG_NATIVE_TELEMETRY=str(run/(label+'.jsonl')))
+            observed={'requested_layers':env.get('VK_INSTANCE_LAYERS','')}
             try:
                 p=subprocess.run([str(KIT/'wsi-gpu-smoke')],env=env,stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,text=True,timeout=180)
                 (run/(label+'.log')).write_text(p.stdout)
+                if 'GFG native: gpu stats ' in p.stdout:
+                    observed['counters']=base.counters(p.stdout)
+                gate=re.search(r'GSF_REAL_WSI_GATE ([^\n]+)',p.stdout)
+                if gate:observed['create_gate']=gate[1]
+                if active and observed.get('counters',{}).get('bridges') == 0:
+                    raise ValueError('Генератор не включился: '+observed.get('create_gate','нет create gate'))
                 if p.returncode or re.search(r'VUID-|VALIDATION ERROR|Validation Error',p.stdout):
                     raise ValueError(f'Ошибка Vulkan/приложения, exit={p.returncode}')
                 if 'GPU bridge WSI smoke PASS' not in p.stdout:raise ValueError('Нет завершения приложения')
                 metrics=inspect_case(p.stdout,run/(label+'.jsonl'),frames,source,output if active else 0)
-                report['cases'][label]={'status':'PASS',**metrics}
+                report['cases'][label]={'status':'PASS',**observed,**metrics}
             except (ValueError,subprocess.TimeoutExpired) as error:
                 if isinstance(error,subprocess.TimeoutExpired):
                     out=error.stdout or b''
                     (run/(label+'.log')).write_text(out.decode(errors='replace') if isinstance(out,bytes) else out)
-                report['cases'][label]={'status':'FAIL','error':str(error)}
+                report['cases'][label]={'status':'FAIL',**observed,'error':str(error)}
                 failed=True
         report.update(status='FAIL' if failed else 'PASS',stage='complete')
         code=int(failed)
@@ -155,8 +167,8 @@ def main():
         (run/'RESULT.txt').write_text(text)
         archive=run.with_suffix('.zip')
         with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
-            for p in sorted(run.iterdir()):
-                if p.is_file():z.write(p,run.name+'/'+p.name)
+            for p in sorted(run.rglob('*')):
+                if p.is_file():z.write(p,run.name+'/'+p.relative_to(run).as_posix())
         latest=args.results/'GSF-Game-Mode-Latest.zip'
         fd,tmp=tempfile.mkstemp(prefix='.latest-',dir=args.results);os.close(fd)
         try:
