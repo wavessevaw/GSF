@@ -23,7 +23,32 @@ static unsigned replay(unsigned fps,unsigned mul,unsigned n) {
            fps,mul,output,n,(unsigned long long)c.resyncs);
     return output;
 }
+static void jittered_integer_ratio(unsigned output_hz,unsigned multiplier) {
+    const uint64_t p=ns/output_hz,origin=10*ns;
+    gfg_frame_clock c={.period_ns=p};uint64_t last_real=0;
+    for(unsigned i=0;i<600;i++) {
+        /* Absolute source scheduling alternates tiny overshoot/undershoot.
+         * Plain ceil previously produced 3-slot / 1-slot real spacing at 2x,
+         * deleting every second synthetic output despite negligible jitter. */
+        const uint64_t source=origin+(uint64_t)i*multiplier*p+(i%2?100000:0);
+        gfg_frame_clock_pair(&c,source,multiplier);
+        assert(c.real_ns>=source && c.real_ns<=source+2*c.interval_ns);
+        if(i) {
+            assert(c.mask==(1u<<(multiplier-1))-1u);
+            assert(c.real_ns-last_real==multiplier*p);
+            for(unsigned k=0;k<multiplier-1;k++) {
+                assert(c.target_ns[k]>source && c.target_ns[k]<c.real_ns);
+                assert(c.real_ns-c.target_ns[k]==(multiplier-1-k)*p);
+            }
+        }
+        last_real=c.real_ns;
+    }
+}
+
 int main(void) {
+    jittered_integer_ratio(10,2);
+    jittered_integer_ratio(90,2);
+    jittered_integer_ratio(90,3);
     /* 27/42 -> 54/84: enough slots for one generator output per real frame. */
     assert(replay(27,2,600)>=590);
     assert(replay(42,2,600)>=590);
