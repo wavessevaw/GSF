@@ -251,6 +251,7 @@ def main():
                 env.update(GFG_TEST_WIDTH='480', GFG_TEST_HEIGHT='320', GFG_TEST_FRAMES=str(frames))
             if algo:
                 env['GFG_NATIVE_ALGO'] = algo
+                if algo == 'lmc-gpu': env['GFG_NATIVE_LMC_TIER'] = '2'  # match production Decky diagnostic tier
                 env['GFG_NATIVE_TELEMETRY'] = str(run/(label+'.jsonl'))
             if paced:
                 env.update(GFG_NATIVE_OUTPUT_HZ='10', GFG_TEST_ALLOW_SKIPS='1', GFG_TEST_ABSOLUTE_PACING='1')
