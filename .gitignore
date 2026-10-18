@@ -7,3 +7,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+node_modules/
+decky/dist/
+decky/out/

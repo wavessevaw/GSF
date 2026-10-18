@@ -1,0 +1,56 @@
+name: GSF Decky In-Game Test Package
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'decky/**'
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/**'
+      - 'engine/gfg-temporal/**'
+      - 'scripts/package_deck*.py'
+      - '.github/workflows/gsf-decky-test.yml'
+permissions:
+  contents: read
+jobs:
+  extracted-decky:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: decky/package-lock.json
+      - name: Install Vulkan build and software GPU dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb xauth
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build and test Decky frontend and backend
+        run: |
+          npm --prefix decky ci --ignore-scripts --no-audit --no-fund
+          npm --prefix decky run check
+          npm --prefix decky test
+          npm --prefix decky run build
+          python3 -m unittest discover -s decky/tests -p 'test_*.py'
+          make -C engine/gfg-native frame-clock
+      - name: Build GPU layer and package exact source
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-decky VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-decky/wsi-gpu-smoke
+          python3 scripts/package_deck_candidate.py --build engine/gfg-native/build-decky --out "$RUNNER_TEMP/candidate"
+          python3 scripts/package_decky_test.py --candidate "$RUNNER_TEMP/candidate/GSF-Deck-Test.zip" --out "$RUNNER_TEMP/decky"
+      - name: Extracted offline plugin actual install, GPU generation, diagnostics and uninstall bypass
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 decky/tests/extracted_smoke.py --archive "$RUNNER_TEMP/decky/GSF-Decky-Test-0.1.0.zip" --output "$RUNNER_TEMP/decky-evidence"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GSF-Decky-Test-0.1.0
+          path: ${{ runner.temp }}/decky/GSF-Decky-Test-0.1.0.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GSF-Decky-Test-evidence
+          path: ${{ runner.temp }}/decky-evidence
