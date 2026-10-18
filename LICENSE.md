@@ -1,10 +1,29 @@
-# GFG Extreme licensing
+# GSF — Software License and Preserved Third-Party Notices
 
+GSF (GPU Synthetic Frames) is an independent research project extracted from
+[GFG Extreme](https://github.com/wavessevaw/GFG-Extreme) on 2026-10-18.
+GSF's GPL-covered software is distributed under the **GNU General Public
+License, version 3 or (at your option) any later version**
+(`SPDX-License-Identifier: GPL-3.0-or-later`).
+
+**Preserved upstream notice:**
 Copyright (C) 2025-2026 Eugenio Segala and contributors.
 
-GFG Extreme is a modified work derived from the upstream MAKO codebase. Except for the third-party material identified below, the covered code is distributed under the **GNU General Public License, version 3 or any later version** (`GPL-3.0-or-later`).
+Copyright in original components, adaptations and each new contribution remains
+with its respective lawful copyright holder. Repository administration,
+extraction into GSF and publication by `wavessevaw` do **not** transfer
+copyright ownership or revoke licenses already granted. Separate third-party
+components retain their applicable notices and license terms.
 
-The complete GNU GPL version 3 license text follows. The third-party notices after it remain applicable to the portions identified there.
+The complete GPLv3 license text and the historical third-party notices follow
+**unchanged**. See [COPYRIGHT.md](COPYRIGHT.md), [NOTICE.md](NOTICE.md),
+[TRADEMARKS.md](TRADEMARKS.md) and [MIGRATION.md](MIGRATION.md)
+for copyright provenance, component scope, brand use and source history.
+
+This introductory explanation adds **no restriction** to rights granted under
+GPL-3.0-or-later. Source code may be used, modified and distributed commercially
+subject to the applicable licenses; GSF does not grant exclusive rights to
+another person's pre-existing code.
 
 ---
 
