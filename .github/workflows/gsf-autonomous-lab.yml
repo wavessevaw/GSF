@@ -41,7 +41,8 @@ jobs:
           make -C engine/gfg-native BUILD=build-lab VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" \
             build-lab/loader-probe/libVkLayer_gfg_native.so \
             build-lab/loader-probe/VkLayer_gfg_native.json \
-            build-lab/loader-live-output
+            build-lab/loader-live-output \
+            build-lab/wsi-smoke
       - name: Capture driver/toolchain provenance
         run: |
           set -euo pipefail
@@ -55,7 +56,7 @@ jobs:
           } > "gsf-lab-${{ matrix.order }}/environment.txt"
           VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json vulkaninfo --summary \
             > "gsf-lab-${{ matrix.order }}/vulkaninfo.txt" 2>&1 || true
-      - name: X11 pixel evidence, 45 to 90 sustained, strict Vulkan validation
+      - name: Native-first virtual WSI OR validation-first real WSI passthrough, strictly checked
         run: |
           python3 engine/gfg-native/scripts/gsf_test_lab.py \
             --profile sustained --layer-order "${{ matrix.order }}" \
