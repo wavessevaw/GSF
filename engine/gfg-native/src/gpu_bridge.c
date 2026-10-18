@@ -983,7 +983,9 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?4:0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
     const char *rate=getenv("GFG_NATIVE_OUTPUT_HZ");
-    if(rate && cd.params.algorithm==TE_ALGO_SHARED_FLOW) {
+    /* Explicit pacing also applies to GPU LMC; its default stays unpaced.
+     * Correctness probes and visible cadence demos are separate contracts. */
+    if(rate && (cd.params.algorithm==TE_ALGO_SHARED_FLOW || cd.params.algorithm==TE_ALGO_LMC_GPU)) {
         char *end=NULL;long hz=strtol(rate,&end,10);
         if(end!=rate && !*end && hz>=1 && hz<=240)fg->clock.period_ns=1000000000ull/(uint64_t)hz;
     }
@@ -1384,7 +1386,9 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         }
         if(r!=VK_SUCCESS){fail_log(fg,"output readiness",r);return -1;}
         fg->readiness_ns[k]=(uint64_t)(now_us()*1000.0);
-        if(!fg->control_checked) {
+        /* Only SharedFlow exports its cut/duplicate control header.
+         * LMC pacing uses readiness and deadlines, as its unpaced path does. */
+        if(fg->shared_flow && !fg->control_checked) {
             uint32_t cut=0;int held=0,duplicate=0;
             r=te_output_control(fg->context,(uint32_t)output_index,value,&cut,&held,&duplicate);
             if(r!=VK_SUCCESS){fail_log(fg,"output control",r);return -1;}

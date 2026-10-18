@@ -19,6 +19,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <time.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_xcb.h>
 #include <xcb/xcb.h>
@@ -109,6 +110,37 @@ static int check_generation(const gpu_stats *before, const gpu_stats *after, uin
         (unsigned long long)checks, valid ? "PASS" : "FAIL");
     return valid;
 }
+/* A managed X11 client sends ConfigureRequest via the WM, which may handle
+ * it after our next geometry reply. A bare Xvfb server has no such round trip.
+ * Wait for the actual client size, bounded independently of GPU work. */
+static int wait_window_size(xcb_connection_t *xc, xcb_window_t window, uint32_t width, uint32_t height) {
+    struct timespec start, now;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    uint32_t observed_width = 0, observed_height = 0;
+    unsigned polls = 0;
+    do {
+        xcb_generic_error_t *error = NULL;
+        xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(xc, xcb_get_geometry(xc, window), &error);
+        ++polls;
+        if (!geometry || error) {
+            fprintf(stderr, "GSF_RESIZE geometry_error=%u\n", error ? error->error_code : 0);
+            free(geometry); free(error); return 0;
+        }
+        observed_width = geometry->width; observed_height = geometry->height;
+        free(geometry);
+        if (observed_width == width && observed_height == height) {
+            printf("GSF_RESIZE requested=%ux%u observed=%ux%u polls=%u status=PASS\n",
+                width, height, observed_width, observed_height, polls);
+            return 1;
+        }
+        const struct timespec delay = {.tv_nsec=10000000};
+        nanosleep(&delay, NULL);
+        clock_gettime(CLOCK_MONOTONIC, &now);
+    } while ((now.tv_sec-start.tv_sec)*1000000000ll + now.tv_nsec-start.tv_nsec < 3000000000ll);
+    fprintf(stderr, "GSF_RESIZE requested=%ux%u observed=%ux%u polls=%u status=TIMEOUT\n",
+        width, height, observed_width, observed_height, polls);
+    return 0;
+}
 static uint32_t between(uint32_t x, uint32_t lo, uint32_t hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* textured blocks moving 4 px right and 1 px down per frame */
@@ -149,6 +181,10 @@ int main(void) {
     const uint32_t opts[] = {it.data->black_pixel, XCB_EVENT_MASK_EXPOSURE};
     xcb_create_window(xc, XCB_COPY_FROM_PARENT, window, it.data->root, 0, 0, want_w, want_h, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, it.data->root_visual, XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, opts);
+    const char *title = getenv("GFG_TEST_TITLE");
+    if (!title) title = "GSF Vulkan diagnostic";
+    xcb_change_property(xc, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME,
+                        XCB_ATOM_STRING, 8, (uint32_t)strlen(title), title);
     xcb_map_window(xc, window);
     REQUIRE(xcb_flush(xc) > 0);
 
@@ -452,9 +488,7 @@ int main(void) {
                 const uint32_t size[2] = {want_w + 32u, want_h + 16u};
                 xcb_configure_window(xc, window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, size);
                 xcb_flush(xc);
-                xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(xc, xcb_get_geometry(xc, window), NULL);
-                REQUIRE(geometry && geometry->width == size[0] && geometry->height == size[1]);
-                free(geometry);
+                REQUIRE(wait_window_size(xc, window, size[0], size[1]));
                 TRY(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, surface, &caps));
                 ext = caps.currentExtent.width == UINT32_MAX ? (VkExtent2D){size[0], size[1]} : caps.currentExtent;
                 REQUIRE(ext.width == size[0] && ext.height == size[1]);

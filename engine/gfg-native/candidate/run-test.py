@@ -16,7 +16,7 @@ import tempfile
 import zipfile
 
 KIT = Path(__file__).resolve().parent
-PAYLOAD = ('libVkLayer_gfg_native.so', 'VkLayer_gfg_native.json', 'wsi-gpu-smoke',
+PAYLOAD = ('libVkLayer_gfg_native.so', 'layers/VkLayer_gfg_native.json', 'wsi-gpu-smoke',
            'run-test.py', 'GSF-Test.desktop', 'BUILD_INFO.json', 'README.txt',
            'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md', 'SOURCE.tar.gz')
 
@@ -33,8 +33,8 @@ def verify_payload(kit):
         p = kit/name
         if p.is_symlink() or not p.is_file() or digest(p) != checksum:
             raise ValueError('Повреждён или отсутствует файл: '+name)
-    manifest = json.loads((kit/'VkLayer_gfg_native.json').read_text())['layer']
-    if manifest['name'] != 'VK_LAYER_GFG_native' or manifest['library_path'] != './libVkLayer_gfg_native.so':
+    manifest = json.loads((kit/'layers/VkLayer_gfg_native.json').read_text())['layer']
+    if manifest['name'] != 'VK_LAYER_GFG_native' or manifest['library_path'] != '../libVkLayer_gfg_native.so':
         raise ValueError('Неверный manifest Vulkan-слоя')
 
 
@@ -45,11 +45,20 @@ def counters(log):
     return {k:int(v) for k,v in re.findall(r'(\w+)=(\d+)', lines[0])}
 
 
-def check_active(log, lifecycle, kit):
+def check_active(log, lifecycle, kit, paced=False, frames=12):
     c = counters(log)
-    bridges, frames = (3, 36) if lifecycle else (1, 12)
+    bridges = 3 if lifecycle else 1
+    if lifecycle: frames = 36
     required = {'bridges':bridges, 'real':frames, 'synthetic':frames-bridges,
                 'skipped':0, 'errors':0, 'present_path_cpu_waits':0, 'present_path_host_pixel_reads':0}
+    if paced:
+        # Cold initialization may invalidate history; deadline misses remain
+        # visible and are not counted as generated frames. Strict cases above
+        # still require every pair, with zero skips.
+        required.pop('synthetic')
+        required.pop('skipped')
+        if c.get('synthetic', 0) < frames-4 or c.get('synthetic', 0) + c.get('skipped', 0) != frames-bridges:
+            raise ValueError('Недостаточно фактически выведенных кадров в проверке такта')
     for k, value in required.items():
         if c.get(k) != value:
             raise ValueError(f'Не прошла проверка {k}: {c.get(k)} вместо {value}')
@@ -68,11 +77,37 @@ def check_active(log, lifecycle, kit):
     return c
 
 
+def check_cadence(path, minimum=5):
+    pairs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    pairs = [p for p in pairs if p.get('event') == 'pair']
+    gaps, transitions = [], []
+    for pair in pairs:
+        if pair['refresh_period_ns'] != 100_000_000:
+            raise ValueError('LMC не включил заданный выходной такт 10 Гц')
+        accepted = pair['wsi_accepted_ns']
+        if accepted[0] and accepted[2]:
+            gap = accepted[2] - accepted[0]
+            planned = pair['target_ns'][2] - pair['target_ns'][0]
+            if planned not in (100_000_000, 200_000_000) or abs(gap-planned) > 30_000_000:
+                raise ValueError(f'G1 и real отправлены с неверным интервалом: {gap/1e6:.3f} мс')
+            if planned == 100_000_000:
+                gaps.append(gap/1e6)
+            else:
+                # The first post-reset lattice can span three refresh slots.
+                # Record it, but never count it as an evenly spaced pair.
+                transitions.append(gap/1e6)
+    if len(gaps) < minimum:
+        raise ValueError('Недостаточно равномерно разделённых пар G1/real')
+    return {'scope':'WSI handoff, physical display unverified', 'pairs':len(gaps),
+            'g1_to_real_ms_min':min(gaps), 'g1_to_real_ms_max':max(gaps),
+            'nonuniform_transition_gaps_ms':transitions}
+
+
 def child_env(kit, active, validation, order):
     # Only this child is changed; no global manifests, Steam options or settings.
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'LSFGVK_', 'DISABLE_GFG_NATIVE_'))}
     env.pop('VK_INSTANCE_LAYERS', None)
-    paths = [str(kit), '/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
+    paths = [str(kit/'layers'), '/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
     for base in (os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')),
                  os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config'))):
         paths.append(base+'/vulkan/explicit_layer.d')
@@ -97,6 +132,7 @@ def child_env(kit, active, validation, order):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--noninteractive', action='store_true')
+    ap.add_argument('--visual', action='store_true', help='Также показать увеличенное сравнение A/B')
     ap.add_argument('--order', choices=['native-first','validation-first'], default='native-first')
     ap.add_argument('--results', type=Path, default=Path.home()/'GSF-Test-Results')
     args = ap.parse_args()
@@ -125,14 +161,27 @@ def main():
         validation = any((Path(p)/'VkLayer_khronos_validation.json').is_file()
                          for p in child_env(KIT, False, False, args.order)['VK_LAYER_PATH'].split(':'))
         report['validation_layer_available'] = validation
-        for label, algo, lifecycle in (('baseline',None,False), ('tiles-2x','tiles',False),
-                                       ('lmc-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True)):
+        cases = [('baseline',None,False), ('tiles-2x','tiles',False),
+                 ('lmc-2x','lmc-gpu',False), ('lmc-recreate-resize','lmc-gpu',True),
+                 ('lmc-paced-2x','lmc-gpu',False)]
+        if args.visual or not args.noninteractive:
+            cases += [('A-baseline-visual',None,False), ('B-lmc-visual','lmc-gpu',False)]
+        for label, algo, lifecycle in cases:
+            visual = label.endswith('-visual')
+            paced = label in ('lmc-paced-2x', 'B-lmc-visual')
+            frames = 40 if visual else 12
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
+            env['GFG_TEST_TITLE'] = 'GSF '+label+' | source 5 Hz'+(' | output 10 Hz' if paced else ' | no generation' if algo is None else '')
+            if visual:
+                print(('A: исходные 5 кадров/с' if algo is None else 'B: GPU LMC 5 → 10 кадров/с')+' — окно 480×320, 8 секунд движения.', flush=True)
+                env.update(GFG_TEST_WIDTH='480', GFG_TEST_HEIGHT='320', GFG_TEST_FRAMES=str(frames))
             if algo:
                 env['GFG_NATIVE_ALGO'] = algo
                 env['GFG_NATIVE_TELEMETRY'] = str(run/(label+'.jsonl'))
+            if paced:
+                env.update(GFG_NATIVE_OUTPUT_HZ='10', GFG_TEST_ALLOW_SKIPS='1')
             if lifecycle:
                 env.update(GFG_TEST_LIFECYCLE='1', GFG_TEST_FRAMES='36')
             proc = subprocess.run([str(KIT/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
@@ -145,7 +194,9 @@ def main():
                 raise ValueError(label+': нет подтверждения завершения')
             if algo is None and 'GPU bridge active:' in log:
                 raise ValueError('Генератор неожиданно активен в baseline')
-            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT) if algo else None}
+            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT,paced=paced,frames=frames) if algo else None}
+            if paced:
+                report['cases'][label]['cadence'] = check_cadence(run/(label+'.jsonl'), minimum=frames-4)
         report.update(status='PASS', stage='complete')
         code = 0
     except (Exception, KeyboardInterrupt) as error:
