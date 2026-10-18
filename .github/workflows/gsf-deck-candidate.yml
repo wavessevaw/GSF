@@ -5,6 +5,7 @@ on:
     paths:
       - 'engine/gfg-native/src/**'
       - 'engine/gfg-native/tests/wsi_gpu_smoke.c'
+      - 'engine/gfg-native/tests/delayed_xcb_wm.c'
       - 'engine/gfg-native/candidate/**'
       - 'engine/gfg-temporal/src/**'
       - 'engine/gfg-temporal/shaders/**'
@@ -20,6 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         order: [native-first, validation-first]
+        wm: [bare, delayed]
     steps:
       - uses: actions/checkout@v4
       - name: Install software Vulkan and build dependencies
@@ -32,6 +34,7 @@ jobs:
           make -C engine/gfg-temporal lib
           make -C engine/gfg-native ENABLE_TE=1 BUILD=build-candidate VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-candidate/wsi-gpu-smoke
           desktop-file-validate engine/gfg-native/candidate/GSF-Test.desktop
+          cc -std=c11 -O2 -Wall -Wextra -Werror engine/gfg-native/tests/delayed_xcb_wm.c -lxcb -o "$RUNNER_TEMP/delayed-xcb-wm"
       - name: Package and extract exactly what the owner will download
         run: |
           python3 scripts/package_deck_candidate.py --build engine/gfg-native/build-candidate --out "$RUNNER_TEMP/candidate"
@@ -41,8 +44,26 @@ jobs:
       - name: Actual extracted baseline, 2x pixels and three live swapchain generations
         run: |
           export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
-          xvfb-run -a -s '-screen 0 1024x768x24' python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/run-test.py" \
-            --noninteractive --order '${{ matrix.order }}' --results "$RUNNER_TEMP/results"
+          export GSF_CI_WM='${{ matrix.wm }}'
+          export GSF_CI_ORDER='${{ matrix.order }}'
+          xvfb-run -a -s '-screen 0 1024x768x24' bash -euo pipefail -c '
+            if [[ "$GSF_CI_WM" == delayed ]]; then
+              "$RUNNER_TEMP/delayed-xcb-wm" > "$RUNNER_TEMP/window-manager.log" 2>&1 &
+              wm_pid=$!
+              trap "kill $wm_pid 2>/dev/null || true" EXIT
+              for i in {1..50}; do
+                if grep -q GSF_DELAYED_WM_READY "$RUNNER_TEMP/window-manager.log"; then break; fi
+                sleep 0.1
+              done
+              grep -q GSF_DELAYED_WM_READY "$RUNNER_TEMP/window-manager.log"
+            fi
+            python3 "$RUNNER_TEMP/extracted with spaces/GSF-Deck-Test/run-test.py" \
+              --noninteractive --order "$GSF_CI_ORDER" --results "$RUNNER_TEMP/results"
+          '
+          if [[ "$GSF_CI_WM" == delayed ]]; then
+            grep -Eq 'GSF_RESIZE .*polls=([2-9]|[1-9][0-9]+) status=PASS' "$RUNNER_TEMP/results/"*/lmc-recreate-resize.log
+          fi
+          if grep -E 'Manifest .*missing required field|loader_add_layer_properties:' "$RUNNER_TEMP/results/"*/*.log; then exit 1; fi
           cat "$RUNNER_TEMP/results/"*/RESULT.txt
       - name: Tampering and missing payload fail before Vulkan with an archived explanation
         run: |
@@ -80,7 +101,7 @@ jobs:
       - name: Preserve exact user-facing tested ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: GSF-Deck-Test-${{ matrix.order }}
+          name: GSF-Deck-Test-${{ matrix.order }}-${{ matrix.wm }}
           path: ${{ runner.temp }}/candidate/GSF-Deck-Test.zip
           if-no-files-found: error
           retention-days: 21
@@ -88,8 +109,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: GSF-candidate-evidence-${{ matrix.order }}
+          name: GSF-candidate-evidence-${{ matrix.order }}-${{ matrix.wm }}
           path: |
+            ${{ runner.temp }}/window-manager.log
             ${{ runner.temp }}/results/
             ${{ runner.temp }}/negative/
             ${{ runner.temp }}/missing/

@@ -16,7 +16,7 @@ import tempfile
 import zipfile
 
 KIT = Path(__file__).resolve().parent
-PAYLOAD = ('libVkLayer_gfg_native.so', 'VkLayer_gfg_native.json', 'wsi-gpu-smoke',
+PAYLOAD = ('libVkLayer_gfg_native.so', 'layers/VkLayer_gfg_native.json', 'wsi-gpu-smoke',
            'run-test.py', 'GSF-Test.desktop', 'BUILD_INFO.json', 'README.txt',
            'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md', 'SOURCE.tar.gz')
 
@@ -33,8 +33,8 @@ def verify_payload(kit):
         p = kit/name
         if p.is_symlink() or not p.is_file() or digest(p) != checksum:
             raise ValueError('Повреждён или отсутствует файл: '+name)
-    manifest = json.loads((kit/'VkLayer_gfg_native.json').read_text())['layer']
-    if manifest['name'] != 'VK_LAYER_GFG_native' or manifest['library_path'] != './libVkLayer_gfg_native.so':
+    manifest = json.loads((kit/'layers/VkLayer_gfg_native.json').read_text())['layer']
+    if manifest['name'] != 'VK_LAYER_GFG_native' or manifest['library_path'] != '../libVkLayer_gfg_native.so':
         raise ValueError('Неверный manifest Vulkan-слоя')
 
 
@@ -72,7 +72,7 @@ def child_env(kit, active, validation, order):
     # Only this child is changed; no global manifests, Steam options or settings.
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'LSFGVK_', 'DISABLE_GFG_NATIVE_'))}
     env.pop('VK_INSTANCE_LAYERS', None)
-    paths = [str(kit), '/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
+    paths = [str(kit/'layers'), '/usr/share/vulkan/explicit_layer.d', '/etc/vulkan/explicit_layer.d']
     for base in (os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')),
                  os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config'))):
         paths.append(base+'/vulkan/explicit_layer.d')

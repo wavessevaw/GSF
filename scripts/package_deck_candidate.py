@@ -18,8 +18,12 @@ def main():
     args = ap.parse_args()
     kit = args.out/'GSF-Deck-Test'
     kit.mkdir(parents=True, exist_ok=False)
-    for name in ('libVkLayer_gfg_native.so','VkLayer_gfg_native.json','wsi-gpu-smoke'):
+    for name in ('libVkLayer_gfg_native.so','wsi-gpu-smoke'):
         shutil.copy2(args.build/name, kit/name)
+    (kit/'layers').mkdir()
+    manifest = json.loads((args.build/'VkLayer_gfg_native.json').read_text())
+    manifest['layer']['library_path'] = '../libVkLayer_gfg_native.so'
+    (kit/'layers/VkLayer_gfg_native.json').write_text(json.dumps(manifest,indent=2)+'\n')
     for name in ('run-test.py','GSF-Test.desktop'):
         shutil.copy2(ROOT/'engine/gfg-native/candidate'/name, kit/name)
     (kit/'GSF-Test.desktop').chmod(0o755)
@@ -48,11 +52,12 @@ def main():
         subprocess.run(['git','archive','--format=tar.gz','HEAD','engine/gfg-native','engine/gfg-temporal',
                         'scripts/package_deck_candidate.py','LICENSE.md','NOTICE.md','COPYRIGHT.md','CONTRIBUTING.md'],
                        cwd=ROOT,stdout=source,check=True)
-    hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in kit.iterdir() if p.is_file()}
+    hashes={p.relative_to(kit).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in kit.rglob('*') if p.is_file()}
     (kit/'CHECKSUMS.json').write_text(json.dumps(hashes,indent=2)+'\n')
     archive = args.out/'GSF-Deck-Test.zip'
     with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
-        for p in sorted(kit.iterdir()):z.write(p, 'GSF-Deck-Test/'+p.name)
+        for p in sorted(kit.rglob('*')):
+            if p.is_file(): z.write(p, 'GSF-Deck-Test/'+p.relative_to(kit).as_posix())
     print(archive)
 
 if __name__=='__main__':
