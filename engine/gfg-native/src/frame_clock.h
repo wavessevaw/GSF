@@ -50,7 +50,12 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
     }
     const uint64_t desired=source+dt;
     const uint64_t ahead=desired>c->grid_origin_ns?desired-c->grid_origin_ns:0;
-    uint64_t next_slot=ahead/p+(ahead%p!=0);
+    /* Ignore sub-slot source jitter immediately after a lattice boundary.
+     * Unconditional ceil turns alternating +/-100us source noise into full
+     * extra/missing refresh slots (3/1 rather than 2/2 at 45->90). A small
+     * 5% snap window retains the fixed grid; the causality and bounded-delay
+     * checks below still reject a real target before its source exists. */
+    uint64_t next_slot=ahead/p+(ahead%p>p/20);
     if(next_slot<=c->real_slot)next_slot=c->real_slot+1;
     const uint64_t target=c->grid_origin_ns+next_slot*p;
     /* Source-rate transitions must not produce unbounded pacing waits. */

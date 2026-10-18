@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GSF — установить тест Game Mode
+Comment=Проверить пакет и добавить автоматический тест в Steam
+Exec=/usr/bin/python3 -c "import pathlib,runpy,sys,urllib.parse; p=sys.argv[1]; p=urllib.parse.unquote(urllib.parse.urlparse(p).path) if p.startswith('file:') else p; s=pathlib.Path(p).resolve().parent/'install-game-mode.py'; sys.argv=[str(s)]; runpy.run_path(str(s),run_name='__main__')" %k
+Icon=utilities-system-monitor
+Terminal=false
+Categories=Utility;

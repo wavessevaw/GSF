@@ -157,6 +157,31 @@ static void pattern(uint8_t *px, uint32_t w, uint32_t h, uint32_t frame) {
         }
 }
 
+/* App-rendered diagnostic label: static per case; not a generated-frame tag. */
+static void badge(uint8_t *px, uint32_t w, uint32_t h, const char *text) {
+    static const char keys[] = "ABFPS0123456789>";
+    static const uint8_t rows[][7] = {
+        {14,17,17,31,17,17,17},{30,17,17,30,17,17,30},
+        {31,16,16,30,16,16,16},{30,17,17,30,16,16,16},{15,16,16,14,1,1,30},
+        {14,17,19,21,25,17,14},{4,12,4,4,4,4,14},{14,17,1,2,4,8,31},
+        {30,1,1,14,1,1,30},{2,6,10,18,31,2,2},{31,16,16,30,1,1,30},
+        {14,16,16,30,17,17,14},{31,1,2,4,8,8,8},{14,17,17,14,17,17,14},
+        {14,17,17,15,1,1,14},{16,8,4,2,4,8,16}};
+    const uint32_t scale=w>=320 ? 3u : 1u;
+    const uint32_t bar=9u*scale<h ? 9u*scale : h;
+    for(uint32_t y=0;y<bar;y++)for(uint32_t x=0;x<w;x++) {
+        uint8_t *p=px+4u*((size_t)y*w+x);p[0]=p[1]=p[2]=0;p[3]=255;
+    }
+    for(uint32_t n=0;text[n];n++) {
+        const char *key=strchr(keys,text[n]);if(!key)continue;
+        for(uint32_t y=0;y<7;y++)for(uint32_t x=0;x<5;x++)if(rows[key-keys][y]&(16u>>x))
+            for(uint32_t sy=0;sy<scale;sy++)for(uint32_t sx=0;sx<scale;sx++) {
+                uint32_t dx=scale+n*6u*scale+x*scale+sx,dy=scale+y*scale+sy;
+                if(dx<w && dy<h){uint8_t *p=px+4u*((size_t)dy*w+dx);p[0]=p[1]=p[2]=255;}
+            }
+    }
+}
+
 int main(void) {
     const unsigned source_hz=env_uint("GFG_TEST_SOURCE_HZ",0);
     REQUIRE(source_hz<=240);
@@ -264,6 +289,11 @@ int main(void) {
     }
     free(phys);
     REQUIRE(physical && family != UINT32_MAX);
+    VkPhysicalDeviceProperties device_info;
+    vkGetPhysicalDeviceProperties(physical, &device_info);
+    printf("GSF_DEVICE name=%s vendor=0x%x device=0x%x api=%u driver=%u\n",
+        device_info.deviceName, device_info.vendorID, device_info.deviceID,
+        device_info.apiVersion, device_info.driverVersion);
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo qi = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .queueFamilyIndex = family, .queueCount = 1, .pQueuePriorities = &priority};
@@ -418,11 +448,18 @@ int main(void) {
     REQUIRE(rendered);
     for (uint32_t i = 0; i < image_count; ++i) TRY(vkCreateSemaphore(device, &semci, NULL, &rendered[i]));
 
+    struct timespec source_origin;
+    clock_gettime(CLOCK_MONOTONIC, &source_origin);
+    uint64_t source_next = (uint64_t)source_origin.tv_sec*1000000000ull + source_origin.tv_nsec;
+    uint64_t source_first = 0, source_last = 0, steady_first = 0;
+    const int absolute_pacing = env_1("GFG_TEST_ABSOLUTE_PACING");
     for (uint32_t frame = 0; frame < frames; frame++) {
         const uint32_t f = frame % INFLIGHT;
         TRY(vkWaitForFences(device, 1, &fences[f], VK_TRUE, UINT64_MAX)); /* app-side wait */
         TRY(vkResetFences(device, 1, &fences[f]));
         pattern(staging_map[f], ext.width, ext.height, frame);
+        const char *label = getenv("GFG_TEST_BADGE");
+        if (label) badge(staging_map[f], ext.width, ext.height, label);
         uint32_t index = UINT32_MAX;
         TRY(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, acquired[f], VK_NULL_HANDLE, &index));
         REQUIRE(index < image_count);
@@ -473,6 +510,11 @@ int main(void) {
         const VkDeviceGroupPresentInfoKHR group={.sType=VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHR,
             .pNext=pi.pNext,.swapchainCount=1,.pDeviceMasks=&device_mask,.mode=VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR};
         if(env_1("GFG_TEST_UNKNOWN_PRESENT") && frame==frames/2) pi.pNext=&group;
+        struct timespec source_now;
+        clock_gettime(CLOCK_MONOTONIC, &source_now);
+        source_last = (uint64_t)source_now.tv_sec*1000000000ull + source_now.tv_nsec;
+        if (!frame) source_first = source_last;
+        if (frame == 2) steady_first = source_last;
         VkResult presented=vkQueuePresentKHR(queue,&pi);
         REQUIRE(present_fence.pNext == &dynamic && dynamic.pNext == &regions);
         REQUIRE(app_mode == swci.presentMode && present_region.pRectangles == &rect);
@@ -521,11 +563,25 @@ int main(void) {
         if (pace_idle) TRY(vkQueueWaitIdle(queue)); /* app-side pacing, outside the layer */
         if(source_hz) {
             struct timespec deadline;clock_gettime(CLOCK_MONOTONIC,&deadline);
-            deadline.tv_nsec+=1000000000l/source_hz;
-            if(deadline.tv_nsec>=1000000000l){++deadline.tv_sec;deadline.tv_nsec-=1000000000l;}
+            if (absolute_pacing) {
+                const uint64_t period = 1000000000ull/source_hz;
+                const uint64_t now = (uint64_t)deadline.tv_sec*1000000000ull + deadline.tv_nsec;
+                source_next += period;
+                /* Do not burst through missed source slots after cold startup. */
+                if (source_next < now) source_next = now + period;
+                deadline.tv_sec = (time_t)(source_next/1000000000ull);
+                deadline.tv_nsec = (long)(source_next%1000000000ull);
+            } else {
+                deadline.tv_nsec+=1000000000l/source_hz;
+                if(deadline.tv_nsec>=1000000000l){++deadline.tv_sec;deadline.tv_nsec-=1000000000l;}
+            }
             clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&deadline,NULL);
         }
     }
+    printf("GSF_SOURCE_RATE frames=%u requested_hz=%u measured_hz=%.6f steady_hz=%.6f absolute=%d\n",
+        frames, source_hz, source_last>source_first ?
+        (double)(frames-1)*1e9/(double)(source_last-source_first) : 0.0,
+        frames>3 && source_last>steady_first ? (double)(frames-3)*1e9/(double)(source_last-steady_first) : 0.0, absolute_pacing);
     if(env_1("GFG_TEST_RECREATE")) {
         VkSwapchainKHR replacement=VK_NULL_HANDLE;
         swci.oldSwapchain=swapchain;
