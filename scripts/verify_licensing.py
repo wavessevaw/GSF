@@ -21,19 +21,19 @@ REQUIRED = {
         "Steam Deck Homebrew components",
     ),
     "COPYRIGHT.md": (
-        "respective lawful copyright holder",
+        "respective original contributions",
         "1b600fbc4e6a03a9616fd65ee2f5b16f5224da00",
     ),
     "NOTICE.md": ("MAKO", "AFMF-Linux", "FidelityFX", "BSD-3-Clause"),
     "TRADEMARKS.md": ("not", "GPL", "independent"),
     "CONTRIBUTING.md": (
         "GPL-3.0-or-later",
-        "Signed-off-by",
+        "git commit -s",
         "not",
     ),
     "README.md": ("LICENSE.md", "COPYRIGHT.md", "NOTICE.md", "TRADEMARKS.md"),
     "docs/LICENSING.ru.md": ("GPL-3.0-or-later", "автор"),
-    "MIGRATION.md": ("GFG Extreme", "234", "MIGRATION"),
+    "MIGRATION.md": ("GFG Extreme", "234", "source"),
     "engine/gfg-native/src/layer.c": ("SPDX-License-Identifier: GPL-3.0-or-later",),
 }
 
