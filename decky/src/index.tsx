@@ -102,6 +102,7 @@ function Content() {
         <Dropdown rgOptions={[
           {data: 'normal', label: 'Обычный 2× + Timeline Watch'},
           {data: 'normal-no-watch', label: 'Контроль: 2× без Timeline Watch'},
+          {data: 'normal-no-latency-admission', label: 'Контроль: прежний допуск, калибровка включена'},
           {data: 'normal-no-calibration', label: 'Контроль: 2× без калибровки'},
           {data: 'normal-calibration-every-frame', label: 'Тест стоимости: калибровать каждый кадр'},
           {data: 'source-only', label: 'Контроль: только исходные кадры'},
@@ -136,7 +137,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.6 Diagnostic · Анализ GPU timeline и контрольные режимы. Ограниченные проверки реальных LMC-кадров. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.7 · Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

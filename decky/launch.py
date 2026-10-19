@@ -46,14 +46,16 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal"):
     env.update(GFG_NATIVE_FG='1', GFG_NATIVE_GPU_BRIDGE='1', GFG_NATIVE_GPU_SYNC='same-device',
                GFG_NATIVE_ASYNC='1', GFG_NATIVE_FORCE_FIFO='1', GFG_NATIVE_MODE='2',
                GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
-               GFG_NATIVE_TIMING='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_CALIBRATED_TIMESTAMPS='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
+               GFG_NATIVE_TIMING='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_CALIBRATED_TIMESTAMPS='1', GFG_NATIVE_LATENCY_ADMISSION='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'))
-    if diagnostic_mode not in ("normal", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "source-only", "compute-only", "matched-compute"):
+    if diagnostic_mode not in ("normal", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission", "source-only", "compute-only", "matched-compute"):
         raise ValueError("Unsupported GSF diagnostic mode")
-    if diagnostic_mode not in ("normal", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame"):
+    if diagnostic_mode not in ("normal", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
         env["GFG_NATIVE_DIAGNOSTIC_MODE"] = diagnostic_mode
     if diagnostic_mode == "normal-no-watch":
         env["GFG_NATIVE_TIMELINE_WATCH"] = "0"
+    if diagnostic_mode == "normal-no-latency-admission":
+        env["GFG_NATIVE_LATENCY_ADMISSION"] = "0"
     if diagnostic_mode == "normal-no-calibration":
         env["GFG_NATIVE_CALIBRATED_TIMESTAMPS"] = "0"
     if diagnostic_mode == "normal-calibration-every-frame":

@@ -8,7 +8,7 @@ ENABLE_CPU_BRIDGE ?= 0
 TE_LIB ?= ../gfg-temporal/build/libgfg-temporal.a
 ifeq ($(ENABLE_TE),1)
 NATIVE_SOURCES := src/layer.c src/gpu_bridge.c src/output_worker.c
-NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/calibrated_clock.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
+NATIVE_HEADERS := src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/calibrated_clock.h src/generation_budget.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
 NATIVE_CPPFLAGS := -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src
 ifeq ($(ENABLE_CPU_BRIDGE),1)
 NATIVE_SOURCES += src/cpu_bridge.c
@@ -186,7 +186,7 @@ $(BUILD)/present-chain: tests/present_chain.c src/present_chain.h
 present-chain: $(BUILD)/present-chain
 	$(BUILD)/present-chain
 
-$(BUILD)/gpu-ring: tests/gpu_ring.c src/gpu_bridge.c src/gpu_bridge.h src/frame_clock.h src/present_chain.h $(TE_LIB)
+$(BUILD)/gpu-ring: tests/gpu_ring.c src/gpu_bridge.c src/gpu_bridge.h src/frame_clock.h src/present_chain.h src/calibrated_clock.h src/generation_budget.h $(TE_LIB)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -I../gfg-temporal/src -o $@ tests/gpu_ring.c $(TE_LIB) -ldl -lpthread -lm
 
@@ -305,7 +305,7 @@ $(BUILD)/hdr-precision: tests/hdr_precision.c $(TE_LIB)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -I../gfg-temporal/src -o $@ $< $(TE_LIB) -lvulkan -ldl -lpthread -lm
 
-$(BUILD)/presentation-timing: tests/presentation_timing.c src/gpu_bridge.c src/gpu_bridge.h src/frame_clock.h src/present_chain.h $(TE_LIB)
+$(BUILD)/presentation-timing: tests/presentation_timing.c src/gpu_bridge.c src/gpu_bridge.h src/frame_clock.h src/present_chain.h src/calibrated_clock.h src/generation_budget.h $(TE_LIB)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -I../gfg-temporal/src -o $@ $< $(TE_LIB) -ldl -lm -lpthread
 
@@ -348,3 +348,11 @@ $(BUILD)/calibration-clock: tests/calibration_clock.c src/calibrated_clock.h tes
 calibration-clock: $(BUILD)/calibration-clock
 	$(BUILD)/calibration-clock
 .PHONY: calibration-clock
+
+$(BUILD)/generation-budget: tests/generation_budget.c src/generation_budget.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ tests/generation_budget.c
+
+generation-budget: $(BUILD)/generation-budget
+	$(BUILD)/generation-budget tests/fixtures/deck-calibrated-slack-20261019.csv
+.PHONY: generation-budget

@@ -16,7 +16,7 @@ See [MIGRATION.md](MIGRATION.md) for source provenance, history access and limit
 
 ## Current development priorities
 
-The current Decky diagnostic baseline is [0.1.6](decky/README.md). Independent
+The current Decky test baseline is [0.1.7](decky/README.md). Independent
 builds, strict 5 Hz GPU pixel correctness, real Vulkan WSI and extracted-package
 tests run in CI. These software results do not qualify variable-rate Deck 2×.
 

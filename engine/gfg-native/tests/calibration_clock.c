@@ -42,6 +42,7 @@ int main(void) {
     gsf_clock_estimate out=gsf_calibration_estimate(&c,1020,1000.0,19999999000ull);
     assert(out.valid && !strcmp(out.delay_text,"21000"));
     assert(!strcmp(out.start_text,"20000020000"));
+    assert(out.start_ns==20000020000ull && out.delay_ns==21000);
     assert(!strcmp(out.reason,"calibrated"));
     /* Regression: do not claim precise time when maxDeviation > 1ms. */
     deviation=2000000;

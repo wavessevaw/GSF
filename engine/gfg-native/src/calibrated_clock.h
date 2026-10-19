@@ -39,6 +39,7 @@ typedef struct {
 
 typedef struct {
     char start_text[32], delay_text[32], calibration_text[32], deviation_text[32];
+    uint64_t start_ns, delay_ns; /* meaningful only when valid */
     const char *reason;
     int valid;
 } gsf_clock_estimate;
@@ -159,6 +160,7 @@ static gsf_clock_estimate gsf_calibration_estimate(
     snprintf(out.start_text,sizeof(out.start_text),"%llu",(unsigned long long)start);
     snprintf(out.delay_text,sizeof(out.delay_text),"%llu",
         (unsigned long long)(start-submit_return_ns));
+    out.start_ns=start;out.delay_ns=start-submit_return_ns;
     out.reason="calibrated";out.valid=1;return out;
 }
 #endif

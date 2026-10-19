@@ -1,3 +1,19 @@
+# GSF Decky Test 0.1.7 — calibrated latency admission
+
+0.1.7 includes trustworthy submit-to-GPU-start latency in the synthetic-work
+budget. Once calibrated latency is known, visibility probes share the bounded
+two-second recovery retry instead of bypassing an impossible budget every
+12 source frames. Fresh measurements reopen normal generation when it fits.
+No source FPS floor or game limiter is imposed. This protects source output;
+it does not establish sustained Deck 2×.
+
+The control `normal-no-latency-admission` retains calibration/watch telemetry
+but selects the previous admission policy. `normal-no-calibration` also removes
+the calibrated input to admission and is no longer an equal-policy overhead
+comparison. Pair telemetry exposes `submit_delay_budget_ns` and
+`submit_delay_budget_calibrated`. See the repository's
+[0.1.7 evidence and acceptance](../docs/GSF_CALIBRATED_ADMISSION_0_1_7.md).
+
 # GSF Decky Test 0.1.6 Diagnostic (GPU calibration + AMDGPU sensors)
 
 REPORT.json includes calibration_status_counts, actual calibrated submit_to_gpu_start_median_ms and per-window global GPU busy; invalid calibration samples remain null, never assigned to queue wait. No game-specific GPU utilisation or source-FPS regression can be inferred without controlled baseline.

@@ -51,6 +51,7 @@
 #include "te_engine.h"
 #include "timeline_watch.h"
 #include "calibrated_clock.h"
+#include "generation_budget.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -195,6 +196,8 @@ struct gfg_gpu_fg {
     int diagnostic; /* 0 normal, 1 source-only, 2 compute-only, 3 matched-compute */
     uint64_t diagnostic_outputs;
     uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
+    gsf_generation_budget generation_budget;
+    int latency_admission;
     uint64_t pacing_waits, pacing_late;
     int deadline_drop, pressure_drop;
     /* Deliberately sparse, bounded real-WSI proof attempts for Decky 0.1.4. */
@@ -305,32 +308,33 @@ static void telemetry_flush(gfg_gpu_fg *fg,uint64_t now) {
 static int ok(VkResult r) { return r == VK_SUCCESS; }
 static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v,
                                    uint64_t now,te_submit *s) {
+    const int probe=fg->probe_active && gsf_generation_probe_allowed(
+        &fg->generation_budget,fg->last_generation_dispatch_ns,now);
     unsigned mask=fg->clock.period_ns && fg->diagnostic!=2?
         gfg_frame_clock_compute_mask(&fg->clock,now,
             fg->display_timing==2?fg->clock.period_ns/4:0):(1u<<(fg->multiplier-1))-1u;
-    /* A probe may miss the strict compositor handoff deadline, but only for
-     * an actually allocated intermediate slot and once per 12 real frames.
-     * It never fabricates a slot on an overspeed/invalid frame lattice. */
-    if(fg->probe_active && have_pair && !mask)mask=fg->clock.mask&1u;
-    if(fg->probe_active)mask&=1u;
+    /* Before calibrated latency is known, retain the bounded visibility
+     * probe. Afterwards, only an unexpired slot can be used for recovery. */
+    if(probe && have_pair && !mask && !fg->generation_budget.calibrated)mask=fg->clock.mask&1u;
+    if(probe)mask&=1u;
     if(fg->diagnostic!=1 && fg->diagnostic!=2 && atomic_load(&fg->output_pressure))mask=0;
     if(fg->clock.period_ns && (fg->diagnostic==0 || fg->diagnostic==3) && fg->gpu_budget_ns[0]) {
         unsigned affordable=0,output=0;
         const uint64_t lead=fg->display_timing==2?fg->clock.period_ns/4:0;
         for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k)) {
             const uint64_t cost=fg->gpu_budget_ns[output]?fg->gpu_budget_ns[output]:2*fg->gpu_budget_ns[0];
-            if(fg->clock.target_ns[k]-lead-now>cost+500000ull) {
+            if(gsf_generation_budget_fits(&fg->generation_budget,cost,fg->clock.target_ns[k],lead,now)) {
                 affordable|=1u<<k;++output;
             }
         }
         /* A bounded retry learns recovery after a slow sample/scene. It is
          * one eligible output every two seconds, never an expired slot. */
-        if(!affordable && mask && now>=fg->last_generation_dispatch_ns &&
-           now-fg->last_generation_dispatch_ns>=2000000000ull)affordable=mask&(~mask+1u);
+        if(!affordable && mask && gsf_generation_retry_due(fg->last_generation_dispatch_ns,now))
+            affordable=mask&(~mask+1u);
         /* Sparse visibility probes test whether *real generated* pixels can
          * reach the game's WSI, without treating a GPU-cost estimate as a
          * hard refusal. Readiness still has a small finite wait budget. */
-        if(fg->probe_active && mask)affordable=mask&(~mask+1u);
+        if(probe && mask)affordable=mask&(~mask+1u);
         mask=affordable;
     }
     const int generate=have_pair && mask;
@@ -418,6 +422,8 @@ static void gpu_sample(gfg_gpu_fg *fg) {
             .calibration_text="null",.deviation_text="null",
             .reason=s.timed?"timestamp_bits_below_64":"gpu_timestamps_unavailable"};
     }
+    if(fg->latency_admission)
+        gsf_generation_budget_observe(&fg->generation_budget,estimate.valid,estimate.delay_ns);
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_correlated\","
             "\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
@@ -1226,6 +1232,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
 
 
     fg->next_value = fg->same_device ? 1 : 3;
+    fg->latency_admission=env_uint("GFG_NATIVE_LATENCY_ADMISSION",1,0,1);
     fg->timing_total_us = calloc(TIMING_CAP, sizeof(double));
     fg->timing_own_us = calloc(TIMING_CAP, sizeof(double));
     if (fg->log || fg->telemetry || getenv("GFG_NATIVE_TIMING")) {
@@ -1736,11 +1743,16 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     double next_us = 0.0;
     STAT_ADD(real_presents, 1);
     const uint64_t frame = fg->frame++;
-    /* Probe only a single G1 on every twelfth eligible source, never on
-     * overspeed or backlog. The normal 0.1.3 pacing is unchanged otherwise. */
+    /* Before calibration, probe every twelfth eligible source. Once a
+     * trustworthy delay exists, use the same bounded recovery retry as
+     * normal admission, never an expired slot or source backlog. */
     fg->probe_active=fg->visibility_probe && frame>=3 && frame%12==0 &&
         (fg->clock.mask&1u) && !fg->clock.overspeed &&
-        !atomic_load(&fg->output_pressure);
+        !atomic_load(&fg->output_pressure) &&
+        gsf_generation_probe_allowed(&fg->generation_budget,fg->last_generation_dispatch_ns,(uint64_t)(t0*1000.0)) &&
+        (!fg->generation_budget.calibrated ||
+         (gfg_frame_clock_compute_mask(&fg->clock,(uint64_t)(t0*1000.0),
+            fg->display_timing==2?fg->clock.period_ns/4:0)&1u));
     const uint32_t idx = app->pImageIndices[0];
     VkResult result;
     gfg_present_chain app_chain;
@@ -2012,7 +2024,7 @@ timing:
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
             "\"admitted_ns\":%llu,\"worker_start_ns\":%llu,\"worker_end_ns\":%llu,\"interval_ns\":%llu,"
             "\"refresh_period_ns\":%llu,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
-            "\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,\"te_submit_sequence\":%llu,"
+            "\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"submit_delay_budget_ns\":%llu,\"submit_delay_budget_calibrated\":%d,\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,\"te_submit_sequence\":%llu,"
             "\"target_ns\":[%llu,%llu,%llu],\"readiness_observed_ns\":[%llu,%llu],"
             "\"wsi_accepted_ns\":[%llu,%llu,%llu],\"wsi_call_ns\":[%llu,%llu,%llu],"
             "\"readiness_wait_ns\":[%llu,%llu],\"google_present_ids\":[%u,%u,%u],\"drop_detail\":[\"%s\",\"%s\"],\"cpu_phase_us\":[%.3f,%.3f,%.3f,%.3f,%.3f],\"te_sequence\":%llu,\"drop_code\":[%d,%d],\"cut\":%d,\"duplicate\":%d,\"physical_displayed\":null,\"visually_unique\":null}\n",
@@ -2022,7 +2034,8 @@ timing:
             (unsigned long long)fg->admitted_ns,(unsigned long long)(t0*1000.0),(unsigned long long)(now_us()*1000.0),
             (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
             (unsigned long long)compute_admission_ns,(unsigned long long)fg->gpu_budget_ns[0],
-            (unsigned long long)fg->gpu_budget_ns[1],deferred_g2,(unsigned long long)g2_submit_return_ns,
+            (unsigned long long)fg->gpu_budget_ns[1],(unsigned long long)fg->generation_budget.submit_delay_ns,
+            fg->generation_budget.calibrated,deferred_g2,(unsigned long long)g2_submit_return_ns,
             (unsigned long long)te_submit_sequence,
             (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[2],
             (unsigned long long)fg->readiness_ns[0],(unsigned long long)fg->readiness_ns[1],

@@ -54,7 +54,8 @@ async def test(archive, output):
         stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', line)}
         assert stats['real'] == 70 and stats['synthetic'] >= 60, stats
         assert stats['errors'] == stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
-        assert '[gfg-native] visibility_probe frame=' in log, '0.1.4 probe path was never exercised'
+        # Healthy calibrated generation needs no visibility override: those
+        # probes are now recovery-only, not required every twelfth source.
         # Native bridge must emit real per-pair GPU timeline observations.
         timeline_events = [json.loads(line) for line in (run/'frames.jsonl').read_text().splitlines()
                            if line.strip().startswith('{')]
@@ -83,6 +84,8 @@ async def test(archive, output):
         assert metadata['GFG_NATIVE_MODE'] == '2' and metadata['GFG_NATIVE_PACING'] == '1'
         assert metadata['GFG_NATIVE_VISIBILITY_PROBE'] == '1'
         assert metadata['GFG_NATIVE_TIMELINE_WATCH'] == '1'
+        assert metadata['GFG_NATIVE_LATENCY_ADMISSION'] == '1'
+        assert all('submit_delay_budget_calibrated' in e for e in pairs)
         assert status['report']['diagnostic_mode'] == 'normal'
         assert status['report']['timeline_diagnostic']['available'] is True
         joins = status['report']['timeline_diagnostic']['gpu_sample_joins']
