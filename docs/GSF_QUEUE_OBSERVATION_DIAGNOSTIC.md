@@ -5,6 +5,9 @@ This is an opt-in diagnostic on the 0.1.7 scheduling policy. It changes neither
 the game's fences/submissions. Enable with `GFG_NATIVE_QUEUE_OBSERVE=1` and the
 existing telemetry setting on an asynchronous same-device bridge. It is off by
 default; this PR is not a new Deck release or a request for another Deck run.
+The Decky diagnostic profile `normal-queue-observe` enables only this observer
+and records it in `LAUNCH.json`; the launcher filters inherited GFG_NATIVE
+variables, so prefixing its launch command is not a supported way to enable it.
 
 ## What the 0.1.7 result establishes
 
