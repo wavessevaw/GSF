@@ -30,8 +30,19 @@ async def test(archive, output):
         spec = importlib.util.spec_from_file_location('extracted_gsf_plugin', plugin/'main.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        # Reproduce the actual Deck failure: an updated plugin but stale
+        # installed launcher/current.json. Startup must heal it without the
+        # unavailable Steam AppDetails API or a user reinstall button.
+        installed_root = home/'.local/share/gsf-test'
+        installed_root.mkdir(parents=True, exist_ok=True)
+        (installed_root/'current.json').write_text(json.dumps({
+            'build': '0'*40, 'kit': '/nonexistent/old-gsf-build'}))
         backend = module.Plugin()
         await backend._main()
+        startup_status = await backend.get_status(42)
+        assert startup_status['build_matches'] is True, startup_status
+        assert startup_status['packaged_source_commit'] == startup_status['active_build_source_commit']
+        assert (installed_root/'launch.py').is_file(), 'startup did not repair installed launcher'
         prepared = await backend.prepare_game(42, 'MANGOHUD=0 %command% --original')
         await backend.confirm_game(42, prepared['options'])
         current = json.loads((backend.runtime.root/'current.json').read_text())
@@ -96,6 +107,10 @@ async def test(archive, output):
             assert joins[kind]['matched'] > 0, joins
             assert joins[kind]['unmatched'] == joins[kind]['ambiguous'] == 0, joins
         assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
+        assert metadata['GFG_NATIVE_ALGO'] == 'gsf' and metadata['GFG_NATIVE_GSF_ECO'] == '1', metadata
+        assert 'GFG_NATIVE_GPU_CLOCK' not in metadata, 'ECO45 must not force GPU clocks'
+        assert (await backend.set_diagnostic_mode(42, 'normal-lmc-gpu'))['diagnostic_mode'] == 'normal-lmc-gpu'
+        assert (await backend.set_diagnostic_mode(42, 'normal'))['diagnostic_mode'] == 'normal'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
         # Per-game multiplier must survive the extracted plugin's IPC and
         # remain independent from the inherited Steam/Proton environment.
