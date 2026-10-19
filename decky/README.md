@@ -1,3 +1,20 @@
+# GSF Motion Intelligence 0.1.13 Experimental
+
+Frame Generation: Off / ×2 / ×3 / ×4. Reconstruction: Ultra Lite / Balanced /
+Quality / Adaptive. All outputs share one pair analysis. Generated FPS counts
+GPU-completed synthesis; Output FPS counts WSI-accepted presents, not OLED scanout.
+
+Frame Buffer 0/1/2 is persisted per game and applies to the independent output
+owner when its Vulkan contract is supported. That owner is currently opt-in for
+barrier-based SDR applications; general Gamescope/Proton compatibility is still
+pending. Buffer 0 adds no extra source period beyond causal A/B lookahead; Buffer 1/2
+add one/two periods on the display grid. The ordinary WSI transport remains the default Decky path.
+
+See `docs/motion-intelligence-0.1.13/ARCHITECTURE.md` and
+`DECK_PROTOCOL.ru.md` in the source repository for limitations and hardware tests.
+This ZIP is a compatibility preview, not a qualification of the full specification
+or a guarantee of 90 FPS / 10 W. Keep the stable version available.
+
 ## 0.1.12 frame pacing audit candidate
 
 Phase follows the actual reserved A/G/B slot (x3 mask=2 on 45→90 uses tau=0.5).
@@ -110,6 +127,16 @@ GPU-конкуренции. Приоритет исходных кадров с�
 
 Экспериментальный GPU LMC для Steam Deck OLED. Пакет работает автономно,
 содержит GPU слой и исходники, ничего не скачивает при включении.
+0.1.13 **Stability 1** применяет Buffer 1/2 и к обычному совместимому WSI:
+нужны приватный compositor timing, same-device FIFO и дополнительные изображения
+поверхности. Слоты передаются заранее с временными метками. При отсутствии этого
+контракта сохраняется обычный Buffer 0; независимый Output Owner остаётся
+отдельным ограниченным opt-in. В диагностике видны выбранная и фактическая глубина,
+очередь и действующее качество. Под нагрузкой качество может снижаться до Ultra
+Lite, сохраняя множитель. Дорогой общий refinement упрощён, а подтверждение scene
+cut сохраняет RGB-проверку. Для этой сборки нужны повторные аппаратные измерения.
+См. `docs/motion-intelligence-0.1.13/STABILITY_1.ru.md` в архиве.
+
 Поддерживаемый первый сценарий: игра x64 через Vulkan, DXVK или VKD3D-Proton.
 Игра и конкретный Proton ещё требуют аппаратной проверки.
 0.1.3 убирает ожидание единственного слота очереди и занятого GPU-буфера.
@@ -128,7 +155,18 @@ GPU-конкуренции. Приоритет исходных кадров с�
    Появятся её название и подтверждение выбора. Выбор сохраняется при закрытии
    панели и перезапуске Decky. Сам выбор ещё не меняет параметры запуска.
    Для отдельного эксперимента уберите запуск через GFG/MAKO/LSFG у этой игры.
-3. Нажмите **Включить 2×** сразу под названием игры. Плагин установит слой в пользовательскую
+3. В 0.1.13 **Launch fix 1** кнопки запуска находятся сразу под названием игры,
+   сообщение о ходе операции — сверху. **Ручной запуск · показать команду**
+   устанавливает слой и подготавливает активный профиль без Steam API. Нажмите
+   **Скопировать команду запуска** и вставьте строку в Steam → Свойства игры →
+   Параметры запуска. При наличии своих параметров сохраните их: префикс
+   `python3 … --appid APPID -- ` вставляется перед единственным `%command%`.
+   Не добавляйте второй `%command%` или другой генератор. При отказе буфера
+   обмена команда остаётся видимой, а ошибка отображается сверху.
+   Ручной профиль не означает, что Steam уже принял команду. Для отключения
+   нажмите **Восстановить запуск без GSF** и уберите префикс вручную: неизвестные
+   исходные параметры Steam плагин не перезаписывает.
+   Альтернатива: **Включить GSF автоматически**. Плагин установит слой в пользовательскую
    папку, сохранит прежние параметры запуска и проверит запись новых через API
    Steam. После подтверждения вы увидите точную записанную команду вида
    `python3 /home/deck/.local/share/gsf-test/launch.py --appid APPID -- %command%`.

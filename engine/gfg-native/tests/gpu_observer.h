@@ -56,7 +56,7 @@ static struct {
     VkFence fence;
     VkSemaphore *ready;
     uint32_t image_count, frame, interval_calls, total_calls, generated;
-    unsigned char previous[4], samples[2][4];
+    unsigned char previous[4], samples[3][4];
     PFN_vkQueuePresentKHR lower;
     gfg_gpu_fg *fg;
     int failed;

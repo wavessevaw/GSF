@@ -67,7 +67,17 @@ static inline int gfg_create_fifo(gfg_create_chain *copy, VkSwapchainCreateInfoK
 /* One delayed original plus (multiplier - 1) synthetic outputs need
  * multiplier spare real WSI images. Do not hard-code +2 for 3x. */
 static inline uint32_t gfg_real_wsi_extra_images(const char *mode) {
-    return mode && !strcmp(mode,"2") ? 2u : 3u;
+    return mode && !strcmp(mode,"2") ? 2u : mode && !strcmp(mode,"4") ? 4u : 3u;
+}
+/* Retain additional real source images only when the surface has headroom.
+ * A finite image cap can reduce buffering without disabling generation. */
+static inline uint32_t gfg_real_wsi_buffer_depth(uint32_t minimum,uint32_t maximum,
+                                               uint32_t spare,uint32_t requested) {
+    if(requested>2)requested=2;
+    if(minimum>UINT32_MAX-spare)return 0;
+    uint32_t used=minimum+spare;
+    uint32_t available=maximum?(maximum>used?maximum-used:0):UINT32_MAX-used;
+    return requested<available?requested:available;
 }
 static inline int gfg_real_wsi_can_extend(uint32_t minimum,uint32_t maximum,
                                            uint32_t extra) {

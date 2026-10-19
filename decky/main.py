@@ -35,6 +35,10 @@ class Plugin:
         async with self.lock:
             return await asyncio.to_thread(self.runtime.prepare, appid, options)
 
+    async def prepare_manual_game(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.prepare_manual, appid)
+
     async def confirm_game(self, appid: int, actual: str):
         async with self.lock:
             return await asyncio.to_thread(self.runtime.confirm, appid, actual)
@@ -57,6 +61,14 @@ class Plugin:
     async def set_multiplier(self, appid: int, multiplier: int):
         async with self.lock:
             return await asyncio.to_thread(self.runtime.set_multiplier, appid, multiplier)
+
+    async def set_buffer_depth(self, appid: int, depth: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.set_buffer_depth, appid, depth)
+
+    async def set_reconstruction_quality(self, appid: int, quality: str):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.set_reconstruction_quality, appid, quality)
 
     async def export_report(self, appid: int):
         return await asyncio.to_thread(self.runtime.export, appid)

@@ -16,6 +16,25 @@ float patch_error(int grid,vec2 centre,vec2 v) {
     }
     return n>=4?e/float(n):1.0;
 }
+float lite_patch_error(vec2 centre,vec2 v) {
+    // Bounded four-tap confidence/refinement at a shared block, independent
+    // of output count. Ultra Lite uses cached half-resolution luma. Quality
+    // retains the original dense RGB patch and two search scales.
+    if((PC.flags&512)!=0)return patch_error(0,centre,v);
+    float e=0.0;int n=0;
+    for(int y=-2;y<=2;y+=4)for(int x=-2;x<=2;x+=4) {
+        vec2 p=centre+vec2(x,y),q=p-2.0*v;
+        if(!inside(p,P.size.xy)||!inside(q,P.size.xy))continue;
+        if((PC.flags&256)!=0)
+            e+=abs(luma_b(1,(p-0.5)*0.5)-luma_a(1,(q-0.5)*0.5));
+        else {
+            vec3 d=abs(half_rgb(1,(p-0.5)*0.5)-half_rgb(0,(q-0.5)*0.5));
+            e+=(d.r+d.g+d.b)/3.0;
+        }
+        ++n;
+    }
+    return n>=2?e/float(n):1.0;
+}
 vec2 reverse_raw(int grid,vec2 half_pos) {
     ivec2 nb=lblocks(1),b=clamp(ivec2(floor(half_pos/4.0)),ivec2(0),nb-1);
     int i=blk_offset(1)+b.y*nb.x+b.x;
@@ -48,27 +67,54 @@ void main() {
         // The high-resolution level-1 search and two RGB refinement grids
         // are deliberately absent. Full frames never leave GPU memory.
         if(i>=P.counts.y)return;
-        ivec2 fine=lblocks(1),coarse=lblocks(3);
+        int level=PC.level;
+        float scale=float(1 << (level-1));
+        ivec2 fine=lblocks(1),coarse=lblocks(level);
         ivec2 b=ivec2(i%fine.x,i/fine.x);
-        vec2 f=(vec2(b)+0.5)*0.25-0.5;
+        vec2 f=(vec2(b)+0.5)/scale-0.5;
         ivec2 lo=ivec2(floor(f));
         vec2 t=clamp(fract(f),vec2(0.0),vec2(1.0));
         ivec2 p0=clamp(lo,ivec2(0),coarse-1);
         ivec2 p1=clamp(lo+ivec2(1,0),ivec2(0),coarse-1);
         ivec2 p2=clamp(lo+ivec2(0,1),ivec2(0),coarse-1);
         ivec2 p3=clamp(lo+ivec2(1,1),ivec2(0),coarse-1);
-        vec4 a=vb[blk_offset(3)+p0.y*coarse.x+p0.x];
-        vec4 b0=vb[blk_offset(3)+p1.y*coarse.x+p1.x];
-        vec4 b1=vb[blk_offset(3)+p2.y*coarse.x+p2.x];
-        vec4 d=vb[blk_offset(3)+p3.y*coarse.x+p3.x];
+        vec4 a=vb[blk_offset(level)+p0.y*coarse.x+p0.x];
+        vec4 b0=vb[blk_offset(level)+p1.y*coarse.x+p1.x];
+        vec4 b1=vb[blk_offset(level)+p2.y*coarse.x+p2.x];
+        vec4 d=vb[blk_offset(level)+p3.y*coarse.x+p3.x];
         vec4 flow=mix(mix(a,b0,t.x),mix(b1,d,t.x),t.y);
-        flow.xy*=4.0; // level-3 pixel -> level-1 pixel; full-res warp multiplies by 2
+        flow.xy*=scale; // level-3 pixel -> level-1 pixel; full-res warp multiplies by 2
+        if((PC.flags&128)!=0) {
+            // Pair-shared sparse RGB refinement on the 160x100 block grid,
+            // not a full-resolution search and never repeated per output.
+            vec2 centre=vec2(b*8)+3.5,v=flow.xy;
+            float e=lite_patch_error(centre,v);
+            vec2 prior=temporal[i].xy;
+            float pe=lite_patch_error(centre,prior);
+            if(pe+0.001<e){v=prior;e=pe;}
+            float ze=lite_patch_error(centre,vec2(0));
+            if(ze+0.001<e){v=vec2(0);e=ze;}
+            if(e>0.003) {
+                for(int scale=0;scale<((PC.flags&512)!=0?2:1);++scale) {
+                    vec2 base=v;float step_=scale==0?0.5:0.25;
+                    for(int k=0;k<9;++k)if(k!=4 && ((PC.flags&512)!=0 || (k&1)!=0)) {
+                        vec2 candidate=base+vec2(k%3-1,k/3-1)*step_;
+                        float ce=lite_patch_error(centre,candidate);
+                        if(ce+0.0001<e){v=candidate;e=ce;}
+                    }
+                }
+            }
+            flow=vec4(v,e,0);
+        }
         ORB.ob[i]=flow;
         ORA.oa[i]=flow; // same A->B vector, no expensive independent reverse search
         // Count only one vote per coarse block to keep atomics inexpensive.
         if((b.x&3)==0 && (b.y&3)==0) {
             if(dot(flow.xy,flow.xy)>0.25)atomicAdd(G.moving_votes,16u);
-            if(flow.z>0.20)atomicAdd(G.orphans_a,16u);
+            // Cut votes retain original RGB evidence, once per 16 blocks.
+            // A luma-only Ultra Lite residual cannot detect chromatic cuts.
+            float cut_error=(PC.flags&128)!=0?patch_error(0,vec2(b*8)+3.5,flow.xy):flow.z;
+            if(cut_error>((PC.flags&128)!=0?0.12:0.20))atomicAdd(G.orphans_a,16u);
         }
         return;
     }

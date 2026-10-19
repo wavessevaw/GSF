@@ -1,0 +1,168 @@
+{
+  "sessions": [
+    {
+      "source_commit": "8dabfa9b605272d99caa54f5198e5100303aae20",
+      "multiplier": 3,
+      "quality": "balanced",
+      "buffer_requested": 2,
+      "buffer_effective_last": 0,
+      "independent_owner_last": 0,
+      "source_pairs": 11733,
+      "planned_synthetic": 7856,
+      "dispatched_synthetic": 894,
+      "wsi_accepted_synthetic": 665,
+      "admission": {
+        "history_refresh": 2745,
+        "not_planned": 2268,
+        "admitted": 883,
+        "deadline_blocked": 1,
+        "source_pressure": 33,
+        "budget_blocked": 5474,
+        "not_evaluated": 329
+      },
+      "synthetic_drop_reasons": {
+        "not-admitted": 10804,
+        "display-refresh-budget": 778,
+        "WSI-accepted": 665,
+        "gpu-budget": 10970,
+        "expired-before-dispatch": 24,
+        "source-backlog": 73,
+        "WSI-acquire-unavailable": 1,
+        "gpu-readiness-deadline": 151
+      },
+      "source_interval_ms": {
+        "p50": 21.210362,
+        "p95": 24.759777,
+        "p99": 32.294692,
+        "max": 200.320116
+      },
+      "shared_refinement_ms": {
+        "p50": 2.73728,
+        "p95": 3.81084,
+        "p99": 15.0608,
+        "max": 17.328
+      },
+      "pair_first_ready_gpu_ms": {
+        "p50": 4.113,
+        "p95": 5.24308,
+        "p99": 16.63544,
+        "max": 18.94852
+      },
+      "per_output_render_ms": {
+        "p50": 0.46136,
+        "p95": 0.54232,
+        "p99": 0.5624,
+        "max": 0.60392
+      },
+      "submit_to_gpu_start_ms": {
+        "p50": 4.063885,
+        "p95": 22.290788,
+        "p99": 40.162359,
+        "max": 53.77656
+      },
+      "source_age_at_worker_ms": {
+        "p50": 0.064854,
+        "p95": 4.911193,
+        "p99": 9.086358,
+        "max": 881.096034
+      },
+      "global_gpu_busy_percent": {
+        "p50": 99,
+        "p95": 100,
+        "p99": 100,
+        "max": 100
+      },
+      "global_power_w": {
+        "p50": 19.0,
+        "p95": 21.227,
+        "p99": 24.116,
+        "max": 30.079
+      },
+      "power_scope": "sensor reading, not generator-only power or configured TDP",
+      "baseline_source_fps_degradation": null,
+      "physical_displayed_fps": null
+    },
+    {
+      "source_commit": "8dabfa9b605272d99caa54f5198e5100303aae20",
+      "multiplier": 2,
+      "quality": "ultra-lite",
+      "buffer_requested": 2,
+      "buffer_effective_last": 0,
+      "independent_owner_last": 0,
+      "source_pairs": 7069,
+      "planned_synthetic": 6503,
+      "dispatched_synthetic": 2795,
+      "wsi_accepted_synthetic": 2245,
+      "admission": {
+        "history_refresh": 966,
+        "admitted": 2795,
+        "not_planned": 260,
+        "budget_blocked": 3029,
+        "source_pressure": 7,
+        "deadline_blocked": 10,
+        "not_evaluated": 2
+      },
+      "synthetic_drop_reasons": {
+        "not-admitted": 1493,
+        "gpu-budget": 3029,
+        "WSI-accepted": 2245,
+        "WSI-acquire-unavailable": 2,
+        "source-backlog": 9,
+        "gpu-readiness-deadline": 281,
+        "expired-before-dispatch": 10
+      },
+      "source_interval_ms": {
+        "p50": 21.741899,
+        "p95": 23.042474,
+        "p99": 28.650223,
+        "max": 154.942048
+      },
+      "shared_refinement_ms": {
+        "p50": 2.0818,
+        "p95": 2.6626,
+        "p99": 2.75392,
+        "max": 2.8882
+      },
+      "pair_first_ready_gpu_ms": {
+        "p50": 3.20332,
+        "p95": 3.9684,
+        "p99": 4.1152,
+        "max": 4.64406
+      },
+      "per_output_render_ms": {
+        "p50": 0.3962,
+        "p95": 0.50248,
+        "p99": 0.52636,
+        "max": 0.56452
+      },
+      "submit_to_gpu_start_ms": {
+        "p50": 4.145373,
+        "p95": 9.03356,
+        "p99": 11.541658,
+        "max": 49.617361
+      },
+      "source_age_at_worker_ms": {
+        "p50": 0.094961,
+        "p95": 7.692177,
+        "p99": 9.195483,
+        "max": 138.536701
+      },
+      "global_gpu_busy_percent": {
+        "p50": 99,
+        "p95": 100,
+        "p99": 100,
+        "max": 100
+      },
+      "global_power_w": {
+        "p50": 18.166,
+        "p95": 21.25,
+        "p99": 24.232,
+        "max": 29.139
+      },
+      "power_scope": "sensor reading, not generator-only power or configured TDP",
+      "baseline_source_fps_degradation": null,
+      "physical_displayed_fps": null
+    }
+  ],
+  "hardware_after_fix": "NOT_MEASURED"
+}

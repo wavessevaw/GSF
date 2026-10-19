@@ -46,6 +46,7 @@ struct gfg_output {
     VkSemaphore *acquired;
     unsigned char *image_pending;
     uint32_t image_count;
+    unsigned buffer_depth;
     PFN_vkCreateSemaphore create_semaphore;
     PFN_vkDestroySemaphore destroy_semaphore;
     PFN_vkQueueSubmit submit;
@@ -103,12 +104,13 @@ static void *output_main(void *arg) {
         if (!o->queued && o->stopping) { pthread_mutex_unlock(&o->lock); break; }
         output_job *j = o->jobs[o->head];
         o->head=(o->head+1)%o->image_count;--o->queued;o->busy=1;
-        gfg_gpu_fg_set_output_pressure(o->gpu,o->queued!=0);
+        gfg_gpu_fg_set_output_pressure(o->gpu,o->queued>o->buffer_depth);
+        gfg_gpu_fg_set_output_occupancy(o->gpu,o->queued,tick_ns()-j->queued_ns);
         pthread_cond_broadcast(&o->changed);
         pthread_mutex_unlock(&o->lock);
         /* Two real periods: preserve the real frame, but never synthesize a
          * stale pair into a growing output backlog. The mailbox cannot grow. */
-        o->stale_after_ns=2*gfg_gpu_fg_source_period_ns(o->gpu);
+        o->stale_after_ns=(2+o->buffer_depth)*gfg_gpu_fg_source_period_ns(o->gpu);
         const int stale = tick_ns() - j->queued_ns > o->stale_after_ns;
         if (stale) gfg_gpu_fg_restart_history(o->gpu);
         gfg_gpu_fg_set_source(o->gpu,j->queued_ns,j->admitted_ns,j->serial);
@@ -133,7 +135,8 @@ gfg_output *gfg_output_create(gfg_gpu_fg *gpu, VkQueue queue,
     gfg_output *o = calloc(1, sizeof(*o));
     if (!o) return NULL;
     o->gpu = gpu; o->queue = queue; o->present = present; o->wsi = wsi;
-    o->stale_after_ns=2*gfg_gpu_fg_source_period_ns(gpu);
+    o->buffer_depth=gfg_gpu_fg_buffer_depth(gpu);
+    o->stale_after_ns=(2+o->buffer_depth)*gfg_gpu_fg_source_period_ns(gpu);
     o->device=device; o->image_count=image_count;
     o->create_semaphore=(PFN_vkCreateSemaphore)gdpa(device,"vkCreateSemaphore");
     o->destroy_semaphore=(PFN_vkDestroySemaphore)gdpa(device,"vkDestroySemaphore");
@@ -188,7 +191,7 @@ VkResult gfg_output_submit(gfg_output *o, const VkPresentInfoKHR *app, uint64_t 
         /* Announce the new real frame BEFORE queue host serialization can
          * wait behind the worker's present/submit. Otherwise the worker sees
          * pressure only after that wait and cannot yield its optional work. */
-        if(o->busy) {
+        if(o->busy && o->queued>=o->buffer_depth) {
             gfg_gpu_fg_set_output_pressure(o->gpu,1);
             pthread_cond_broadcast(&o->changed);
         }
@@ -210,7 +213,7 @@ VkResult gfg_output_submit(gfg_output *o, const VkPresentInfoKHR *app, uint64_t 
             ++o->image_pending[j->image];
             o->jobs[(o->head+o->queued)%o->image_count]=j;++o->queued;
             if(o->queued>o->peak_queued)o->peak_queued=o->queued;
-            gfg_gpu_fg_set_output_pressure(o->gpu,o->busy && o->queued!=0);
+            gfg_gpu_fg_set_output_pressure(o->gpu,o->busy && o->queued>o->buffer_depth);
             ++o->submitted; pthread_cond_broadcast(&o->changed); r = o->advisory;
         } else {o->error=r;free(j);}
     }

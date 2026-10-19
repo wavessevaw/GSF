@@ -1,0 +1,3 @@
+HDR precision: format=64 outputs=3 all 1024 packed levels preserved exactly PASS
+HDR precision: format=58 BLIT_DST unsupported, skipped (runtime also refuses it)
+HDR precision: supported packed10 formats, FP16 synthesis, 1024 distinct levels, requested outputs bit-exact PASS; scanout unobserved

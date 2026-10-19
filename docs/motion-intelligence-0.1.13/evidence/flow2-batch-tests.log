@@ -1,0 +1,4 @@
+te-tests on llvmpipe (LLVM 15.0.7, 256 bits)
+  fd import: memory=1 semaphore=0 on llvmpipe (LLVM 15.0.7, 256 bits)
+  semaphore fd import not supported here: refusal path tested, import path untested
+te-tests: 197 checks, 0 failures

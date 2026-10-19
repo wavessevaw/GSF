@@ -5,7 +5,7 @@
 #include <math.h>
 static void rates(void) {
     const unsigned hz[]={30,45,60,75,90};
-    for(unsigned output=60;output<=90;output+=30)for(unsigned m=2;m<=3;++m)
+    for(unsigned output=60;output<=90;output+=30)for(unsigned m=2;m<=4;++m)
     for(unsigned f=0;f<5;++f)for(unsigned jitter=0;jitter<=3000000;jitter=jitter?jitter==200000?1000000:jitter==1000000?3000000:3000001:200000) {
         gfg_gpu_fg fg={.same_device=1,.multiplier=m,.clock={.period_ns=1000000000ull/output}};
         uint64_t source=10000000000ull;unsigned checked=0;
@@ -17,13 +17,13 @@ static void rates(void) {
             unsigned out=0;
             for(unsigned k=0;k<m-1;++k)if(mask&(1u<<k)) {
                 const double expected=(double)(fg.clock.target_ns[k]-fg.clock.previous_real_ns)/
-                    (double)(fg.clock.target_ns[2]-fg.clock.previous_real_ns);
+                    (double)(fg.clock.target_ns[GFG_REAL_OUTPUT]-fg.clock.previous_real_ns);
                 assert(fabs((double)s.timestamps[out]-expected)<0.000001);
                 assert(s.timestamps[out]>0 && s.timestamps[out]<1);
                 if(out)assert(s.timestamps[out]>s.timestamps[out-1]);
                 ++out;++checked;
             }
-            assert(s.count==out && s.wait_value==10 && s.signal_first==(out?13-out:12));
+            assert(s.count==out && s.wait_value==10 && s.signal_first==(out?14-out:13));
             if(output==90 && hz[f]==45 && m==3 && !jitter && i>2) {
                 assert(mask==2 && s.count==1 && s.timestamps[0]==0.5f);
             }
@@ -45,7 +45,7 @@ int main(int argc,char **argv) {
         assert(n==13);
         gfg_frame_clock c={.previous_real_ns=strtoull(fields[6],NULL,10),.mask=(unsigned)strtoul(fields[10],NULL,10)};
         const unsigned slot=(unsigned)strtoul(fields[8],NULL,10);
-        c.target_ns[slot]=strtoull(fields[9],NULL,10);c.target_ns[2]=strtoull(fields[7],NULL,10);
+        c.target_ns[slot]=strtoull(fields[9],NULL,10);c.target_ns[GFG_REAL_OUTPUT]=strtoull(fields[7],NULL,10);
         float tau=0;assert(gfg_frame_clock_phase(&c,slot,&tau));
         assert(fabs(tau-strtod(fields[12],NULL))<0.000001);++rows;
         if(c.mask==2 && fabs(tau-.5)<0.000001)++half;

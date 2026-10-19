@@ -1,0 +1,48 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lmc_common.glsl"
+#include "lmc_store.glsl"
+#include "lmc_color.glsl"
+#ifndef OUTPUT_FMT
+#define OUTPUT_FMT rgba8
+#endif
+layout(set=1,binding=0,OUTPUT_FMT) uniform writeonly image2D dst;
+layout(set=2,binding=1) uniform sampler2D reconstructed;
+layout(local_size_x=8,local_size_y=8) in;
+void main() {
+    ivec2 p=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(p,P.size.xy)))return;
+    int endpoint=PC.t<0.5?0:1;
+    vec3 a=texelFetch(srcA,p,0).rgb,b=texelFetch(srcB,p,0).rgb;
+    // Restore persistent HUD and exact static content after scene reconstruction.
+    if((PC.flags&1)!=0 || G.pal_count!=0u || imageLoad(hudCount,p).r>=uint(P.hud_pairs) || a==b) {
+        vec3 exact=(PC.flags&1)!=0?b:endpoint==0?a:b;
+        imageStore(dst,p,vec4(P.pad1!=0?exact.bgr:exact,1));return;
+    }
+    vec2 uv=(vec2(p)+0.5)/vec2(P.size.xy);
+    vec4 center=textureLod(reconstructed,uv,0);
+    // Bounded bilateral 2x2 reconstruction. Confident scene pixels stay sharp;
+    // local hole repair is confined to uncertain low-resolution samples.
+    if(PC.pass_==1) {
+        vec3 fast=composition_encode(center.rgb);
+        imageStore(dst,p,vec4(P.pad1!=0?fast.bgr:fast,1));return;
+    }
+    vec2 q=(vec2(p)+0.5)*0.5-0.5,f=fract(q);ivec2 base=ivec2(floor(q));
+    vec3 c=vec3(0);float total=0;
+    for(int y=0;y<2;++y)for(int x=0;x<2;++x) {
+        vec4 s=texelFetch(reconstructed,clamp(base+ivec2(x,y),ivec2(0),P.size.zw-1),0);
+        float w=(x==0?1-f.x:f.x)*(y==0?1-f.y:f.y);
+        float edge=1.0/(1.0+12.0*length(s.rgb-center.rgb));
+        w*=edge*(0.25+0.75*s.a);c+=s.rgb*w;total+=w;
+    }
+    c=total>0.00001?c/total:center.rgb;
+    // Motion-guided source detail injection, gated by pair confidence.
+    ivec2 n=lblocks(1),block=clamp(p/8,ivec2(0),n-1);
+    vec2 v=ORB.ob[block.y*n.x+block.x].xy*2.0;
+    vec2 detail_pos=vec2(p)+(endpoint==0?-PC.t:1.0-PC.t)*v;
+    if(PC.pass_>=3 && center.a>0.7 && inside(detail_pos,P.size.xy)) {
+        vec3 detail=composition_rgb(endpoint,detail_pos);
+        c=mix(c,detail,0.25*center.a);
+    }
+    vec3 encoded=composition_encode(c);
+    imageStore(dst,p,vec4(P.pad1!=0?encoded.bgr:encoded,1));
+}

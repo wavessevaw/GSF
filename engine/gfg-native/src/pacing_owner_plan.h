@@ -18,7 +18,7 @@ typedef struct {
     unsigned slot_id,output_index,state;
 } gsf_pacing_ticket;
 typedef struct {
-    gsf_pacing_ticket outputs[2];
+    gsf_pacing_ticket outputs[GFG_MAX_SYNTHETIC];
     uint64_t real_target_ns,real_limit_ns,a_target_ns,b_target_ns;
     unsigned count,mask,real_submitted;
 } gsf_pacing_plan;
@@ -37,15 +37,15 @@ static inline uint64_t gsf_pc_add(uint64_t a,uint64_t b) {return UINT64_MAX-a<b?
  */
 static inline gsf_pacing_plan gsf_pc_plan(const gfg_frame_clock *clock,
     uint64_t source_a,uint64_t source_b,uint64_t generation,uint64_t sequence,
-    uint64_t now,uint64_t buffer_ns,uint64_t start_delay_ns,const uint64_t compute_ns[2],
+    uint64_t now,uint64_t buffer_ns,uint64_t start_delay_ns,const uint64_t compute_ns[GFG_MAX_SYNTHETIC],
     uint64_t copy_ns,uint64_t acquire_ns,uint64_t lead_ns,uint64_t uncertainty_ns) {
     gsf_pacing_plan plan={0};
     plan.a_target_ns=gsf_pc_add(clock->previous_real_ns,buffer_ns);
-    plan.b_target_ns=plan.real_target_ns=gsf_pc_add(clock->target_ns[2],buffer_ns);
+    plan.b_target_ns=plan.real_target_ns=gsf_pc_add(clock->target_ns[GFG_REAL_OUTPUT],buffer_ns);
     plan.real_limit_ns=plan.real_target_ns;
     if(clock->discontinuity || plan.a_target_ns>=plan.b_target_ns)return plan;
     uint64_t cost=gsf_pc_add(start_delay_ns,gsf_pc_add(copy_ns,gsf_pc_add(acquire_ns,uncertainty_ns)));
-    for(unsigned k=0;k<2;++k)if(clock->mask&(1u<<k)) {
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)if(clock->mask&(1u<<k)) {
         const uint64_t target=gsf_pc_add(clock->target_ns[k],buffer_ns);
         if(target<=lead_ns || target<=plan.a_target_ns || target>=plan.b_target_ns)continue;
         const uint64_t deadline=target-lead_ns;

@@ -34,7 +34,7 @@ int main(void) {
     original_chain=&app_id;
     gfg_gpu_fg fg={.display_timing=2,.pacing_active=1,.pace_real=1,.clock={.period_ns=4000000}};
     mode=2;
-    for(unsigned k=0;k<3;++k) {
+    for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k) {
         wanted=(uint64_t)(now_us()*1000.0)+2000000;
         fg.clock.target_ns[k]=wanted;
         assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,k)==VK_SUCCESS);
@@ -44,11 +44,11 @@ int main(void) {
     /* A target two seconds away cannot hold a newly arrived real frame. */
     fg.output_wsi=(pthread_mutex_t *)NULL;
     pthread_mutex_t wsi=PTHREAD_MUTEX_INITIALIZER;fg.output_wsi=&wsi;
-    fg.clock.target_ns[2]=(uint64_t)(now_us()*1000.0)+2000000000ull;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=(uint64_t)(now_us()*1000.0)+2000000000ull;
     wanted=0;
     pthread_t producer;assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
     double start=now_us();
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     assert(now_us()-start<250000.0);
     pthread_join(producer,NULL);pthread_mutex_destroy(&wsi);fg.output_wsi=NULL;
     gfg_gpu_fg_set_output_pressure(&fg,0);
@@ -56,18 +56,18 @@ int main(void) {
      * Unlike the unbounded fake target above, this is a valid pair plan. */
     fg.clock.source_ns=(uint64_t)(now_us()*1000.0);
     fg.clock.interval_ns=16000000ull;
-    fg.clock.target_ns[2]=wanted=fg.clock.source_ns+12000000ull;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=wanted=fg.clock.source_ns+12000000ull;
     assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
     start=now_us();
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(fg.accepted_ns[2]>=wanted-fg.clock.period_ns/4);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
+    assert(fg.accepted_ns[GFG_REAL_OUTPUT]>=wanted-fg.clock.period_ns/4);
     assert(now_us()-start<250000.0);
     pthread_join(producer,NULL);gfg_gpu_fg_set_output_pressure(&fg,0);
     /* Acquired synthetic image already has a submitted GPU transport. It
      * must retire through WSI without being moved to an earlier phase. */
     fg.clock.source_ns=(uint64_t)(now_us()*1000.0);
     fg.clock.target_ns[0]=wanted=fg.clock.source_ns+8000000ull;
-    fg.clock.target_ns[2]=fg.clock.source_ns+12000000ull;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=fg.clock.source_ns+12000000ull;
     fg.transport_submit_mask=1;
     assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,0)==VK_SUCCESS);
@@ -76,22 +76,22 @@ int main(void) {
     fg.transport_submit_mask=0;
     wanted=0;
     fg.diagnostic=1;
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     fg.diagnostic=0;
     /* A missed/absent synthetic must never delay the native frame to a
      * future clock target, including through GOOGLE desiredPresentTime. */
     fg.pace_real=0;start=now_us();
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     /* B1 accepted G1 -> B2 is budget-blocked early. No leaked desiredTime. */
     fg.pace_real=1;
     wanted=(uint64_t)(now_us()*1000.0)+2000000ull;
-    fg.clock.target_ns[2]=wanted;
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=wanted;
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     gsf_begin_native_pair(&fg); /* same entry reset used before every bypass */
     wanted=0;
-    fg.clock.target_ns[2]=(uint64_t)(now_us()*1000.0)+2000000000ull;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=(uint64_t)(now_us()*1000.0)+2000000000ull;
     start=now_us();
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     assert(!fg.pace_real && now_us()-start<250000.0);
     assert(now_us()-start<250000.0);
     /* Bounded flushing: multiple small events stay buffered until 250ms. */
@@ -101,11 +101,27 @@ int main(void) {
     telemetry_flush(&fg,249000010);assert(!fstat(fileno(fg.telemetry),&st) && !st.st_size);
     telemetry_flush(&fg,250000010);assert(!fstat(fileno(fg.telemetry),&st) && st.st_size==13);
     fclose(fg.telemetry);fg.telemetry=NULL;
+    // A successful compositor timing contract accepts future buffered slots
+    // immediately. Sleeping until the previous B prevented pipelining.
+    mode=2;fg.display_timing=2;fg.pacing_active=1;fg.diagnostic=0;
+    fg.buffer_depth=2;fg.buffered_owner=0;fg.clock.overspeed=0;
+    fg.refresh_observation.last_success_ns=(uint64_t)(now_us()*1000.0);
+    fg.clock.source_ns=fg.refresh_observation.last_success_ns;
+    fg.clock.interval_ns=200000000;fg.clock.period_ns=10000000;
+    fg.clock.target_ns[0]=wanted=fg.clock.source_ns+400000000;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=fg.clock.source_ns+600000000;
+    fg.transport_submit_mask=1;fg.pace_real=1;
+    start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,0)==VK_SUCCESS);
+    wanted=fg.clock.target_ns[GFG_REAL_OUTPUT];
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
+    assert(now_us()-start<100000.0); // both targets remain at least 400ms away
+    fg.buffer_depth=0;fg.refresh_observation.last_success_ns=0;
     /* App-owned namespace: preserve its entire chain; no injected GOOGLE IDs. */
     mode=1;fg.display_timing=1;fg.pacing_active=0;
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
-    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(calls==12 && previous_id==10);
-    puts("presentation-timing: distinct desired G1/G2/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
+    assert(calls==15 && previous_id==13);
+    puts("presentation-timing: distinct desired G1/G2/G3/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }

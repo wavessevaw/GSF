@@ -17,16 +17,20 @@ LOG_LIMIT = 16*1024*1024
 TELEMETRY_LIMIT = 32*1024*1024  # Writer-owned segment size; launcher never truncates it.
 
 
-def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2):
-    if type(multiplier) is not int or multiplier not in (2, 3):
-        raise ValueError("GSF supports only x2 or x3")
-    if diagnostic_mode not in ("normal", "normal-eco45", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs",
+def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2, buffer_depth=1, quality="balanced"):
+    if type(multiplier) is not int or multiplier not in (0, 2, 3, 4):
+        raise ValueError("GSF supports Off, x2, x3 or x4")
+    if diagnostic_mode not in ("normal", "normal-flow-lite1", "normal-eco45", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs",
                                "normal-queue-observe", "normal-no-watch", "normal-no-calibration",
                                "normal-calibration-every-frame", "normal-no-latency-admission",
                                "source-only", "compute-only", "matched-compute"):
         raise ValueError("Unsupported GSF diagnostic mode")
-    if multiplier == 3 and diagnostic_mode == "normal-adaptive-pairs":
+    if multiplier != 2 and diagnostic_mode == "normal-adaptive-pairs":
         raise ValueError("Adaptive pair experimental mode is only available with x2")
+    if type(buffer_depth) is not int or buffer_depth not in (0, 1, 2):
+        raise ValueError('Invalid buffer depth')
+    if quality not in ('ultra-lite', 'balanced', 'quality', 'adaptive'):
+        raise ValueError('Invalid reconstruction quality')
     # Call before changing the environment: use the stock WSI manifest and
     # disable switch exactly as in the controlled Game Mode qualification.
     base = candidate_module(kit)
@@ -54,10 +58,12 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2
     env['VK_INSTANCE_LAYERS'] = ':'.join(layers)
     env.update(GFG_NATIVE_FG='1', GFG_NATIVE_GPU_BRIDGE='1', GFG_NATIVE_GPU_SYNC='same-device',
                GFG_NATIVE_ASYNC='1', GFG_NATIVE_FORCE_FIFO='1', GFG_NATIVE_MODE=str(multiplier),
-               GFG_NATIVE_ALGO='gsf', GFG_NATIVE_FLOW_LITE='1', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
+               GFG_NATIVE_ALGO='gsf', GFG_NATIVE_FLOW_LITE='1', GFG_NATIVE_FLOW_LITE2='1',
+               GFG_NATIVE_BUFFER_DEPTH=str(buffer_depth), GFG_NATIVE_RECONSTRUCTION_QUALITY=quality, GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
+               GFG_NATIVE_COMPAT_BUFFER='1', GFG_NATIVE_COST_ADAPTIVE='1',
                GFG_NATIVE_TIMING='1', GFG_NATIVE_SHADOW_ADMISSION='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_CALIBRATED_TIMESTAMPS='1', GFG_NATIVE_LATENCY_ADMISSION='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'), GFG_NATIVE_TELEMETRY_SEGMENTED='1')
-    if diagnostic_mode not in ("normal", "normal-eco45", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
+    if diagnostic_mode not in ("normal", "normal-flow-lite1", "normal-eco45", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
         env["GFG_NATIVE_DIAGNOSTIC_MODE"] = diagnostic_mode
     if diagnostic_mode == "normal-adaptive-pairs":
         env["GFG_NATIVE_ADAPTIVE_PAIRS"] = "1"
@@ -75,12 +81,16 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2
         env["GFG_NATIVE_CALIBRATION_EVERY_FRAMES"] = "1"
     # The legacy GPU model remains a selectable reference for energy/quality A/B.
     # All other profiles use the lightweight GSF shader path by default.
+    if diagnostic_mode == "normal-flow-lite1":
+        env.pop("GFG_NATIVE_FLOW_LITE2", None)
     if diagnostic_mode == "normal-eco45":
         env["GFG_NATIVE_GSF_ECO"] = "1"
         env.pop("GFG_NATIVE_FLOW_LITE", None)
+        env.pop("GFG_NATIVE_FLOW_LITE2", None)
     if diagnostic_mode == "normal-lmc-gpu":
         env["GFG_NATIVE_ALGO"] = "lmc-gpu"
         env.pop("GFG_NATIVE_FLOW_LITE", None)
+        env.pop("GFG_NATIVE_FLOW_LITE2", None)
         env.pop("GFG_NATIVE_GSF_ECO", None)
     # Never set SOURCE_HZ, OUTPUT_HZ, a game limiter, pixel readbacks or test badges.
     return env
@@ -107,7 +117,7 @@ def run_game(root, aid, command):
         kit = Path(current['kit'])
         candidate_module(kit).verify_payload(kit)
         report['build'] = load_json(kit/'BUILD_INFO.json')
-        env = game_environment(kit, run, os.environ, mode, multiplier)
+        env = game_environment(kit, run, os.environ, mode, multiplier, settings.get('buffer_depth', 1), settings.get('reconstruction_quality', 'balanced'))
         # No full argv or inherited environment dump: these may contain secrets.
         atomic_json(run/'LAUNCH.json', {'appid': int(aid), 'program': Path(command[0]).name,
                     'build': report['build'], 'native_environment':
@@ -178,7 +188,8 @@ def main():
     aid = app_id(args.appid)
     try:
         config = load_json(root/'config.json', {'games': {}})
-        enabled = config.get('games', {}).get(aid, {}).get('enabled') is True
+        entry = config.get('games', {}).get(aid, {})
+        enabled = entry.get('enabled') is True and entry.get('multiplier', 2) != 0
     except (OSError, ValueError, TypeError):
         enabled = False
     if not enabled:

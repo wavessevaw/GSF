@@ -1,0 +1,14 @@
+make: Entering directory '/work/engine/gfg-native'
+mkdir -p build-plain
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/vkh/include -shared -Wl,-z,defs  -o build-plain/libVkLayer_gfg_native.so src/layer.c  -lpthread
+mkdir -p build-plain
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -g -fno-omit-frame-pointer -fsanitize=address,undefined -pthread -I/vkh/include -o build-plain/output-proxy-layer-create tests/output_proxy_layer_create.c -lvulkan
+build-plain/output-proxy-layer-create
+Layer vkCreateSwapchainKHR: one private output and three app images PASS
+Layer vkCreateSwapchainKHR: unknown pNext and OOM rollback PASS
+TEST-ONLY MOCKED Vulkan; no actual game or Deck scanout proof
+mkdir -p build-plain
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -pthread -I/vkh/include -o build-plain/output-layer-dispatch tests/output_layer_dispatch.c -lvulkan
+build-plain/output-layer-dispatch
+GFG test layer: GIPA/GDPA->GetImages/Acquire/Acquire2/Present virtual source, separate output PASS
+make: Leaving directory '/work/engine/gfg-native'

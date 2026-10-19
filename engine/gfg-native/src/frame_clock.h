@@ -7,15 +7,16 @@
  * only unoccupied slots between consecutive real frames. A 60 Hz source on
  * 90 Hz output can therefore admit one synthetic frame on alternating pairs.
  * Re-anchoring bounds latency to two measured source intervals. */
+enum { GFG_MAX_SYNTHETIC = 3, GFG_REAL_OUTPUT = 3, GFG_OUTPUT_COUNT = 4 };
 typedef struct {
     uint64_t period_ns, real_ns, resyncs;
-    uint64_t source_ns, interval_ns, target_ns[3];
+    uint64_t source_ns, interval_ns, target_ns[GFG_OUTPUT_COUNT];
     uint64_t previous_real_ns; /* A endpoint of this pair's presentation plan */
     uint64_t grid_origin_ns, grid_period_ns, real_slot;
     unsigned mask, discontinuity, overspeed;
 } gfg_frame_clock;
 static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsigned multiplier) {
-    if (!c->period_ns || (multiplier!=2 && multiplier!=3)) return;
+    if (!c->period_ns || (multiplier<2 || multiplier>4)) return;
     const uint64_t p=c->period_ns;
     c->previous_real_ns=c->real_ns;
     const uint64_t previous_source=c->source_ns;
@@ -26,9 +27,9 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
     if(!dt || dt>gap)dt=c->interval_ns?c->interval_ns:multiplier*p;
     c->source_ns=source;c->interval_ns=dt;c->mask=0;
     c->discontinuity=discontinuity;
-    c->target_ns[0]=source+dt/multiplier;
-    c->target_ns[1]=source+2*dt/3;
-    c->target_ns[2]=source+dt;
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)
+        c->target_ns[k]=source+(k+1)*dt/multiplier;
+    c->target_ns[GFG_REAL_OUTPUT]=source+dt;
     if(discontinuity || (c->grid_period_ns && c->grid_period_ns!=p)) {
         ++c->resyncs;
         c->grid_origin_ns=0;
@@ -40,13 +41,13 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
     if(dt<p-p/20) {
         if(!c->overspeed)++c->resyncs;
         c->overspeed=1;c->grid_origin_ns=0;c->real_slot=0;
-        c->target_ns[2]=source;c->real_ns=source;c->discontinuity=1;
+        c->target_ns[GFG_REAL_OUTPUT]=source;c->real_ns=source;c->discontinuity=1;
         return;
     }
     c->overspeed=0;
     if(!c->grid_origin_ns) {
         c->grid_origin_ns=source+dt;
-        c->real_slot=0;c->target_ns[2]=c->grid_origin_ns;
+        c->real_slot=0;c->target_ns[GFG_REAL_OUTPUT]=c->grid_origin_ns;
         c->real_ns=c->grid_origin_ns;
         return; /* First/gap frame establishes history, no synthetic output. */
     }
@@ -64,13 +65,13 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
     if(target>source+2*dt || target<source || target<c->real_ns+p) {
         ++c->resyncs;c->discontinuity=1;
         c->grid_origin_ns=source+dt;c->real_slot=0;
-        c->target_ns[2]=c->real_ns=c->grid_origin_ns;
+        c->target_ns[GFG_REAL_OUTPUT]=c->real_ns=c->grid_origin_ns;
         return;
     }
     const uint64_t previous_slot=c->real_slot;
     const uint64_t span=next_slot-previous_slot;
     c->real_slot=next_slot;
-    c->real_ns=c->target_ns[2]=target;
+    c->real_ns=c->target_ns[GFG_REAL_OUTPUT]=target;
     uint64_t last=previous_slot;
     for(unsigned k=0;k<multiplier-1;++k) {
         const uint64_t offset=span*(k+1)/multiplier;
@@ -82,8 +83,29 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
         c->target_ns[k]=t;c->mask|=1u<<k;last=slot;
     }
 }
+/* Buffer depth is EXTRA retention beyond the intrinsic causal A/B
+ * lookahead. Quantize that extra source period to whole display slots; a
+ * 60fps source on 90Hz must not shift the lattice by a half refresh slot. */
+static inline void gfg_frame_clock_buffer(gfg_frame_clock *c,unsigned depth,uint64_t *last_real) {
+    if(!c || !last_real || depth>2 || !c->period_ns)return;
+    const uint64_t p=c->period_ns;
+    /* Round to the nearest slot: ceil turned +/-100us source jitter around
+     * 45->90 into alternating extra 2/3 slots and destroyed buffered cadence. */
+    const uint64_t duration=c->interval_ns*depth;
+    const uint64_t extra=(duration/p+(duration%p>=p/2))*p;
+    for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k)c->target_ns[k]+=extra;
+    c->previous_real_ns=*last_real;
+    if(*last_real && c->target_ns[GFG_REAL_OUTPUT]<=*last_real) {
+        const uint64_t slots=(*last_real-c->grid_origin_ns)/p+1;
+        c->target_ns[GFG_REAL_OUTPUT]=c->grid_origin_ns+slots*p;
+        c->mask=0;c->discontinuity=1;
+    }
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)
+        if(c->target_ns[k]<=c->previous_real_ns || c->target_ns[k]>=c->target_ns[GFG_REAL_OUTPUT])c->mask&=~(1u<<k);
+    *last_real=c->target_ns[GFG_REAL_OUTPUT];
+}
 static inline uint64_t gfg_frame_clock_target(const gfg_frame_clock *c,unsigned kind) {
-    return c->target_ns[kind]; /* 0 G1, 1 G2, 2 real */
+    return kind<GFG_OUTPUT_COUNT?c->target_ns[kind]:0; /* G1/G2/G3, real */
 }
 /* Map the actual reserved display slot onto the adjacent planned real A/B
  * endpoints. Slot label G2 is NOT an interpolation phase: with x3 on 45->90
@@ -91,16 +113,16 @@ static inline uint64_t gfg_frame_clock_target(const gfg_frame_clock *c,unsigned 
  * presentation-plan coordinates, not a claim about physical scanout times.
  * Reject stale/invalid anchors rather than substituting a nominal fraction. */
 static inline int gfg_frame_clock_phase(const gfg_frame_clock *c,unsigned kind,float *tau) {
-    if(!tau || kind>1 || !(c->mask&(1u<<kind)) || c->discontinuity ||
-       !c->previous_real_ns || c->target_ns[2]<=c->previous_real_ns ||
-       c->target_ns[kind]<=c->previous_real_ns || c->target_ns[kind]>=c->target_ns[2])return 0;
+    if(!tau || kind>=GFG_MAX_SYNTHETIC || !(c->mask&(1u<<kind)) || c->discontinuity ||
+       !c->previous_real_ns || c->target_ns[GFG_REAL_OUTPUT]<=c->previous_real_ns ||
+       c->target_ns[kind]<=c->previous_real_ns || c->target_ns[kind]>=c->target_ns[GFG_REAL_OUTPUT])return 0;
     const double t=(double)(c->target_ns[kind]-c->previous_real_ns)/
-                   (double)(c->target_ns[2]-c->previous_real_ns);
+                   (double)(c->target_ns[GFG_REAL_OUTPUT]-c->previous_real_ns);
     *tau=(float)t;
     return *tau>0.0f && *tau<1.0f;
 }
 static inline int gfg_frame_clock_admit(const gfg_frame_clock *c,unsigned kind,uint64_t now) {
-    return (c->mask&(1u<<kind)) && now<c->target_ns[kind];
+    return kind<GFG_MAX_SYNTHETIC && (c->mask&(1u<<kind)) && now<c->target_ns[kind];
 }
 /* Recheck immediately before dispatch, after queue/ring/source-copy delays.
  * GOOGLE timed presents need the same early handoff as the readiness wait.
@@ -108,7 +130,7 @@ static inline int gfg_frame_clock_admit(const gfg_frame_clock *c,unsigned kind,u
 static inline unsigned gfg_frame_clock_compute_mask(const gfg_frame_clock *c,
                                                    uint64_t now,uint64_t lead_ns) {
     unsigned mask=0;
-    for(unsigned k=0;k<2;++k)
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)
         if((c->mask&(1u<<k)) && c->target_ns[k]>lead_ns &&
            now<c->target_ns[k]-lead_ns)mask|=1u<<k;
     return mask;

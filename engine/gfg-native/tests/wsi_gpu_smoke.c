@@ -400,6 +400,7 @@ int main(void) {
         .presentMode = env_1("GFG_TEST_MAILBOX_SWAPCHAIN")
             ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR,
         .clipped = VK_TRUE};
+    if(env_1("GFG_TEST_BUFFERED_OWNER"))swci.imageUsage|=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     const VkPresentModeKHR compatible_mode = swci.presentMode;
     const VkSwapchainPresentModesCreateInfoEXT compatible = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_MODES_CREATE_INFO_EXT,
@@ -740,7 +741,7 @@ int main(void) {
         CHECK(st.bridges_created == (lifecycle ? 3u : 1u));
         if (lifecycle) CHECK(check_generation(&generation_before, &st, frames / 3, generation));
         CHECK(st.real_presents == frames);
-        CHECK(st.synthetic_presents + st.skipped_synthetic == (getenv("GFG_NATIVE_MODE") && !strcmp(getenv("GFG_NATIVE_MODE"),"2")?1ull:2ull) * (frames - (lifecycle ? 3u : 1u)));
+        CHECK(st.synthetic_presents + st.skipped_synthetic == (getenv("GFG_NATIVE_MODE")?(uint64_t)atoi(getenv("GFG_NATIVE_MODE"))-1:2ull) * (frames - (lifecycle ? 3u : 1u)));
         if (!env_1("GFG_TEST_ALLOW_SKIPS")) CHECK(st.skipped_synthetic == 0);
         CHECK(st.errors == (env_1("GFG_TEST_EXPECT_FAULT")?1u:0u));
         CHECK(st.present_path_host_pixel_reads == 0);

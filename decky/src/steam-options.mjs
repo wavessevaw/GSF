@@ -1,22 +1,57 @@
 // Steam's live app-details API, with readback and exact rollback ownership.
+export function withTimeout(task, timeout = 15000, message = 'GSF: нет ответа от Decky. Закройте и снова откройте панель.') {
+  let timer;
+  return Promise.race([task, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeout);
+  })]).finally(() => clearTimeout(timer));
+}
+
+export async function copyCommand(text, clipboard = globalThis.navigator?.clipboard, doc = globalThis.document) {
+  try {
+    if (clipboard?.writeText) {
+      await withTimeout(clipboard.writeText(text), 1500, 'Буфер обмена не отвечает');
+      return;
+    }
+  } catch { /* Some Steam CEF versions deny the asynchronous clipboard API. */ }
+  const field = doc?.createElement('textarea');
+  if (!field) throw Error('Буфер обмена недоступен. Выделите и скопируйте команду вручную.');
+  const focused = doc.activeElement;
+  try {
+    field.value = text;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    doc.body.appendChild(field);
+    field.select();
+    if (!doc.execCommand?.('copy')) throw Error('Steam не разрешил копирование. Выделите команду вручную.');
+  } finally {field.remove(); focused?.focus?.();}
+}
+
 export function readOptions(apps, appid, expected, timeout = 6000) {
   return new Promise((resolve, reject) => {
     let subscription;
     let settled = false;
+    const cleanup = () => {
+      try {
+        if (typeof subscription === 'function') subscription();
+        else subscription?.unregister?.();
+      } catch { /* A stale CEF subscription must not prevent promise settlement. */ }
+    };
     const finish = (error, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      subscription?.unregister();
+      cleanup();
       error ? reject(error) : resolve(value);
     };
-    const timer = setTimeout(() => finish(new Error("Steam не подтвердил параметры запуска")), timeout);
+    const timer = setTimeout(() => finish(new Error("Steam не подтвердил параметры запуска. Используйте «Ручной запуск».")), timeout);
     try {
+      if (typeof apps?.RegisterForAppDetails !== 'function')
+        throw Error('Steam API недоступен. Используйте «Ручной запуск».');
       subscription = apps.RegisterForAppDetails(appid, (details) => {
         const value = details?.strLaunchOptions;
         if (typeof value === "string" && (expected === undefined || value === expected)) finish(null, value);
       });
-      if (settled) subscription?.unregister();
+      if (settled) cleanup();
     } catch (error) { finish(error); }
   });
 }

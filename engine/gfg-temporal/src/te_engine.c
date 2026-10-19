@@ -180,7 +180,7 @@ struct te_context {
     VkDeviceSize memory_bytes; /* device memory this context allocated (internal and imported) */
     uint64_t submits;          /* submissions so far */
     uint64_t output_ready[TE_MAX_OUTPUTS];
-    uint64_t outputs_completed;/* outputs whose GPU work finished */
+    uint64_t outputs_completed,generated_outputs_completed;/* outputs whose GPU work finished */
     uint64_t last_timing_sequence, last_submit_return_ns, last_gpu_start_ticks;
     double last_gpu_timestamp_period_ns;
     uint32_t last_gpu_timestamp_valid_bits;
@@ -992,7 +992,7 @@ static VkResult validate_desc(te_device* dev, const te_context_desc* d) {
     if (d->application_timeline && !dev->borrowed)
         return fail(VK_ERROR_FEATURE_NOT_PRESENT, "application timeline requires borrowed device");
     if(p->algorithm>TE_ALGO_SHARED_FLOW) return VK_ERROR_FEATURE_NOT_PRESENT;
-    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>5))
+    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>6))
         return fail(VK_ERROR_FEATURE_NOT_PRESENT,"unknown experimental shared-flow variant");
     if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3 && d->shared_flow_dense<=4)) &&
         (dev->props.limits.maxComputeWorkGroupInvocations<512 || dev->props.limits.maxComputeWorkGroupSize[0]<512 ||
@@ -1436,6 +1436,7 @@ static void collect(te_context* ctx, te_slot* slot) {
     ctx->last_gpu_timestamp_valid_bits=ctx->dev->ts_bits;
     ctx->last_gpu_start_ticks=0;
     ctx->outputs_completed += slot->outputs;
+    if(!slot->held)ctx->generated_outputs_completed+=slot->outputs;
     st->outputs_completed_total = ctx->outputs_completed;
     uint64_t ts[TE_QUERIES];
     uint32_t used = 4 + slot->outputs * 6;
@@ -1462,6 +1463,10 @@ static void collect(te_context* ctx, te_slot* slot) {
                 st->frame_ms[i][TE_FRAME_REUSE] = st->frame_ms[i][TE_FRAME_LIGHT] = st->frame_ms[i][TE_FRAME_FULL] = -1.0;
             }
             st->frame_ms[i][TE_FRAME_TOTAL] = DELTA(q, q + 5);
+            if(ctx->lmc && ctx->desc.shared_flow_dense==6) {
+                st->reconstruction_ms[i]=DELTA(q,q+1);
+                st->upscale_ms[i]=DELTA(q+1,q+2);
+            }
         }
     }
     for (int k = 0; k < TE_LMC_PROF_COUNT; ++k) st->lmc_ms[k] = -1.0;
@@ -1512,18 +1517,27 @@ static VkResult finish_deferred_output(te_context* ctx,int produce) {
     if(!slot)return VK_SUCCESS;
     select_device(ctx->dev);
     ctx->deferred_slot=NULL;
-    VkTimelineSemaphoreSubmitInfo timeline={.sType=VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
-        .signalSemaphoreValueCount=1,.pSignalSemaphoreValues=&slot->deferred_second};
-    VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.pNext=&timeline,
-        .commandBufferCount=produce?1u:0u,.pCommandBuffers=produce?&slot->out[1]:NULL,
-        .signalSemaphoreCount=1,.pSignalSemaphores=&ctx->timeline};
-    if(!produce){slot->outputs=1;ctx->output_ready[1]=0;}
-    VkResult result=queue_submit(ctx->dev,1,&submit,slot->fence);
+    VkSubmitInfo submits[TE_MAX_OUTPUTS]={0};
+    VkTimelineSemaphoreSubmitInfo timelines[TE_MAX_OUTPUTS]={0};
+    uint64_t values[TE_MAX_OUTPUTS]={0};
+    const unsigned count=produce?slot->outputs-1:1;
+    for(unsigned j=0;j<count;++j) {
+        const unsigned i=j+1;
+        values[j]=produce?slot->deferred_first+i:slot->deferred_second;
+        timelines[j]=(VkTimelineSemaphoreSubmitInfo){.sType=VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            .signalSemaphoreValueCount=1,.pSignalSemaphoreValues=&values[j]};
+        submits[j]=(VkSubmitInfo){.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.pNext=&timelines[j],
+            .commandBufferCount=produce?1u:0u,.pCommandBuffers=produce?&slot->out[i]:NULL,
+            .signalSemaphoreCount=1,.pSignalSemaphores=&ctx->timeline};
+    }
+    if(!produce) {
+        for(unsigned i=1;i<slot->outputs;++i)ctx->output_ready[i]=0;
+        slot->outputs=1;
+    }
+    VkResult result=queue_submit(ctx->dev,count,submits,slot->fence);
     if(result!=VK_SUCCESS) {
-        /* No fence was submitted for G2. Cleanup waits only the known G1
-         * signal, not the impossible final signal/fence. */
         slot->deferred_failed=1;slot->async_result=result;
-        return fail(result,"deferred G2 submission failed (%d)",result);
+        return fail(result,"deferred output submission failed (%d)",result);
     }
     return VK_SUCCESS;
 }
@@ -1586,9 +1600,9 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
     if (repeat && !s->discontinuity)
         return fail(VK_ERROR_INITIALIZATION_FAILED, "source slots must alternate");
     if (s->count > ctx->desc.outputs) return fail(VK_ERROR_INITIALIZATION_FAILED, "more timestamps than outputs");
-    if(s->defer_second && (!ctx->dev->borrowed || !ctx->timeline || !s->signal_first || s->count!=2 ||
+    if(s->defer_second && (!ctx->dev->borrowed || !ctx->timeline || !s->signal_first || (s->count<2 || s->count>TE_MAX_OUTPUTS) ||
        !ctx->lmc || !ctx->lmc->shared_flow))
-        return fail(VK_ERROR_FEATURE_NOT_PRESENT,"deferred G2 requires borrowed timeline GSF with two outputs");
+        return fail(VK_ERROR_FEATURE_NOT_PRESENT,"deferred outputs require borrowed timeline GSF with at least two outputs");
     for (uint32_t i = 0; i < s->count; ++i) {
         float t = s->timestamps[i];
         if (!(t > 0.0f && t < 1.0f) || (i && !(t > s->timestamps[i - 1])))
@@ -1695,7 +1709,7 @@ VkResult te_submit_frame(te_context* ctx, const te_submit* s) {
         sr = queue_submit(ctx->dev,s->defer_second?2:n,si,s->defer_second?VK_NULL_HANDLE:slot->fence);
         if (sr != VK_SUCCESS) return fail(sr, "vkQueueSubmit failed (%d)", sr);
         if(s->defer_second) {
-            slot->deferred_first=s->signal_first;slot->deferred_second=s->signal_first+1;
+            slot->deferred_first=s->signal_first;slot->deferred_second=s->signal_first+s->count-1;
             ctx->deferred_slot=slot;
         }
     }
@@ -1940,4 +1954,8 @@ int te_export_source_fd(te_context* ctx, uint32_t slot) { return slot < 2 ? expo
 
 int te_export_dest_fd(te_context* ctx, uint32_t output) {
     return output < ctx->desc.outputs ? export_memory(ctx, &ctx->dst[output]) : -1;
+}
+
+uint64_t te_generated_outputs_completed(const te_context *ctx) {
+    return ctx?ctx->generated_outputs_completed:0;
 }

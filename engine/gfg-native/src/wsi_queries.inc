@@ -14,6 +14,9 @@ static pthread_mutex_t *native_query_lock(native_device *d, VkSwapchainKHR sc) {
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetSwapchainStatusKHR next = (PFN_vkGetSwapchainStatusKHR)d->gdpa(device,"vkGetSwapchainStatusKHR");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -26,6 +29,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainStatusKHR(VkDevice devi
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetRefreshCycleDurationGOOGLE next = (PFN_vkGetRefreshCycleDurationGOOGLE)d->gdpa(device,"vkGetRefreshCycleDurationGOOGLE");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -38,6 +44,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetRefreshCycleDurationGOOGLE(VkDev
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetPastPresentationTimingGOOGLE next = (PFN_vkGetPastPresentationTimingGOOGLE)d->gdpa(device,"vkGetPastPresentationTimingGOOGLE");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -50,6 +59,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetPastPresentationTimingGOOGLE(VkD
 static VKAPI_ATTR VkResult VKAPI_CALL native_SetSwapchainPresentTimingQueueSizeEXT(VkDevice device, VkSwapchainKHR swapchain, uint32_t size) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkSetSwapchainPresentTimingQueueSizeEXT next = (PFN_vkSetSwapchainPresentTimingQueueSizeEXT)d->gdpa(device,"vkSetSwapchainPresentTimingQueueSizeEXT");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -62,6 +74,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_SetSwapchainPresentTimingQueueSizeE
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainTimingPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimingPropertiesEXT* pSwapchainTimingProperties, uint64_t* pSwapchainTimingPropertiesCounter) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetSwapchainTimingPropertiesEXT next = (PFN_vkGetSwapchainTimingPropertiesEXT)d->gdpa(device,"vkGetSwapchainTimingPropertiesEXT");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -74,6 +89,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainTimingPropertiesEXT(VkD
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainTimeDomainPropertiesEXT(VkDevice device, VkSwapchainKHR swapchain, VkSwapchainTimeDomainPropertiesEXT* pSwapchainTimeDomainProperties, uint64_t* pTimeDomainsCounter) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetSwapchainTimeDomainPropertiesEXT next = (PFN_vkGetSwapchainTimeDomainPropertiesEXT)d->gdpa(device,"vkGetSwapchainTimeDomainPropertiesEXT");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,swapchain);
@@ -86,6 +104,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetSwapchainTimeDomainPropertiesEXT
 static VKAPI_ATTR VkResult VKAPI_CALL native_GetPastPresentationTimingEXT(VkDevice device, const VkPastPresentationTimingInfoEXT* pPastPresentationTimingInfo, VkPastPresentationTimingPropertiesEXT* pPastPresentationTimingProperties) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,pPastPresentationTimingInfo->swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkGetPastPresentationTimingEXT next = (PFN_vkGetPastPresentationTimingEXT)d->gdpa(device,"vkGetPastPresentationTimingEXT");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,pPastPresentationTimingInfo->swapchain);
@@ -98,6 +119,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_GetPastPresentationTimingEXT(VkDevi
 static VKAPI_ATTR VkResult VKAPI_CALL native_ReleaseSwapchainImagesKHR(VkDevice device, const VkReleaseSwapchainImagesInfoKHR* pReleaseInfo) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,pReleaseInfo->swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkReleaseSwapchainImagesKHR next = (PFN_vkReleaseSwapchainImagesKHR)d->gdpa(device,"vkReleaseSwapchainImagesKHR");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,pReleaseInfo->swapchain);
@@ -110,6 +134,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL native_ReleaseSwapchainImagesKHR(VkDevice 
 static VKAPI_ATTR VkResult VKAPI_CALL native_ReleaseSwapchainImagesEXT(VkDevice device, const VkReleaseSwapchainImagesInfoEXT *pReleaseInfo) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,pReleaseInfo->swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     PFN_vkReleaseSwapchainImagesEXT next = (PFN_vkReleaseSwapchainImagesEXT)d->gdpa(device,"vkReleaseSwapchainImagesEXT");
     if (!next) return VK_ERROR_EXTENSION_NOT_PRESENT;
     pthread_mutex_t *lock = native_query_lock(d,pReleaseInfo->swapchain);
@@ -123,6 +150,9 @@ static VKAPI_ATTR void VKAPI_CALL native_SetHdrMetadataEXT(VkDevice device, uint
         const VkSwapchainKHR *chains, const VkHdrMetadataEXT *metadata) {
     native_device *d = find_device(dispatch_key(device));
     if (!d) return;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    for(uint32_t i=0;i<count;++i)if(native_test_find_virtual(d,chains[i]))return;
+#endif
     PFN_vkSetHdrMetadataEXT next = (PFN_vkSetHdrMetadataEXT)d->gdpa(device,"vkSetHdrMetadataEXT");
     if (!next) return;
     /* Same list order for multi-swapchain locking; never acquire d->lock from

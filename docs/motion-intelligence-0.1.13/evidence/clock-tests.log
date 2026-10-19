@@ -1,0 +1,25 @@
+make: Entering directory '/workspace/GSF/engine/gfg-native'
+mkdir -p build
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -o build/frame-clock tests/frame_clock.c
+build/frame-clock tests/fixtures/ac-origins-deadline-slack.csv
+AC Origins replay: 7546 pairs, 2474 old dispatches, >=303 already expired at worker start; all 162 accepted G1 retained
+30->90Hz x4: 1197 admitted / 600 real (resync=0)
+45->90Hz x4: 597 admitted / 600 real (resync=0)
+60->90Hz x4: 299 admitted / 600 real (resync=1)
+90->90Hz x4: 0 admitted / 600 real (resync=1)
+27->90Hz x2: 599 admitted / 600 real (resync=0)
+42->90Hz x2: 599 admitted / 600 real (resync=0)
+40->90Hz x2: 599 admitted / 600 real (resync=0)
+45->90Hz x2: 599 admitted / 600 real (resync=0)
+60->90Hz x2: 299 admitted / 600 real (resync=0)
+30->90Hz x3: 1198 admitted / 600 real (resync=0)
+60->90Hz x2: 299 admitted / 600 real (resync=0)
+60->90Hz x3: 298 admitted / 600 real (resync=0)
+75->90Hz x2: 119 admitted / 600 real (resync=0)
+75->90Hz x3: 120 admitted / 600 real (resync=1)
+60->90Hz x3: 298 admitted / 600 real (resync=0)
+90->90Hz x2: 0 admitted / 600 real (resync=0)
+90->90Hz x3: 0 admitted / 600 real (resync=1)
+120->90Hz x2: 0 admitted / 600 real (resync=1)
+frame-clock: bounded 27/42/60/90Hz slots, x2/x3, rate transitions PASS
+make: Leaving directory '/workspace/GSF/engine/gfg-native'

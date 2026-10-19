@@ -1,0 +1,49 @@
+name: GSF Motion Intelligence Vulkan
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/**'
+      - 'engine/gfg-temporal/**'
+      - 'decky/**'
+      - 'scripts/mi_*'
+      - '.github/workflows/gsf-motion-intelligence.yml'
+permissions:
+  contents: read
+jobs:
+  vulkan:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      LP_NUM_THREADS: 2
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vulkan dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential python3 libvulkan-dev libxcb1-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb xauth vulkan-validationlayers
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Compile and validate every shader variant
+        run: |
+          mkdir -p artifacts
+          make -j2 -C engine/gfg-temporal all lib
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-mi VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-mi/wsi-gpu-smoke motion-intelligence-check gpu-ring frame-phase presentation-timing device-fallback build-mi/hdr-precision
+      - name: Complete Flow Lite 2.0 regression, sequential and batched
+        run: |
+          GFG_TEST_SHARED_FLOW=6 engine/gfg-temporal/build/te-tests > artifacts/flow2-sequential.log 2>&1
+          GFG_TEST_SHARED_FLOW=6 GFG_TEST_FLOW_BATCH=1 engine/gfg-temporal/build/te-tests > artifacts/flow2-batched.log 2>&1
+          GFG_TEST_SHARED_FLOW=6 GFG_TEST_FLOW_QUALITY=1 engine/gfg-temporal/build/te-tests > artifacts/flow2-ultra.log 2>&1
+          GFG_TEST_SHARED_FLOW=6 GFG_TEST_FLOW_QUALITY=3 engine/gfg-temporal/build/te-tests > artifacts/flow2-quality.log 2>&1
+      - name: Real Vulkan WSI x2 x3 x4 and Buffer 0 1 2
+        run: |
+          sh scripts/mi_vulkan_matrix.sh
+          sh scripts/mi_buffer_matrix.sh
+          sh scripts/mi_compat_buffer_matrix.sh
+          GFG_TEST_GSF=1 GFG_TEST_FLOW_LITE2=1 GFG_TEST_X4=1 engine/gfg-native/build-mi/hdr-precision
+          GFG_TEST_GSF=1 GFG_TEST_FLOW_LITE2=1 GFG_TEST_X4=1 GFG_TEST_PQ_LINEAR=1 engine/gfg-native/build-mi/hdr-precision
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion-intelligence-vulkan-evidence
+          path: artifacts/

@@ -47,7 +47,7 @@ static void finish(VkDevice d,VkQueue q,VkCommandBuffer cb) {
 int main(void) {
     const int linear=getenv("GFG_TEST_PQ_LINEAR")!=NULL;
     const int pq=linear || getenv("GFG_TEST_PQ_DUPLICATE")!=NULL;
-    const unsigned outputs=getenv("GFG_TEST_X2")?1u:2u;
+    const unsigned outputs=getenv("GFG_TEST_X4")?3u:getenv("GFG_TEST_X2")?1u:2u;
     unsigned source_code[2][3];
     for(unsigned s=0;s<2;++s)for(unsigned c=0;c<3;++c)
         source_code[s][c]=pq_encode(c==0?(s?0.01:0.0):c==1?100.0*(s+1):5000.0*(s+1));
@@ -76,7 +76,7 @@ int main(void) {
     const int wrapped=gsf_test_wrap_physical(p,&borrowed,&borrowed_gipa);
     te_device *engine;OK(te_device_borrow(instance,borrowed_gipa,borrowed,d,vkGetDeviceProcAddr,NULL,q,family,&engine));
     if(wrapped)fprintf(stderr,"WRAPPED_PHYSICAL_BORROW_SETUP complete\n");
-    VkBufferCreateInfo bci={.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,.size=N*4*3,
+    VkBufferCreateInfo bci={.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,.size=(VkDeviceSize)N*4*(outputs+1),
         .usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,.sharingMode=VK_SHARING_MODE_EXCLUSIVE};
     VkBuffer buffer;OK(vkCreateBuffer(d,&bci,NULL,&buffer));VkMemoryRequirements req;vkGetBufferMemoryRequirements(d,buffer,&req);
     VkMemoryAllocateInfo alloc={.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,.allocationSize=req.size,
@@ -107,7 +107,7 @@ int main(void) {
     desc.source_format=format;desc.output_fp16=1;desc.params.cut_thr=2;
     if(getenv("GFG_TEST_FORCE_CLASS")){desc.params.adaptive=0;desc.params.force_class=atoi(getenv("GFG_TEST_FORCE_CLASS"));}
     if(getenv("GFG_TEST_GPU_LMC"))desc.params.algorithm=TE_ALGO_LMC_GPU;
-    if(getenv("GFG_TEST_GSF")){desc.params.algorithm=TE_ALGO_SHARED_FLOW;desc.shared_flow_dense=4;}
+    if(getenv("GFG_TEST_GSF")){desc.params.algorithm=TE_ALGO_SHARED_FLOW;desc.shared_flow_dense=getenv("GFG_TEST_FLOW_LITE2")?6:4;}
     if(pq)desc.color_transfer=TE_TRANSFER_PQ;
     te_context *ctx;OK(te_context_create(engine,&desc,&ctx));
     for(unsigned slot=0;slot<2;++slot) {
@@ -119,7 +119,9 @@ int main(void) {
         vkCmdCopyBufferToImage(cb,buffer,source,VK_IMAGE_LAYOUT_GENERAL,1,&copy);
         b.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;b.dstAccessMask=VK_ACCESS_SHADER_READ_BIT;
         vkCmdPipelineBarrier(cb,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,0,NULL,0,NULL,1,&b);finish(d,q,cb);
-        te_submit submit={.slot=slot,.count=slot?outputs:0,.timestamps={outputs==1?0.5f:1.f/3,2.f/3}};OK(te_submit_frame(ctx,&submit));OK(te_wait_idle(ctx));
+        te_submit submit={.slot=slot,.count=slot?outputs:0};
+        for(unsigned i=0;i<outputs;++i) {submit.timestamps[i]=(float)(i+1)/(float)(outputs+1);}
+        OK(te_submit_frame(ctx,&submit));OK(te_wait_idle(ctx));
     }
     for(unsigned out=0;out<outputs;++out) {
         begin(cb);VkImage output=te_output_image(ctx,out);
@@ -138,7 +140,7 @@ int main(void) {
         unsigned mismatches=0;
         unsigned expected[3]={0},coded[3]={0};
         if(linear)for(unsigned c=0;c<3;++c) {
-            const double t=outputs==1?0.5:(double)(out+1)/3.0;
+            const double t=(double)(out+1)/(double)(outputs+1);
             expected[c]=pq_encode((1-t)*pq_decode((double)source_code[0][c]/1023)+t*pq_decode((double)source_code[1][c]/1023));
             coded[c]=(unsigned)llround((1-t)*source_code[0][c]+t*source_code[1][c]);
             CHECK(abs((int)expected[c]-(int)coded[c])>=2);
@@ -166,6 +168,6 @@ int main(void) {
     vkDestroyDevice(d,NULL);
     PFN_vkDestroyDebugUtilsMessengerEXT destroy=(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance,"vkDestroyDebugUtilsMessengerEXT");
     destroy(instance,messenger,NULL);vkDestroyInstance(instance,NULL);CHECK(errors==0 && formats_tested>0);
-    puts(linear?"HDR PQ: packed10, cached linear nits, x2/x3 CPU-oracle comparison PASS; scanout unobserved":"HDR precision: supported packed10 formats, FP16 synthesis, 1024 distinct levels, two outputs bit-exact PASS; scanout unobserved");
+    puts(linear?"HDR PQ: packed10, cached linear nits, x2/x3 CPU-oracle comparison PASS; scanout unobserved":"HDR precision: supported packed10 formats, FP16 synthesis, 1024 distinct levels, requested outputs bit-exact PASS; scanout unobserved");
     return 0;
 }

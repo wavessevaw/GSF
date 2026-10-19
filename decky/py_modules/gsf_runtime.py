@@ -181,20 +181,38 @@ class Runtime:
         saved = cfg['games'].get(appid)
         if saved and original == saved['expected']:
             return {'options': saved['expected'], 'original': saved['original'], **info}
-        if saved and saved.get('configured'):
+        if saved and saved.get('configured') and not saved.get('manual_launch'):
             raise ValueError('Параметры запуска изменены после GSF. Сначала восстановите/отключите прежний профиль.')
         expected = launch_options(self.root, appid, original)
-        cfg['games'][appid] = {'original': original, 'expected': expected, 'enabled': False,
-                               'configured': False, 'multiplier': 2, 'updated': time.time()}
+        cfg['games'][appid] = {**(saved or {}), 'original': original, 'expected': expected, 'enabled': False,
+                               'configured': False, 'manual_launch': False,
+                               'multiplier': saved.get('multiplier', 2) if saved else 2, 'updated': time.time()}
         atomic_json(self.root/'config.json', cfg)
         return {'options': expected, 'original': original, **info}
+
+    def prepare_manual(self, appid):
+        """Arm a profile without claiming Steam accepted launch options.
+
+        Unknown Steam options have no backup and must never be restored as empty.
+        The user opts in by invoking the displayed launcher from Steam.
+        """
+        appid = app_id(appid)
+        info = self.install()
+        cfg = self.config()
+        saved = cfg['games'].get(appid)
+        if not saved:
+            saved = {'original': None, 'expected': launch_options(self.root, appid, ''), 'multiplier': 2}
+            cfg['games'][appid] = saved
+        saved.update(enabled=True, configured=True, manual_launch=True, updated=time.time())
+        atomic_json(self.root/'config.json', cfg)
+        return {'options': saved['expected'], 'manual_launch': True, **info}
 
     def confirm(self, appid, actual):
         cfg = self.config()
         saved = cfg['games'][app_id(appid)]
         if actual != saved['expected']:
             raise ValueError('Steam не подтвердил параметры запуска: GSF не включён')
-        saved.update(enabled=True, configured=True)
+        saved.update(enabled=True, configured=True, manual_launch=False)
         atomic_json(self.root/'config.json', cfg)
         return {'enabled': True, 'restart_required': True}
 
@@ -205,6 +223,9 @@ class Runtime:
             return {'options': actual, 'restore': False}
         saved['enabled'] = False
         atomic_json(self.root/'config.json', cfg)
+        if saved.get('original') is None or (saved.get('manual_launch') and actual != saved['expected']):
+            return {'options': actual, 'restore': False,
+                    'message': 'GSF отключён. Уберите команду GSF из параметров запуска вручную; прежние параметры Steam не изменены.'}
         if actual != saved['expected']:
             return {'options': actual, 'restore': False, 'message': 'GSF отключён. Изменённые вами параметры запуска сохранены.'}
         return {'options': saved['original'], 'restore': True}
@@ -217,32 +238,53 @@ class Runtime:
             atomic_json(self.root/'config.json', cfg)
 
     def set_diagnostic_mode(self, appid, mode):
-        if mode not in ('normal', 'normal-eco45', 'normal-lmc-gpu', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
+        if mode not in ('normal', 'normal-flow-lite1', 'normal-eco45', 'normal-lmc-gpu', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
             raise ValueError('Неверный диагностический режим')
         aid = app_id(appid)
         cfg = self.config()
         entry = cfg['games'].get(aid)
         if not entry:
             raise ValueError('Сначала настройте выбранную игру')
-        if mode == 'normal-adaptive-pairs' and entry.get('multiplier', 2) == 3:
+        if mode == 'normal-adaptive-pairs' and entry.get('multiplier', 2) != 2:
             raise ValueError('Адаптивная пара доступна только для ×2')
         entry['diagnostic_mode'] = mode
         atomic_json(self.root/'config.json', cfg)
         return {'diagnostic_mode': mode, 'restart_required': True}
 
     def set_multiplier(self, appid, multiplier):
-        if type(multiplier) is not int or multiplier not in (2, 3):
-            raise ValueError('Множитель генерации должен быть ×2 или ×3')
+        if type(multiplier) is not int or multiplier not in (0, 2, 3, 4):
+            raise ValueError('Множитель генерации должен быть Off, ×2, ×3 или ×4')
         aid = app_id(appid)
         cfg = self.config()
         entry = cfg['games'].get(aid)
         if not entry:
             raise ValueError('Сначала настройте выбранную игру')
-        if multiplier == 3 and entry.get('diagnostic_mode') == 'normal-adaptive-pairs':
+        if multiplier != 2 and entry.get('diagnostic_mode') == 'normal-adaptive-pairs':
             raise ValueError('Адаптивная пара доступна только для ×2. Сначала выберите обычный режим.')
         entry['multiplier'] = multiplier
+        if multiplier == 0:
+            entry['enabled'] = False
         atomic_json(self.root/'config.json', cfg)
         return {'multiplier': multiplier, 'restart_required': True}
+
+    def set_buffer_depth(self, appid, depth):
+        if type(depth) is not int or depth not in (0, 1, 2):
+            raise ValueError('Buffer должен быть 0, 1 или 2')
+        return self._set_render_option(appid, 'buffer_depth', depth)
+
+    def set_reconstruction_quality(self, appid, quality):
+        if quality not in ('ultra-lite', 'balanced', 'quality', 'adaptive'):
+            raise ValueError('Неизвестное качество реконструкции')
+        return self._set_render_option(appid, 'reconstruction_quality', quality)
+
+    def _set_render_option(self, appid, key, value):
+        cfg = self.config()
+        entry = cfg['games'].get(app_id(appid))
+        if not entry:
+            raise ValueError('Сначала настройте выбранную игру')
+        entry[key] = value
+        atomic_json(self.root/'config.json', cfg)
+        return {key: value, 'restart_required': True}
 
     def disable_all(self):
         cfg = self.config()
@@ -292,8 +334,11 @@ class Runtime:
         return {'packaged_source_commit': packaged_sha,
                 'active_build_source_commit': active_sha, 'build_matches': matches,'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
+                'manual_launch': saved.get('manual_launch', False),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'multiplier': saved.get('multiplier', 2),
+                'buffer_depth': saved.get('buffer_depth', 1),
+                'reconstruction_quality': saved.get('reconstruction_quality', 'balanced'),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,

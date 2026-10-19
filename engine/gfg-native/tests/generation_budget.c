@@ -1,9 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "../src/generation_budget.h"
+#include "../src/frame_clock.h"
 #include <assert.h>
 #include <stdio.h>
 
 int main(int argc,char **argv) {
+    unsigned streak=0;
+    assert(gsf_generation_quality(2,2,8000000,11111111,&streak)==1);
+    for(unsigned i=0;i<239;++i)assert(gsf_generation_quality(1,2,1000000,11111111,&streak)==1);
+    assert(gsf_generation_quality(1,2,1000000,11111111,&streak)==2);
+    for(unsigned i=0;i<500;++i)assert(gsf_generation_quality(1,1,1000000,11111111,&streak)==1);
+    assert(gsf_generation_quality(2,2,4000000,11111111,&streak)==2 && !streak);
     gsf_generation_budget b={0};
     const uint64_t now=10000000000ull;
     /* A 7ms shader span fits 12ms slack. The observed 35.7ms before GPU
@@ -56,6 +63,30 @@ int main(int argc,char **argv) {
         assert(rows==1409 && impossible>900 && full_cost>100);
         printf("Calibrated Deck deadline feasibility: %u samples, span-only=%u full-cost=%u impossible-span-only=%u (not a performance prediction)\n",
             rows,span_only,full_cost,impossible);
+    }
+    if(argc>2) {
+        FILE *f=fopen(argv[2],"r");assert(f);
+        char line[256];assert(fgets(line,sizeof line,f));
+        unsigned rows=0,fit[3]={0};
+        unsigned mode;unsigned long long dt,p,delay,span;long long slack;
+        while(fgets(line,sizeof line,f)) {
+            assert(sscanf(line,"%u,%llu,%llu,%llu,%llu,%lld",&mode,&dt,&p,&delay,&span,&slack)==6);
+            assert(mode==2 || mode==3);
+            gsf_generation_budget measured={0};gsf_generation_budget_observe(&measured,1,delay);
+            unsigned previous_fit=0;
+            for(unsigned depth=0;depth<=2;++depth) {
+                uint64_t last=0;
+                gfg_frame_clock clock={.period_ns=p,.interval_ns=dt,.mask=1,
+                    .target_ns={now+p/4+slack,0,0,now+2*dt}};
+                gfg_frame_clock_buffer(&clock,depth,&last);
+                unsigned affordable=gsf_generation_budget_fits(&measured,span,clock.target_ns[0],p/4,now);
+                assert(!previous_fit || affordable);
+                fit[depth]+=affordable;previous_fit=affordable;
+            }
+            ++rows;
+        }
+        fclose(f);assert(rows==256 && fit[2]>fit[0]);
+        printf("Deck dispatched-sample replay (selection biased; not FPS): rows=%u fit0=%u fit1=%u fit2=%u\n",rows,fit[0],fit[1],fit[2]);
     }
     puts("generation-budget: delayed start, recovery, invalid sample, expired slot, overflow PASS");
     return 0;

@@ -47,7 +47,7 @@ static void jittered_integer_ratio(unsigned output_hz,unsigned multiplier) {
 }
 
 static void dispatch_deadlines(void) {
-    gfg_frame_clock c={.mask=3,.target_ns={100,200,300}};
+    gfg_frame_clock c={.mask=3,.target_ns={100,200,0,300}};
     assert(gfg_frame_clock_compute_mask(&c,89,10)==3);
     assert(gfg_frame_clock_compute_mask(&c,90,10)==2);
     assert(gfg_frame_clock_compute_mask(&c,189,10)==2);
@@ -55,7 +55,7 @@ static void dispatch_deadlines(void) {
     assert(gfg_frame_clock_compute_mask(&c,100,0)==2);
     assert(gfg_frame_clock_compute_mask(&c,200,0)==0);
     assert(gfg_frame_clock_compute_mask(&c,0,201)==0);
-    assert(c.mask==3 && c.target_ns[2]==300); /* real/planned targets unchanged */
+    assert(c.mask==3 && c.target_ns[GFG_REAL_OUTPUT]==300); /* real/planned targets unchanged */
     c.mask=0;assert(!gfg_frame_clock_compute_mask(&c,0,0));
 }
 static void hardware_trace(const char *path) {
@@ -70,9 +70,9 @@ static void hardware_trace(const char *path) {
          * too late, but cannot count expirations later during source submit. */
         const uint64_t origin=10*ns,lead=11110617/4;
         assert(slack>-(int64_t)origin && slack<(int64_t)origin);
-        gfg_frame_clock c={.mask=planned,.target_ns={origin+lead+slack,0,origin+ns}};
+        gfg_frame_clock c={.mask=planned,.target_ns={origin+lead+slack,0,0,origin+ns}};
         const unsigned mask=gfg_frame_clock_compute_mask(&c,origin,lead);
-        assert((mask&~planned)==0 && c.target_ns[2]==origin+ns);
+        assert((mask&~planned)==0 && c.target_ns[GFG_REAL_OUTPUT]==origin+ns);
         if(shown){assert(computed==1 && mask==1);++accepted;}
         if(computed){++old_compute;if(!(mask&1))++rejected;}
         ++rows;
@@ -83,12 +83,69 @@ static void hardware_trace(const char *path) {
     printf("AC Origins replay: %u pairs, %u old dispatches, >=%u already expired at worker start; all %u accepted G1 retained\n",
            rows,old_compute,rejected,accepted);
 }
+static void extra_buffer_periods(void) {
+    // Buffered 45->90 must not alternate two/three extra display slots just
+    // because the source timestamp lands 100us either side of a boundary.
+    for(unsigned depth=1;depth<=2;++depth) {
+        const uint64_t p=ns/90;
+        gfg_frame_clock c={.period_ns=p};uint64_t last=0,previous=0;
+        for(unsigned i=0;i<500;++i) {
+            gfg_frame_clock_pair(&c,10*ns+(uint64_t)i*2*p+(i%2?100000:0),2);
+            gfg_frame_clock_buffer(&c,depth,&last);
+            if(i)assert(c.target_ns[GFG_REAL_OUTPUT]-previous==2*p && c.mask==1);
+            previous=c.target_ns[GFG_REAL_OUTPUT];
+        }
+    }
+    for(unsigned depth=0;depth<=2;++depth)for(unsigned multiplier=2;multiplier<=4;++multiplier) {
+        const uint64_t p=ns/90;
+        gfg_frame_clock c={.period_ns=p};uint64_t previous=0;
+        for(unsigned i=0;i<120;++i) {
+            const uint64_t source=10*ns+(uint64_t)i*multiplier*p;
+            gfg_frame_clock_pair(&c,source,multiplier);
+            uint64_t base=c.target_ns[GFG_REAL_OUTPUT];
+            gfg_frame_clock_buffer(&c,depth,&previous);
+            assert(c.target_ns[GFG_REAL_OUTPUT]-base==depth*multiplier*p);
+            if(i) {
+                assert(c.mask==(1u<<(multiplier-1))-1u);
+                for(unsigned k=0;k<multiplier-1;++k) {
+                    float phase;assert(gfg_frame_clock_phase(&c,k,&phase));
+                    assert(phase>0 && phase<1);
+                    assert((c.target_ns[k]-c.grid_origin_ns)%p==0);
+                }
+            }
+        }
+    }
+    // Fractional 60/90 ratios retain a display lattice even with buffering.
+    for(unsigned depth=0;depth<=2;++depth) {
+        gfg_frame_clock c={.period_ns=ns/90};uint64_t last=0;
+        for(unsigned i=0;i<300;++i) {
+            gfg_frame_clock_pair(&c,10*ns+(uint64_t)i*ns/60,4);
+            gfg_frame_clock_buffer(&c,depth,&last);
+            assert((c.target_ns[GFG_REAL_OUTPUT]-c.grid_origin_ns)%c.period_ns==0);
+            for(unsigned k=0;k<3;++k)if(c.mask&(1u<<k)) {
+                assert((c.target_ns[k]-c.grid_origin_ns)%c.period_ns==0);
+                float phase;assert(gfg_frame_clock_phase(&c,k,&phase));
+            }
+        }
+    }
+}
+
 int main(int argc,char **argv) {
+    extra_buffer_periods();
     dispatch_deadlines();
     if(argc==2)hardware_trace(argv[1]);
     jittered_integer_ratio(10,2);
     jittered_integer_ratio(90,2);
     jittered_integer_ratio(90,3);
+    jittered_integer_ratio(90,4); // 22.5 -> 90, exactly three vacant display slots
+    jittered_integer_ratio(60,4);
+    jittered_integer_ratio(120,4);
+    assert(replay(30,4,600)>=1180); // 30*4 capped at 90: only two slots
+    const unsigned four45=replay(45,4,600);
+    assert(four45>=590 && four45<=599); // 45*4 capped at 90: only one slot
+    const unsigned four60=replay(60,4,600);
+    assert(four60>=290 && four60<=310);
+    assert(replay(90,4,600)==0);
     /* 27/42 -> 54/84: enough slots for one generator output per real frame. */
     assert(replay(27,2,600)>=590);
     assert(replay(42,2,600)>=590);

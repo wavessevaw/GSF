@@ -1,0 +1,707 @@
+[
+  {
+    "algorithm": "lmc-gpu",
+    "multiplier": 2,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.5
+    ],
+    "analysis_ms": {
+      "p50": 152.4518,
+      "p95": 295.1138,
+      "p99": 295.1138
+    },
+    "gpu_pair_ms": {
+      "p50": 164.06119999999999,
+      "p95": 345.0538,
+      "p99": 345.0538
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 164.06119999999999,
+      "p95": 345.0538,
+      "p99": 345.0538
+    },
+    "render_ms": [
+      {
+        "p50": 13.0162,
+        "p95": 49.94,
+        "p99": 49.94
+      }
+    ],
+    "allocation_bytes": 2479636,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "lmc-gpu",
+    "multiplier": 3,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.333333,
+      0.666667
+    ],
+    "analysis_ms": {
+      "p50": 114.1242,
+      "p95": 136.3727,
+      "p99": 136.3727
+    },
+    "gpu_pair_ms": {
+      "p50": 135.1038,
+      "p95": 154.95440000000002,
+      "p99": 154.95440000000002
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 67.5519,
+      "p95": 77.47720000000001,
+      "p99": 77.47720000000001
+    },
+    "render_ms": [
+      {
+        "p50": 7.624,
+        "p95": 16.1873,
+        "p99": 16.1873
+      },
+      {
+        "p50": 7.7154,
+        "p95": 21.1975,
+        "p99": 21.1975
+      }
+    ],
+    "allocation_bytes": 2807316,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "lmc-gpu",
+    "multiplier": 4,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "analysis_ms": {
+      "p50": 129.177,
+      "p95": 207.9517,
+      "p99": 207.9517
+    },
+    "gpu_pair_ms": {
+      "p50": 159.6872,
+      "p95": 244.82420000000002,
+      "p99": 244.82420000000002
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 53.22906666666666,
+      "p95": 81.60806666666667,
+      "p99": 81.60806666666667
+    },
+    "render_ms": [
+      {
+        "p50": 9.1468,
+        "p95": 66.3876,
+        "p99": 66.3876
+      },
+      {
+        "p50": 8.628,
+        "p95": 18.04,
+        "p99": 18.04
+      },
+      {
+        "p50": 8.5754,
+        "p95": 11.9944,
+        "p99": 11.9944
+      }
+    ],
+    "allocation_bytes": 3134996,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "shared-flow",
+    "multiplier": 2,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.5
+    ],
+    "analysis_ms": {
+      "p50": 17.4311,
+      "p95": 24.1868,
+      "p99": 24.1868
+    },
+    "gpu_pair_ms": {
+      "p50": 23.264,
+      "p95": 34.5703,
+      "p99": 34.5703
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 23.264,
+      "p95": 34.5703,
+      "p99": 34.5703
+    },
+    "render_ms": [
+      {
+        "p50": 4.1823,
+        "p95": 10.3835,
+        "p99": 10.3835
+      }
+    ],
+    "allocation_bytes": 2111540,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "shared-flow",
+    "multiplier": 3,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.333333,
+      0.666667
+    ],
+    "analysis_ms": {
+      "p50": 21.0641,
+      "p95": 409.2526,
+      "p99": 409.2526
+    },
+    "gpu_pair_ms": {
+      "p50": 33.5284,
+      "p95": 419.80589999999995,
+      "p99": 419.80589999999995
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 16.7642,
+      "p95": 209.90294999999998,
+      "p99": 209.90294999999998
+    },
+    "render_ms": [
+      {
+        "p50": 4.9359,
+        "p95": 13.5947,
+        "p99": 13.5947
+      },
+      {
+        "p50": 3.9331,
+        "p95": 10.5459,
+        "p99": 10.5459
+      }
+    ],
+    "allocation_bytes": 2439220,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "shared-flow",
+    "multiplier": 4,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "analysis_ms": {
+      "p50": 16.7633,
+      "p95": 41.0078,
+      "p99": 41.0078
+    },
+    "gpu_pair_ms": {
+      "p50": 40.6506,
+      "p95": 62.270500000000006,
+      "p99": 62.270500000000006
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 13.550199999999998,
+      "p95": 20.756833333333336,
+      "p99": 20.756833333333336
+    },
+    "render_ms": [
+      {
+        "p50": 5.2269,
+        "p95": 10.2943,
+        "p99": 10.2943
+      },
+      {
+        "p50": 5.4861,
+        "p95": 12.5258,
+        "p99": 12.5258
+      },
+      {
+        "p50": 5.1829,
+        "p95": 11.5025,
+        "p99": 11.5025
+      }
+    ],
+    "allocation_bytes": 2766900,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite1",
+    "multiplier": 2,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.5
+    ],
+    "analysis_ms": {
+      "p50": 5.3738,
+      "p95": 26.7118,
+      "p99": 26.7118
+    },
+    "gpu_pair_ms": {
+      "p50": 7.9427,
+      "p95": 33.7096,
+      "p99": 33.7096
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 7.9427,
+      "p95": 33.7096,
+      "p99": 33.7096
+    },
+    "render_ms": [
+      {
+        "p50": 2.5726,
+        "p95": 6.9978,
+        "p99": 6.9978
+      }
+    ],
+    "allocation_bytes": 2111540,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite1",
+    "multiplier": 3,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.333333,
+      0.666667
+    ],
+    "analysis_ms": {
+      "p50": 4.7795,
+      "p95": 5.6876,
+      "p99": 5.6876
+    },
+    "gpu_pair_ms": {
+      "p50": 11.112000000000002,
+      "p95": 12.6068,
+      "p99": 12.6068
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 5.556000000000001,
+      "p95": 6.3034,
+      "p99": 6.3034
+    },
+    "render_ms": [
+      {
+        "p50": 3.1839,
+        "p95": 5.6719,
+        "p99": 5.6719
+      },
+      {
+        "p50": 3.0383,
+        "p95": 4.1268,
+        "p99": 4.1268
+      }
+    ],
+    "allocation_bytes": 2439220,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite1",
+    "multiplier": 4,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "analysis_ms": {
+      "p50": 3.5759,
+      "p95": 7.1186,
+      "p99": 7.1186
+    },
+    "gpu_pair_ms": {
+      "p50": 11.719999999999999,
+      "p95": 25.1591,
+      "p99": 25.1591
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 3.9066666666666663,
+      "p95": 8.386366666666666,
+      "p99": 8.386366666666666
+    },
+    "render_ms": [
+      {
+        "p50": 1.8231,
+        "p95": 12.2151,
+        "p99": 12.2151
+      },
+      {
+        "p50": 2.0803,
+        "p95": 5.821,
+        "p99": 5.821
+      },
+      {
+        "p50": 2.0371,
+        "p95": 5.1842,
+        "p99": 5.1842
+      }
+    ],
+    "allocation_bytes": 2766900,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 2,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.5
+    ],
+    "analysis_ms": {
+      "p50": 6.4077,
+      "p95": 10.1135,
+      "p99": 10.1135
+    },
+    "gpu_pair_ms": {
+      "p50": 9.1802,
+      "p95": 13.9815,
+      "p99": 13.9815
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 9.1802,
+      "p95": 13.9815,
+      "p99": 13.9815
+    },
+    "render_ms": [
+      {
+        "p50": 3.115,
+        "p95": 4.0098,
+        "p99": 4.0098
+      }
+    ],
+    "allocation_bytes": 2193460,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 2,
+    "batch": true,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.5
+    ],
+    "analysis_ms": {
+      "p50": 5.6461,
+      "p95": 9.3348,
+      "p99": 9.3348
+    },
+    "gpu_pair_ms": {
+      "p50": 7.5778,
+      "p95": 15.3549,
+      "p99": 15.3549
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 7.5778,
+      "p95": 15.3549,
+      "p99": 15.3549
+    },
+    "render_ms": [
+      {
+        "p50": 2.2531,
+        "p95": 9.1278,
+        "p99": 9.1278
+      }
+    ],
+    "allocation_bytes": 2193460,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 3,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.333333,
+      0.666667
+    ],
+    "analysis_ms": {
+      "p50": 5.0822,
+      "p95": 8.7282,
+      "p99": 8.7282
+    },
+    "gpu_pair_ms": {
+      "p50": 9.573,
+      "p95": 16.171499999999998,
+      "p99": 16.171499999999998
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 4.7865,
+      "p95": 8.085749999999999,
+      "p99": 8.085749999999999
+    },
+    "render_ms": [
+      {
+        "p50": 2.2869,
+        "p95": 4.0508,
+        "p99": 4.0508
+      },
+      {
+        "p50": 2.0723,
+        "p95": 4.3952,
+        "p99": 4.3952
+      }
+    ],
+    "allocation_bytes": 2603060,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 3,
+    "batch": true,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.333333,
+      0.666667
+    ],
+    "analysis_ms": {
+      "p50": 4.4421,
+      "p95": 5.2215,
+      "p99": 5.2215
+    },
+    "gpu_pair_ms": {
+      "p50": 8.3817,
+      "p95": 9.8855,
+      "p99": 9.8855
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 4.19085,
+      "p95": 4.94275,
+      "p99": 4.94275
+    },
+    "render_ms": [
+      {
+        "p50": 2.24,
+        "p95": 3.29,
+        "p99": 3.29
+      },
+      {
+        "p50": 1.6008,
+        "p95": 1.9668,
+        "p99": 1.9668
+      }
+    ],
+    "allocation_bytes": 2603060,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 4,
+    "batch": false,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "analysis_ms": {
+      "p50": 4.64,
+      "p95": 6.2127,
+      "p99": 6.2127
+    },
+    "gpu_pair_ms": {
+      "p50": 12.2154,
+      "p95": 14.982999999999999,
+      "p99": 14.982999999999999
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 4.0718000000000005,
+      "p95": 4.994333333333333,
+      "p99": 4.994333333333333
+    },
+    "render_ms": [
+      {
+        "p50": 2.6491,
+        "p95": 3.6034,
+        "p99": 3.6034
+      },
+      {
+        "p50": 2.2983,
+        "p95": 4.0965,
+        "p99": 4.0965
+      },
+      {
+        "p50": 2.0319,
+        "p95": 4.7587,
+        "p99": 4.7587
+      }
+    ],
+    "allocation_bytes": 3012660,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  },
+  {
+    "algorithm": "flow-lite2",
+    "multiplier": 4,
+    "batch": true,
+    "resolution": [
+      256,
+      160
+    ],
+    "samples": 11,
+    "phases": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "analysis_ms": {
+      "p50": 5.141,
+      "p95": 7.3885,
+      "p99": 7.3885
+    },
+    "gpu_pair_ms": {
+      "p50": 14.2311,
+      "p95": 22.375799999999998,
+      "p99": 22.375799999999998
+    },
+    "gpu_per_synthetic_ms": {
+      "p50": 4.7437,
+      "p95": 7.4586,
+      "p99": 7.4586
+    },
+    "render_ms": [
+      {
+        "p50": 3.9351,
+        "p95": 12.4112,
+        "p99": 12.4112
+      },
+      {
+        "p50": 2.2772,
+        "p95": 3.2118,
+        "p99": 3.2118
+      },
+      {
+        "p50": 2.5859,
+        "p95": 3.195,
+        "p99": 3.195
+      }
+    ],
+    "allocation_bytes": 3012660,
+    "source_fps_degradation": null,
+    "bandwidth_bytes_per_second": null,
+    "power_watts": null,
+    "hardware": "llvmpipe/software; NOT Steam Deck",
+    "p95_p99_note": "small functional sample, not a hardware performance qualification"
+  }
+]

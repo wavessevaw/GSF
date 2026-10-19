@@ -1,0 +1,2 @@
+te-bench: llvmpipe (LLVM 15.0.7, 256 bits) 1280x800 algo flow-lite2 tiles 80x50 pairs 1 step 4 mode adaptive
+te-bench: done, wall 8643.8 ms for 1 pairs, validation errors 0

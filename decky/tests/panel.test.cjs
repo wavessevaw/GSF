@@ -18,6 +18,8 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
   let expected = '';
   let enabled = false;
   let multiplier = 2;
+  let manual = false;
+  let copied = '';
   let statusFails = true;
   const listeners = new Set();
   const toasts = [];
@@ -28,7 +30,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     async select_game(id) {selected = id;return {appid: id};},
     async get_status() {
       if (statusFails) throw Error('status temporarily unavailable');
-      return {enabled, configured: enabled, multiplier, state: 'waiting', live: [], launch_options: expected};
+      return {enabled, configured: enabled, manual_launch: manual, multiplier, state: 'waiting', live: [], launch_options: expected};
     },
     async prepare_game(id, previous) {
       assert.equal(id, 42);assert.equal(previous, '');
@@ -36,12 +38,16 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
       return {options: expected};
     },
     async confirm_game(id, actual) {assert.equal(id, 42);assert.equal(actual, current);enabled = true;},
-    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok(value === 2 || value === 3); multiplier = value; return {multiplier: value};}
+    async prepare_manual_game(id) {assert.equal(id, 42);enabled = true;manual = true;return {options: expected};},
+    async disable_game(id, actual) {assert.equal(id, 42);assert.equal(actual, '');enabled = false;
+      return {restore: false, options: actual, message: 'GSF отключён. Уберите команду вручную.'};},
+    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok([0, 2, 3, 4].includes(value)); multiplier = value; return {multiplier: value};}
   };
   const context = {
     console, setTimeout, clearTimeout, setInterval, clearInterval,
     SP_REACT: React, SP_JSX: JSX,
     DFL: {staticClasses: {Title: 'title'}},
+    navigator: {clipboard: {async writeText(text) {copied = text;}}},
     SteamClient: {Apps: {
       RegisterForAppDetails(_id, callback) {
         listeners.add(callback);callback({strLaunchOptions: current});
@@ -90,6 +96,10 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(multiplierSelect().props.selectedOption, 3);
     assert.match(tree.root.findByType('code').props.children, /--appid 42 -- %command%/);
     assert.match(JSON.stringify(tree.toJSON()), /Множитель ×3 сохранён/);
+    await act(async () => {multiplierSelect().props.onChange({data: 4, label: '×4'});});
+    assert.equal(multiplier, 4);
+    assert.match(JSON.stringify(tree.toJSON()), /120 FPS/);
+    await act(async () => {multiplierSelect().props.onChange({data: 3, label: '×3'});});
     assert.equal(listeners.size, 0);
     act(() => tree.unmount());
     await act(async () => {tree = Renderer.create(context.plugin().content);});
@@ -98,5 +108,27 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(multiplierSelect().props.selectedOption, 3, '3x persists across remount');
     assert.equal(tree.root.findByType('code').props.children, expected);
     assert.equal(writes.length, 1, 'remount must not write launch options');
+    // Reproduce a Steam client where Apps is unavailable: the error must be
+    // visible, and the independent manual route must remain usable.
+    context.SteamClient = undefined;
+    await act(async () => {enable().props.onClick();});
+    await flush();
+    assert.match(JSON.stringify(tree.toJSON()), /Steam API недоступен/);
+    assert.equal(enable().props.disabled, false, 'error must release action lock');
+    const manualButton = tree.root.findAllByType('gsf-ButtonItem').find(n => String(n.props.children).includes('Ручной запуск'));
+    await act(async () => {manualButton.props.onClick();});
+    await flush();
+    assert.equal(manual, true);
+    assert.match(JSON.stringify(tree.toJSON()), /Ручной профиль готов/);
+    assert.equal(tree.root.findByType('code').props.children, expected);
+    const copyButton = tree.root.findAllByType('gsf-ButtonItem').find(n => String(n.props.children).includes('Скопировать команду'));
+    await act(async () => {copyButton.props.onClick();});
+    assert.equal(copied, expected);
+    assert.match(JSON.stringify(tree.toJSON()), /Команда скопирована/);
+    const disable = tree.root.findAllByType('gsf-ButtonItem').find(n => String(n.props.children).includes('Восстановить запуск'));
+    await act(async () => {disable.props.onClick();});
+    await flush();
+    assert.equal(enabled, false);
+    assert.equal(writes.length, 1, 'manual activation, copy and disable must not write Steam options');
   } finally {act(() => tree.unmount());}
 });
