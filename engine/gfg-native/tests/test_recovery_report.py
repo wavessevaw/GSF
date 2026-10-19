@@ -36,6 +36,9 @@ class RecoveryReportTest(unittest.TestCase):
         p=pair(1, 'admitted', 1, 1);del p['admission_decision']
         self.assertIsNone(self.report([p])['admission_exits'])
 
+    def test_empty_is_unknown(self):
+        self.assertEqual(recovery_report([], 1, 1)['status'], 'insufficient_evidence')
+
 
 if __name__ == '__main__':
     unittest.main()

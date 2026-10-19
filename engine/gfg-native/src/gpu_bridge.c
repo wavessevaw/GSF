@@ -1779,7 +1779,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         /* Keep the queued real frame and its consumed private gate. Only
          * optional generation/history work is dropped; never overwrite WSI. */
         fg->te_gap=1;
-        admission_decision=budget_skip?"budget_blocked":"source_pressure";
+        admission_decision=fg->diagnostic==1?"diagnostic_source_only":budget_skip?"budget_blocked":"source_pressure";
         const unsigned reason=budget_skip && !atomic_load(&fg->output_pressure)?DROP_RATE:DROP_BYPASS;
         if(frame)skip_outputs(fg,reason,fg->multiplier-1);
         for(unsigned k=0;k<fg->multiplier-1;++k) {

@@ -39,8 +39,15 @@ static void *producer(void *queue) {
     return NULL;
 }
 static unsigned polled;
+static native_device *waiting_device;
+static VkResult wait_result=VK_SUCCESS;
 static VKAPI_ATTR VkResult VKAPI_CALL lower_fence_status(VkDevice d,VkFence f) {
     (void)d;(void)f;++polled;return VK_NOT_READY;
+}
+static VKAPI_ATTR VkResult VKAPI_CALL lower_wait(VkDevice d,uint32_t n,const VkFence *f,VkBool32 all,uint64_t timeout) {
+    (void)d;(void)n;(void)f;(void)all;(void)timeout;
+    assert(pthread_mutex_trylock(&waiting_device->queue_lock)==0);
+    pthread_mutex_unlock(&waiting_device->queue_lock);return wait_result;
 }
 int main(void) {
     void *key=(void *)(uintptr_t)123;
@@ -72,8 +79,20 @@ int main(void) {
     assert(snapshot.available && snapshot.captures==3 && snapshot.submitted==4);
     assert(snapshot.unretired_upper_bound==4 && snapshot.tracked_not_ready==1 && polled==1);
     assert(observation.queues[0].submitted==4); /* none of the three GSF submits counted */
+    VkFence later=(VkFence)(uintptr_t)12;
+    assert(native_QueueSubmit(queue,0,NULL,later)==VK_SUCCESS);
+    d.wait_fences=lower_wait;waiting_device=&d;
+    wait_result=VK_TIMEOUT;
+    assert(native_WaitForFences(device,1,&later,VK_TRUE,0)==VK_TIMEOUT);
+    assert(observation.queues[0].completed==0);
+    wait_result=VK_SUCCESS;
+    VkFence both[2]={f,later};
+    assert(native_WaitForFences(device,2,both,VK_FALSE,0)==VK_SUCCESS);
+    assert(observation.queues[0].completed==0); /* wait-any does not identify the fence */
+    assert(native_WaitForFences(device,1,&later,VK_TRUE,0)==VK_SUCCESS);
+    assert(observation.queues[0].completed==5); /* app's wait confirms prior unfenced calls */
     assert(native_worker_QueueWaitIdle(queue)==VK_SUCCESS);
-    assert(observation.queues[0].completed==4);devices=NULL;
+    assert(observation.queues[0].completed==5);devices=NULL;
     pthread_mutex_destroy(&d.queue_lock);pthread_mutex_destroy(&d.lock);
     puts("GFG native: concurrent submit/submit2/KHR/bind/present/idle host serialization + GIPA/GDPA PASS");
     return 0;

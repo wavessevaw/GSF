@@ -6,7 +6,7 @@ from collections import Counter
 
 def recovery_report(events, release_frame, recovery_start):
     pairs = [e for e in events if e.get('event') == 'pair']
-    if len({(p['pid'], p['generation']) for p in pairs}) != 1:
+    if len({(p['pid'], p['generation']) for p in pairs}) > 1:
         raise ValueError('Recovery requires one process/bridge scope')
     if not pairs or any('admission_decision' not in p for p in pairs):
         return {'status': 'insufficient_evidence', 'reason': 'explicit_admission_decisions_missing',

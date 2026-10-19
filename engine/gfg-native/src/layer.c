@@ -118,6 +118,7 @@ typedef struct native_device {
     PFN_vkAcquireNextImage2KHR acquire2;
     gsf_queue_observer *queue_observer; /* opt-in, API-call completion evidence */
     PFN_vkGetFenceStatus fence_status;
+    PFN_vkWaitForFences wait_fences;
     PFN_vkResetFences reset_fences;
     PFN_vkDestroyFence destroy_fence;
     PFN_vkImportFenceFdKHR import_fence_fd;
@@ -625,6 +626,7 @@ native_CreateDevice(VkPhysicalDevice phys, const VkDeviceCreateInfo *ci,
     d->import_fence_fd = (PFN_vkImportFenceFdKHR)gdpa(*out,"vkImportFenceFdKHR");
     d->get_fence_fd = (PFN_vkGetFenceFdKHR)gdpa(*out,"vkGetFenceFdKHR");
     d->fence_status = (PFN_vkGetFenceStatus)gdpa(*out, "vkGetFenceStatus");
+    d->wait_fences = (PFN_vkWaitForFences)gdpa(*out, "vkWaitForFences");
     d->reset_fences = (PFN_vkResetFences)gdpa(*out, "vkResetFences");
     d->destroy_fence = (PFN_vkDestroyFence)gdpa(*out, "vkDestroyFence");
     if(d->async_output && native_env_is_1("GFG_NATIVE_QUEUE_OBSERVE"))
@@ -909,6 +911,40 @@ NATIVE_SUBMIT_WRAPPER(native_worker_QueueSubmit2,submit2,VkSubmitInfo2,0)
 NATIVE_SUBMIT_WRAPPER(native_worker_QueueSubmit2KHR,submit2_khr,VkSubmitInfo2,0)
 #endif
 #undef NATIVE_SUBMIT_WRAPPER
+static VKAPI_ATTR VkResult VKAPI_CALL native_GetFenceStatus(VkDevice device,VkFence f) {
+    native_device *d=find_device(dispatch_key(device));
+    if(!d || !d->fence_status)return VK_ERROR_INITIALIZATION_FAILED;
+    if(!d->queue_observer)return d->fence_status(device,f);
+    pthread_mutex_lock(&d->queue_lock);VkResult r=d->fence_status(device,f);
+    if(r==VK_SUCCESS)gsf_qo_signaled(d->queue_observer,f);
+    pthread_mutex_unlock(&d->queue_lock);return r;
+}
+static VKAPI_ATTR VkResult VKAPI_CALL native_WaitForFences(VkDevice device,uint32_t n,const VkFence *f,
+                                                          VkBool32 all,uint64_t timeout) {
+    native_device *d=find_device(dispatch_key(device));
+    if(!d || !d->wait_fences)return VK_ERROR_INITIALIZATION_FAILED;
+    if(!d->queue_observer)return d->wait_fences(device,n,f,all,timeout);
+    gsf_qo_fence before[GSF_QO_FENCES];
+    pthread_mutex_lock(&d->queue_lock);
+    memcpy(before,d->queue_observer->fences,sizeof(before));
+    pthread_mutex_unlock(&d->queue_lock);
+    /* This is ONLY the app's original wait, unchanged. Never hold queue_lock
+     * across it: another thread may need to submit the work being waited on. */
+    VkResult r=d->wait_fences(device,n,f,all,timeout);
+    if(r==VK_SUCCESS && (all || n==1)) {
+        pthread_mutex_lock(&d->queue_lock);
+        for(unsigned i=0;i<GSF_QO_FENCES;++i)if(before[i].handle) {
+            gsf_qo_fence *now=&d->queue_observer->fences[i];
+            if(now->handle!=before[i].handle || now->queue!=before[i].queue ||
+                now->sequence!=before[i].sequence)continue; /* lifetime changed */
+            for(uint32_t j=0;j<n;++j)if(f[j]==before[i].handle) {
+                gsf_qo_signaled(d->queue_observer,f[j]);break;
+            }
+        }
+        pthread_mutex_unlock(&d->queue_lock);
+    }
+    return r;
+}
 static VKAPI_ATTR VkResult VKAPI_CALL native_ResetFences(VkDevice device,uint32_t n,const VkFence *f) {
     native_device *d=find_device(dispatch_key(device));
     if(!d || !d->reset_fences)return VK_ERROR_INITIALIZATION_FAILED;
@@ -2195,6 +2231,8 @@ native_gdpa(VkDevice device, const char *symbol) {
     if (d->acquire) HOOK(AcquireNextImageKHR);
     if (d->acquire2) HOOK(AcquireNextImage2KHR);
     if(d->queue_observer) {
+        if (d->fence_status) HOOK(GetFenceStatus);
+        if (d->wait_fences) HOOK(WaitForFences);
         if (d->import_fence_fd) HOOK(ImportFenceFdKHR);
         if (d->get_fence_fd) HOOK(GetFenceFdKHR);
         if (d->reset_fences) HOOK(ResetFences);
@@ -2242,6 +2280,7 @@ native_gipa(VkInstance instance, const char *symbol) {
     HOOK(CreateDevice);
     if (!instance) return NULL;
     if(native_env_is_1("GFG_NATIVE_QUEUE_OBSERVE")) {
+        HOOK(GetFenceStatus); HOOK(WaitForFences);
         HOOK(ImportFenceFdKHR); HOOK(GetFenceFdKHR);
         HOOK(ResetFences); HOOK(DestroyFence);
     }

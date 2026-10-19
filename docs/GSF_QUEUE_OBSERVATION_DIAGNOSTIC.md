@@ -32,6 +32,13 @@ polls existing application fences with `vkGetFenceStatus` under the existing
 queue host lock. It adds no GPU waits, fences, commands, threads or semaphore
 dependencies. JSONL is written later, outside that queue lock.
 
+Successful application fence-status calls and wait-all/single-fence waits also
+advance completion evidence. The application's original wait and timeout are
+forwarded unchanged, with no queue lock held across that wait. Captured tokens
+are checked for lifetime/sequence changes after returning; wait-any over multiple
+fences is not falsely attributed to every fence. This avoids an ever-growing
+counter when the game itself observes completion and immediately resets fences.
+
 The same lock protects opt-in application fence reset, destruction, and POSIX
 fence import/export wrappers. Those operations forget tokens conservatively;
 old handles are never polled after destruction or reused as an old completion.

@@ -61,6 +61,12 @@ static inline void gsf_qo_idle(gsf_queue_observer *o,VkQueue handle) {
             memset(&o->fences[i],0,sizeof(o->fences[i]));
     }
 }
+static inline void gsf_qo_signaled(gsf_queue_observer *o,VkFence handle) {
+    for(unsigned i=0;i<GSF_QO_FENCES;++i)if(o->fences[i].handle==handle && handle) {
+        gsf_qo_fence *t=&o->fences[i];gsf_qo_queue *q=&o->queues[t->queue];
+        if(t->sequence>q->completed){q->completed=t->sequence;q->completed_unfenced=t->unfenced;}
+    }
+}
 static inline void gsf_qo_snapshot(gsf_queue_observer *o,VkQueue handle,VkDevice device,
                                   PFN_vkGetFenceStatus status,gsf_queue_snapshot *s) {
     int k=gsf_qo_find(o,handle);if(k<0 || !status)return;
