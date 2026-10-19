@@ -1,15 +1,19 @@
-# GSF 0.1.13 Experimental — Launch fix 1
+# GSF 0.1.13 Experimental — Stability 1
 
-Installable Decky ZIP: GSF-Decky-Test-0.1.13-launchfix.1.zip
+Latest installable Decky ZIP: **GSF-Decky-Test-0.1.13-stability.1.zip**
 
-Source: https://github.com/wavessevaw/GSF/commit/8dabfa9b605272d99caa54f5198e5100303aae20
+Source: https://github.com/wavessevaw/GSF/commit/375ac52d513eaa9fd295f7c9ea77a9529ebf92cd
 
-Choose a game, press «Ручной запуск · показать команду», then copy the displayed command into Steam launch options and restart the game. Existing launch options must be preserved. Manual setup does not claim Steam accepted a write. Progress and errors are now visible at the top of the panel.
+Install over the previous GSF Test package and restart the game. For the reported Assassin's Creed Origins workload, start with Buffer 2 and Balanced; cost adaptation can reduce effective quality while retaining the selected multiplier.
 
-SHA256: c01834f269940085034b95e96debf574ee01a8d0d2d1bdab2d4103161fdaf0a4
+Changes: compatible FIFO WSI can reserve additional real images and submit future compositor-timed slots without sleeping until the previous frame. The ordinary path falls back to Buffer 0 when private compositor timing is unavailable. GPU ring doubles from 2 to 4 when buffering is active. Shared refinement is cheaper and budget refusal no longer forces an empty history-rebuild frame in the buffered path.
 
-41 backend tests, frontend checks, shipped-panel tests and the extracted-package software Vulkan test passed. The extracted Vulkan test includes x4 from a manually prepared profile.
+The full independent Output Owner remains a separate limited opt-in contract. No production compatibility or physical-FPS claim is made.
 
-Steam Deck hardware, Steam CEF/controller/clipboard integration and physical display FPS remain unverified. The independent Output Owner still has the limited opt-in WSI contract described in PR #51. This experimental package does not replace a stable release.
+SHA256: 5d04086ed52f528c316790eaffbc3a5908d4818f4be4d312dae72bccc39d9fdf
 
-The original preview ZIP is retained alongside the fixed ZIP.
+Four Flow Lite 2.0 suites each passed 197 checks. Decky checks and 41 Python tests passed. The extracted installable ZIP passed actual software Vulkan x2/x3/x4, including the unchanged >=60/70 x2 acceptance gate. Old diagnostic Flow Lite 1.0 retains four known adverse chroma/cut failures.
+
+The hardware report used for diagnosis is from the previous build. Post-fix Steam Deck FPS, source performance, power and latency are not yet measured. Read STABILITY_1.ru.md for findings, software cost comparison and remaining limitations.
+
+Original preview and Launch fix ZIPs are retained. This artifact branch does not replace the stable branch.

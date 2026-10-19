@@ -1,0 +1,40 @@
+{
+  "archive": "GSF-Decky-Test-0.1.13-stability.1.zip",
+  "bytes": 1723643,
+  "sha256": "5d04086ed52f528c316790eaffbc3a5908d4818f4be4d312dae72bccc39d9fdf",
+  "source_commit": "375ac52d513eaa9fd295f7c9ea77a9529ebf92cd",
+  "verified_plugin_files": 74,
+  "verified_payload_files": 14,
+  "hardware_after_fix": "NOT_MEASURED",
+  "flow_lite2_suites": {
+    "balanced": 197,
+    "batched_balanced": 197,
+    "ultra_lite": 197,
+    "quality": 197,
+    "failures": 0
+  },
+  "flow_lite1_legacy_known_failures": 4,
+  "python_tests": 41,
+  "steam_cef_hardware": "NOT_TESTED",
+  "extracted_package_software_vulkan": "PASS",
+  "extracted_modes": {
+    "2": {
+      "source_frames": 70,
+      "dispatched": 67,
+      "wsi_accepted": 66,
+      "max_outputs": 1
+    },
+    "3": {
+      "source_frames": 70,
+      "dispatched": 130,
+      "wsi_accepted": 130,
+      "max_outputs": 2
+    },
+    "4": {
+      "source_frames": 24,
+      "dispatched": 65,
+      "wsi_accepted": 65,
+      "max_outputs": 3
+    }
+  }
+}
