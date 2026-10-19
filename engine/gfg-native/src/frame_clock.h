@@ -83,6 +83,24 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
         c->target_ns[k]=t;c->mask|=1u<<k;last=slot;
     }
 }
+/* Buffer depth is EXTRA retention beyond the intrinsic causal A/B
+ * lookahead. Quantize that extra source period to whole display slots; a
+ * 60fps source on 90Hz must not shift the lattice by a half refresh slot. */
+static inline void gfg_frame_clock_buffer(gfg_frame_clock *c,unsigned depth,uint64_t *last_real) {
+    if(!c || !last_real || depth>2 || !c->period_ns)return;
+    const uint64_t p=c->period_ns;
+    const uint64_t extra=(c->interval_ns*depth/p+(c->interval_ns*depth%p!=0))*p;
+    for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k)c->target_ns[k]+=extra;
+    c->previous_real_ns=*last_real;
+    if(*last_real && c->target_ns[GFG_REAL_OUTPUT]<=*last_real) {
+        const uint64_t slots=(*last_real-c->grid_origin_ns)/p+1;
+        c->target_ns[GFG_REAL_OUTPUT]=c->grid_origin_ns+slots*p;
+        c->mask=0;c->discontinuity=1;
+    }
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)
+        if(c->target_ns[k]<=c->previous_real_ns || c->target_ns[k]>=c->target_ns[GFG_REAL_OUTPUT])c->mask&=~(1u<<k);
+    *last_real=c->target_ns[GFG_REAL_OUTPUT];
+}
 static inline uint64_t gfg_frame_clock_target(const gfg_frame_clock *c,unsigned kind) {
     return kind<GFG_OUTPUT_COUNT?c->target_ns[kind]:0; /* G1/G2/G3, real */
 }

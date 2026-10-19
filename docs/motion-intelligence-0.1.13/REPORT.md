@@ -6,7 +6,7 @@ Environment: Ubuntu 22.04 container, Mesa 23.2.1 lavapipe/llvmpipe (LLVM 15), tw
 
 - Flow Lite 2.0 full Vulkan regression: **197 checks, 0 failures**, independently for sequential and batched reconstruction. Existing quality thresholds were retained. Includes coloured camera motion, HUD, scene cuts, duplicate/hold behavior, timeline protocol, source lifetime, three distinct G1/G2/G3 images and GPU-ready timestamps.
 - Real Vulkan WSI: x2/x3/x4, all output counts observed, slot-derived phases and ordered accepted handoffs; validation errors 0. Performance warnings recommend TRANSFER layouts instead of GENERAL, and are not hidden.
-- Buffer 0/1/2: independent owner active, 12 source presents each, bounded ownership, no app Present GPU waits. Buffer 0 dispatched **zero** synthetic images: this is a documented limitation, not successful x4 interpolation.
+- Buffer 0/1/2: independent owner active, 32 source presents each, bounded ownership, no app Present GPU waits. All three buffer depths dispatch genuine interpolation; Buffer 0 adds no period beyond causal A/B lookahead. Additional buffering is quantized to display slots.
 - Packed10/FP16 x4: all 1024 code levels preserved for the supported A2B10G10R10 format, three outputs. Linear-light PQ x4 agrees with the CPU oracle. A2R10G10B10 BLIT_DST is unsupported by this software device and explicitly skipped. This does not qualify HDR independent WSI.
 - Virtual WSI bootstrap/dispatch regression passed, including borrowed/test-owned lifetime distinction. Native clock/phase, transport-ring, presentation timing, fallback and queue serialization tests passed.
 - Decky: TypeScript check, frontend build, Node tests, panel interaction tests, 35 Python checks. The packaged extraction/install/GPU acceptance test is recorded separately after ZIP construction.
@@ -30,6 +30,8 @@ Input is a deterministic 256x160 pan/object texture with a static HUD, 12 source
 | Flow Lite 2.0 | x3 | 5.082 | 9.573 | 16.171 | 16.171 | 4.787 | 2.48 |
 | Flow Lite 2.0 | x4 | 4.640 | 12.215 | 14.983 | 14.983 | 4.072 | 2.87 |
 
+Allocation is the TE context only; private WSI and source/snapshot pools are excluded.
+
 These measurements support shared analysis amortization on this software workload, not a claim of 90 FPS on Deck. Flow Lite 1.0 retains its original adverse chroma/cut regression failures when that old variant is selected; the new variant passes the unchanged gates.
 
 ## Per-output and batching comparison
@@ -49,9 +51,9 @@ The batched launch reconstructs all low-resolution images in G1 before per-outpu
 
 | Buffer | Source presents | Dispatched synthetic | Accepted synthetic | Mean worker source age ms | Peak snapshot occupancy |
 |---|---:|---:|---:|---:|---:|
-| 0 | 12 | 0 | 0 | 2.377 | 1 |
-| 1 | 12 | 32 | 32 | 189.999 | 2 |
-| 2 | 12 | 32 | 32 | 374.285 | 3 |
+| 0 | 32 | 87 | 85 | 461.089 | 2 |
+| 1 | 32 | 86 | 83 | 424.472 | 3 |
+| 2 | 32 | 50 | 48 | 636.889 | 4 |
 
 Worker source age is a CPU-monotonic observation through WSI handoff; it is **not measured input-to-photon latency**. Synthetic dispatch and acceptance differ, and Buffer 2 is not assumed better just because it holds more data. These slow-source software tests do not prove the benefit of buffering at 45/30/22.5 FPS.
 
@@ -67,7 +69,6 @@ quality, stable p95/p99 or Steam Deck performance.
 ## Remaining release gates
 
 - General Virtual Source WSI compatibility: renderpass/framebuffer layouts, virtual source present IDs/fences, maintenance/dynamic extensions, HDR output owner and actual Gamescope/Proton games. Ordinary WSI has the prior compatibility path; independent output is barrier-only opt-in.
-- Complete interpolation in Buffer 0. Currently there are no synthetic frames when the zero-lookahead path has no causal slot.
 - Source FPS degradation versus game baseline, hardware bandwidth/queue waiting, GPU clock, utilization, power/TDP, input-to-photon latency, actual displayed/unique frames, RDNA2 batching selection and full-resolution quality/performance. They are **not measured**, not zero.
 - Steam Deck OLED 45→90, 30→90, 22.5→90 at 15 W and 10 W/AUTO. No physical FPS/power result is claimed.
 

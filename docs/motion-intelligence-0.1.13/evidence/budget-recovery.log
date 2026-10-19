@@ -1,0 +1,7 @@
+make: Entering directory '/work/engine/gfg-native'
+mkdir -p build-mi
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -I/vkh/include -I../gfg-temporal/src -o build-mi/gpu-ring tests/gpu_ring.c ../gfg-temporal/build/libgfg-temporal.a -ldl -lpthread -lm
+build-mi/gpu-ring
+[gfg-native] gpu-bridge ring fence vkresult=-4
+GFG native: free-slot reservation, bounded busy polls and device-error handling PASS
+make: Leaving directory '/work/engine/gfg-native'

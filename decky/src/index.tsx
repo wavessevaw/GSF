@@ -121,7 +121,7 @@ function Content() {
             const depth = Number(typeof option === 'object' && option && 'data' in option ? option.data : option);
             await rpc.buffer(appid, depth); return 'Buffer '+depth+' сохранён. Перезапустите игру.';
           }, 'Сохраняю буфер…')} />
-        <div style={{fontSize: 11}}>Буфер действует при совместимом независимом выводе. Совместимость Game Mode пока не подтверждена. Buffer 0 использует обычные кадры при отсутствии причинно доступного слота.</div>
+        <div style={{fontSize: 11}}>Буфер действует при совместимом независимом выводе. Совместимость Game Mode пока не подтверждена. Buffer 0: без дополнительного периода сверх ожидания пары A/B; Buffer 1/2: ещё один/два периода.</div>
       </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Reconstruction Quality:</div>
         <Dropdown rgOptions={[{data: 'ultra-lite', label: 'Ultra Lite'}, {data: 'balanced', label: 'Balanced'}, {data: 'quality', label: 'Quality'}, {data: 'adaptive', label: 'Adaptive'}]}

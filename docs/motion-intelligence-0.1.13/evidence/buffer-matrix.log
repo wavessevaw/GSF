@@ -1,6 +1,6 @@
 Buffer 0 Vulkan ownership PASS (inspect generation counts separately)
 Buffer 1 Vulkan ownership PASS (inspect generation counts separately)
 Buffer 2 Vulkan ownership PASS (inspect generation counts separately)
-BUFFER_CONTRACT_PASS 0 source 12 generated 0
-BUFFER_CONTRACT_PASS 1 source 12 generated 32
-BUFFER_CONTRACT_PASS 2 source 12 generated 32
+BUFFER_CONTRACT_PASS 0 source 32 dispatched 87
+BUFFER_CONTRACT_PASS 1 source 32 dispatched 86
+BUFFER_CONTRACT_PASS 2 source 32 dispatched 50

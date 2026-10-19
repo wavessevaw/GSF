@@ -35,6 +35,20 @@ int main(void) {
     for(unsigned i=0;i<3;++i)measured.frame_ms[i][TE_FRAME_TOTAL]=1;
     assert(gpu_compute_budget_sample(&deferred,&measured)==6);
     assert(deferred.gpu_budget_ns[0]==4000000 && deferred.gpu_budget_ns[1]==5000000 && deferred.gpu_budget_ns[2]==6000000);
+    const uint64_t recovery_now=10000000000ull;
+    gfg_gpu_fg recovery={.same_device=1,.shared_flow=1,.multiplier=4,
+        .gpu_budget_ns={2000000,500000000,1000000000},
+        .output_last_dispatch_ns={recovery_now,recovery_now,recovery_now},
+        .last_generation_dispatch_ns=recovery_now,
+        .clock={.period_ns=1000000,.previous_real_ns=recovery_now-10000000,.mask=7,
+            .target_ns={recovery_now+10000000,recovery_now+20000000,recovery_now+30000000,recovery_now+40000000}}};
+    te_submit probe={0};
+    assert(prepare_generation(&recovery,1,10,recovery_now,&probe)==1 && probe.count==1);
+    for(unsigned i=0;i<4;++i)recovery.clock.target_ns[i]+=GSF_GENERATION_RETRY_NS;
+    recovery.clock.previous_real_ns+=GSF_GENERATION_RETRY_NS;
+    probe=(te_submit){0};
+    assert(prepare_generation(&recovery,1,10,recovery_now+GSF_GENERATION_RETRY_NS,&probe)==7);
+    assert(probe.count==3 && probe.defer_second);
     /* Actual TE packet preparation: expiration must remove GPU work, keep
      * history synchronization, and compact G2-only outputs without confusing
      * its slot-derived timestamp or enabling a deferred nonexistent G1. */

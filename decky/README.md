@@ -7,8 +7,8 @@ GPU-completed synthesis; Output FPS counts WSI-accepted presents, not OLED scano
 Frame Buffer 0/1/2 is persisted per game and applies to the independent output
 owner when its Vulkan contract is supported. That owner is currently opt-in for
 barrier-based SDR applications; general Gamescope/Proton compatibility is still
-pending. Buffer 0 currently has real-only fallback when no causal synthetic slot
-exists. The ordinary WSI transport remains the default Decky path.
+pending. Buffer 0 adds no extra source period beyond causal A/B lookahead; Buffer 1/2
+add one/two periods on the display grid. The ordinary WSI transport remains the default Decky path.
 
 See `docs/motion-intelligence-0.1.13/ARCHITECTURE.md` and
 `DECK_PROTOCOL.ru.md` in the source repository for limitations and hardware tests.

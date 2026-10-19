@@ -83,7 +83,43 @@ static void hardware_trace(const char *path) {
     printf("AC Origins replay: %u pairs, %u old dispatches, >=%u already expired at worker start; all %u accepted G1 retained\n",
            rows,old_compute,rejected,accepted);
 }
+static void extra_buffer_periods(void) {
+    for(unsigned depth=0;depth<=2;++depth)for(unsigned multiplier=2;multiplier<=4;++multiplier) {
+        const uint64_t p=ns/90;
+        gfg_frame_clock c={.period_ns=p};uint64_t previous=0;
+        for(unsigned i=0;i<120;++i) {
+            const uint64_t source=10*ns+(uint64_t)i*multiplier*p;
+            gfg_frame_clock_pair(&c,source,multiplier);
+            uint64_t base=c.target_ns[GFG_REAL_OUTPUT];
+            gfg_frame_clock_buffer(&c,depth,&previous);
+            assert(c.target_ns[GFG_REAL_OUTPUT]-base==depth*multiplier*p);
+            if(i) {
+                assert(c.mask==(1u<<(multiplier-1))-1u);
+                for(unsigned k=0;k<multiplier-1;++k) {
+                    float phase;assert(gfg_frame_clock_phase(&c,k,&phase));
+                    assert(phase>0 && phase<1);
+                    assert((c.target_ns[k]-c.grid_origin_ns)%p==0);
+                }
+            }
+        }
+    }
+    // Fractional 60/90 ratios retain a display lattice even with buffering.
+    for(unsigned depth=0;depth<=2;++depth) {
+        gfg_frame_clock c={.period_ns=ns/90};uint64_t last=0;
+        for(unsigned i=0;i<300;++i) {
+            gfg_frame_clock_pair(&c,10*ns+(uint64_t)i*ns/60,4);
+            gfg_frame_clock_buffer(&c,depth,&last);
+            assert((c.target_ns[GFG_REAL_OUTPUT]-c.grid_origin_ns)%c.period_ns==0);
+            for(unsigned k=0;k<3;++k)if(c.mask&(1u<<k)) {
+                assert((c.target_ns[k]-c.grid_origin_ns)%c.period_ns==0);
+                float phase;assert(gfg_frame_clock_phase(&c,k,&phase));
+            }
+        }
+    }
+}
+
 int main(int argc,char **argv) {
+    extra_buffer_periods();
     dispatch_deadlines();
     if(argc==2)hardware_trace(argv[1]);
     jittered_integer_ratio(10,2);

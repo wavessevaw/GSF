@@ -41,10 +41,13 @@ is occupied, the application's waits are consumed once, its source is retired
 without claiming a synthetic, and the overload drop is counted. Output is bounded.
 App Present does not wait for generation, readiness or output WSI.
 
-Buffer 1 uses the clock's one-source-period lookahead; Buffer 2 adds one more
-source period to both endpoint coordinates. Buffer 0 immediately forwards real
-content when no causal interpolation slot exists. **Buffer 0 does not currently
-provide the complete requested multi-frame interpolation behavior.**
+Buffer 0 adds no retention beyond the intrinsic causal A/B lookahead and
+supports interpolation. Buffer 1 adds one source period, Buffer 2 adds two.
+Additional delay is rounded to whole display slots, preserving the refresh
+lattice for fractional source/display ratios. Both endpoint coordinates shift;
+phases still come from the reserved actual slot. All three modes retain source
+images through their consumers and pace real output even when a synthetic expires.
+The configured buffer latency is additional retention, not input-to-photon latency.
 
 ### Supported owner contract and fallback
 

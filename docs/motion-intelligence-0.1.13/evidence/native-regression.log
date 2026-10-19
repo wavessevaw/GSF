@@ -1,23 +1,17 @@
 make: Entering directory '/work/engine/gfg-native'
+mkdir -p build-mi
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -I/vkh/include -shared -Wl,-z,defs -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src -o build-mi/libVkLayer_gfg_native.so src/layer.c src/gpu_bridge.c src/output_worker.c src/buffered_output.c ../gfg-temporal/build/libgfg-temporal.a -ldl -lm -lpthread
+mkdir -p build-mi
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -I/vkh/include -I../gfg-temporal/src -o build-mi/gpu-ring tests/gpu_ring.c ../gfg-temporal/build/libgfg-temporal.a -ldl -lpthread -lm
 build-mi/gpu-ring
 [gfg-native] gpu-bridge ring fence vkresult=-4
 GFG native: free-slot reservation, bounded busy polls and device-error handling PASS
+mkdir -p build-mi
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -DGFG_NATIVE_WITH_TE -I/vkh/include -I../gfg-temporal/src -o build-mi/frame-phase tests/frame_phase.c ../gfg-temporal/build/libgfg-temporal.a -ldl -lpthread -lm
 build-mi/frame-phase ../../docs/frame-pacing-audit/evidence/phase_fixture.csv
 frame-phase PASS: actual prepare_generation x2/x3, masks, signals, jitter/rate grid; all retained phase rows; 4433 mask2 midpoints
+mkdir -p build-mi
+cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -I/vkh/include -I../gfg-temporal/src -o build-mi/presentation-timing tests/presentation_timing.c ../gfg-temporal/build/libgfg-temporal.a -ldl -lm -lpthread
 build-mi/presentation-timing
 presentation-timing: distinct desired G1/G2/G3/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)
-mkdir -p build-mi
-cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -I/vkh/include -o build-mi/swapchain-policy tests/swapchain_policy.c -lpthread
-build-mi/swapchain-policy
-GFG native: actual Steam Deck 0xc0/44/0x1b swapchain eligible PASS
-GFG native: present-extension mask and protection refusal PASS
-GFG native: HDR10 eligibility and immutable FIFO create-mode prefix PASS
-mkdir -p build-mi
-cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -I/vkh/include -o build-mi/device-fallback tests/device_fallback.c -lpthread
-build-mi/device-fallback
-device-fallback: consumed two-layer LINK_INFO restored, original device retried, original error preserved PASS
-mkdir -p build-mi
-cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -Wno-unused-function -I/vkh/include -o build-mi/queue-serialization tests/queue_serialization.c -lpthread
-build-mi/queue-serialization
-GFG native: concurrent submit/submit2/KHR/bind/present/idle host serialization + GIPA/GDPA PASS
 make: Leaving directory '/work/engine/gfg-native'

@@ -216,7 +216,7 @@ struct gfg_gpu_fg {
     unsigned timing_pressure[GFG_OUTPUT_COUNT], timing_worker[GFG_OUTPUT_COUNT], timing_diagnostic[GFG_OUTPUT_COUNT], timing_probe[GFG_OUTPUT_COUNT];
     uint64_t timing_period_ns[GFG_OUTPUT_COUNT];
     uint64_t diagnostic_outputs;
-    uint64_t gpu_budget_ns[GFG_MAX_SYNTHETIC], last_generation_dispatch_ns;
+    uint64_t gpu_budget_ns[GFG_MAX_SYNTHETIC], output_last_dispatch_ns[GFG_MAX_SYNTHETIC], last_generation_dispatch_ns;
     gsf_generation_budget generation_budget;
     int latency_admission;
     uint64_t pacing_waits, pacing_late;
@@ -378,7 +378,8 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
         const uint64_t lead=fg->display_timing==2?fg->clock.period_ns/4:0;
         for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k)) {
             const uint64_t cost=fg->gpu_budget_ns[output]?fg->gpu_budget_ns[output]:2*fg->gpu_budget_ns[0];
-            if(gsf_generation_budget_fits(&fg->generation_budget,cost,fg->clock.target_ns[k],lead,now)) {
+            if(gsf_generation_budget_fits(&fg->generation_budget,cost,fg->clock.target_ns[k],lead,now) ||
+               (output>0 && gsf_generation_retry_due(fg->output_last_dispatch_ns[output],now))) {
                 affordable|=1u<<k;++output;
             }
         }
@@ -1920,14 +1921,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     /* Snapshot baseline before any optional pair-clock adjustment. The
      * original clock drives the next source pair, preventing drift. */
     if(fg->buffered_owner) {
-        const uint64_t shift=fg->buffer_depth==2?fg->clock.interval_ns:0;
-        if(!fg->buffer_depth) {
-            fg->clock.mask=0;fg->clock.target_ns[GFG_REAL_OUTPUT]=fg->source_ns;
-        } else {
-            for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k)fg->clock.target_ns[k]=gsf_pc_add(fg->clock.target_ns[k],shift);
-            fg->clock.previous_real_ns=fg->buffered_previous_real;
-        }
-        fg->buffered_previous_real=fg->clock.target_ns[GFG_REAL_OUTPUT];
+        gfg_frame_clock_buffer(&fg->clock,fg->buffer_depth,&fg->buffered_previous_real);
+        fg->pace_real=1;
     }
     const gfg_frame_clock baseline_clock=fg->clock;
     if(fg->adaptive_pairs && fg->clock.period_ns) {
@@ -2141,6 +2136,8 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         if(fg->diagnostic==2 || fg->diagnostic==3)fg->diagnostic_outputs+=s.count;
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
+        if(generate)for(unsigned j=0;j<s.count && j<GFG_MAX_SYNTHETIC;++j)
+            fg->output_last_dispatch_ns[j]=compute_admission_ns;
         fg->last_te_value = v + GFG_MAX_SYNTHETIC;
         fg->te_slot ^= 1u;
         fg->te_frames++;
@@ -2274,7 +2271,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->in_present = 0;
     /* Real-only fences/timing and immutable copied metadata stay on the app's
      * real present; synthetic calls never borrow those completion objects. */
-    fg->pace_real=presented>0;
+    fg->pace_real=fg->buffered_owner || presented>0;
     result = forward_real(fg, queue, app, &fg->ready[idx], next, ids, &next_us);
     if(fg->recreate_required && (result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR)){
         result=VK_ERROR_OUT_OF_DATE_KHR;
