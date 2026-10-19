@@ -66,6 +66,21 @@ int main(void) {
     plan.clock.target_ns[1]=now+2022000000ull;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000001ull,&s)==2);
     assert(s.count==1 && s.timestamps[0]==2.0f/3.0f && !s.defer_second);
+    /* Real packet preparation must include calibrated start latency, not
+     * just the 7ms GPU span. Sparse probes cannot bypass its retry budget. */
+    plan.multiplier=2;plan.clock.mask=1;plan.probe_active=1;
+    plan.last_generation_dispatch_ns=now;
+    plan.clock.target_ns[0]=now+15000000;plan.gpu_budget_ns[0]=7000000;
+    gsf_generation_budget_observe(&plan.generation_budget,1,35700000);
+    s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now,&s));
+    assert(!s.count && s.nonblocking && s.wait_value==10 && s.signal_first==12);
+    plan.clock.target_ns[0]=now+2015000000ull;
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000000ull,&s)==1);
+    assert(s.count==1 && s.timestamps[0]==0.5f && s.signal_first==12);
+    s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now+2100000000ull,&s));
+    plan.clock.target_ns[0]=now+15000000;plan.probe_active=0;
+    gsf_generation_budget_observe(&plan.generation_budget,1,40000);
+    s=(te_submit){0};assert(prepare_generation(&plan,1,10,now,&s)==1);
     double samples[2]={50,10},median,p95;percentile(samples,2,&median,&p95);
     assert(median==30 && p95==48 && p95>=median);
     gfg_gpu_fg fg = fixture(2);

@@ -121,6 +121,12 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
         self.assertEqual(env['GFG_NATIVE_TIMELINE_WATCH'], '1')
         self.assertEqual(env['GFG_NATIVE_CALIBRATED_TIMESTAMPS'], '1')
+        self.assertEqual(env['GFG_NATIVE_LATENCY_ADMISSION'], '1')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            old_admission = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-latency-admission')
+        self.assertEqual(old_admission['GFG_NATIVE_LATENCY_ADMISSION'], '0')
+        self.assertEqual(old_admission['GFG_NATIVE_CALIBRATED_TIMESTAMPS'], '1')
+        self.assertNotIn('GFG_NATIVE_DIAGNOSTIC_MODE', old_admission)
         with patch.object(launch, 'candidate_module', return_value=Base):
             watch_off = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-watch')
         self.assertEqual(watch_off['GFG_NATIVE_TIMELINE_WATCH'], '0')
