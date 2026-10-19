@@ -111,7 +111,7 @@ function Content() {
           onChange={option => void act(async () => {
             const value = typeof option === 'object' && option && 'data' in option ? Number(option.data) : Number(option);
             await rpc.multiplier(appid, value);
-            return 'Множитель ×'+value+' сохранён для игры. Перезапустите её.';
+            return value === 0 ? 'Генерация отключена для следующего запуска. Перезапустите игру.' : 'Множитель ×'+value+' сохранён для игры. Перезапустите её.';
           }, 'Сохраняю режим генерации…')} />
       </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Frame Buffer · независимый Output Owner:</div>
