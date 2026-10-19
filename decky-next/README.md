@@ -38,3 +38,8 @@ HDR остаётся обычным выводом; SDR8 — основной п
 Лицензии и полный соответствующий исходный код входят в ZIP. AFMF-Linux by Lain,
 MIT, pinned bc56e5bd0e3a6c328aedef664d0d36363fb58b36; FidelityFX shaders retain AMD
 MIT notices. Это модифицированная сборка GSF, а не официальный релиз upstream.
+
+Сборка из приложенного SOURCE.tar.gz: `cmake -S engine/gsf-next -B build -G Ninja`,
+затем `cmake --build build`. Нужны CMake ≥3.22, Vulkan headers ≥1.3.250, C11,
+glslang, SPIR-V Tools, XCB и pthread. В Git checkout
+`scripts/build_gsf_next.sh` дополнительно записывает commit в BUILD_INFO.json.
