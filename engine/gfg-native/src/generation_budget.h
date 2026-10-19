@@ -8,6 +8,11 @@
 
 #define GSF_GENERATION_RETRY_NS 2000000000ull
 #define GSF_GENERATION_MARGIN_NS 500000ull
+/* First GPU timestamps may include cold pipeline/shader execution on lavapipe
+ * or a new RADV shader cache. Never use one outlier to block all recovery for
+ * two seconds. Permit only bounded early remeasurement of the first sample. */
+#define GSF_GENERATION_INITIAL_SPIKE_NS 50000000ull
+#define GSF_GENERATION_COLD_PROBE_NS 250000000ull
 
 typedef struct {
     uint64_t submit_delay_ns;
@@ -39,6 +44,14 @@ static inline int gsf_generation_budget_fits(const gsf_generation_budget *b,
 
 static inline int gsf_generation_retry_due(uint64_t last_dispatch_ns,uint64_t now) {
     return now>=last_dispatch_ns && now-last_dispatch_ns>=GSF_GENERATION_RETRY_NS;
+}
+
+static inline int gsf_generation_cold_retry_due(uint64_t last_dispatch_ns,
+    uint64_t now, uint32_t timed_samples, uint64_t first_gpu_span_ns) {
+    return timed_samples == 1 &&
+           first_gpu_span_ns > GSF_GENERATION_INITIAL_SPIKE_NS &&
+           now >= last_dispatch_ns &&
+           now-last_dispatch_ns >= GSF_GENERATION_COLD_PROBE_NS;
 }
 
 static inline int gsf_generation_probe_allowed(const gsf_generation_budget *b,
