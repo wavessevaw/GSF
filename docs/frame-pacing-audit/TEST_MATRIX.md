@@ -17,3 +17,8 @@ decky/tests -p 'test_*.py'`. Workflow `gsf-frame-pacing.yml` records real Vulkan
 owner logs and two ten-minute normal stress archives. `tools/check_pacing_lab.py`
 checks identities, phases, output order, retained JSONL and end-of-run state.
 All existing CI workflows are required too. See PR45 for checks on the exact SHA.
+
+Long-stress PASS is structural: originals/resources/phase identity/validation and
+JSONL retention. Its RESULT separately reports NOT_MET when a synthetic CPU WSI
+call starts at least one full refresh after its immutable target. This prevents
+an error-free stress run being mislabeled as real-time pacing qualification.

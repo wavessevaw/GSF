@@ -26,3 +26,12 @@
 8. G3 and matched15W B-over-baseline/input→display latency are unmeasured. The
    package is an audit candidate with safety/correctness fixes, not release-ready
    continuous2x/3x on Steam Deck.
+
+9. The exact source/slot snapshot can be correct while WSI acquisition or a
+   later host synchronization causes a late handoff. The local stress observed
+   two synthetic calls at least one full refresh late. Full realtime pacing is
+   NOT MET there; structural stress PASS is kept separate in RESULT.json.
+10. Healthy-observed still requires actual TE snapshots and calibration. The
+  35ms-input/45Hz software case can expire every slot before TE is called. That
+   case explicitly reports NO_TE_SUBMISSION, preserves all originals, and does
+   not pretend to compare queue-depth/latency admission from absent samples.

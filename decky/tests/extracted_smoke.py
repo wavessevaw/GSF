@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ async def test(archive, output):
         launched = subprocess.run(launcher+[str(app)], env=env, capture_output=True, text=True, timeout=100)
         (output/'launcher.log').write_text(launched.stdout+launched.stderr)
         run = backend.runtime.latest(42)
+        shutil.copytree(run, output/'x2-session', dirs_exist_ok=True)
         log = (run/'game.log').read_text()
         (output/'game.log').write_text(log)
         assert launched.returncode == 0, (launched.stdout+launched.stderr+log)[-7000:]
@@ -108,6 +110,7 @@ async def test(archive, output):
         (output/'x3-launcher.log').write_text(run_three.stdout+run_three.stderr)
         assert run_three.returncode == 0, (run_three.stdout+run_three.stderr)[-5000:]
         run3 = backend.runtime.latest(42)
+        shutil.copytree(run3, output/'x3-session', dirs_exist_ok=True)
         meta3 = json.loads((run3/'LAUNCH.json').read_text())['native_environment']
         assert meta3['GFG_NATIVE_MODE'] == '3', meta3
         events3 = [json.loads(x) for x in ''.join(p.read_text() for p in run3.glob('frames*.jsonl')).splitlines()
@@ -115,13 +118,12 @@ async def test(archive, output):
         frames3 = [x for x in events3 if x.get('event') == 'pair']
         assert frames3 and all(x['multiplier'] == 3 for x in frames3)
         assert any((x['planned_mask'] & 3) == 3 for x in frames3), 'x3 never planned two synthetic slots'
-        assert any(x['dispatched_outputs'] == 2 for x in frames3), 'x3 GPU never dispatched two outputs'
+        assert any(x['dispatched_outputs'] == 2 for x in frames3), ('x3 GPU never dispatched two outputs', [(x['planned_mask'], x['dispatched_outputs'], x['admission_decision'], x['gpu_budget_ns']) for x in frames3][-20:])
         assert all(x['physical_displayed'] is None for x in frames3)
         assert (await backend.set_multiplier(42, 2))['multiplier'] == 2
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:
             assert any(n.endswith('/REPORT.json') for n in z.namelist())
-        import shutil
         shutil.copy2(exported['path'], output/'GSF-Game-Latest.zip')
         restore = await backend.disable_game(42, prepared['options'])
         assert restore == {'options': 'MANGOHUD=0 %command% --original', 'restore': True}

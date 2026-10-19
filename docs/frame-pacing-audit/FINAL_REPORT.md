@@ -38,3 +38,9 @@ Rollback: disable GSF for the selected game and restore its saved launch string
 using the plugin; installed launcher passes through when disabled or payload is
 missing. Prior source/archives remain available. Do not merge this experiment
 into main or replace a stable installation automatically.
+
+The local long run also exposed a post-readiness handoff tail: max69.800ms after
+the planned G target. This is an additional proven limitation of the direct WSI
+path. The prototype is not shipped as a remedy for that tail. Candidate packaging
+remains a correctness/audit artifact; a new manual Deck test is not required to
+establish this already reproduced software blocker.

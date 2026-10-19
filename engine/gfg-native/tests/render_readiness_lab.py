@@ -148,6 +148,15 @@ def run(build, output, order):
                 observations = [e for e in events if e.get('event') == 'queue_observation']
                 if name in ('healthy', 'refresh-wsi-query'):
                     assert not observations, 'Observer was not disabled'
+                elif not row['all']['dispatched']:
+                    # Strict immutable deadlines can reject every TE output
+                    # when the input copy already consumed its slot. Do not
+                    # manufacture an expired probe merely to obtain a sample.
+                    assert name.endswith('delayed'), (name,'No viable observer baseline')
+                    assert not observations, 'Snapshot without actual generation'
+                    assert all(not p['dispatched_outputs'] for p in pairs)
+                    assert any(p['admission_decision']=='deadline_blocked' for p in pairs), name
+                    row['queue_observation']={'samples':0,'status':'NO_TE_SUBMISSION_STRICT_DEADLINE'}
                 else:
                     assert observations, 'No actual TE-submit queue snapshot'
                     origins = {(p['pid'], p['generation'], p['te_sequence']) for p in events
@@ -156,11 +165,11 @@ def run(build, output, order):
                     assert all(e['available'] and e['query_errors'] == 0 for e in observations), name
                     assert all(e['app_submits_total'] <= frames for e in observations), 'GSF counted as game work'
                     assert all(e['hardware_queue_depth'] is None and e['pure_queue_wait_ns'] is None for e in observations)
-                    row['queue_observation'] = {'samples': len(observations),
+                    row['queue_observation'] = {'samples': len(observations),'status':'OBSERVED',
                         'query_cpu_median_ms': median([e['query_cpu_ns']/1e6 for e in observations]),
                         'unretired_upper_bound_median': median([e['app_submits_unretired_upper_bound'] for e in observations]),
                         'incomplete_samples': sum(bool(e['tracking_lost'] or e['unfenced_unretired']) for e in observations)}
-                if name != 'refresh-wsi-query':
+                if name != 'refresh-wsi-query' and row['all']['dispatched']:
                     assert row['all']['calibrated_records'] > 0, 'Calibration unavailable; cannot establish this experiment'
                 if name == 'refresh-wsi-query':
                     pass  # Refresh provenance only; no software-GPU throughput threshold.
@@ -183,7 +192,17 @@ def run(build, output, order):
                     if admission:
                         assert row['steady']['dispatched'] <= 4, row
                     else:
-                        assert row['steady']['dispatched'] >= 8, row
+                        # This comparison disables calibrated-latency admission,
+                        # not the immutable slot deadline. If the dependency is
+                        # absorbed before TE, both policies can reject all work.
+                        if row['steady']['dispatched'] < 8:
+                            assert row['wait_location']=='before_TE_submit', row
+                            expired=sum(p['admission_decision']=='deadline_blocked' for p in pairs)
+                            assert expired>=frames//2, (row,'Unexplained absence of TE work')
+                            row['deadline_blocked_pairs']=expired
+                            row['admission_comparison']='NOT_ISOLATED_STRICT_DEADLINE_DOMINATES'
+                        else:
+                            row['admission_comparison']='CALIBRATED_COST_EFFECT_OBSERVABLE'
                 else:
                     row['before_delay'] = analyze(events, 5, start)
                     row['delayed'] = analyze(events, start, end)

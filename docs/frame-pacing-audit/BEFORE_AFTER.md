@@ -15,3 +15,13 @@ Archived data is not an after-run. The input x3 retained interval had1 accepted
 synthetic in169.599s; x2 had66 in85.485s. This candidate cannot be claimed to
 improve those hardware results until the SAME scene is rerun. Software test
 results establish specified code behavior and actual LMC/WSI transport only.
+
+A local600s development stress retained154segments:5143native sources/WSI,
+767synthetic WSI, zero driver errors and ring-busy events, queue peak2,96stable
+recoveries followed by96congestion reentries. It did NOT establish smooth90FPS.
+No observed GPU-ready timestamp exceeded its slot target, yet synthetic WSI call
+start-minus-target had p99=2.684ms and max=69.800ms. Readiness is not the final
+handoff. CPU source-entry→B WSI-start p99=244.620ms includes the injected dependency;
+no-GSF baseline was not paired, so this is not added input latency. Local PID/RSS
+samples were invalid and excluded. Full scope and measured values are in evidence/
+local_stress_x3.json. The exact committed version is separately stressed in CI.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fail-closed evidence checks; software WSI is never physical scanout proof."""
-import argparse, collections, json, re
+import argparse, collections, json, re, statistics
 from pathlib import Path
 
 
@@ -50,7 +50,29 @@ def stress(directory, minimum_seconds):
     log=(directory/'game.log').read_text()
     assert 'GPU bridge WSI smoke PASS' in log and 'Validation Error' not in log and 'VUID-' not in log, log[-4000:]
     outcomes=collections.Counter(e['state'] for e in events if e.get('event')=='pacing_recovery')
-    return dict(scope='installed normal layer / lavapipe / no shadow',seconds=seconds,segments=len(segments),pairs=len(pairs),slot_mappings=len(mapping),recovery_states=dict(outcomes),physical_scanout=None)
+    late=[];b_latency=[];whole_slot_late=0
+    for event in pairs:
+        for k in range(2):
+            if event['wsi_accepted_ns'][k]:
+                call_start=event['wsi_accepted_ns'][k]-event['wsi_call_ns'][k]
+                delta=call_start-event['target_ns'][k]
+                late.append(delta/1e6)
+                whole_slot_late+=delta>=event['refresh_period_ns']
+        if event['wsi_accepted_ns'][2]:
+            b_latency.append((event['wsi_accepted_ns'][2]-event['wsi_call_ns'][2]-event['source1_ns'])/1e6)
+    def quantiles(values):
+        v=sorted(values)
+        return {name:round(v[int((len(v)-1)*q)],6) for name,q in
+            [('p50',.5),('p95',.95),('p99',.99),('max',1)]} if v else None
+    resources=[tuple(map(int,m)) for m in re.findall(r'GSF_STRESS_RESOURCE frame=(\d+) elapsed_ms=(\d+) peak_rss_kib=(\d+)',log)]
+    return dict(scope='installed normal layer / lavapipe / no shadow',structural_stress='PASS',
+        real_time_schedule='NOT_MET' if whole_slot_late else 'NOT_QUALIFIED',
+        seconds=seconds,segments=len(segments),pairs=len(pairs),slot_mappings=len(mapping),
+        synthetic_call_start_minus_target_ms=quantiles(late),synthetic_calls_late_at_least_one_slot=whole_slot_late,
+        B_source_entry_to_WSI_start_ms=quantiles(b_latency),B_delay_over_baseline_ms=None,
+        peak_rss_samples=len(resources),peak_rss_kib=max((v[2] for v in resources),default=None),
+        recovery_states=dict(outcomes),physical_scanout=None)
+
 
 
 if __name__=='__main__':

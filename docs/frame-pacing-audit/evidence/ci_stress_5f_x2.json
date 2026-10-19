@@ -1,0 +1,52 @@
+{
+  "scope": "installed normal layer / lavapipe / no shadow",
+  "structural_stress": "PASS",
+  "real_time_schedule": "NOT_QUALIFIED",
+  "seconds": 599.881404277,
+  "segments": 189,
+  "pairs": 6269,
+  "slot_mappings": 2135,
+  "synthetic_call_start_minus_target_ms": {
+    "p50": 0.055027,
+    "p95": 0.056626,
+    "p99": 0.067355,
+    "max": 0.674423
+  },
+  "synthetic_calls_late_at_least_one_slot": 0,
+  "B_source_entry_to_WSI_start_ms": {
+    "p50": 60.261553,
+    "p95": 200.557253,
+    "p99": 200.735912,
+    "max": 746.146277
+  },
+  "B_delay_over_baseline_ms": null,
+  "peak_rss_samples": 105,
+  "peak_rss_kib": 360932,
+  "recovery_states": {
+    "STABILIZING": 176,
+    "CONGESTED": 2944,
+    "STABLE": 3149
+  },
+  "physical_scanout": null,
+  "source_head": "5f6bd79fc9c9c55a2cedec9fee9209980097015e",
+  "artifact_sha256": "856f97893eec6db2f6f9d36bf118163464dafc9c4a9e88aa6279502a8f97605c",
+  "artifact_id": 12178752512,
+  "workflow_run": 39234814898,
+  "native_wsi": 6269,
+  "synthetic_wsi": 2101,
+  "errors": 0,
+  "last_recovery": {
+    "schema": 1,
+    "event": "pacing_recovery",
+    "pid": 2734,
+    "generation": 1,
+    "source_serial": 6269,
+    "state": "STABLE",
+    "dispatched_outputs": 1,
+    "ready_and_wsi_accepted": 1,
+    "probe_attempts": 34,
+    "stable_recoveries": 22,
+    "congestion_reentries": 21,
+    "physical_scanout": null
+  }
+}

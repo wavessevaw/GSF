@@ -1,0 +1,63 @@
+{
+  "development_snapshot": true,
+  "runtime": "Mesa lavapipe25.2.8 TCP Xvfb96x64",
+  "application_sources": 5143,
+  "normal_pairs_logged": 5084,
+  "source_span_s": 599.986731557,
+  "native_wsi": 5143,
+  "synthetic_wsi": 767,
+  "native_regression_percent": null,
+  "queue_peak_waiting": 2,
+  "queue_executing_limit": 1,
+  "ring_busy": 0,
+  "errors": 0,
+  "host_pixel_reads_on_app_present": 0,
+  "cpu_gpu_waits_on_app_present": 0,
+  "segments": 154,
+  "readiness_after_target_count": 0,
+  "synthetic_cpu_wsi_call_start_minus_target_ms": {
+    "p50": 0.082384,
+    "p95": 0.741231,
+    "p99": 2.683902,
+    "max": 69.799884
+  },
+  "synthetic_cpu_wsi_start_after_target_count": 766,
+  "B_source_entry_to_wsi_start_ms": {
+    "p50": 61.281113,
+    "p95": 200.885165,
+    "p99": 244.619635,
+    "max": 8109.57648
+  },
+  "B_over_baseline_ms": null,
+  "recovery": [
+    {
+      "pid": 7,
+      "generation": 1,
+      "final_state": "CONGESTED",
+      "outcome": "RECOVERED_THEN_CONGESTED",
+      "probe_attempts": 213,
+      "stable_recoveries": 96,
+      "congestion_reentries": 96,
+      "observations": 5082,
+      "ready_wsi_outputs": 767,
+      "physical_scanout": null
+    }
+  ],
+  "last_recovery_observation": {
+    "schema": 1,
+    "event": "pacing_recovery",
+    "pid": 7,
+    "generation": 1,
+    "source_serial": 5143,
+    "state": "CONGESTED",
+    "dispatched_outputs": 0,
+    "ready_and_wsi_accepted": 0,
+    "probe_attempts": 213,
+    "stable_recoveries": 96,
+    "congestion_reentries": 96,
+    "physical_scanout": null
+  },
+  "peak_rss": "UNOBSERVABLE: launcher proc PID namespace mismatch; no valid memory samples in this development run",
+  "physical_scanout": null,
+  "full_log_sha256": "81261c133ec7b4e5bf51e005be674d91b3084403e62dec1c584665aace0a8081"
+}
