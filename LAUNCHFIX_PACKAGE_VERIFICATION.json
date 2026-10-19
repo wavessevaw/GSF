@@ -1,0 +1,14 @@
+{
+  "archive": "GSF-Decky-Test-0.1.13-launchfix.1.zip",
+  "bytes": 1687757,
+  "sha256": "c01834f269940085034b95e96debf574ee01a8d0d2d1bdab2d4103161fdaf0a4",
+  "source_commit": "8dabfa9b605272d99caa54f5198e5100303aae20",
+  "version": "0.1.13-launchfix.1",
+  "verified_plugin_files": 71,
+  "verified_payload_files": 14,
+  "hardware_validation": "NOT_PERFORMED",
+  "extracted_package_software_vulkan": "PASS",
+  "manual_profile_x4_vulkan": "PASS",
+  "python_backend_tests": 41,
+  "steam_cef_controller_clipboard_hardware": "NOT_TESTED"
+}
