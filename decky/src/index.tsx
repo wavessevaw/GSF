@@ -134,7 +134,7 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <code>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</code>; активный: <code>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</code>.
         {status && !status.build_matches && <strong> ОШИБКА: установленный GPU слой не соответствует пакету. Генерация заблокирована до переустановки.</strong>}
       </div></PanelSectionRow>
-      <PanelSectionRow><ButtonItem layout="below" disabled={busy || (status && !status.build_matches)} onClick={() => void act(async () => {
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.build_matches === false} onClick={() => void act(async () => {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
         return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
