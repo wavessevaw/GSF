@@ -35,7 +35,7 @@ jobs:
           npm --prefix decky run build
           npm --prefix decky run test:panel
           python3 -m unittest discover -s decky/tests -p 'test_*.py'
-          make -C engine/gfg-native frame-clock timeline-watch calibration-clock generation-budget
+          make -C engine/gfg-native adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
       - name: Build GPU layer and package exact source
         run: |
           make -C engine/gfg-temporal lib

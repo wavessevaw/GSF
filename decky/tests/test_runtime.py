@@ -52,6 +52,8 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.set_diagnostic_mode(42, 'unknown-mode')
         self.runtime.set_diagnostic_mode(42, 'matched-compute')
         self.assertEqual(Runtime(self.home, PLUGIN).status(42)['diagnostic_mode'], 'matched-compute')
+        self.runtime.set_diagnostic_mode(42, 'normal-adaptive-pairs')
+        self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-adaptive-pairs')
         self.runtime.set_diagnostic_mode(42, 'normal-queue-observe')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-queue-observe')
         self.runtime.set_diagnostic_mode(42, 'normal-no-watch')
@@ -123,6 +125,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
         self.assertEqual(env['GFG_NATIVE_TIMELINE_WATCH'], '1')
         self.assertEqual(env['GFG_NATIVE_CALIBRATED_TIMESTAMPS'], '1')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            adaptive = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-adaptive-pairs')
+        self.assertEqual(adaptive['GFG_NATIVE_ADAPTIVE_PAIRS'], '1')
+        self.assertNotIn('GFG_NATIVE_DIAGNOSTIC_MODE', adaptive)
+
         self.assertEqual(env['GFG_NATIVE_LATENCY_ADMISSION'], '1')
         self.assertNotIn('GFG_NATIVE_QUEUE_OBSERVE', env)
         with patch.object(launch, 'candidate_module', return_value=Base):
