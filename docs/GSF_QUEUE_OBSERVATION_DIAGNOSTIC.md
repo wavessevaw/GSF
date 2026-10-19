@@ -117,3 +117,12 @@ Pair records distinguish an actual successful refresh query from a missing/error
 query, retained value, explicit override or initial fallback. A successful 60 Hz
 response is preserved; the user's game may legitimately be configured for 60 Hz.
 No automatic 90 Hz substitution or presentation-policy change is part of this audit.
+
+
+A discovered calibration defect is fixed separately from refresh selection:
+GPU start before CPU submit-return is a valid asynchronous overlap, not inherently
+inconsistent timestamps. The signed delta is retained as
+`gpu_start_minus_submit_return_ns`; admission uses `max(0, delta)` in the existing
+`submit_to_gpu_start_ns` field. Precision/staleness/plausibility gates remain.
+The pinned audit includes the original failed CI artifact and a 15-sample replay.
+This does not explain away the positive 34–41 ms Deck observations.

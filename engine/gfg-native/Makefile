@@ -354,7 +354,7 @@ $(BUILD)/calibration-clock: tests/calibration_clock.c src/calibrated_clock.h tes
 	$(CC) $(CFLAGS) -pthread -Itests/stubs -o $@ tests/calibration_clock.c
 
 calibration-clock: $(BUILD)/calibration-clock
-	$(BUILD)/calibration-clock
+	$(BUILD)/calibration-clock tests/fixtures/software-submit-overlap-20261019.csv
 .PHONY: calibration-clock
 
 $(BUILD)/generation-budget: tests/generation_budget.c src/generation_budget.h

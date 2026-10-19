@@ -122,6 +122,9 @@ def run(build, output, order):
                 assert stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
                 events = [json.loads(l) for l in trace.read_text().splitlines()]
                 row.update(stats=stats, all=analyze(events, 0, frames))
+                for e in events:
+                    if e.get('event') == 'gpu_correlated' and e.get('calibration_status') == 'calibrated':
+                        assert e['submit_to_gpu_start_ns'] == max(0, e['gpu_start_minus_submit_return_ns']), e
                 contexts = {(e['pid'], e['generation']): e for e in events if e.get('event') == 'bridge_context'}
                 pairs = [e for e in events if e.get('event') == 'pair']
                 assert pairs and all((e['pid'], e['generation']) in contexts for e in pairs), name

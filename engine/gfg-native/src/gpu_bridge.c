@@ -422,7 +422,7 @@ static void gpu_sample(gfg_gpu_fg *fg) {
             gpu_tick_period_ns,submit_return_ns);
     else {
         estimate=(gsf_clock_estimate){.start_text="null",.delay_text="null",
-            .calibration_text="null",.deviation_text="null",
+            .calibration_text="null",.deviation_text="null",.delta_text="null",
             .reason=s.timed?"timestamp_bits_below_64":"gpu_timestamps_unavailable"};
     }
     if(fg->latency_admission)
@@ -431,13 +431,13 @@ static void gpu_sample(gfg_gpu_fg *fg) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_correlated\","
             "\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
             "\"timestamp_valid_bits\":%u,\"gpu_timestamp_period_ns\":%.9f,"
-            "\"gpu_start_cpu_ns\":%s,\"submit_to_gpu_start_ns\":%s,"
+            "\"gpu_start_cpu_ns\":%s,\"submit_to_gpu_start_ns\":%s,\"gpu_start_minus_submit_return_ns\":%s,"
             "\"calibration_ns\":%s,\"calibration_max_deviation_ns\":%s,"
             "\"calibration_status\":\"%s\"}\n",
             (long)getpid(),(unsigned long long)fg->generation,
             (unsigned long long)s.sequence,(unsigned long long)submit_return_ns,
             (unsigned long long)gpu_start_ticks,timestamp_valid_bits,
-            gpu_tick_period_ns,estimate.start_text,estimate.delay_text,
+            gpu_tick_period_ns,estimate.start_text,estimate.delay_text,estimate.delta_text,
             estimate.calibration_text,estimate.deviation_text,estimate.reason);
     }
     if(fg->telemetry) {

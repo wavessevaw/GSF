@@ -17,7 +17,8 @@ Windows-играми через Proton. Пользователь отдельн�
 проверяло лишь наличие function pointer. Теперь startup сообщает именно
 `refresh_query_available`; каждая pair содержит реальный результат запроса,
 сырое значение и происхождение примененного периода. Политика выбора периода,
-`gfg_frame_clock_pair`, admission, семафоры и способ подачи команд не изменены.
+`gfg_frame_clock_pair`, формулы admission, семафоры и способ подачи команд не изменены.
+Отдельно исправлена обработка калибровки при старте GPU до возврата submit (ниже).
 
 Причина 34–41 мс на Deck **не установлена**. Ни этот аудит, ни положительный
 счетчик app-submit не доказывают, что весь интервал занят рендерингом игры.
@@ -146,3 +147,35 @@ GPU waits или фоновых потоков не добавлено; JSON д�
 context/pair и происхождение периода. Остальные cases проверяют, что явные 90 Гц
 стенда не маскируются под WSI query. Это lavapipe + Vulkan loader, **не Proton**;
 результаты не выдаются за измерение latency Windows-игры или физический 2×.
+
+
+## Найденный в CI дефект: GPU стартует раньше CPU submit-return
+
+Первый прогон текущей диагностики (`3b07905`) прошел 8 из 9 workflows.
+Validation-first readiness прошел, native-first остановился: все 15 GPU timing
+samples в new-admission-delayed были отвергнуты как `inconsistent_timestamps`.
+Артефакт [12162181007](https://github.com/wavessevaw/GSF/actions/runs/39195796393/artifacts/12162181007),
+ZIP SHA256 `b378572faa6dd3ec04c87123bc122884309ef2f9d3231a6afd7a0cbf4eefc770`.
+Пороги теста не ослаблялись, успешный повтор вместо разбора ошибки не использован.
+
+В этих 15 samples device start был на **24..10678 нс раньше** host submit-return,
+при maxDeviation=1 нс и совпадающих CPU/GPU calibrated clocks lavapipe. Старое
+условие `start < submit_return` безусловно отвергало такой порядок. Это неверно:
+асинхронная GPU-работа может начаться до возврата queue submission на CPU.
+[Модель Vulkan queues](https://docs.vulkan.org/spec/latest/chapters/fundamentals.html)
+не устанавливает host-return как начало исполнения на device.
+
+Исправление сохраняет фактический signed `gpu_start_minus_submit_return_ns` и
+валидный calibrated GPU-start. Для admission берется только остающаяся после
+возврата задержка `max(0, signed_delta)`, без unsigned underflow. Историческое поле
+`submit_to_gpu_start_ns` теперь явно означает эту неотрицательную величину;
+signed поле дает исходное измерение. Это не чистое время ожидания hardware queue.
+Пределы maxDeviation, stale calibration и правдоподобия ±2 с сохранены. Никакие
+дополнительные GPU/host waits и изменения TE ABI не понадобились.
+
+Все 15 исходных samples сохранены как числовой fixture
+`tests/fixtures/software-submit-overlap-20261019.csv` и проходят точный C replay;
+unit checks также проверяют положительный/нулевой delta и отказ вне пределов.
+Старые положительные Deck задержки 34–41 мс от этого исправления не исчезают:
+оно исправляет отбраковку быстрого старта и возможную потерю calibration/admission
+coverage, а не доказывает устранение игровой просадки.
