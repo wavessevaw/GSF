@@ -1,0 +1,52 @@
+name: GSF Next Vulkan and Decky
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gsf-next/**'
+      - 'decky-next/**'
+      - 'scripts/*gsf_next*'
+      - '.github/workflows/gsf-next.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      LP_NUM_THREADS: 2
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools and pinned Vulkan headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers glslang-tools spirv-tools xvfb xauth vulkan-validationlayers
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Native compile, SPIR-V validation and display-slot planning
+        run: |
+          VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" sh scripts/build_gsf_next.sh
+          engine/gsf-next/build/gsf_output_plan
+          engine/gsf-next/build/gsf_present_wait_contract
+      - name: Actual Vulkan WSI and synthetic pixel checks
+        run: python3 engine/gsf-next/tests/matrix.py --build engine/gsf-next/build --out artifacts/gsf-next-matrix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Decky install, launch, fallback and UI
+        run: |
+          cd decky-next
+          npm ci
+          npm run check
+          npm run build
+          npm test
+          npm run test:panel
+      - name: Offline package and extracted smoke
+        run: |
+          python3 scripts/package_gsf_next.py
+          GSF_NEXT_SMOKE_HARNESS="$PWD/engine/gsf-next/build/afmf_headless" python3 decky-next/tests/extracted_smoke.py artifacts/gsf-next-release/GSF-Next-0.2.0-alpha.1.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gsf-next-alpha-software-evidence
+          path: artifacts/

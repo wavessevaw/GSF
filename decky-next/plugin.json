@@ -1,0 +1,14 @@
+{
+  "name": "GSF Next",
+  "author": "GSF contributors; AFMF-Linux by Lain; AMD FidelityFX",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "vulkan",
+      "framegen",
+      "experimental"
+    ],
+    "description": "Independent open frame generation with x2/x3/x4; Steam Deck validation pending."
+  }
+}

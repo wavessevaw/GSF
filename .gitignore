@@ -11,3 +11,7 @@ node_modules/
 decky/dist/
 decky/out/
 /artifacts/
+
+/decky-next/dist/
+/decky-next/out/
+/decky-next/node_modules
