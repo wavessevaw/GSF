@@ -192,4 +192,3 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
               sc->gen_enabled ? "on" : "off", sc->async ? " (layer queue)" : "");
     return VK_SUCCESS;
 }
-

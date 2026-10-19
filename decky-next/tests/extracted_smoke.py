@@ -55,10 +55,9 @@ def main():
                 asyncio.run(backend.prepare_game(1));asyncio.run(backend.configure_game(1,dict(multiplier=mult)))
                 # The source harness enables this exact layer name and validation.
                 # Keep production zero-timeout/acquire, quality and pacing defaults.
-                env.update(AFMF_TEST_X11='1',AFMF_TEST_FRAMES='16',AFMF_TEST_FRAME_MS='30')
-                result=subprocess.run(['xvfb-run','-a',sys.executable,str(launcher),'--appid','1','--',harness],env=env,capture_output=True,text=True,timeout=90)
-                assert result.returncode==0,(mult,result.returncode,result.stderr)
+                result=subprocess.run(['xvfb-run','-a',sys.executable,str(launcher),'--appid','1','--','/usr/bin/env','AFMF_TEST_X11=1','AFMF_TEST_FRAMES=16','AFMF_TEST_FRAME_MS=30',harness],env=env,capture_output=True,text=True,timeout=90)
                 run=backend.runtime.latest(1);log=(run/'game.log').read_text()
+                assert result.returncode==0,(mult,result.returncode,result.stderr,log[-3000:])
                 assert 'generation on' in log and 'GSF_NEXT_SUMMARY' in log,log[-2000:]
                 assert 'validation:' not in log and 'VUID-' not in log,log[-3000:]
                 import re
