@@ -253,10 +253,10 @@ owned-wsi-smoke: $(BUILD)/owned-wsi-smoke
 	$(BUILD)/owned-wsi-smoke
 .PHONY: owned-wsi-smoke
 
-$(BUILD)/wsi-gpu-smoke: tests/wsi_gpu_smoke.c
+$(BUILD)/wsi-gpu-smoke: tests/wsi_gpu_smoke.c tests/render_readiness_gate.h
 	@test -f $(VULKAN_HEADERS)/vulkan/vulkan_xcb.h || { echo "Vulkan XCB headers required"; exit 1; }
 	mkdir -p $(BUILD)
-	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -DVK_USE_PLATFORM_XCB_KHR -I$(VULKAN_HEADERS) -o $@ $< -lvulkan -lxcb -ldl
+	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -DVK_USE_PLATFORM_XCB_KHR -I$(VULKAN_HEADERS) -o $@ $< -lvulkan -lxcb -ldl -pthread
 
 # GPU-resident bridge on a real XCB swapchain (lavapipe under Xvfb in CI).
 # Run 1: validation layer below ours (+ sync validation) and the test-only
