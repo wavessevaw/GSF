@@ -1171,7 +1171,8 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
      GPU composition and never transfers whole game frames to the CPU.
      The original GSF/projective and LMC algorithms stay unchanged. */
     cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?
-        (env_flag("GFG_NATIVE_FLOW_LITE") ? 5 :
+        (env_flag("GFG_NATIVE_FLOW_LITE_QUAD") ? 6 :
+         env_flag("GFG_NATIVE_FLOW_LITE") ? 5 :
          env_flag("GFG_NATIVE_GSF_ECO") ? 0 : 4):0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
     /* In-game LMC follows measured source intervals and the compositor's
