@@ -47,6 +47,7 @@
 #include "gpu_bridge.h"
 #include "frame_clock.h"
 #include "adaptive_pair.h"
+#include "shadow_admission.h"
 #include "present_chain.h"
 #include "past_timing.h"
 #include "refresh_observation.h"
@@ -199,6 +200,10 @@ struct gfg_gpu_fg {
     int diagnostic; /* 0 normal, 1 source-only, 2 compute-only, 3 matched-compute */
     int adaptive_pairs; /* opt-in experimental 2x only */
     gsf_adaptive_pair adaptive;
+    int shadow_enabled;
+    gsf_shadow_history shadow;
+    uint64_t timing_desired_sent[3], timing_target_at_call[3];
+    unsigned timing_attached[3], timing_zero_reason[3];
     uint64_t diagnostic_outputs;
     uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
     gsf_generation_budget generation_budget;
@@ -277,6 +282,16 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         at.desiredPresentTime=fg->diagnostic || fg->probe_active || (kind==2 && !fg->pace_real) || atomic_load(&fg->output_pressure)?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
+    }
+    if(fg->shadow_enabled && kind<3) {
+        fg->timing_target_at_call[kind]=gfg_frame_clock_target(&fg->clock,kind);
+        fg->timing_attached[kind]=timed.pNext==&times;
+        fg->timing_desired_sent[kind]=timed.pNext==&times?at.desiredPresentTime:0;
+        /* Zero reason: 1 unattached, 2 diagnostic, 3 visibility probe,
+         * 4 native B without accepted synthetic, 5 source pressure, 6 other. */
+        fg->timing_zero_reason[kind]=timed.pNext!=&times?1:
+            at.desiredPresentTime?0:fg->diagnostic?2:fg->probe_active?3:
+            (kind==2 && !fg->pace_real)?4:atomic_load(&fg->output_pressure)?5:6;
     }
     VkResult r = next(queue, &timed);
     clock_gettime(CLOCK_MONOTONIC,&b);
@@ -434,6 +449,9 @@ static void gpu_sample(gfg_gpu_fg *fg) {
     }
     if(fg->latency_admission)
         gsf_generation_budget_observe(&fg->generation_budget,estimate.valid,estimate.delay_ns);
+    if(fg->shadow_enabled && estimate.valid)
+        gsf_shadow_record(&fg->shadow,s.sequence,estimate.start_ns,
+                          estimate.delay_ns,gsf_calib_monotonic());
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_correlated\","
             "\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,\"submit_return_ns\":%llu,\"gpu_start_ticks\":%llu,"
@@ -1154,6 +1172,10 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     fg->adaptive_pairs=env_flag("GFG_NATIVE_ADAPTIVE_PAIRS") &&
         fg->multiplier==2 && fg->same_device && cd.params.algorithm==TE_ALGO_LMC_GPU;
     gsf_ap_init(&fg->adaptive);
+    fg->shadow_enabled=env_flag("GFG_NATIVE_SHADOW_ADMISSION") &&
+        fg->same_device && cd.params.algorithm==TE_ALGO_LMC_GPU;
+    if(fg->shadow_enabled)fprintf(stderr,
+        "[gfg-native] shadow_admission=read_only threshold_ms=5 stale_ms=500 source_unchanged=1\n");
     if(fg->adaptive_pairs)fprintf(stderr,
         "[gfg-native] adaptive_pairs=experimental max_B_extension=2_refresh_periods native_priority=1 physical_scanout=unverified\n");
     cd.export_fds = !fg->same_device;
@@ -1754,12 +1776,18 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     if (!fg || !app || !next) return VK_ERROR_INITIALIZATION_FAILED;
     const double t0 = now_us();
     int adaptive_dispatched=0;
+    gsf_shadow_decision shadow_decision={.prediction="unknown",.reason="not_evaluated"};
+    uint64_t shadow_prediction_ns=0,shadow_pre_submit_b_ns=0,shadow_pre_submit_g1_ns=0;
     double phase_before[5];memcpy(phase_before,fg->phase_us,sizeof(phase_before));
     fg->deadline_drop=0;fg->pressure_drop=0;
     fg->cut_drop=0;fg->duplicate_drop=0;fg->control_checked=0;
     memset(fg->readiness_ns,0,sizeof(fg->readiness_ns));
     memset(fg->accepted_ns,0,sizeof(fg->accepted_ns));
     memset(fg->wsi_ns,0,sizeof(fg->wsi_ns));
+    memset(fg->timing_desired_sent,0,sizeof(fg->timing_desired_sent));
+    memset(fg->timing_target_at_call,0,sizeof(fg->timing_target_at_call));
+    memset(fg->timing_attached,0,sizeof(fg->timing_attached));
+    memset(fg->timing_zero_reason,0,sizeof(fg->timing_zero_reason));
     fg->slot_drop[0]=fg->slot_drop[1]=DROP_HISTORY;
     fg->slot_detail[0]=fg->slot_detail[1]="not-admitted";
     memset(fg->readiness_wait_ns,0,sizeof(fg->readiness_wait_ns));
@@ -1951,6 +1979,13 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     const unsigned timely_mask=fg->clock.period_ns?gfg_frame_clock_compute_mask(&fg->clock,compute_admission_ns,
         fg->display_timing==2?fg->clock.period_ns/4:0):compute_mask;
     const int generate=have_pair && compute_mask;
+    if(fg->shadow_enabled) {
+        shadow_prediction_ns=gsf_calib_monotonic();
+        shadow_pre_submit_b_ns=fg->clock.target_ns[2];
+        shadow_pre_submit_g1_ns=fg->clock.target_ns[0];
+        shadow_decision=gsf_shadow_predict(&fg->shadow,shadow_prediction_ns,
+                                           have_pair && (fg->clock.mask&1u));
+    }
     generation_candidate_mask=compute_mask;
     admission_decision=generate?"admitted":!have_pair?"history_refresh":
         atomic_load(&fg->output_pressure)?"source_pressure":!fg->clock.mask?"not_planned":
@@ -2104,6 +2139,49 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         fprintf(stderr, "[gfg-native] gpu-bridge frame=%llu te=%d generated=%d presented=%d\n",
                 (unsigned long long)frame, (int)tr, generate, presented);
 timing:
+    if(fg->shadow_enabled && fg->telemetry) {
+        const gsf_shadow_decision *d=&shadow_decision;
+        char last_latency[32],last_start[32],age[32],median3[32],median5[32];
+        snprintf(last_latency,sizeof(last_latency),"%llu",(unsigned long long)d->last_latency_ns);
+        snprintf(last_start,sizeof(last_start),"%llu",(unsigned long long)d->last_gpu_start_ns);
+        snprintf(age,sizeof(age),"%llu",(unsigned long long)d->age_ns);
+        snprintf(median3,sizeof(median3),"%llu",(unsigned long long)d->median3_ns);
+        snprintf(median5,sizeof(median5),"%llu",(unsigned long long)d->median5_ns);
+        fprintf(fg->telemetry,
+            "{\"schema\":1,\"event\":\"shadow_admission\",\"pid\":%ld,"
+            "\"generation\":%llu,\"source_serial\":%llu,\"te_sequence\":%llu,"
+            "\"decision_ns\":%llu,\"shadow_prediction\":\"%s\",\"shadow_reason\":\"%s\","
+            "\"history_samples\":%u,\"fresh_samples\":%u,"
+            "\"last_gpu_start_latency_ns\":%s,\"last_gpu_start_cpu_ns\":%s,"
+            "\"age_of_last_measurement_ns\":%s,\"median_last3_latency_ns\":%s,"
+            "\"median_last5_latency_ns\":%s,\"last_sample_sequence\":%llu,"
+            "\"hypothetical_probe\":%u,\"skip_streak\":%u,\"would_be_successful\":null,"
+            "\"actual_dispatched\":%u,\"actual_synthetic_wsi\":%u,"
+            "\"pre_submit_G1_target_ns\":%llu,\"pre_submit_B_target_ns\":%llu,"
+            "\"post_gpu_ready_B_target_ns\":%llu,\"real_target_at_wsi_call_ns\":%llu,"
+            "\"real_desired_present_time_sent_ns\":%llu,\"real_present_timing_attached\":%u,"
+            "\"real_present_timing_zero_reason\":%u,\"present_timing_extension_enabled\":%u,"
+            "\"present_timing_supported\":%u,\"layer_owns_timing_namespace\":%u,"
+            "\"past_timing_query_available\":%u,\"real_wsi_accepted_ns\":%llu,"
+            "\"physical_scanout\":null}\n",
+            (long)getpid(),(unsigned long long)fg->generation,
+            (unsigned long long)fg->source_serial,(unsigned long long)te_submit_sequence,
+            (unsigned long long)shadow_prediction_ns,d->prediction,d->reason,
+            d->history_samples,d->fresh_samples,
+            d->last_valid?last_latency:"null",d->last_valid?last_start:"null",
+            d->last_valid?age:"null",d->median3_valid?median3:"null",
+            d->median5_valid?median5:"null",(unsigned long long)d->last_sequence,
+            d->would_probe,d->skip_streak,dispatched_outputs,fg->accepted_ns[0]!=0,
+            (unsigned long long)shadow_pre_submit_g1_ns,
+            (unsigned long long)shadow_pre_submit_b_ns,
+            (unsigned long long)fg->clock.target_ns[2],
+            (unsigned long long)fg->timing_target_at_call[2],
+            (unsigned long long)fg->timing_desired_sent[2],
+            fg->timing_attached[2],fg->timing_zero_reason[2],
+            (unsigned)(fg->display_timing!=0),(unsigned)(fg->display_timing!=0),
+            (unsigned)(fg->display_timing==2),
+            fg->past_timing!=NULL,(unsigned long long)fg->accepted_ns[2]);
+    }
     if(fg->adaptive_pairs) {
         const uint64_t adaptive_now=(uint64_t)(now_us()*1000.0);
         gsf_ap_outcome(&fg->adaptive,adaptive_now,adaptive_dispatched,
