@@ -131,7 +131,7 @@ function Content() {
             return 'Диагностика сохранена. Перезапустите игру.';
           }, 'Записываю диагностический режим…')} />
       </PanelSectionRow>
-      <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <code>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</code>; активный: <code>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</code>.
+      <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <span style={{fontFamily: 'monospace'}}>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</span>; активный: <span style={{fontFamily: 'monospace'}}>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</span>.
         {status && !status.build_matches && <strong> ОШИБКА: установленный GPU слой не соответствует пакету. Генерация заблокирована до переустановки.</strong>}
       </div></PanelSectionRow>
       <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.build_matches === false} onClick={() => void act(async () => {
