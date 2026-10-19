@@ -69,6 +69,7 @@ struct te_lmc {
     int gpu_fit;
     int shared_flow;
     int compact_flow;
+    int flow_lite;  /* coarse optical-flow pyramid + one full-res warp, fixed cost */
     unsigned fit_sync_ok;
     /* motion model on the CPU (te_lmc_fit.c), fitted on this pair's vectors: the analysis is two
        submissions.  The first (pyramid, block search, block statistics) ends with a copy of the
@@ -272,7 +273,8 @@ static VkResult lmc_create(te_context* ctx) {
     if (!m) return fail(VK_ERROR_OUT_OF_HOST_MEMORY, "out of memory");
     ctx->lmc = m;
     m->shared_flow=ctx->desc.params.algorithm==TE_ALGO_SHARED_FLOW;
-    m->compact_flow=m->shared_flow && !ctx->desc.shared_flow_dense;
+    m->flow_lite=m->shared_flow && ctx->desc.shared_flow_dense==5;
+    m->compact_flow=m->shared_flow && (ctx->desc.shared_flow_dense==0 || m->flow_lite);
     m->gpu_fit=ctx->desc.params.algorithm==TE_ALGO_LMC_GPU || m->shared_flow;
     if(pthread_mutex_init(&m->fit_lock,NULL)) return VK_ERROR_INITIALIZATION_FAILED;
     m->fit_sync_ok|=1;
@@ -346,7 +348,7 @@ static VkResult lmc_create(te_context* ctx) {
     u.counts[2] = (int32_t)(m->w2 * m->h2); u.counts[3] = (int32_t)(W * H);
     u.pen_update = 0.004f; u.smooth = 0.002f; u.margin = 0.06f; u.tol_px = 0.75f;
     u.still = 2.0f / 255.0f; u.orphan_resid = 0.15f; u.orphan_share = 0.08f; u.orphan_max_cost = 0.08f;
-    u.coarse_r = 10; u.propagate = 2; u.hud_pairs = 6; u.orphan_r = 112;
+    u.coarse_r = m->flow_lite ? 6 : 10; u.propagate = 2; u.hud_pairs = 6; u.orphan_r = 112;
     u.pad1=ctx->desc.output_bgra;
     u.min_layer_share = 0.10f; u.ransac_iters = LMC_HYPS;
     m->ocap = LMC_ORPHAN_CAP;
@@ -479,7 +481,7 @@ static VkResult lmc_create(te_context* ctx) {
         src[LMC_SF_COMPOSE].code=te_spv_lmc_sf_compose_pq;src[LMC_SF_COMPOSE].size=sizeof te_spv_lmc_sf_compose_pq;
     }
     for (int i = 0; i < LMC_PIPES; ++i) {
-        if(i==LMC_SF_MODEL && ctx->desc.shared_flow_dense<2)continue;
+        if(i==LMC_SF_MODEL && (ctx->desc.shared_flow_dense<2 || m->flow_lite))continue;
         if(i==LMC_SF_COMPOSE && !m->compact_flow)continue;
         if(i>=LMC_SF_PREPARE && !m->shared_flow)continue;
         if(m->shared_flow && i>=LMC_GPU_HYP && i<LMC_SF_PREPARE && ctx->desc.shared_flow_dense!=4 && !(i==LMC_GPU_PALETTE && ctx->desc.shared_flow_dense==3))continue;
@@ -660,7 +662,9 @@ static void lmc_search_grid(te_context* ctx, VkCommandBuffer cb, int grid, int t
     const int* pass = sweeps == 2 ? pass2 : pass1;
     const int* io = sweeps == 2 ? io2 : io1;
     int n = sweeps == 2 ? 4 : 3;
-    for (int l = LMC_LEVELS; l >= 1; --l) {
+    /* Flow Lite estimates motion only at 1/16 and 1/8 scale.
+       It does not waste GPU time refining the 1/4 and 1/2 grids. */
+    for (int l = LMC_LEVELS; l >= (m->flow_lite ? 3 : 1); --l) {
         vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->search[l][grid]);
         uint32_t g = groups(m->bw[l] * m->bh[l], 64);
         int t = (grid == 1 || temporal_ok) ? 1 : 0;
@@ -762,9 +766,10 @@ static void lmc_record_analysis(te_context* ctx, te_slot* slot, const te_submit*
     int tier = s->lmc_tier < 0 ? 0 : s->lmc_tier > TE_LMC_TIERS - 1 ? TE_LMC_TIERS - 1 : s->lmc_tier;
     if (m->n1 > 65536u && tier > 0) tier = 0;   /* the carry's key holds a 16-bit block index */
     slot->lmc_tier = tier;
-    lmc_search_grid(ctx, cb, 0, m->have_temporal, tier >= 2 ? 1 : 2);
+    lmc_search_grid(ctx, cb, 0, m->flow_lite ? 0 : m->have_temporal, m->flow_lite ? 1 : (tier >= 2 ? 1 : 2));
     LMC_TS(1 + TE_LMC_SEARCH_B);
-    if (tier >= 1)
+    if (m->flow_lite) { /* no reverse search: derive the A field cheaply from B */ }
+    else if (tier >= 1)
         lmc_a_from_b(ctx, cb);
     else
         lmc_search_grid(ctx, cb, 1, 1, 2);
@@ -775,12 +780,19 @@ static void lmc_record_analysis(te_context* ctx, te_slot* slot, const te_submit*
         vkCmdWriteTimestamp(cb,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,slot->queries,2);
         LMC_TS(1+TE_LMC_FIT_WAIT);
         vkCmdBindPipeline(cb,VK_PIPELINE_BIND_POINT_COMPUTE,m->pipe[LMC_SF_PREPARE]);
-        for(int g=0;g<2;++g) {
-            if(g)compute_barrier(cb);
-            lmc_push_c(ctx,cb,0,1,g,0,0);vkCmdDispatch(cb,groups(m->n1,64),1,1);
+        if(m->flow_lite) {
+            /* One low-resolution flow upsample replaces two fine-grid
+               refinements and their repeated full-RGB patch evaluations. */
+            lmc_push_c(ctx,cb,0,1,0,5,64);
+            vkCmdDispatch(cb,groups(m->n1,64),1,1);
+        } else {
+            for(int g=0;g<2;++g) {
+                if(g)compute_barrier(cb);
+                lmc_push_c(ctx,cb,0,1,g,0,0);vkCmdDispatch(cb,groups(m->n1,64),1,1);
+            }
         }
         compute_barrier(cb);
-        lmc_push_c(ctx,cb,0,1,0,2,0);vkCmdDispatch(cb,groups(m->n1,64),1,1);
+        lmc_push_c(ctx,cb,0,1,0,2,m->flow_lite?64:0);vkCmdDispatch(cb,groups(m->n1,64),1,1);
         compute_barrier(cb);
         LMC_TS(1+TE_LMC_FIELD);LMC_TS(1+TE_LMC_MASKED);
         LMC_TS(1+TE_LMC_ORPHAN);LMC_TS(1+TE_LMC_FIELD2);
@@ -945,7 +957,7 @@ static void lmc_record_output(te_context* ctx, te_slot* slot, const te_submit* s
     }
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, slot->queries, q + 1);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->pipe[m->compact_flow?LMC_SF_COMPOSE:LMC_COMPOSE]);
-    lmc_push_c(ctx, cb, t, 0, 0, 0, (hold ? 1 : 0)|(m->shared_flow&&!m->compact_flow?16:0));
+    lmc_push_c(ctx, cb, t, 0, 0, 0, (hold ? 1 : 0)|(m->shared_flow&&!m->compact_flow?16:0)|(m->flow_lite?64:0));
     vkCmdDispatch(cb, groups(ctx->desc.width, 8), groups(ctx->desc.height, 8), 1);
     barrier(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
