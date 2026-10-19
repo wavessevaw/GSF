@@ -375,9 +375,13 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
                 affordable|=1u<<k;++output;
             }
         }
-        /* A bounded retry learns recovery after a slow sample/scene. It is
-         * one eligible output every two seconds, never an expired slot. */
-        if(!affordable && mask && gsf_generation_retry_due(fg->last_generation_dispatch_ns,now))
+        /* Normal recovery is one probe/2s; an isolated >50ms first
+         * GPU-time sample gets a 250ms remeasurement to reject cold shader
+         * outliers. Both paths still require an unexpired reserved slot. */
+        if(!affordable && mask &&
+           (gsf_generation_retry_due(fg->last_generation_dispatch_ns,now) ||
+            gsf_generation_cold_retry_due(fg->last_generation_dispatch_ns,
+                now,fg->gpu_count,fg->gpu_budget_ns[0])))
             affordable=mask&(~mask+1u);
         /* Sparse visibility probes test whether *real generated* pixels can
          * reach the game's WSI, without treating a GPU-cost estimate as a
@@ -1162,7 +1166,12 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         }
         if(!fg->telemetry)fprintf(stderr,"[gfg-native] telemetry unavailable errno=%d\n",errno);
     }
-    cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?4:0;
+    /* ECO45: opt-in compact shared-flow path eliminates GPU global-model
+     solver, orphan and per-pixel field passes. It retains full-resolution
+     GPU composition and never transfers whole game frames to the CPU.
+     The original GSF/projective and LMC algorithms stay unchanged. */
+    cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?
+        (env_flag("GFG_NATIVE_GSF_ECO") ? 0 : 4):0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
     /* In-game LMC follows measured source intervals and the compositor's
      * refresh query. This fallback seeds the clock; unlike OUTPUT_HZ it does

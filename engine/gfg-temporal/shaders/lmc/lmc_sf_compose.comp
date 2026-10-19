@@ -45,6 +45,15 @@ void main() {
     vec2 vb_=field(0,pixel_).xy,va=field(1,pixel_).xy;
     vb_=field(0,pixel_+(1.0-time_)*2.0*vb_).xy;
     va=field(1,pixel_-time_*2.0*va).xy;
+    // ECO45: early exact path for static pixels/HUD. The old path first
+    // performed expensive source warps and then threw the result away.
+    // Preserve its exact chosen pixel and byte packing.
+    if(imageLoad(hudCount,p).r>=uint(P.hud_pairs) ||
+            (vb_==vec2(0) && va==vec2(0) && ca==cb)) {
+        vec4 exact=vec4(time_<0.5?ca:cb,1);
+        imageStore(dst,p,P.pad1!=0?exact.bgra:exact);
+        return;
+    }
     best_=1e30;mode_=0;
 #ifdef GFG_LINEAR_PQ
     colour_=mix(composition_rgb(0,pixel_),composition_rgb(1,pixel_),time_);
@@ -52,23 +61,20 @@ void main() {
     colour_=mix(ca,cb,time_);
 #endif
     consider(vb_);if(va!=vb_)consider(va);
-    // High-confidence patches take two trajectories. Difficult regions get
-    // neighboring surface hypotheses, bounded at 18 additional candidates.
+    // ECO45 bounded fallback: two additional neighbouring surface
+    // hypotheses, instead of 18 full-resolution, multi-texture candidates
+    // per ambiguous pixel. Use the principal observed motion direction.
+    // This deliberately trades edge detail for bounded GPU cost; full
+    // quality LMC remains selectable in the Decky diagnostic control.
     if(best_>3.0/255.0 || mode_!=3) {
-        for(int grid=0;grid<2;++grid)for(int k=0;k<9;++k) {
-            vec2 v=field(grid,pixel_+vec2(k%3-1,k/3-1)*8.0).xy;
-            if(v==vb_ || v==va)continue;consider(v);
-        }
-    }
-    // Stable HUD still requires moving-scene history. Static scene pixels
-    // with zero motion take their exact texel, avoiding unnecessary filtering.
-    if(imageLoad(hudCount,p).r>=uint(P.hud_pairs) ||
-            (vb_==vec2(0) && va==vec2(0) && ca==cb)) {
-#ifdef GFG_LINEAR_PQ
-        vec4 exact=vec4(time_<0.5?ca:cb,1);imageStore(dst,p,P.pad1!=0?exact.bgra:exact);return;
-#else
-        colour_=time_<0.5?ca:cb;
-#endif
+        vec2 d=dot(vb_,vb_)>=dot(va,va)?vb_:va;
+        vec2 step_=abs(d.x)>=abs(d.y)?
+            vec2(d.x<0.0?-8.0:8.0,0.0):
+            vec2(0.0,d.y<0.0?-8.0:8.0);
+        vec2 v0=field(0,pixel_+step_).xy;
+        if(v0!=vb_ && v0!=va)consider(v0);
+        vec2 v1=field(1,pixel_-step_).xy;
+        if(v1!=vb_ && v1!=va && v1!=v0)consider(v1);
     }
 #ifdef GFG_LINEAR_PQ
     vec4 outc=vec4(composition_encode(colour_),1);imageStore(dst,p,P.pad1!=0?outc.bgra:outc);

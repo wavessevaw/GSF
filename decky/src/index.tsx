@@ -5,7 +5,7 @@ import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
-type Status = {enabled: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -93,7 +93,7 @@ function Content() {
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF · Adaptive ×2 / ×3 · 90 Гц">
+  return <PanelSection title="GSF · ECO45 ×2 / ×3 · 90 Гц">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
@@ -112,7 +112,8 @@ function Content() {
       </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
-          {data: 'normal', label: 'Обычный ×2/×3 + Shadow Admission 0.1.12'},
+          {data: 'normal', label: 'ECO45: компактный GSF (меньше GPU вычислений)'},
+          {data: 'normal-lmc-gpu', label: 'Контроль: прежний тяжёлый GPU LMC'},
           {data: 'normal-no-shadow', label: 'Контроль: без Shadow Admission'},
           {data: 'normal-adaptive-pairs', label: 'Восстановление с фиксированными слотами (×2)'},
           {data: 'normal-queue-observe', label: 'Диагностика: задания игры перед генерацией'},
@@ -130,7 +131,10 @@ function Content() {
             return 'Диагностика сохранена. Перезапустите игру.';
           }, 'Записываю диагностический режим…')} />
       </PanelSectionRow>
-      <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <span style={{fontFamily: 'monospace'}}>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</span>; активный: <span style={{fontFamily: 'monospace'}}>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</span>.
+        {status && !status.build_matches && <strong> ОШИБКА: установленный GPU слой не соответствует пакету. Генерация заблокирована до переустановки.</strong>}
+      </div></PanelSectionRow>
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.build_matches === false} onClick={() => void act(async () => {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
         return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
@@ -154,7 +158,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.12 LAB · Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>ECO45 LAB · По умолчанию компактная GPU интерполяция с меньшим числом вычислительных проходов. Режим «Контроль: прежний тяжёлый GPU LMC» доступен для сравнения энергии и качества. Целевой режим ×2 при 45 FPS / 90 Гц пока не подтверждён на Steam Deck. Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 
