@@ -11,6 +11,7 @@
  * This does not claim scanout, pacing or any hardware behaviour.
  */
 #define _GNU_SOURCE
+#include <sys/resource.h>
 #include <dlfcn.h>
 #include <link.h>
 #include <stdint.h>
@@ -193,7 +194,10 @@ static void badge(uint8_t *px, uint32_t w, uint32_t h, const char *text) {
 int main(void) {
     const unsigned source_hz=env_uint("GFG_TEST_SOURCE_HZ",0);
     REQUIRE(source_hz<=240);
-    const uint32_t frames = env_uint("GFG_TEST_FRAMES", 24);
+    uint32_t frames = env_uint("GFG_TEST_FRAMES", 24);
+    const unsigned stress_seconds=env_uint("GFG_TEST_STRESS_SECONDS",0);
+    const unsigned repeat_delay=env_uint("GFG_TEST_RENDER_READY_PERIOD_FRAMES",0);
+    REQUIRE(!stress_seconds || (frames>=1000 && source_hz && stress_seconds<=1800));
     const unsigned render_delay_ms=env_uint("GFG_TEST_RENDER_READY_DELAY_MS",0);
     const unsigned render_delay_from=env_uint("GFG_TEST_RENDER_READY_FROM",0);
     const unsigned render_delay_until=env_uint("GFG_TEST_RENDER_READY_UNTIL",frames);
@@ -520,7 +524,8 @@ int main(void) {
         TRY(vkResetCommandBuffer(cmd[f], 0));
         VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         TRY(vkBeginCommandBuffer(cmd[f], &begin));
-        const int delayed=render_gate && frame>=render_delay_from && frame<render_delay_until;
+        const int delayed=render_gate && frame>=render_delay_from && frame<render_delay_until &&
+            (!repeat_delay || frame%repeat_delay>=repeat_delay/2);
         if(delayed) {
             vkCmdWaitEvents(cmd[f],1,&render_gate->events[f],VK_PIPELINE_STAGE_HOST_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,0,NULL,0,NULL,0,NULL);
@@ -633,8 +638,14 @@ int main(void) {
                 /* A variable source, not a fixed 30->60 assumption: ordinary
                  * 30..45 FPS, short delivery bursts, and a scene-change gap. */
                 uint64_t period = 1000000000ull/source_hz;
-                if(variable_source)period=frame%40<4?1000000ull:
-                    frame%40==20?120000000ull:1000000000ull/(30+(frame/5)%16);
+                if(variable_source) {
+                    if(stress_seconds) {
+                        const unsigned rates[]={5,30,45,60,90,45,5};
+                        period=1000000000ull/rates[(frame/60)%7]+(frame%2?200000:0);
+                        if(frame%600==599)period+=300000000ull;
+                    } else period=frame%40<4?1000000ull:
+                        frame%40==20?120000000ull:1000000000ull/(30+(frame/5)%16);
+                }
                 const uint64_t now = (uint64_t)deadline.tv_sec*1000000000ull + deadline.tv_nsec;
                 source_next += period;
                 /* Do not burst through missed source slots after cold startup. */
@@ -646,6 +657,14 @@ int main(void) {
                 if(deadline.tv_nsec>=1000000000l){++deadline.tv_sec;deadline.tv_nsec-=1000000000l;}
             }
             clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&deadline,NULL);
+        }
+        if(stress_seconds && tick_ns()-source_first>=(uint64_t)stress_seconds*1000000000ull) {
+            frames=frame+1;break;
+        }
+        if(stress_seconds && frame%60==0) {
+            struct rusage usage;
+            if(!getrusage(RUSAGE_SELF,&usage))printf("GSF_STRESS_RESOURCE frame=%u elapsed_ms=%llu peak_rss_kib=%ld\n",
+                frame,(unsigned long long)((tick_ns()-source_first)/1000000ull),usage.ru_maxrss);
         }
     }
     printf("GSF_SOURCE_RATE frames=%u requested_hz=%u measured_hz=%.6f steady_hz=%.6f absolute=%d\n",

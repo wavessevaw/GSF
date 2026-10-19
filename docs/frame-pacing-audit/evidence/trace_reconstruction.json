@@ -1,0 +1,255 @@
+{
+  "scope": "RETAINED_LOGS_NOT_FULL_SESSION_OR_PHYSICAL_SCANOUT",
+  "archive_sha256": "4bc2a90661210dd83fb8300c6ea791ca64b6e68bee736d2584bb513f5af133ae",
+  "runs": [
+    {
+      "mode": 3,
+      "source_commit": "6a5d66ec6384be371d42742ee054bda1617d5a7c",
+      "retained_pairs": 7673,
+      "retained_source_ids": [
+        11512,
+        19184
+      ],
+      "retained_duration_s": 169.598650275,
+      "retained_real_accepted": 7673,
+      "retained_synthetic_accepted": 1,
+      "dispatched_pairs": 84,
+      "dispatched_outputs": 84,
+      "calibrated_start_delay_median_ms": 41.6822705,
+      "matched_output_deadlines": 84,
+      "start_late_with_reported_uncertainty": 81,
+      "x3_mask2_valid_adjacent": 4627,
+      "x3_mask2_nominal_phase_wrong": 4591,
+      "x3_mask2_exact_midpoint": 4433,
+      "admission": {
+        "not_planned": 314,
+        "budget_blocked": 5614,
+        "history_refresh": 1548,
+        "admitted": 84,
+        "not_evaluated": 113
+      },
+      "windows": [
+        {
+          "start_s": 0,
+          "pairs": 417,
+          "real_accepted": 417,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 10,
+          "pairs": 423,
+          "real_accepted": 423,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 20,
+          "pairs": 436,
+          "real_accepted": 436,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 30,
+          "pairs": 441,
+          "real_accepted": 441,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 40,
+          "pairs": 502,
+          "real_accepted": 502,
+          "synthetic_accepted": 1,
+          "dispatched": 6
+        },
+        {
+          "start_s": 50,
+          "pairs": 446,
+          "real_accepted": 446,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 60,
+          "pairs": 429,
+          "real_accepted": 429,
+          "synthetic_accepted": 0,
+          "dispatched": 4
+        },
+        {
+          "start_s": 70,
+          "pairs": 422,
+          "real_accepted": 422,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 80,
+          "pairs": 443,
+          "real_accepted": 443,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 90,
+          "pairs": 434,
+          "real_accepted": 434,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 100,
+          "pairs": 440,
+          "real_accepted": 440,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 110,
+          "pairs": 444,
+          "real_accepted": 444,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 120,
+          "pairs": 427,
+          "real_accepted": 427,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 130,
+          "pairs": 442,
+          "real_accepted": 442,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 140,
+          "pairs": 545,
+          "real_accepted": 545,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 150,
+          "pairs": 570,
+          "real_accepted": 570,
+          "synthetic_accepted": 0,
+          "dispatched": 5
+        },
+        {
+          "start_s": 160,
+          "pairs": 412,
+          "real_accepted": 412,
+          "synthetic_accepted": 0,
+          "dispatched": 4
+        }
+      ],
+      "prior_trace_was_truncated": true,
+      "legacy_exit": -2,
+      "physical_unique_displayed": null,
+      "invalid_lines": 2
+    },
+    {
+      "mode": 2,
+      "source_commit": "6a5d66ec6384be371d42742ee054bda1617d5a7c",
+      "retained_pairs": 3849,
+      "retained_source_ids": [
+        12095,
+        15943
+      ],
+      "retained_duration_s": 85.484921816,
+      "retained_real_accepted": 3849,
+      "retained_synthetic_accepted": 66,
+      "dispatched_pairs": 168,
+      "dispatched_outputs": 168,
+      "calibrated_start_delay_median_ms": 7.5126705,
+      "matched_output_deadlines": 168,
+      "start_late_with_reported_uncertainty": 42,
+      "x3_mask2_valid_adjacent": 0,
+      "x3_mask2_nominal_phase_wrong": 0,
+      "x3_mask2_exact_midpoint": 0,
+      "admission": {
+        "budget_blocked": 3109,
+        "history_refresh": 484,
+        "admitted": 168,
+        "not_planned": 66,
+        "not_evaluated": 11,
+        "deadline_blocked": 11
+      },
+      "windows": [
+        {
+          "start_s": 0,
+          "pairs": 453,
+          "real_accepted": 453,
+          "synthetic_accepted": 38,
+          "dispatched": 61
+        },
+        {
+          "start_s": 10,
+          "pairs": 434,
+          "real_accepted": 434,
+          "synthetic_accepted": 7,
+          "dispatched": 20
+        },
+        {
+          "start_s": 20,
+          "pairs": 433,
+          "real_accepted": 433,
+          "synthetic_accepted": 5,
+          "dispatched": 11
+        },
+        {
+          "start_s": 30,
+          "pairs": 460,
+          "real_accepted": 460,
+          "synthetic_accepted": 4,
+          "dispatched": 20
+        },
+        {
+          "start_s": 40,
+          "pairs": 460,
+          "real_accepted": 460,
+          "synthetic_accepted": 4,
+          "dispatched": 13
+        },
+        {
+          "start_s": 50,
+          "pairs": 458,
+          "real_accepted": 458,
+          "synthetic_accepted": 0,
+          "dispatched": 7
+        },
+        {
+          "start_s": 60,
+          "pairs": 452,
+          "real_accepted": 452,
+          "synthetic_accepted": 0,
+          "dispatched": 7
+        },
+        {
+          "start_s": 70,
+          "pairs": 460,
+          "real_accepted": 460,
+          "synthetic_accepted": 7,
+          "dispatched": 22
+        },
+        {
+          "start_s": 80,
+          "pairs": 239,
+          "real_accepted": 239,
+          "synthetic_accepted": 1,
+          "dispatched": 7
+        }
+      ],
+      "prior_trace_was_truncated": true,
+      "legacy_exit": -2,
+      "physical_unique_displayed": null,
+      "invalid_lines": 1
+    }
+  ]
+}

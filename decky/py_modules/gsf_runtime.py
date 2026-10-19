@@ -165,6 +165,7 @@ class Runtime:
         for source, name in ((self.plugin/'launch.py', 'launch.py'),
                              (self.plugin/'py_modules/gsf_runtime.py', 'gsf_runtime.py'),
                              (self.plugin/'py_modules/gsf_diagnostic.py', 'gsf_diagnostic.py'),
+                             (self.plugin/'py_modules/gsf_segments.py', 'gsf_segments.py'),
                              (self.plugin/'py_modules/gsf_amdgpu.py', 'gsf_amdgpu.py')):
             temp = self.root/(name+'.new')
             shutil.copyfile(source, temp)
@@ -301,8 +302,7 @@ class Runtime:
         os.close(fd)
         temporary = Path(temp)
         with zipfile.ZipFile(temporary, 'w', zipfile.ZIP_DEFLATED) as z:
-            for p in sorted(run.rglob('*')):
-                if p.is_file() and not p.is_symlink():
-                    z.write(p, run.name+'/'+p.relative_to(run).as_posix())
+            from gsf_segments import export_session
+            export_session(z,run)
         os.replace(temporary, path)
         return {'path': str(path), 'session': str(run), 'physical_scanout': 'UNVERIFIED'}

@@ -1,0 +1,115 @@
+name: GSF Frame Pacing P0
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/**'
+      - 'decky/**'
+      - 'tools/reconstruct_pacing.py'
+      - 'docs/frame-pacing-audit/**'
+      - '.github/workflows/gsf-frame-pacing.yml'
+      - 'tools/check_pacing_lab.py'
+permissions:
+  contents: read
+jobs:
+  phase-and-segments:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vulkan compiler and pinned headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev glslang-tools spirv-tools
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Actual production phase mapper and retained trace replay
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" frame-phase pacing-owner-model adaptive-pair
+      - name: Actual C segmented writer, immutable ZIP hashes and diagnostics
+        run: python3 -m unittest discover -s decky/tests -p 'test_*.py'
+  lmc-owner-vulkan:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Actual software Vulkan and validation dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools xvfb xauth
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native ENABLE_TE=1 VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" build/lmc-owner-layer/libVkLayer_gfg_native.so build/loader-live-output
+      - name: Genuine LMC GPU pixels, sole output WSI and duplicate negative control
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pacing-owner"
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          export VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d"
+          export VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation
+          export GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 GFG_NATIVE_TEST_PROXY_CREATE=1
+          export GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1 GFG_NATIVE_TEST_GPU_READBACK_ONLY=1
+          for mode in 2 3; do
+            unset GFG_NATIVE_TEST_LMC_X3
+            if [ "$mode" = 3 ]; then export GFG_NATIVE_TEST_LMC_X3=1; fi
+            timeout 120s xvfb-run -a engine/gfg-native/build/loader-live-output > "$RUNNER_TEMP/pacing-owner/x$mode.log" 2>&1
+            python3 tools/check_pacing_lab.py owner "$RUNNER_TEMP/pacing-owner/x$mode.log" --multiplier "$mode"
+          done
+          export GFG_NATIVE_TEST_LMC_MASK2=1
+          timeout 120s xvfb-run -a engine/gfg-native/build/loader-live-output > "$RUNNER_TEMP/pacing-owner/mask2.log" 2>&1
+          python3 tools/check_pacing_lab.py owner "$RUNNER_TEMP/pacing-owner/mask2.log" --multiplier 3 --mask2
+          unset GFG_NATIVE_TEST_LMC_MASK2
+          export GFG_NATIVE_TEST_LMC_VERIFY_DUPLICATE=1
+          set +e
+          timeout 120s xvfb-run -a engine/gfg-native/build/loader-live-output > "$RUNNER_TEMP/pacing-owner/duplicate.log" 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 124
+          # App Present acceptance alone need not surface a later worker failure.
+          # The independent GPU-pixel verifier must reject the duplicate.
+          python3 tools/check_pacing_lab.py owner "$RUNNER_TEMP/pacing-owner/duplicate.log" --negative
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GSF-Pacing-Owner-Evidence
+          path: ${{ runner.temp }}/pacing-owner
+  normal-wall-stress:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        multiplier: [2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build actual normal layer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools xvfb xauth
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native ENABLE_TE=1 VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build/wsi-gpu-smoke
+      - name: Ten actual minutes, varying source/input readiness, no shadow
+        env:
+          GFG_NATIVE_MODE: ${{ matrix.multiplier }}
+        run: |
+          set -euo pipefail
+          run="$RUNNER_TEMP/pacing-stress"
+          mkdir -p "$run"
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          export VK_LAYER_PATH="$PWD/engine/gfg-native/build:/usr/share/vulkan/explicit_layer.d"
+          export VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation
+          export GFG_NATIVE_FG=1 GFG_NATIVE_GPU_BRIDGE=1 GFG_NATIVE_GPU_SYNC=same-device GFG_NATIVE_ASYNC=1
+          export GFG_NATIVE_FORCE_FIFO=1 GFG_NATIVE_ALGO=lmc-gpu GFG_NATIVE_LMC_TIER=2 GFG_NATIVE_PACING=1 GFG_NATIVE_OUTPUT_HZ=90
+          export GFG_NATIVE_SHADOW_ADMISSION=0 GFG_NATIVE_TELEMETRY_SEGMENTED=1 GFG_NATIVE_TELEMETRY_SEGMENT_BYTES=65536
+          export GFG_NATIVE_TELEMETRY="$run/frames.jsonl"
+          export GFG_TEST_FRAMES=60000 GFG_TEST_STRESS_SECONDS=600 GFG_TEST_SOURCE_HZ=5 GFG_TEST_VARIABLE_SOURCE=1
+          export GFG_TEST_ABSOLUTE_PACING=1 GFG_TEST_EXPECT_GPU=1 GFG_TEST_ALLOW_SKIPS=1
+          export GFG_TEST_WIDTH=96 GFG_TEST_HEIGHT=64 GFG_TEST_RENDER_READY_DELAY_MS=60 GFG_TEST_RENDER_READY_PERIOD_FRAMES=120
+          timeout 700s xvfb-run -a engine/gfg-native/build/wsi-gpu-smoke > "$run/game.log" 2>&1
+          python3 tools/check_pacing_lab.py stress "$run" > "$run/RESULT.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GSF-Pacing-Stress-x${{ matrix.multiplier }}
+          path: ${{ runner.temp }}/pacing-stress

@@ -52,6 +52,29 @@ int main(void) {
     assert(now_us()-start<250000.0);
     pthread_join(producer,NULL);pthread_mutex_destroy(&wsi);fg.output_wsi=NULL;
     gfg_gpu_fg_set_output_pressure(&fg,0);
+    /* G1 already accepted: C cannot pull paired B into a different slot.
+     * Unlike the unbounded fake target above, this is a valid pair plan. */
+    fg.clock.source_ns=(uint64_t)(now_us()*1000.0);
+    fg.clock.interval_ns=16000000ull;
+    fg.clock.target_ns[2]=wanted=fg.clock.source_ns+12000000ull;
+    assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
+    start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(fg.accepted_ns[2]>=wanted-fg.clock.period_ns/4);
+    assert(now_us()-start<250000.0);
+    pthread_join(producer,NULL);gfg_gpu_fg_set_output_pressure(&fg,0);
+    /* Acquired synthetic image already has a submitted GPU transport. It
+     * must retire through WSI without being moved to an earlier phase. */
+    fg.clock.source_ns=(uint64_t)(now_us()*1000.0);
+    fg.clock.target_ns[0]=wanted=fg.clock.source_ns+8000000ull;
+    fg.clock.target_ns[2]=fg.clock.source_ns+12000000ull;
+    fg.transport_submit_mask=1;
+    assert(!pthread_create(&producer,NULL,queue_pressure,&fg));
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,0)==VK_SUCCESS);
+    assert(fg.accepted_ns[0]>=wanted-fg.clock.period_ns/4);
+    pthread_join(producer,NULL);gfg_gpu_fg_set_output_pressure(&fg,0);
+    fg.transport_submit_mask=0;
+    wanted=0;
     fg.diagnostic=1;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     fg.diagnostic=0;
@@ -83,6 +106,6 @@ int main(void) {
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(calls==10 && previous_id==8);
+    assert(calls==12 && previous_id==10);
     puts("presentation-timing: distinct desired G1/G2/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }

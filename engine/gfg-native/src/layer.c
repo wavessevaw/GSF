@@ -1427,6 +1427,11 @@ native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
                 if(vr==VK_SUCCESS && live)
                     vr=gfg_test_live_init(runtime,device,d->test_loader_queue,
                             d->test_loader_family,proxy,d->test_proxy_ops,virtual_ci);
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+                if(vr==VK_SUCCESS && live)
+                    vr=gfg_test_lmc_init(runtime,d->instance->handle,d->instance->gipa,
+                        native_worker_gdpa,d->set_loader_data);
+#endif
                 if(vr!=VK_SUCCESS && live)
                     fprintf(stderr,"GSF_LOADER_LIVE_FAILURE runtime_init=%d queue=%p GPU_source_count=%u output_present=%d\\n",
                             (int)vr,(void*)d->test_loader_queue,proxy->source.count,

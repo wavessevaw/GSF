@@ -1,0 +1,189 @@
+{
+  "source_head": "db069243319938070ac240baa52b1b91babb95ec",
+  "workflow_run": 39236430637,
+  "artifact_id": 12178798194,
+  "artifact_sha256": "c7d2aeec50f6a5c97975ecb5b8c42dd9888ad8cc3ab00b72ecc25c224374477e",
+  "defect": "source pressure released B early after G1 acceptance",
+  "pre_fix_unit_regression": "recording_wsi desiredPresentTime assertion rejects old source",
+  "pairs": [
+    {
+      "schema": 1,
+      "event": "pair",
+      "pid": 2883,
+      "generation": 1,
+      "pair": 10,
+      "source0_id": 9,
+      "source1_id": 10,
+      "source0_ns": 183688832175,
+      "source1_ns": 183888574801,
+      "admitted_ns": 183888633805,
+      "worker_start_ns": 183888856503,
+      "worker_end_ns": 184093396198,
+      "interval_ns": 199742626,
+      "refresh_period_ns": 100000000,
+      "refresh_origin": "explicit_override",
+      "refresh_query_state": "override_present",
+      "refresh_query_result": null,
+      "refresh_query_raw_ns": 0,
+      "refresh_query_cpu_ns": 0,
+      "refresh_last_success_ns": 0,
+      "refresh_override_present": 1,
+      "multiplier": 2,
+      "planned_mask": 1,
+      "dispatched_outputs": 1,
+      "compute_mask": 1,
+      "transport_submit_mask": 1,
+      "source_discontinuity": 0,
+      "admission_decision": "admitted",
+      "generation_candidate_mask": 1,
+      "compute_admission_ns": 183889052589,
+      "gpu_budget_ns": [
+        42164401,
+        0
+      ],
+      "submit_delay_budget_ns": 0,
+      "submit_delay_budget_calibrated": 0,
+      "deferred_g2": 0,
+      "g2_submit_return_ns": 0,
+      "te_submit_sequence": 10,
+      "target_ns": [
+        183988631744,
+        184021736551,
+        184088631744
+      ],
+      "readiness_observed_ns": [
+        183934538974,
+        0
+      ],
+      "wsi_accepted_ns": [
+        183988825148,
+        0,
+        184093384630
+      ],
+      "wsi_call_ns": [
+        119830,
+        0,
+        923582
+      ],
+      "readiness_wait_ns": [
+        45446725,
+        0
+      ],
+      "google_present_ids": [
+        0,
+        0,
+        0
+      ],
+      "drop_detail": [
+        "WSI-accepted",
+        "not-admitted"
+      ],
+      "cpu_phase_us": [
+        5.923,
+        35.692,
+        45520.17,
+        12.48,
+        6.164
+      ],
+      "te_sequence": 10,
+      "drop_code": [
+        -1,
+        2
+      ],
+      "cut": 0,
+      "duplicate": 0,
+      "physical_displayed": null,
+      "visually_unique": null
+    },
+    {
+      "schema": 1,
+      "event": "pair",
+      "pid": 2883,
+      "generation": 1,
+      "pair": 11,
+      "source0_id": 10,
+      "source1_id": 11,
+      "source0_ns": 183888574801,
+      "source1_ns": 184091587038,
+      "admitted_ns": 184091654437,
+      "worker_start_ns": 184093471299,
+      "worker_end_ns": 184288753312,
+      "interval_ns": 203012237,
+      "refresh_period_ns": 100000000,
+      "refresh_origin": "explicit_override",
+      "refresh_query_state": "override_present",
+      "refresh_query_result": null,
+      "refresh_query_raw_ns": 0,
+      "refresh_query_cpu_ns": 0,
+      "refresh_last_success_ns": 0,
+      "refresh_override_present": 1,
+      "multiplier": 2,
+      "planned_mask": 1,
+      "dispatched_outputs": 1,
+      "compute_mask": 1,
+      "transport_submit_mask": 1,
+      "source_discontinuity": 0,
+      "admission_decision": "admitted",
+      "generation_candidate_mask": 1,
+      "compute_admission_ns": 184093486407,
+      "gpu_budget_ns": [
+        45327892,
+        0
+      ],
+      "submit_delay_budget_ns": 0,
+      "submit_delay_budget_calibrated": 0,
+      "deferred_g2": 0,
+      "g2_submit_return_ns": 0,
+      "te_submit_sequence": 11,
+      "target_ns": [
+        184188631744,
+        184226928529,
+        184388631744
+      ],
+      "readiness_observed_ns": [
+        184142465230,
+        0
+      ],
+      "wsi_accepted_ns": [
+        184188801848,
+        0,
+        184288744883
+      ],
+      "wsi_call_ns": [
+        112093,
+        0,
+        57799
+      ],
+      "readiness_wait_ns": [
+        48928643,
+        0
+      ],
+      "google_present_ids": [
+        0,
+        0,
+        0
+      ],
+      "drop_detail": [
+        "WSI-accepted",
+        "not-admitted"
+      ],
+      "cpu_phase_us": [
+        5.962,
+        46.656,
+        49007.082,
+        12.188,
+        0.689
+      ],
+      "te_sequence": 11,
+      "drop_code": [
+        -1,
+        2
+      ],
+      "cut": 0,
+      "duplicate": 0,
+      "physical_displayed": null,
+      "visually_unique": null
+    }
+  ],
+  "physical_scanout": null
+}

@@ -245,6 +245,9 @@ int main(void) {
     TRY(vkCreateFence(device,&fc,NULL,&rendering));
     unsigned char seen[GFG_OFFSCREEN_MAX_IMAGES]={0};
     const int interleave=getenv("GFG_NATIVE_TEST_OUTPUT_INTERLEAVE")!=NULL;
+    const int lmc_owner=getenv("GFG_NATIVE_TEST_LMC_OUTPUT_OWNER")!=NULL;
+    const unsigned lmc_multiplier=getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
+    const unsigned middle_count=lmc_owner && !getenv("GFG_NATIVE_TEST_LMC_MASK2")?lmc_multiplier-1u:1u;
     const int paced_30_60=getenv("GFG_NATIVE_TEST_PACED_30_60")!=NULL;
     const int paced_45_90=getenv("GFG_NATIVE_TEST_PACED_45_90")!=NULL;
     const int paced_source=paced_30_60||paced_45_90;
@@ -252,8 +255,11 @@ int main(void) {
      * pixels. Do not treat XCB GetImage black as a Vulkan output failure.
      * Crucially, do NOT label GPU-submit-only evidence as visible pixels. */
     const int gamescope_observer=getenv("GFG_NATIVE_TEST_GAME_MODE")!=NULL;
+    const int gpu_only=getenv("GFG_NATIVE_TEST_GPU_READBACK_ONLY")!=NULL;
+    const int observe_pixels=!gamescope_observer && !gpu_only;
+    REQUIRE(!gpu_only || lmc_owner);
     const int sustained=getenv("GFG_NATIVE_TEST_SUSTAINED")!=NULL;
-    const uint32_t frame_count=sustained?120u:8u;
+    const uint32_t frame_count=getenv("GFG_NATIVE_TEST_LMC_VERIFY_DUPLICATE")?2u:sustained?120u:8u;
     const uint32_t source_hz=paced_45_90?45u:30u;
     const uint32_t output_hz=paced_45_90?90u:60u;
     REQUIRE(!paced_source || interleave);
@@ -355,11 +361,16 @@ int main(void) {
         /* X11 must expose the inserted A|B frame before the real B.
          * The synthetic GPU composite is unique: left pixel from A,
          * right pixel from B. A mere duplicate present cannot pass. */
-        if(interleave && frame>1 && !gamescope_observer) {
+        if(interleave && frame>1 && observe_pixels) {
             REQUIRE(last_level>=0 && last_level!=expected);
+            for(unsigned middle=0;middle<middle_count;++middle) {
+            const int blended=(last_level*(int)(lmc_multiplier-1-middle)+
+                expected*(int)(middle+1)+(int)lmc_multiplier/2)/(int)lmc_multiplier;
+            const int want_left=lmc_owner?blended:last_level;
+            const int want_right=lmc_owner?blended:expected;
             uint64_t middle_latency=0;
             REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,extent.height,
-                    last_level,expected,1500000000ull,&middle_latency));
+                    want_left,want_right,lmc_owner && frame<=3?20000000000ull:1500000000ull,&middle_latency));
             ++intermediate_visible;
             ++output_visible;
             if(paced_source) {
@@ -377,16 +388,19 @@ int main(void) {
                 x11_last_ns=observed;
             }
             fprintf(stderr,"GSF_LOADER_SPLIT_APP frame=%u left=%d right=%d x11_visible=1 latency_us=%llu\n",
-                    frame,last_level,expected,(unsigned long long)(middle_latency/1000));
+                    frame,want_left,want_right,(unsigned long long)(middle_latency/1000));
+            if(lmc_owner)fprintf(stderr,"GSF_LMC_OWNER_PIXEL frame=%u output=%u tau=%.9f value=%d distinct_from_A=%d distinct_from_B=%d\n",
+                frame,middle,(double)(middle+1)/lmc_multiplier,blended,blended!=last_level,blended!=expected);
+            }
         }
         uint64_t latency=0;
-        if(!gamescope_observer) {
+        if(observe_pixels) {
             REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,extent.height,
-                    expected,expected,1500000000ull,&latency));
+                    expected,expected,lmc_owner && frame<=3?20000000000ull:1500000000ull,&latency));
         }
         ++visible;
         ++output_visible;
-        if(paced_source && !gamescope_observer) {
+        if(paced_source && observe_pixels) {
             const uint64_t observed=gfg_pacer_monotonic_ns();
             REQUIRE(observed);
             if(x11_last_ns && output_visible>=3) {
@@ -400,7 +414,9 @@ int main(void) {
         }
         last_level=expected;
         seen[index]=1;
-        if(gamescope_observer)
+        if(gpu_only)
+            fprintf(stderr,"GSF_LMC_OWNER_APP original_submit=%u api_accepted=1 x11_pixels=UNOBSERVED physical_scanout=UNVERIFIED\n",frame);
+        else if(gamescope_observer)
             fprintf(stderr,
                 "GSF_GAMESCOPE_APP original_submit=%u vk_present_accepted=1 x11_pixels=UNOBSERVABLE oled_scanout=UNVERIFIED\n",
                 frame);
@@ -409,7 +425,10 @@ int main(void) {
                 frame,(unsigned long long)(latency/1000));
     }
     REQUIRE(visible==frame_count);
-    if(gamescope_observer) {
+    if(gpu_only) {
+        fprintf(stderr,"GSF_LMC_OWNER_APP submitted=%u multiplier=%u expected_lmc_outputs=%u verification=WORKER_GPU_READBACK physical_scanout=UNVERIFIED\n",
+            frame_count,lmc_multiplier,middle_count*(frame_count-1u));
+    } else if(gamescope_observer) {
         /* We verified API submission only. Intermediate frames are scheduled
          * in the layer's worker, not sampled through the X11 backing store.
          * The outer script checks final worker present counts separately. */
@@ -417,8 +436,8 @@ int main(void) {
             "GSF_GAMESCOPE_SUBMIT source_originals=%u expected_diagnostic_intermediates=%u x11_readback=bypassed reason=GAMESCOPE_WSI oled_scanout=UNVERIFIED PASS\n",
             frame_count,interleave?frame_count-1u:0u);
     } else {
-    REQUIRE(!interleave || intermediate_visible==frame_count-1u);
-    REQUIRE(!interleave || output_visible==2u*frame_count-1u);
+    REQUIRE(!interleave || intermediate_visible==middle_count*(frame_count-1u));
+    REQUIRE(!interleave || output_visible==frame_count+middle_count*(frame_count-1u));
     if(interleave)
         fprintf(stderr,"GSF_LOADER_SPLIT_APP output_visible=%u original=%u intermediate=%u x11_distinct_pixels=1 PASS\n",
             output_visible,visible,intermediate_visible);
@@ -459,7 +478,9 @@ int main(void) {
     vkDestroySemaphore(device,render_done,NULL);
     vkDestroyCommandPool(device,pool,NULL);
     vkDestroySwapchainKHR(device,virtual_handle,NULL);
-    if(gamescope_observer)
+    if(gpu_only)
+        fprintf(stderr,"GSF_LMC_OWNER_APP_TERMINAL originals=%u api_submission=PASS physical_scanout=UNVERIFIED\n",frame_count);
+    else if(gamescope_observer)
         fprintf(stderr,"GSF_GAMESCOPE_APP_TERMINAL originals=%u api_submission=PASS physical_scanout=UNVERIFIED\n",frame_count);
     else
         fprintf(stderr,"GSF_LOADER_LIVE_APP %u GPU-rendered real source frames visible through one output WSI PASS\\n",
@@ -469,7 +490,9 @@ int main(void) {
     vkDestroySurfaceKHR(instance,surface,NULL);
     vkDestroyInstance(instance,NULL);
     xcb_destroy_window(x,window);xcb_disconnect(x);
-    if(gamescope_observer)
+    if(gpu_only)
+        puts("GSF LMC owner Vulkan submission completed; worker GPU pixels checked; physical scanout UNVERIFIED");
+    else if(gamescope_observer)
         puts("GSF Gamescope API submission test completed; X11 pixel visibility and OLED scanout UNVERIFIED");
     else
         puts("GSF loader-installed virtual Acquire->Render->Present->X11 compositor PASS (not Deck)");
