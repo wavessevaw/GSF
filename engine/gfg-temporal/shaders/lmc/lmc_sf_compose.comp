@@ -34,9 +34,35 @@ void consider(vec2 v) {
 #endif
     }
 }
+// Four consecutive output texels share a single optical-flow/colour sample.
+// Static pixels, HUD and cuts are exceptions: copy exact real texels to avoid
+// smearing UI or inventing false synthetic content. In moving blocks, source
+// reads and expensive warps are amortized across four output stores.
+void store_quad(ivec2 base,vec4 packed,bool exact_real) {
+    for(int j=0;j<4;++j) {
+        ivec2 p=base+ivec2(j&1,j>>1);
+        if(any(greaterThanEqual(p,P.size.xy)))continue;
+        bool preserve=exact_real || imageLoad(hudCount,p).r>=uint(P.hud_pairs);
+        vec4 outc=packed;
+        if(preserve) {
+            // source textures are already PQ-coded for HDR, hence no extra
+            // encode; colour was converted only for generated pixels.
+            vec3 original=PC.t<0.5?
+                texelFetch(srcA,p,0).rgb:texelFetch(srcB,p,0).rgb;
+            outc=vec4(original,1.0);
+        }
+        imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
+    }
+}
 void main() {
-    ivec2 p=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(p,P.size.xy)))return;
-    pixel_=vec2(p);time_=PC.t;
+    bool quad=(PC.flags&128)!=0;
+    ivec2 p=ivec2(gl_GlobalInvocationID.xy)*(quad?2:1);
+    if(any(greaterThanEqual(p,P.size.xy)))return;
+    pixel_=vec2(p)+(quad?vec2(0.5):vec2(0.0));time_=PC.t;
+    if(quad && G.pal_count!=0u) {
+        // Scene cuts copy endpoints exactly, even in the 2x2 mode.
+        store_quad(p,vec4(0),true);return;
+    }
     if((PC.flags&64)!=0 && (PC.flags&1)==0 && G.pal_count==0u) {
         // Flow Lite: O(1) single-hypothesis full-resolution warp.
         // Coarse A->B flow is computed once per pair, not per output.
@@ -62,7 +88,12 @@ void main() {
             colour=composition_rgb(ia?0:1,ia?a:b);
         }
         vec4 outc=vec4(composition_encode(colour),1.0);
-        imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
+        if(quad) {
+            // When nothing moves, avoid even a 2x2 downsample of fine text
+            // and geometry. This copies 4 exact source texels, not four warps.
+            bool static_block=dot(v,v)<0.0025 && f.z<0.012;
+            store_quad(p,outc,static_block);
+        } else imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
         return;
     }
     vec3 ca=texelFetch(srcA,p,0).rgb,cb=texelFetch(srcB,p,0).rgb;

@@ -115,9 +115,10 @@ async def test(archive, output):
             assert joins[kind]['matched'] > 0, joins
             assert joins[kind]['unmatched'] == joins[kind]['ambiguous'] == 0, joins
         assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
-        assert metadata['GFG_NATIVE_ALGO'] == 'gsf' and metadata['GFG_NATIVE_FLOW_LITE'] == '1', metadata
+        assert metadata['GFG_NATIVE_ALGO'] == 'gsf' and metadata['GFG_NATIVE_FLOW_LITE'] == '1' and metadata['GFG_NATIVE_FLOW_LITE_QUAD'] == '1', metadata
         assert 'GFG_NATIVE_GSF_ECO' not in metadata, 'Flow Lite must not accidentally select ECO45'
         assert 'GFG_NATIVE_GPU_CLOCK' not in metadata, 'ECO45 must not force GPU clocks'
+        assert (await backend.set_diagnostic_mode(42, 'normal-flow-lite'))['diagnostic_mode'] == 'normal-flow-lite'
         assert (await backend.set_diagnostic_mode(42, 'normal-eco45'))['diagnostic_mode'] == 'normal-eco45'
         assert (await backend.set_diagnostic_mode(42, 'normal-lmc-gpu'))['diagnostic_mode'] == 'normal-lmc-gpu'
         assert (await backend.set_diagnostic_mode(42, 'normal'))['diagnostic_mode'] == 'normal'

@@ -70,6 +70,7 @@ struct te_lmc {
     int shared_flow;
     int compact_flow;
     int flow_lite;  /* coarse optical-flow pyramid + one full-res warp, fixed cost */
+    int flow_quad;  /* four output pixels share one warped-colour calculation */
     unsigned fit_sync_ok;
     /* motion model on the CPU (te_lmc_fit.c), fitted on this pair's vectors: the analysis is two
        submissions.  The first (pyramid, block search, block statistics) ends with a copy of the
@@ -273,7 +274,8 @@ static VkResult lmc_create(te_context* ctx) {
     if (!m) return fail(VK_ERROR_OUT_OF_HOST_MEMORY, "out of memory");
     ctx->lmc = m;
     m->shared_flow=ctx->desc.params.algorithm==TE_ALGO_SHARED_FLOW;
-    m->flow_lite=m->shared_flow && ctx->desc.shared_flow_dense==5;
+    m->flow_lite=m->shared_flow && ctx->desc.shared_flow_dense>=5;
+    m->flow_quad=m->flow_lite && ctx->desc.shared_flow_dense==6;
     m->compact_flow=m->shared_flow && (ctx->desc.shared_flow_dense==0 || m->flow_lite);
     m->gpu_fit=ctx->desc.params.algorithm==TE_ALGO_LMC_GPU || m->shared_flow;
     if(pthread_mutex_init(&m->fit_lock,NULL)) return VK_ERROR_INITIALIZATION_FAILED;
@@ -957,8 +959,15 @@ static void lmc_record_output(te_context* ctx, te_slot* slot, const te_submit* s
     }
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, slot->queries, q + 1);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->pipe[m->compact_flow?LMC_SF_COMPOSE:LMC_COMPOSE]);
-    lmc_push_c(ctx, cb, t, 0, 0, 0, (hold ? 1 : 0)|(m->shared_flow&&!m->compact_flow?16:0)|(m->flow_lite?64:0));
-    vkCmdDispatch(cb, groups(ctx->desc.width, 8), groups(ctx->desc.height, 8), 1);
+    /* 2x2 mode shades 1/4 as many fragments but writes the full-res image.
+       Keep cut/hold exact and leave legacy modes' dispatch untouched. */
+    int quad = m->flow_quad && !hold;
+    lmc_push_c(ctx, cb, t, 0, 0, 0,
+        (hold ? 1 : 0)|(m->shared_flow&&!m->compact_flow?16:0)|
+        (m->flow_lite?64:0)|(quad?128:0));
+    vkCmdDispatch(cb,
+        groups(quad?(ctx->desc.width+1)/2:ctx->desc.width,8),
+        groups(quad?(ctx->desc.height+1)/2:ctx->desc.height,8), 1);
     barrier(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT);
