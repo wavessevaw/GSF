@@ -47,3 +47,22 @@ It proves GPU generation, ownership transport and WSI ordering; it does not
 prove a real-time immutable schedule, optical-flow quality or game compatibility.
 It is excluded from the normal Decky payload. Migration remains gated on those
 missing properties and G3. Enabling the test macro in a game is not a safe fix.
+
+A later source C may cancel optional generation before G is handed off. Once a
+G is WSI-accepted, B must retain the same bounded plan: releasing B early would
+change the already-generated image phase. The output present function now honors
+that commitment under pressure. It validates the existing frame-clock bound
+B≤source+2*interval; invalid/unbounded synthetic clock fixtures retain the native
+escape. No later target is created by this rule. Per-pair reset still forwards
+a native B immediately when the current pair accepted no G. A production-call
+regression test injects C pressure1ms into the B wait and verifies its target;
+the pre-fix implementation fails that test. The100ms/200ms candidate discrepancy
+was kept as a failure rather than loosening cadence acceptance.
+
+Likewise, a synthetic image whose acquire semaphore has already been consumed by
+its GPU transport cannot be canceled as if nothing was acquired. That transport
+commit also preserves the same bounded target under source pressure. Optional
+work is still canceled before transport; after commit it retires the owned WSI
+image at its reserved slot. This closes the pressure race between readiness and
+WSI submission without duplicating B or leaking acquired images. It does not
+make late GPU work ready sooner and does not extend the baseline clock targets.

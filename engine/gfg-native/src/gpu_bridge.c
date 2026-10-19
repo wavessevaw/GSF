@@ -256,18 +256,28 @@ int gfg_gpu_fg_waiting_image(gfg_gpu_fg *fg) { return atomic_load(&fg->waiting_i
 static inline void gsf_begin_native_pair(gfg_gpu_fg *fg) { fg->pace_real=0; }
 static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *pi,
                                PFN_vkQueuePresentKHR next,unsigned kind) {
+    /* Once G was accepted, moving B changes the phase of that displayed
+     * image. Preserve this pair's bounded plan even if C arrives meanwhile.
+     * An invalid/unbounded clock must retain the native-priority escape. */
+    const uint64_t source=fg->clock.source_ns,interval=fg->clock.interval_ns;
+    const uint64_t real=fg->clock.target_ns[2];
+    const int bounded_pair=source && interval && interval<=UINT64_MAX/2 &&
+        real>=source && real-source<=2*interval;
+    const int committed_slot=bounded_pair && ((kind==2 && fg->pace_real) ||
+        (kind<2 && !fg->disabled && (fg->transport_submit_mask&(1u<<kind)) &&
+         fg->clock.target_ns[kind]>source && fg->clock.target_ns[kind]<=real));
     if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
-       !fg->diagnostic && !atomic_load(&fg->output_pressure)) {
+       !fg->diagnostic && (committed_slot || !atomic_load(&fg->output_pressure))) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,kind)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
         const uint64_t ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
         if(ns<target) {
             int rc;
             do {
-                /* Yield pacing to newly queued real frames within 0.5ms. */
+                /* Uncommitted output yields; submitted G and paired B keep their slots. */
                 clock_gettime(CLOCK_MONOTONIC,&now);
                 uint64_t current=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
-                if(current>=target || atomic_load(&fg->output_pressure))break;
+                if(current>=target || (!committed_slot && atomic_load(&fg->output_pressure)))break;
                 uint64_t wake=fg->output_wsi && target-current>500000?current+500000:target;
                 const struct timespec slice={(time_t)(wake/1000000000ull),(long)(wake%1000000000ull)};
                 rc=clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&slice,NULL);
@@ -288,7 +298,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || at_pressure?
+        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || (at_pressure && !committed_slot)?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }

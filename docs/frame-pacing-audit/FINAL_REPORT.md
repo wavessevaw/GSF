@@ -44,3 +44,10 @@ the planned G target. This is an additional proven limitation of the direct WSI
 path. The prototype is not shipped as a remedy for that tail. Candidate packaging
 remains a correctness/audit artifact; a new manual Deck test is not required to
 establish this already reproduced software blocker.
+
+The final candidate cadence test exposed an additional commitment bug: source
+pressure could release B early AFTER G1 was accepted (about100ms actual G→B versus
+200ms planned in a software10Hz transition). The correction preserves the existing
+bounded B target once G is accepted; it never extends that target. Early native
+bypass before G acceptance and the invalid-clock escape remain. Its production-call
+regression rejects the pre-fix implementation. All exact-source checks are rerun.
