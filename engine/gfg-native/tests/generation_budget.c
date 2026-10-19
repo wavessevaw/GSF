@@ -16,6 +16,14 @@ int main(int argc,char **argv) {
     assert(!gsf_generation_probe_allowed(&b,now,now+GSF_GENERATION_RETRY_NS-1));
     assert(gsf_generation_probe_allowed(&b,now,now+GSF_GENERATION_RETRY_NS));
     assert(!gsf_generation_retry_due(now,now-1));
+    /* The initial cold 206ms sample must not suppress 45->90 for 2s.
+     * The early retry is bounded to one outstanding slow sample; a second
+     * measured slow sample restores the normal two-second retry cadence. */
+    assert(!gsf_generation_cold_retry_due(now,now+249999999ull,1,206705060));
+    assert(gsf_generation_cold_retry_due(now,now+250000000ull,1,206705060));
+    assert(!gsf_generation_cold_retry_due(now,now+250000000ull,2,206705060));
+    assert(!gsf_generation_cold_retry_due(now,now+250000000ull,1,10000000));
+    assert(!gsf_generation_cold_retry_due(now,now-1,1,206705060));
     gsf_generation_budget_observe(&b,0,0);
     assert(b.calibrated && b.submit_delay_ns==35700000);
     gsf_generation_budget_observe(&b,1,UINT64_MAX);
