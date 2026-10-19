@@ -1,3 +1,13 @@
+# GSF 0.1.9 LAB: Shadow Admission and Vulkan timing contract
+
+This build does NOT change admission or pacing. Shadow telemetry is on by default for normal and adaptive 2x; select the control mode without Shadow to measure its overhead. Restart after choosing a mode.
+
+Each shadow_admission event records a pre-submit GPU-start prediction from already observed calibrated GPU timestamps (threshold 5 ms, sample freshness 500 ms), 3/5 medians, sample age and a hypothetical probe after 16 negative decisions. No extra GPU work is submitted, and a shadow skip never suppresses the existing TE-submit.
+
+The same event captures the pre-submit B target, post-GPU-ready target, exact target at WSI call and desiredPresentTime actually sent to vkQueuePresentKHR. Zero reasons: 1 timing not attached, 2 diagnostic, 3 probe, 4 no accepted G1, 5 source pressure, 6 other, 0 nonzero. present_timing_supported indicates the GOOGLE device extension was enabled, not a property of surface capabilities. A requested time and compositor feedback are distinct; neither guarantees physical scanout.
+
+Existing packed10 guards, Vulkan ownership, real-frame priority, and LMC remain unchanged. This is a stacked experimental PR and not a verified 2x Deck release.
+
 # GSF 0.1.8 LAB: Adaptive pairs and stream reacquisition
 
 This is a **research-only Decky candidate**, built on the stacked PR #38 and #40 diagnostic audit; main and the packed10 guard remain unchanged.

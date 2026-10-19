@@ -100,7 +100,8 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
-          {data: 'normal', label: 'Обычный 2× + Timeline Watch'},
+          {data: 'normal', label: 'Обычный 2× + Shadow Admission 0.1.9'},
+          {data: 'normal-no-shadow', label: 'Контроль: без Shadow Admission'},
           {data: 'normal-adaptive-pairs', label: 'Эксперимент 0.1.8: адаптивная пара G1/B'},
           {data: 'normal-queue-observe', label: 'Диагностика: задания игры перед генерацией'},
           {data: 'normal-no-watch', label: 'Контроль: 2× без Timeline Watch'},
@@ -139,7 +140,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.8 LAB · Опциональное адаптивное перепланирование пары (не подтверждено на Deck). Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.9 LAB · Shadow Admission только записывает прогнозы GPU и фактически переданный timing B, не вмешиваясь в отправку кадров. 0.1.8 Adaptive по-прежнему экспериментален. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 
