@@ -23,6 +23,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_xcb.h>
 #include <xcb/xcb.h>
+#include "render_readiness_gate.h"
 
 #define TRY(x) do { VkResult r_ = (x); if (r_ != VK_SUCCESS && r_ != VK_SUBOPTIMAL_KHR) { \
   fprintf(stderr, "Vulkan failure %s => %d at %d\n", #x, r_, __LINE__); return 1; \
@@ -193,6 +194,10 @@ int main(void) {
     const unsigned source_hz=env_uint("GFG_TEST_SOURCE_HZ",0);
     REQUIRE(source_hz<=240);
     const uint32_t frames = env_uint("GFG_TEST_FRAMES", 24);
+    const unsigned render_delay_ms=env_uint("GFG_TEST_RENDER_READY_DELAY_MS",0);
+    const unsigned render_delay_from=env_uint("GFG_TEST_RENDER_READY_FROM",0);
+    const unsigned render_delay_until=env_uint("GFG_TEST_RENDER_READY_UNTIL",frames);
+    REQUIRE(render_delay_ms<=1000 && render_delay_from<=render_delay_until && render_delay_until<=frames);
     const int lifecycle = env_1("GFG_TEST_LIFECYCLE");
     REQUIRE(!lifecycle || (frames >= 12 && frames % 3 == 0 &&
         env_1("GFG_TEST_EXPECT_GPU") && env_1("GFG_NATIVE_GPU_BRIDGE_VERIFY") &&
@@ -486,6 +491,8 @@ int main(void) {
     VkSemaphore *rendered = calloc(image_count, sizeof(*rendered)); /* per image */
     REQUIRE(rendered);
     for (uint32_t i = 0; i < image_count; ++i) TRY(vkCreateSemaphore(device, &semci, NULL, &rendered[i]));
+    render_readiness_gate *render_gate=render_delay_ms?rrg_start(device):NULL;
+    REQUIRE(!render_delay_ms || (render_gate && !lifecycle));
 
     struct timespec source_origin;
     clock_gettime(CLOCK_MONOTONIC, &source_origin);
@@ -510,6 +517,11 @@ int main(void) {
         TRY(vkResetCommandBuffer(cmd[f], 0));
         VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         TRY(vkBeginCommandBuffer(cmd[f], &begin));
+        const int delayed=render_gate && frame>=render_delay_from && frame<render_delay_until;
+        if(delayed) {
+            vkCmdWaitEvents(cmd[f],1,&render_gate->events[f],VK_PIPELINE_STAGE_HOST_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,0,NULL,0,NULL,0,NULL);
+        }
         VkImageMemoryBarrier pre = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED, .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -533,6 +545,8 @@ int main(void) {
             .waitSemaphoreCount = 1, .pWaitSemaphores = &acquired[f], .pWaitDstStageMask = &stage,
             .commandBufferCount = 1, .pCommandBuffers = &cmd[f],
             .signalSemaphoreCount = 1, .pSignalSemaphores = &rendered[index]};
+        uint64_t render_submit_ns=tick_ns();
+        if(delayed)REQUIRE(rrg_arm(render_gate,f,(uint64_t)render_delay_ms*1000000ull));
         TRY(vkQueueSubmit(queue, 1, &si, fences[f]));
         VkPresentInfoKHR pi = {.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1, .pWaitSemaphores = &rendered[index],
@@ -557,6 +571,8 @@ int main(void) {
         struct timespec source_now;
         clock_gettime(CLOCK_MONOTONIC, &source_now);
         source_last = (uint64_t)source_now.tv_sec*1000000000ull + source_now.tv_nsec;
+        if(render_gate)printf("GSF_RENDER_READY_SOURCE frame=%u submit_ns=%llu present_ns=%llu injected_delay_ms=%u\n",
+            frame,(unsigned long long)render_submit_ns,(unsigned long long)source_last,delayed?render_delay_ms:0);
         if (!frame) source_first = source_last;
         if (frame == 2) steady_first = source_last;
         VkResult presented=vkQueuePresentKHR(queue,&pi);
@@ -650,6 +666,7 @@ int main(void) {
         puts("GFG native: recreate with pending output + queue idle drain PASS");
     } else if(env_1("GFG_TEST_QUEUE_IDLE_ONLY")) TRY(vkQueueWaitIdle(queue));
     else TRY(vkDeviceWaitIdle(device));
+    REQUIRE(rrg_stop(render_gate));
     if (maintenance_chain) {
         TRY(vkWaitForFences(device, frames, present_fences, VK_TRUE, 5000000000ull));
         for (uint32_t i = 0; i < frames; ++i) {

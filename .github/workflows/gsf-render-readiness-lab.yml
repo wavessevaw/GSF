@@ -1,0 +1,44 @@
+name: GSF Render Readiness Delay Lab
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/src/**'
+      - 'engine/gfg-native/tests/wsi_gpu_smoke.c'
+      - 'engine/gfg-native/tests/render_readiness*'
+      - 'engine/gfg-native/Makefile'
+      - 'engine/gfg-temporal/src/**'
+      - '.github/workflows/gsf-render-readiness-lab.yml'
+permissions:
+  contents: read
+jobs:
+  producer-delay:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [native-first, validation-first]
+    env:
+      LP_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actual Vulkan, validation and software GPU dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools xvfb xauth
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build normal layer and instrumented test application
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native ENABLE_TE=1 BUILD=build-readiness VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-readiness/wsi-gpu-smoke
+      - name: Actual delayed application rendering, admission A/B and recovery
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          xvfb-run -a -s '-screen 0 1024x768x24' python3 engine/gfg-native/tests/render_readiness_lab.py --build engine/gfg-native/build-readiness --out readiness-evidence --order '${{ matrix.order }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render-readiness-${{ matrix.order }}
+          path: readiness-evidence/
+          retention-days: 21
