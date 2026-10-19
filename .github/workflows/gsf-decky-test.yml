@@ -79,6 +79,9 @@ jobs:
           assert all('B_pacing_active_at_present' in x and 'B_display_timing_mode_at_present' in x for x in shadow)
           assert all('B_pace_real_at_present' in x and 'B_worker_path_at_present' in x for x in shadow)
           assert all(x['shadow_reason'] != 'not_evaluated' for x in shadow)
+          assert all(x['B_pacing_active_at_present'] in (0,1) and x['B_display_timing_mode_at_present'] in (0,1,2) for x in shadow)
+          assert all(x['B_clock_period_ns_at_present'] >= 0 for x in shadow)
+          assert all(x['B_pace_real_at_present']==0 for x in shadow if x['real_present_timing_zero_reason']==4)
           assert all(x['scheduled_real_ns']<=x['base_real_ns']+
                      2*11111111 for x in adaptive if x['eligible'])
           assert all(x['scheduled_g1_ns']<x['scheduled_real_ns']

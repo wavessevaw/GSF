@@ -1875,7 +1875,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         shadow_pre_submit_b_ns=fg->clock.target_ns[2];
         shadow_pre_submit_g1_ns=fg->clock.target_ns[0];
         shadow_decision=gsf_shadow_predict(&fg->shadow,shadow_prediction_ns,
-                                           fg->te_frames>0&&!fg->te_gap);
+                                           fg->frame>0); /* native stream active, even if TE history is broken */
     }
     STAT_ADD(real_presents, 1);
     const uint64_t frame = fg->frame++;

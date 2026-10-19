@@ -1,6 +1,6 @@
-# GSF 0.1.9 LAB: Shadow Admission and Vulkan timing contract
+# GSF 0.1.10 LAB: Native B pace fix and pre-bypass shadow diagnostics
 
-This build does NOT change admission or pacing. Shadow telemetry is on by default for normal and adaptive 2x; select the control mode without Shadow to measure its overhead. Restart after choosing a mode.
+0.1.10 changes only the lifetime of the current-pair native-B pacing flag: it is reset on entry to every real pair so an early gpu-budget bypass cannot inherit the previous pair's successful G1 target. No other admission or timing policy changes. Shadow telemetry is on by default for normal and adaptive 2x; select the control mode without Shadow to measure its overhead. Restart after choosing a mode.
 
 Each shadow_admission event records a pre-submit GPU-start prediction from already observed calibrated GPU timestamps (threshold 5 ms, sample freshness 500 ms), 3/5 medians, sample age and a hypothetical probe after 16 negative decisions. No extra GPU work is submitted, and a shadow skip never suppresses the existing TE-submit.
 
@@ -141,3 +141,9 @@ React предоставляет установленный Decky Loader. Исх
 использованного API/loader shim приложены в third_party.
 
 The opt-in `normal-queue-observe` diagnostic records application submit completion evidence at TE enqueue. It preserves normal admission and calibration. Counts are upper bounds, not hardware queue depth; see `docs/GSF_QUEUE_OBSERVATION_DIAGNOSTIC.md`. The normal profile leaves it disabled. Launcher-prefixed GFG_NATIVE variables are intentionally filtered; select the diagnostic profile instead.
+
+## 0.1.10 causality gates
+- Shadow computes before budget/pressure or other early bypasses, and its labels do not suppress TE. `admit_probe` after 10 hypothetical skip/unknown decisions, gated by 500ms cooldown, is a diagnostic label ONLY and never triggers extra GPU work. GPU-start observations remain sampled only when available.
+- `B_pacing_active_at_present`, `B_display_timing_mode_at_present`, `B_clock_period_ns_at_present`, `B_worker_path_at_present`, `B_pace_real_at_present`, `B_output_pressure_at_present`, `B_diagnostic_at_present`, `B_probe_at_present` capture the exact invocation state.
+- Zero `desiredPresentTime` does not imply missing Vulkan extension. In normal Game Mode, `B_pace_real_at_present=0` or `B_output_pressure_at_present=1` deliberately requests immediate real presentation. Present feedback is NOT a measurement of GPU-submit-to-start latency.
+- No confirmed game-mode frame generation or scanout claims from lavapipe-only CI. `normal-no-shadow` is the matched control mode.
