@@ -68,16 +68,24 @@ async def test(archive, output):
         stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', line)}
         assert stats['real'] == 70 and stats['synthetic'] >= 60, stats
         assert stats['errors'] == stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
-        # Healthy calibrated generation needs no visibility override: those
-        # probes are now recovery-only, not required every twelfth source.
-        # Native bridge must emit real per-pair GPU timeline observations.
+        # ECO45 deliberately omits the 2ms-polling timeline watcher (it is
+        # started only for TE_ALGO_LMC_GPU). Keep that CPU overhead out of
+        # the energy-oriented shared-flow mode. Instead require correlated
+        # calibrated GPU-start observations and actual WSI acceptance; do not
+        # weaken the >=60/70 synthetic acceptance gate above.
         timeline_events = [json.loads(line) for line in ''.join(p.read_text() for p in run.glob('frames*.jsonl')).splitlines()
                            if line.strip().startswith('{')]
         watched = [e for e in timeline_events if e.get('event') == 'timeline_watch']
-        assert len(watched) >= 10, 'Timeline watcher did not observe generated GPU submissions'
-        assert any(e.get('watch_end_reason') == 'threshold_reached' for e in watched), watched[:3]
-        assert any(e.get('wait_threshold') < e.get('actual_signal_value') for e in watched), '2x timeline signal mapping incorrect'
-        assert any(e.get('event') == 'timeline_watch_summary' for e in timeline_events), 'Missing watcher teardown summary'
+        assert not watched, 'ECO45 unexpectedly started a polling watcher'
+        correlated = [e for e in timeline_events if e.get('event') == 'gpu_correlated']
+        gpu_pairs = [e for e in timeline_events if e.get('event') == 'gpu_pair']
+        assert len(gpu_pairs) >= 10 and len(correlated) >= 10, (
+            'No GPU-timestamp evidence for ECO45 generated work', len(gpu_pairs), len(correlated))
+        assert sum(e.get('outputs', 0) for e in gpu_pairs) >= 10, 'No completed generated GPU outputs'
+        assert any(e.get('calibration_status') == 'calibrated' for e in correlated), (
+            'No calibrated GPU start observation')
+        assert any(e.get('ready_ms', [0])[0] > 0 for e in gpu_pairs), (
+            'No positive measured G1 completion time')
         # Sequence numbers restart in every process/bridge. Verify the actual
         # packaged C producers and Python report agree on the full identity.
         def identity(e):
