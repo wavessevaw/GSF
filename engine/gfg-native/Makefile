@@ -390,3 +390,11 @@ $(BUILD)/shadow-admission: tests/shadow_admission.c src/shadow_admission.h
 shadow-admission: $(BUILD)/shadow-admission
 	$(BUILD)/shadow-admission
 .PHONY: shadow-admission
+
+$(BUILD)/shadow-stress: tests/shadow_stress.c src/shadow_admission.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ $<
+
+shadow-stress: $(BUILD)/shadow-stress
+	$(BUILD)/shadow-stress
+.PHONY: shadow-stress

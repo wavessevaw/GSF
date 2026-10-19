@@ -59,6 +59,17 @@ int main(void) {
      * future clock target, including through GOOGLE desiredPresentTime. */
     fg.pace_real=0;start=now_us();
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    /* B1 accepted G1 -> B2 is budget-blocked early. No leaked desiredTime. */
+    fg.pace_real=1;
+    wanted=(uint64_t)(now_us()*1000.0)+2000000ull;
+    fg.clock.target_ns[2]=wanted;
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    gsf_begin_native_pair(&fg); /* same entry reset used before every bypass */
+    wanted=0;
+    fg.clock.target_ns[2]=(uint64_t)(now_us()*1000.0)+2000000000ull;
+    start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
+    assert(!fg.pace_real && now_us()-start<250000.0);
     assert(now_us()-start<250000.0);
     /* Bounded flushing: multiple small events stay buffered until 250ms. */
     fg.telemetry=tmpfile();assert(fg.telemetry);fg.telemetry_flush_ns=10;
@@ -72,6 +83,6 @@ int main(void) {
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,2)==VK_SUCCESS);
-    assert(calls==8 && previous_id==6);
+    assert(calls==10 && previous_id==8);
     puts("presentation-timing: distinct desired G1/G2/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }
