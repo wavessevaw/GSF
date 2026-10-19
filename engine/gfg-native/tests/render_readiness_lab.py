@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import statistics
 import subprocess
+from recovery_report import recovery_report
 
 
 def numbers(line):
@@ -55,6 +56,7 @@ def run(build, output, order):
     cases = [
         # name, layer, admission, requested source Hz, frames, delay ms/range
         ('healthy', True, True, 5, 30, 0, 0, 0),
+        ('healthy-observed', True, True, 5, 30, 0, 0, 0),
         ('baseline-delayed', False, False, 45, 180, 35, 0, 180),
         ('old-admission-delayed', True, False, 45, 180, 35, 0, 180),
         ('new-admission-delayed', True, True, 45, 180, 35, 0, 180),
@@ -90,6 +92,7 @@ def run(build, output, order):
                            GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_OUTPUT_HZ='90',
                            GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_TIMELINE_WATCH='1',
                            GFG_NATIVE_CALIBRATED_TIMESTAMPS='1',
+                           GFG_NATIVE_QUEUE_OBSERVE='0' if name == 'healthy' else '1',
                            GFG_NATIVE_LATENCY_ADMISSION='1' if admission else '0',
                            GFG_NATIVE_TELEMETRY=str(trace))
             p = subprocess.run([str(build/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
@@ -116,8 +119,23 @@ def run(build, output, order):
                 assert stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
                 events = [json.loads(l) for l in trace.read_text().splitlines()]
                 row.update(stats=stats, all=analyze(events, 0, frames))
-                assert row['all']['calibrated_records'] > 0, 'Calibration unavailable; cannot establish this experiment'
+                observations = [e for e in events if e.get('event') == 'queue_observation']
                 if name == 'healthy':
+                    assert not observations, 'Observer was not disabled'
+                else:
+                    assert observations, 'No actual TE-submit queue snapshot'
+                    origins = {(p['pid'], p['generation'], p['te_sequence']) for p in events
+                               if p.get('event') == 'pair' and p.get('dispatched_outputs')}
+                    assert all((e['pid'], e['generation'], e['te_sequence']) in origins for e in observations), name
+                    assert all(e['available'] and e['query_errors'] == 0 for e in observations), name
+                    assert all(e['app_submits_total'] <= frames for e in observations), 'GSF counted as game work'
+                    assert all(e['hardware_queue_depth'] is None and e['pure_queue_wait_ns'] is None for e in observations)
+                    row['queue_observation'] = {'samples': len(observations),
+                        'query_cpu_median_ms': median([e['query_cpu_ns']/1e6 for e in observations]),
+                        'unretired_upper_bound_median': median([e['app_submits_unretired_upper_bound'] for e in observations]),
+                        'incomplete_samples': sum(bool(e['tracking_lost'] or e['unfenced_unretired']) for e in observations)}
+                assert row['all']['calibrated_records'] > 0, 'Calibration unavailable; cannot establish this experiment'
+                if name.startswith('healthy'):
                     assert stats['synthetic'] >= 10, row
                 elif name.endswith('delayed'):
                     row['steady'] = analyze(events, 60, frames)
@@ -141,9 +159,11 @@ def run(build, output, order):
                     row['before_delay'] = analyze(events, 5, start)
                     row['delayed'] = analyze(events, start, end)
                     row['recovered'] = analyze(events, 75, frames)
+                    row['recovery_status'] = recovery_report(events, end, 75)
                     assert row['before_delay']['wsi_accepted'] >= 3, ('No viable recovery baseline', row)
                     assert row['delayed']['wsi_accepted'] == 0, ('Dependency did not suppress generation', row)
                     assert row['recovered']['wsi_accepted'] >= 3, row
+                    assert row['recovery_status']['status'] == 'recovered', row
             (output/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
             print('READINESS_CASE', json.dumps(row), flush=True)
         delayed = [c for c in result['cases'] if c['name'] in ('old-admission-delayed', 'new-admission-delayed')]
