@@ -26,9 +26,15 @@ int main(void) {
     assert(d.median5_valid && d.median5_ns==40000000ull);
     int count=0;
     for(int i=0;i<48;++i){d=gsf_shadow_predict(&h,3000000100ull+10000000ull*i,1);if(d.would_probe)++count;}
-    assert(count==1);
+    assert(count>=1 && count<=3); /* N=10 plus cooldown */
     d=gsf_shadow_predict(&h,3800000000ull,0);
     assert(!strcmp(d.reason,"not_candidate"));
+    h=(gsf_shadow_history){0};
+    for(int i=0;i<10;++i) {
+        d=gsf_shadow_predict(&h,6000000000ull+20000000ull*(uint64_t)i,1);
+        assert(!strcmp(d.prediction,i==9?"admit_probe":"unknown"));
+    }
+    assert(d.would_probe && !d.history_samples);
     puts("shadow_admission PASS: causality, stale, median, hypothetical backoff");
     return 0;
 }

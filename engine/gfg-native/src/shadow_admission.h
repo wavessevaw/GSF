@@ -6,7 +6,7 @@
 #define GSF_SHADOW_ADMISSION_H
 #include <stdint.h>
 #include <string.h>
-enum { GSF_SHADOW_CAP=8, GSF_SHADOW_STREAK=16 };
+enum { GSF_SHADOW_CAP=8, GSF_SHADOW_STREAK=10 };
 typedef struct {uint64_t latency_ns,start_ns,observed_ns,te_sequence;} gsf_shadow_sample;
 typedef struct {
     gsf_shadow_sample ring[GSF_SHADOW_CAP];
@@ -54,16 +54,18 @@ static inline gsf_shadow_decision gsf_shadow_predict(gsf_shadow_history *h,
     if(n>=3){uint64_t a[3];memcpy(a,values,sizeof(a));d.median3_ns=gsf_shadow_median(a,3);d.median3_valid=1;}
     if(n>=5){uint64_t a[5];memcpy(a,values,sizeof(a));d.median5_ns=gsf_shadow_median(a,5);d.median5_valid=1;}
     if(!has_candidate){d.reason="not_candidate";return d;}
-    if(!d.last_valid)return d;
-    if(d.age_ns>500000000ull){d.reason="stale_measurement";return d;}
-    if(d.last_latency_ns<5000000ull) {
+    if(d.last_valid && d.age_ns<=500000000ull && d.last_latency_ns<5000000ull) {
         d.prediction="admit";d.reason="last_gpu_start_fast";h->skip_streak=0;
     } else {
-        d.prediction="skip";d.reason="last_gpu_start_slow";
-        ++h->skip_streak;
+        if(!d.last_valid){d.prediction="unknown";d.reason="no_history";}
+        else if(d.age_ns>500000000ull){d.prediction="unknown";d.reason="stale_measurement";}
+        else {d.prediction="skip";d.reason="last_gpu_start_slow";}
+        /* Read-only recovery label: no actual TE-submit, even on probe. */
+        if(h->skip_streak<UINT32_MAX)++h->skip_streak;
         if(h->skip_streak>=GSF_SHADOW_STREAK &&
-           (!h->last_would_probe_ns || now-h->last_would_probe_ns>=500000000ull)) {
-            d.would_probe=1;h->last_would_probe_ns=now;h->skip_streak=0;
+           (!h->last_would_probe_ns || now>=h->last_would_probe_ns+500000000ull)) {
+            d.would_probe=1;d.prediction="admit_probe";
+            h->last_would_probe_ns=now;h->skip_streak=0;
         }
     }
     d.skip_streak=h->skip_streak;

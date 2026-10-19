@@ -35,7 +35,7 @@ jobs:
           npm --prefix decky run build
           npm --prefix decky run test:panel
           python3 -m unittest discover -s decky/tests -p 'test_*.py'
-          make -C engine/gfg-native shadow-admission adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
+          make -C engine/gfg-native shadow-stress shadow-admission adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
       - name: Build GPU layer and package exact source
         run: |
           make -C engine/gfg-temporal lib
@@ -75,7 +75,10 @@ jobs:
           assert len(shadow)==18, ('missing passive shadow events',len(shadow))
           assert all('real_desired_present_time_sent_ns' in x and 'real_present_timing_attached' in x for x in shadow)
           assert all(x['would_be_successful'] is None for x in shadow)
-          assert all(x['shadow_prediction'] in ('admit','skip','unknown') for x in shadow)
+          assert all(x['shadow_prediction'] in ('admit','skip','unknown','admit_probe') for x in shadow)
+          assert all('B_pacing_active_at_present' in x and 'B_display_timing_mode_at_present' in x for x in shadow)
+          assert all('B_pace_real_at_present' in x and 'B_worker_path_at_present' in x for x in shadow)
+          assert all(x['shadow_reason'] != 'not_evaluated' for x in shadow)
           assert all(x['scheduled_real_ns']<=x['base_real_ns']+
                      2*11111111 for x in adaptive if x['eligible'])
           assert all(x['scheduled_g1_ns']<x['scheduled_real_ns']

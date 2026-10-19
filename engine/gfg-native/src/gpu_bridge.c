@@ -204,6 +204,9 @@ struct gfg_gpu_fg {
     gsf_shadow_history shadow;
     uint64_t timing_desired_sent[3], timing_target_at_call[3];
     unsigned timing_attached[3], timing_zero_reason[3];
+    unsigned timing_pacing_active[3], timing_display_mode[3], timing_pace_real[3];
+    unsigned timing_pressure[3], timing_worker[3], timing_diagnostic[3], timing_probe[3];
+    uint64_t timing_period_ns[3];
     uint64_t diagnostic_outputs;
     uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
     gsf_generation_budget generation_budget;
@@ -246,6 +249,8 @@ uint64_t gfg_gpu_fg_source_period_ns(gfg_gpu_fg *fg) {
 void gfg_gpu_fg_restart_history(gfg_gpu_fg *fg) { fg->te_gap = 1; }
 int gfg_gpu_fg_waiting_image(gfg_gpu_fg *fg) { return atomic_load(&fg->waiting_image); }
 
+/* Clear native-B pacing permission before *every* current-pair bypass/return. */
+static inline void gsf_begin_native_pair(gfg_gpu_fg *fg) { fg->pace_real=0; }
 static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *pi,
                                PFN_vkQueuePresentKHR next,unsigned kind) {
     if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
@@ -274,16 +279,25 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
 #endif
     struct timespec a,b;clock_gettime(CLOCK_MONOTONIC,&a);
     VkPresentInfoKHR timed=*pi;
+    const int at_pressure=atomic_load(&fg->output_pressure);
     VkPresentTimeGOOGLE at={0};
     VkPresentTimesInfoGOOGLE times={.sType=VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE,
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || fg->probe_active || (kind==2 && !fg->pace_real) || atomic_load(&fg->output_pressure)?
+        at.desiredPresentTime=fg->diagnostic || fg->probe_active || (kind==2 && !fg->pace_real) || at_pressure?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }
     if(fg->shadow_enabled && kind<3) {
+        fg->timing_pacing_active[kind]=(unsigned)fg->pacing_active;
+        fg->timing_display_mode[kind]=(unsigned)fg->display_timing;
+        fg->timing_period_ns[kind]=fg->clock.period_ns;
+        fg->timing_pace_real[kind]=(unsigned)fg->pace_real;
+        fg->timing_pressure[kind]=(unsigned)at_pressure;
+        fg->timing_worker[kind]=(unsigned)(fg->output_wsi!=NULL);
+        fg->timing_diagnostic[kind]=(unsigned)fg->diagnostic;
+        fg->timing_probe[kind]=(unsigned)fg->probe_active;
         fg->timing_target_at_call[kind]=gfg_frame_clock_target(&fg->clock,kind);
         fg->timing_attached[kind]=timed.pNext==&times;
         fg->timing_desired_sent[kind]=timed.pNext==&times?at.desiredPresentTime:0;
@@ -291,7 +305,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
          * 4 native B without accepted synthetic, 5 source pressure, 6 other. */
         fg->timing_zero_reason[kind]=timed.pNext!=&times?1:
             at.desiredPresentTime?0:fg->diagnostic?2:fg->probe_active?3:
-            (kind==2 && !fg->pace_real)?4:atomic_load(&fg->output_pressure)?5:6;
+            (kind==2 && !fg->pace_real)?4:at_pressure?5:6;
     }
     VkResult r = next(queue, &timed);
     clock_gettime(CLOCK_MONOTONIC,&b);
@@ -1774,6 +1788,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
 VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *app,
                             PFN_vkQueuePresentKHR next, const gfg_present_id_hooks *ids) {
     if (!fg || !app || !next) return VK_ERROR_INITIALIZATION_FAILED;
+    gsf_begin_native_pair(fg); /* P0: previous pair's G1 must not delay current B */
     const double t0 = now_us();
     int adaptive_dispatched=0;
     gsf_shadow_decision shadow_decision={.prediction="unknown",.reason="not_evaluated"};
@@ -1788,6 +1803,14 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     memset(fg->timing_target_at_call,0,sizeof(fg->timing_target_at_call));
     memset(fg->timing_attached,0,sizeof(fg->timing_attached));
     memset(fg->timing_zero_reason,0,sizeof(fg->timing_zero_reason));
+    memset(fg->timing_pacing_active,0,sizeof(fg->timing_pacing_active));
+    memset(fg->timing_display_mode,0,sizeof(fg->timing_display_mode));
+    memset(fg->timing_period_ns,0,sizeof(fg->timing_period_ns));
+    memset(fg->timing_pace_real,0,sizeof(fg->timing_pace_real));
+    memset(fg->timing_pressure,0,sizeof(fg->timing_pressure));
+    memset(fg->timing_worker,0,sizeof(fg->timing_worker));
+    memset(fg->timing_diagnostic,0,sizeof(fg->timing_diagnostic));
+    memset(fg->timing_probe,0,sizeof(fg->timing_probe));
     fg->slot_drop[0]=fg->slot_drop[1]=DROP_HISTORY;
     fg->slot_detail[0]=fg->slot_detail[1]="not-admitted";
     memset(fg->readiness_wait_ns,0,sizeof(fg->readiness_wait_ns));
@@ -1845,6 +1868,15 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     uint64_t compute_admission_ns=0;
     unsigned deferred_g2=0;uint64_t g2_submit_return_ns=0;
     double next_us = 0.0;
+    /* P1 read-only shadow before early budget/pressure/metadata bypasses.
+     * A source with prior history is a candidate independently of masks. */
+    if(fg->shadow_enabled) {
+        shadow_prediction_ns=gsf_calib_monotonic();
+        shadow_pre_submit_b_ns=fg->clock.target_ns[2];
+        shadow_pre_submit_g1_ns=fg->clock.target_ns[0];
+        shadow_decision=gsf_shadow_predict(&fg->shadow,shadow_prediction_ns,
+                                           fg->te_frames>0&&!fg->te_gap);
+    }
     STAT_ADD(real_presents, 1);
     const uint64_t frame = fg->frame++;
     /* Before calibration, probe every twelfth eligible source. Once a
@@ -1979,13 +2011,6 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     const unsigned timely_mask=fg->clock.period_ns?gfg_frame_clock_compute_mask(&fg->clock,compute_admission_ns,
         fg->display_timing==2?fg->clock.period_ns/4:0):compute_mask;
     const int generate=have_pair && compute_mask;
-    if(fg->shadow_enabled) {
-        shadow_prediction_ns=gsf_calib_monotonic();
-        shadow_pre_submit_b_ns=fg->clock.target_ns[2];
-        shadow_pre_submit_g1_ns=fg->clock.target_ns[0];
-        shadow_decision=gsf_shadow_predict(&fg->shadow,shadow_prediction_ns,
-                                           have_pair && (fg->clock.mask&1u));
-    }
     generation_candidate_mask=compute_mask;
     admission_decision=generate?"admitted":!have_pair?"history_refresh":
         atomic_load(&fg->output_pressure)?"source_pressure":!fg->clock.mask?"not_planned":
@@ -2160,7 +2185,11 @@ timing:
             "\"pre_submit_G1_target_ns\":%llu,\"pre_submit_B_target_ns\":%llu,"
             "\"post_gpu_ready_B_target_ns\":%llu,\"real_target_at_wsi_call_ns\":%llu,"
             "\"real_desired_present_time_sent_ns\":%llu,\"real_present_timing_attached\":%u,"
-            "\"real_present_timing_zero_reason\":%u,\"present_timing_extension_enabled\":%u,"
+            "\"real_present_timing_zero_reason\":%u,\"B_pacing_active_at_present\":%u,"
+            "\"B_display_timing_mode_at_present\":%u,\"B_clock_period_ns_at_present\":%llu,"
+            "\"B_pace_real_at_present\":%u,\"B_output_pressure_at_present\":%u,"
+            "\"B_worker_path_at_present\":%u,\"B_diagnostic_at_present\":%u,"
+            "\"B_probe_at_present\":%u,\"present_timing_extension_enabled\":%u,"
             "\"present_timing_supported\":%u,\"layer_owns_timing_namespace\":%u,"
             "\"past_timing_query_available\":%u,\"real_wsi_accepted_ns\":%llu,"
             "\"physical_scanout\":null}\n",
@@ -2178,6 +2207,10 @@ timing:
             (unsigned long long)fg->timing_target_at_call[2],
             (unsigned long long)fg->timing_desired_sent[2],
             fg->timing_attached[2],fg->timing_zero_reason[2],
+            fg->timing_pacing_active[2],fg->timing_display_mode[2],
+            (unsigned long long)fg->timing_period_ns[2],fg->timing_pace_real[2],
+            fg->timing_pressure[2],fg->timing_worker[2],
+            fg->timing_diagnostic[2],fg->timing_probe[2],
             (unsigned)(fg->display_timing!=0),(unsigned)(fg->display_timing!=0),
             (unsigned)(fg->display_timing==2),
             fg->past_timing!=NULL,(unsigned long long)fg->accepted_ns[2]);
