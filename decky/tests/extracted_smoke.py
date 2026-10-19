@@ -57,7 +57,7 @@ async def test(archive, output):
         # Healthy calibrated generation needs no visibility override: those
         # probes are now recovery-only, not required every twelfth source.
         # Native bridge must emit real per-pair GPU timeline observations.
-        timeline_events = [json.loads(line) for line in (run/'frames.jsonl').read_text().splitlines()
+        timeline_events = [json.loads(line) for line in ''.join(p.read_text() for p in run.glob('frames*.jsonl')).splitlines()
                            if line.strip().startswith('{')]
         watched = [e for e in timeline_events if e.get('event') == 'timeline_watch']
         assert len(watched) >= 10, 'Timeline watcher did not observe generated GPU submissions'
@@ -109,7 +109,7 @@ async def test(archive, output):
         run3 = backend.runtime.latest(42)
         meta3 = json.loads((run3/'LAUNCH.json').read_text())['native_environment']
         assert meta3['GFG_NATIVE_MODE'] == '3', meta3
-        events3 = [json.loads(x) for x in (run3/'frames.jsonl').read_text().splitlines()
+        events3 = [json.loads(x) for x in ''.join(p.read_text() for p in run3.glob('frames*.jsonl')).splitlines()
                    if x.lstrip().startswith('{')]
         frames3 = [x for x in events3 if x.get('event') == 'pair']
         assert frames3 and all(x['multiplier'] == 3 for x in frames3)

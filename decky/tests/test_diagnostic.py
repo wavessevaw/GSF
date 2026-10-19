@@ -2,6 +2,8 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"py_modules"))
 import unittest
 
 MODULE=Path(__file__).resolve().parents[1]/'py_modules/gsf_diagnostic.py'

@@ -1,0 +1,29 @@
+name: GSF Frame Pacing P0
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'engine/gfg-native/**'
+      - 'decky/**'
+      - 'tools/reconstruct_pacing.py'
+      - 'docs/frame-pacing-audit/**'
+      - '.github/workflows/gsf-frame-pacing.yml'
+permissions:
+  contents: read
+jobs:
+  phase-and-segments:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vulkan compiler and pinned headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev glslang-tools spirv-tools
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Actual production phase mapper and retained trace replay
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" frame-phase
+      - name: Actual C segmented writer, immutable ZIP hashes and diagnostics
+        run: python3 -m unittest discover -s decky/tests -p 'test_*.py'

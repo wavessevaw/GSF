@@ -14,7 +14,7 @@ import time
 from gsf_runtime import Runtime, app_id, atomic_json, candidate_module, gate_rejection, live_records, load_json
 
 LOG_LIMIT = 16*1024*1024
-TELEMETRY_LIMIT = 32*1024*1024
+TELEMETRY_LIMIT = 32*1024*1024  # Writer-owned segment size; launcher never truncates it.
 
 
 def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2):
@@ -51,7 +51,7 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2
                GFG_NATIVE_ASYNC='1', GFG_NATIVE_FORCE_FIFO='1', GFG_NATIVE_MODE=str(multiplier),
                GFG_NATIVE_ALGO='lmc-gpu', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
                GFG_NATIVE_TIMING='1', GFG_NATIVE_SHADOW_ADMISSION='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_CALIBRATED_TIMESTAMPS='1', GFG_NATIVE_LATENCY_ADMISSION='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
-               GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'))
+               GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'), GFG_NATIVE_TELEMETRY_SEGMENTED='1')
     if diagnostic_mode not in ("normal", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission", "source-only", "compute-only", "matched-compute"):
         raise ValueError("Unsupported GSF diagnostic mode")
     if diagnostic_mode not in ("normal", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
@@ -117,11 +117,6 @@ def run_game(root, aid, command):
                 report['max_generated_wsi_accepted'] = max(report['max_generated_wsi_accepted'], generated)
                 if generated:
                     report['result'] = 'GENERATION_OBSERVED'
-            telemetry = run/'frames.jsonl'
-            if telemetry.exists() and telemetry.stat().st_size > TELEMETRY_LIMIT:
-                with telemetry.open('r+b') as f:
-                    f.truncate(0)  # Native writer uses O_APPEND, so next records start at zero.
-                report['telemetry_truncated'] = True
             log = run/'game.log'
             if log.stat().st_size > LOG_LIMIT:
                 with log.open('r+b') as f:

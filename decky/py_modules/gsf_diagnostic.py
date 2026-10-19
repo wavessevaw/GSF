@@ -1,6 +1,7 @@
 """Windowed, offline GSF telemetry. Observations are not physical-scanout proof."""
 import json
 import statistics
+from gsf_segments import telemetry_stream, telemetry_origin
 
 
 def _median(values):
@@ -50,9 +51,9 @@ def diagnostic_summary(path):
     joins = {kind: dict.fromkeys(('matched', 'unmatched', 'ambiguous'), 0)
              for kind in ('gpu_pair', 'gpu_correlated')}
     overruns = []
-    first_ns = None
+    first_ns = telemetry_origin(path)
     try:
-        with path.open(encoding='utf-8', errors='replace') as stream:
+        with telemetry_stream(path) as stream:
             for line in stream:
                 try:
                     event = json.loads(line)
@@ -74,8 +75,6 @@ def diagnostic_summary(path):
                     if first_ns is None:
                         first_ns = source
                     offset = max(0, (source - first_ns) // 10000000000)
-                    if offset > 360:
-                        continue
                     window = windows.setdefault(offset, {
                         'start_s': offset * 10, 'end_s': (offset + 1) * 10,
                         'source_presents': 0, 'planned_slots': 0, 'dispatched': 0,
@@ -147,7 +146,7 @@ def diagnostic_summary(path):
     statuses = {}
     calibrated_records = 0
     try:
-        with path.open(encoding='utf-8', errors='replace') as stream:
+        with telemetry_stream(path) as stream:
             for line in stream:
                 if '"gpu_correlated"' not in line and '"calibration_init"' not in line:
                     continue

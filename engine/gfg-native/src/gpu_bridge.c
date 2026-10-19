@@ -47,6 +47,7 @@
 #include "gpu_bridge.h"
 #include "frame_clock.h"
 #include "adaptive_pair.h"
+#include "telemetry_segments.h"
 #include "shadow_admission.h"
 #include "present_chain.h"
 #include "past_timing.h"
@@ -376,6 +377,9 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
             affordable=mask&(~mask+1u);
         mask=affordable;
     }
+    float slot_phase[2]={1.0f/(float)fg->multiplier,2.0f/3.0f};
+    if(fg->clock.period_ns)for(unsigned k=0;k<fg->multiplier-1;++k)
+        if((mask&(1u<<k)) && !gfg_frame_clock_phase(&fg->clock,k,&slot_phase[k]))mask&=~(1u<<k);
     const int generate=have_pair && mask;
     s->slot=fg->te_slot;
     /* Same-device history updates still signal v+2, with no LMC outputs.
@@ -386,7 +390,7 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
     if(generate) {
         unsigned output=0;
         for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k))
-            s->timestamps[output++]=(float)(k+1)/(float)fg->multiplier;
+            s->timestamps[output++]=slot_phase[k];
     }
     s->wait_value=v;
     s->signal_first=s->count?v+3-s->count:v+2;
@@ -986,7 +990,6 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     if (!fg) return NULL;
     const double t0 = now_us();
     fg->pace_real=0;
-    if(fg->context){te_poll(fg->context);gpu_sample(fg);}
     fg->device = info->device;
     fg->queue_probe = info->queue_probe;
     fg->queue = info->queue;
@@ -1141,14 +1144,9 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     }
     const char *telemetry=getenv("GFG_NATIVE_TELEMETRY");
     if(telemetry && *telemetry) {
-        int fd=open(telemetry,O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC|O_NOFOLLOW,0600);
-        if(fd>=0) {
-            fg->telemetry=fdopen(fd,"a");
-            if(!fg->telemetry)close(fd);
-            else {
-                (void)setvbuf(fg->telemetry,NULL,_IOFBF,65536);
-                fg->telemetry_flush_ns=(uint64_t)(now_us()*1000.0);
-            }
+        fg->telemetry=gsf_telemetry_open(telemetry);
+        if(fg->telemetry) {
+            fg->telemetry_flush_ns=(uint64_t)(now_us()*1000.0);
         }
         if(!fg->telemetry)fprintf(stderr,"[gfg-native] telemetry unavailable errno=%d\n",errno);
     }
@@ -1374,7 +1372,7 @@ void gfg_gpu_fg_destroy(gfg_gpu_fg *fg) {
             if (fg->ring[r].busy) (void)wait_fence(fg, fg->ring[r].fence, 2000000000ull);
     }
     if (fg->context) { te_poll(fg->context); gpu_sample(fg); }
-    if(fg->telemetry){fclose(fg->telemetry);fg->telemetry=NULL;}
+    if(fg->telemetry){gsf_telemetry_close(fg->telemetry);fg->telemetry=NULL;}
     gfg_gpu_stats st;
     gfg_gpu_fg_stats(&st);
     if (fg->log || getenv("GFG_NATIVE_TIMING")) {
@@ -1789,6 +1787,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                             PFN_vkQueuePresentKHR next, const gfg_present_id_hooks *ids) {
     if (!fg || !app || !next) return VK_ERROR_INITIALIZATION_FAILED;
     gsf_begin_native_pair(fg); /* P0: previous pair's G1 must not delay current B */
+    if(fg->context){te_poll(fg->context);gpu_sample(fg);}
     const double t0 = now_us();
     int adaptive_dispatched=0;
     gsf_shadow_decision shadow_decision={.prediction="unknown",.reason="not_evaluated"};
@@ -2053,6 +2052,30 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         fg->te_slot ^= 1u;
         fg->te_frames++;
         te_submit_sequence=fg->te_frames;
+        if(generate && fg->telemetry) {
+            unsigned out=0;
+            for(unsigned k=0;k<fg->multiplier-1;++k)if(compute_mask&(1u<<k)) {
+                const double requested=fg->clock.period_ns && fg->clock.target_ns[2]>fg->clock.previous_real_ns?
+                    (double)(fg->clock.target_ns[k]-fg->clock.previous_real_ns)/
+                    (double)(fg->clock.target_ns[2]-fg->clock.previous_real_ns):s.timestamps[out];
+                fprintf(fg->telemetry,
+                    "{\"schema\":1,\"event\":\"slot_mapping\",\"pid\":%ld,\"generation\":%llu,"
+                    "\"te_sequence\":%llu,\"source_A\":%llu,\"source_B\":%llu,"
+                    "\"source_A_ns\":%llu,\"source_B_ns\":%llu,\"slot_id\":%u,"
+                    "\"phase_model\":\"planned_real_endpoints\",\"planned_A_ns\":%llu,"
+                    "\"planned_B_ns\":%llu,\"slot_target_ns\":%llu,\"tau_requested\":%.12g,"
+                    "\"tau_applied\":%.12g,\"output_index\":%u,\"dest_image_id\":%u,"
+                    "\"timeline_wait\":%llu,\"timeline_signal\":%llu,\"dispatch_state\":\"%s\"}\n",
+                    (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)te_submit_sequence,
+                    (unsigned long long)serial0,(unsigned long long)fg->source_serial,
+                    (unsigned long long)source0,(unsigned long long)fg->source_ns,k,
+                    (unsigned long long)fg->clock.previous_real_ns,(unsigned long long)fg->clock.target_ns[2],
+                    (unsigned long long)fg->clock.target_ns[k],requested,(double)s.timestamps[out],out,out,
+                    (unsigned long long)s.wait_value,(unsigned long long)(s.signal_first+out),
+                    s.defer_second && out==1?"recorded_deferred":"submitted");
+                ++out;
+            }
+        }
         fg->te_gap = 0;
         if (!generate) STAT_ADD(holds, 1);
         if (!s.count) ++fg->history_only_submits;

@@ -10,12 +10,14 @@
 typedef struct {
     uint64_t period_ns, real_ns, resyncs;
     uint64_t source_ns, interval_ns, target_ns[3];
+    uint64_t previous_real_ns; /* A endpoint of this pair's presentation plan */
     uint64_t grid_origin_ns, grid_period_ns, real_slot;
     unsigned mask, discontinuity, overspeed;
 } gfg_frame_clock;
 static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsigned multiplier) {
     if (!c->period_ns || (multiplier!=2 && multiplier!=3)) return;
     const uint64_t p=c->period_ns;
+    c->previous_real_ns=c->real_ns;
     const uint64_t previous_source=c->source_ns;
     uint64_t dt=previous_source && source>previous_source?source-previous_source:0;
     uint64_t gap=6*p;
@@ -82,6 +84,20 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
 }
 static inline uint64_t gfg_frame_clock_target(const gfg_frame_clock *c,unsigned kind) {
     return c->target_ns[kind]; /* 0 G1, 1 G2, 2 real */
+}
+/* Map the actual reserved display slot onto the adjacent planned real A/B
+ * endpoints. Slot label G2 is NOT an interpolation phase: with x3 on 45->90
+ * the sole free slot is halfway between A and B, hence tau=1/2. These are
+ * presentation-plan coordinates, not a claim about physical scanout times.
+ * Reject stale/invalid anchors rather than substituting a nominal fraction. */
+static inline int gfg_frame_clock_phase(const gfg_frame_clock *c,unsigned kind,float *tau) {
+    if(!tau || kind>1 || !(c->mask&(1u<<kind)) || c->discontinuity ||
+       !c->previous_real_ns || c->target_ns[2]<=c->previous_real_ns ||
+       c->target_ns[kind]<=c->previous_real_ns || c->target_ns[kind]>=c->target_ns[2])return 0;
+    const double t=(double)(c->target_ns[kind]-c->previous_real_ns)/
+                   (double)(c->target_ns[2]-c->previous_real_ns);
+    *tau=(float)t;
+    return *tau>0.0f && *tau<1.0f;
 }
 static inline int gfg_frame_clock_admit(const gfg_frame_clock *c,unsigned kind,uint64_t now) {
     return (c->mask&(1u<<kind)) && now<c->target_ns[kind];
