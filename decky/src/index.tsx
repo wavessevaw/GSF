@@ -1,11 +1,11 @@
 import {ButtonItem, Dropdown, PanelSection, PanelSectionRow, staticClasses} from '@decky/ui';
 import {callable, definePlugin, toaster} from '@decky/api';
 import {useEffect, useRef, useState} from 'react';
-import {enableGame, disableGame} from './steam-options.mjs';
+import {enableGame, disableGame, copyLaunchOptions} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
-type Status = {enabled: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; manual_unverified?: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -17,7 +17,10 @@ const rpc = {
   status: callable<[number], Status>('get_status'),
   export: callable<[number], {path: string}>('export_report'),
   diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
-  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier')
+  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier'),
+  manualPrepare: callable<[number], {options: string; warning: string}>('prepare_manual_game'),
+  manualConfirm: callable<[number, string], {enabled: boolean; steam_verified: boolean}>('confirm_manual_game'),
+  manualDisable: callable<[number], {enabled: boolean}>('disable_manual_game')
 };
 
 function Content() {
@@ -27,6 +30,8 @@ function Content() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [command, setCommand] = useState('');
+  const [manual, setManual] = useState<{options: string; warning: string}>();
+  const [manualCopied, setManualCopied] = useState(false);
   const selected = useRef(appid);
   selected.current = appid;
   const actionLock = useRef(false);
@@ -42,6 +47,8 @@ function Content() {
   useEffect(() => {
     setStatus(undefined);
     setCommand('');
+    setManual(undefined);
+    setManualCopied(false);
     if (!appid) return;
     let gone = false;
     let pending = false;
@@ -89,7 +96,9 @@ function Content() {
   };
   const game = games.find(g => g.appid === appid);
   const live = status?.live?.[0];
-  const state = status?.state === 'generating' ? 'Генерация кадров подтверждена' :
+  const state = status?.manual_unverified && status?.state !== 'generating' ?
+    'Ручное подключение включено. Steam API не подтвердил команду: проверьте её в свойствах игры.' :
+    status?.state === 'generating' ? 'Генерация кадров подтверждена' :
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
@@ -133,8 +142,36 @@ function Content() {
       <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
+        setManual(undefined);
         return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
       }, 'Устанавливаю GSF и записываю команду запуска…')}>Включить GSF ×{status?.multiplier || 2}</ButtonItem></PanelSectionRow>
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+        const manualOptions = await rpc.manualPrepare(appid);
+        setManual(manualOptions);
+        setManualCopied(false);
+        return 'Команда подготовлена без доступа к Steam API. Скопируйте и вставьте её в свойства игры.';
+      }, 'Проверяю пакет GSF и подготавливаю ручной запуск…')}>Не записалось? Получить команду вручную</ButtonItem></PanelSectionRow>
+      {manual && <>
+        <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
+          <strong>Параметры запуска Steam:</strong><br/><code>{manual.options}</code><br/>
+          {manual.warning}<br/>
+          Путь: Steam → игра → Свойства → Общие → Параметры запуска.
+        </div></PanelSectionRow>
+        <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+          await copyLaunchOptions(manual.options);
+          setManualCopied(true);
+          return 'Команда скопирована. Вставьте её в параметры запуска Steam.';
+        }, 'Копирую команду…')}>Скопировать команду</ButtonItem></PanelSectionRow>
+        <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+          await rpc.manualConfirm(appid, manual.options);
+          return 'GSF включён после вашего подтверждения ручной вставки. Steam API не подтвердил запись. Перезапустите игру.';
+        }, 'Включаю ручной профиль GSF…')}>Я вставил команду в Steam</ButtonItem></PanelSectionRow>
+      </>}
+      {status?.manual_unverified && <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+        await rpc.manualDisable(appid);
+        return 'GSF выключен в конфигурации без изменения параметров Steam. Удалите команду вручную, если она осталась в свойствах игры.';
+      }, 'Отключаю ручной профиль…')}>Выключить ручной режим GSF</ButtonItem></PanelSectionRow>}
+      {manualCopied && <PanelSectionRow><div style={{fontSize: 12}}>Копирование подтверждено интерфейсом. Вставьте команду в свойства Steam.</div></PanelSectionRow>}
       <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Включить 2×» для настройки запуска.'}
         {live && <div>Источник: {live.source_fps.toFixed(1)} FPS<br/>
           Целевой режим: ×{live.multiplier || status?.multiplier || 2}<br/>
@@ -154,7 +191,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.12 LAB · Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.12.1 LAB · Ручная команда запуска при отказе Steam API, честный статус подтверждения и кнопка копирования.  Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

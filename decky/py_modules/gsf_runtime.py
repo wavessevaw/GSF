@@ -194,7 +194,7 @@ class Runtime:
         saved = cfg['games'][app_id(appid)]
         if actual != saved['expected']:
             raise ValueError('Steam не подтвердил параметры запуска: GSF не включён')
-        saved.update(enabled=True, configured=True)
+        saved.update(enabled=True, configured=True, manual_unverified=False)
         atomic_json(self.root/'config.json', cfg)
         return {'enabled': True, 'restart_required': True}
 
@@ -215,6 +215,44 @@ class Runtime:
         if saved and not saved['enabled'] and actual == saved['original']:
             del cfg['games'][app_id(appid)]
             atomic_json(self.root/'config.json', cfg)
+
+    def prepare_manual_game(self, appid):
+        """Install verified payload and return a copyable option WITHOUT claiming a Steam write.
+        If Steam could not be read, a new game's original options are unknown and
+        must be preserved by the user; never silently write an empty backup to Steam.
+        """
+        aid = app_id(appid)
+        existing = self.config()['games'].get(aid)
+        if existing and existing.get('expected'):
+            self.install()
+            return {'options': existing['expected'],
+                    'warning': 'Проверьте существующие параметры запуска Steam: они могли быть изменены после последнего сохранения GSF.'}
+        prepared = self.prepare(aid, '')
+        return {'options': prepared['options'],
+                'warning': 'Шаблон рассчитан на пустые параметры запуска. Если там уже есть аргументы, сохраните их и добавьте GSF перед %command%, не стирая пользовательские настройки.'}
+
+    def confirm_manual_game(self, appid, options):
+        """Only after an explicit user's manual-paste acknowledgment; not Steam verification."""
+        cfg = self.config()
+        entry = cfg['games'].get(app_id(appid))
+        if not entry or entry.get('expected') != options:
+            raise ValueError('Ручная команда не совпадает с подготовленной; повторите подготовку')
+        # A fresh installation must still be present before enabling a manual profile.
+        current = load_json(self.root/'current.json', {})
+        if not current.get('kit') or not Path(current['kit']).is_dir():
+            raise ValueError('Пакет GSF не установлен; сначала подготовьте команду')
+        entry.update(enabled=True, configured=True, manual_unverified=True)
+        atomic_json(self.root/'config.json', cfg)
+        return {'enabled': True, 'steam_verified': False, 'restart_required': True}
+
+    def disable_manual_game(self, appid):
+        """Safe bypass even when Steam's details API is unavailable; never rewrite user settings."""
+        cfg = self.config()
+        entry = cfg['games'].get(app_id(appid))
+        if entry:
+            entry['enabled'] = False
+            atomic_json(self.root/'config.json', cfg)
+        return {'enabled': False, 'steam_options_untouched': True}
 
     def set_diagnostic_mode(self, appid, mode):
         if mode not in ('normal', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
@@ -287,6 +325,7 @@ class Runtime:
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
+                'manual_unverified': saved.get('manual_unverified', False),
                 'multiplier': saved.get('multiplier', 2),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,

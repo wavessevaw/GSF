@@ -1,3 +1,7 @@
+## 0.1.12.1 Steam launch options recovery
+
+The primary activation button tries to write, read back, and confirm Steam launch options. If Steam `RegisterForAppDetails` fails or times out, use **Get manual command**; this installs the exact verified payload and displays the launch wrapper, without pretending Steam accepted it. Copy via CEF selection/clipboard if available, then paste it in Steam game Properties → General → Launch Options, retaining any preexisting arguments. Finally explicitly confirm manual paste. Backend status marks this as `manual_unverified`; it cannot claim a Steam readback or physical frame generation. A separate manual disable always disarms generation without changing Steam settings. Never blindly overwrite existing Launch Options.
+
 ## 0.1.12 frame pacing audit candidate
 
 Phase follows the actual reserved A/G/B slot (x3 mask=2 on 45→90 uses tau=0.5).

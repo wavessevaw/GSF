@@ -51,3 +51,30 @@ export async function disableGame(apps, rpc, appid) {
   }
   return restore.message;
 }
+
+/* Steam Game Mode does not consistently provide navigator.clipboard.
+ * Prefer CEF's selection-copy path and fall back only when available.
+ * Return failure explicitly: an inert "Copied!" notification is worse than none.
+ */
+export async function copyLaunchOptions(value, host = globalThis) {
+  if (typeof value !== 'string' || !value.includes('%command%')) throw new Error('Invalid Steam launch options');
+  const doc = host.document;
+  if (doc?.createElement && doc?.body?.appendChild) {
+    const node = doc.createElement('textarea');
+    node.value = value;
+    node.style.position = 'fixed';
+    node.style.left = '-9999px';
+    doc.body.appendChild(node);
+    try {
+      node.focus();
+      node.select();
+      if (doc.execCommand?.('copy') === true) return true;
+    } catch { /* fallback below */ }
+    finally { doc.body.removeChild(node); }
+  }
+  if (typeof host.navigator?.clipboard?.writeText === 'function') {
+    await host.navigator.clipboard.writeText(value);
+    return true;
+  }
+  throw new Error('Буфер обмена недоступен в Steam Game Mode. Команда показана ниже, используйте ручной ввод.');
+}

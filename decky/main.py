@@ -52,5 +52,17 @@ class Plugin:
         async with self.lock:
             return await asyncio.to_thread(self.runtime.set_multiplier, appid, multiplier)
 
+    async def prepare_manual_game(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.prepare_manual_game, appid)
+
+    async def confirm_manual_game(self, appid: int, options: str):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.confirm_manual_game, appid, options)
+
+    async def disable_manual_game(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.disable_manual_game, appid)
+
     async def export_report(self, appid: int):
         return await asyncio.to_thread(self.runtime.export, appid)
