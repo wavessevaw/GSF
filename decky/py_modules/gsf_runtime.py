@@ -302,18 +302,18 @@ class Runtime:
         saved = self.config()['games'].get(appid, {})
         run = self.latest(appid)
         records = live_records(run) if run else []
-        active = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
+        generating = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
         blocked = gate_rejection(run) if run else None
         packaged = load_json(self.plugin/'payload'/'BUILD_INFO.json', {})
-        active = load_json(self.root/'current.json', {})
-        package_sha, active_sha = packaged.get('source_commit'), active.get('build')
+        active_info = load_json(self.root/'current.json', {})
+        package_sha, active_sha = packaged.get('source_commit'), active_info.get('build')
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'manual_unverified': saved.get('manual_unverified', False),
                 'package_build': package_sha, 'active_build': active_sha,
                 'active_matches_package': bool(package_sha and package_sha == active_sha and (self.root/'launch.py').is_file()),
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
-                'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
+                'state': 'generating' if generating else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,
                 'session': str(run) if run else None}
