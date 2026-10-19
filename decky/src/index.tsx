@@ -170,7 +170,8 @@ function Content() {
       {status?.manual_unverified && <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
         await rpc.manualDisable(appid);
         return 'GSF выключен в конфигурации без изменения параметров Steam. Удалите команду вручную, если она осталась в свойствах игры.';
-      }, 'Отключаю ручной профиль…')}>Выключить ручной режим GSF</ButtonItem></PanelSectionRow>
+      }, 'Отключаю ручной профиль…')}>Выключить ручной режим GSF</ButtonItem></PanelSectionRow>}
+      {manualCopied && <PanelSectionRow><div style={{fontSize: 12}}>Копирование подтверждено интерфейсом. Вставьте команду в свойства Steam.</div></PanelSectionRow>}
       <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Включить 2×» для настройки запуска.'}
         {live && <div>Источник: {live.source_fps.toFixed(1)} FPS<br/>
           Целевой режим: ×{live.multiplier || status?.multiplier || 2}<br/>
