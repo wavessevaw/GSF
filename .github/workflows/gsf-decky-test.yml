@@ -35,7 +35,7 @@ jobs:
           npm --prefix decky run build
           npm --prefix decky run test:panel
           python3 -m unittest discover -s decky/tests -p 'test_*.py'
-          make -C engine/gfg-native adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
+          make -C engine/gfg-native shadow-admission adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
       - name: Build GPU layer and package exact source
         run: |
           make -C engine/gfg-temporal lib
@@ -52,7 +52,7 @@ jobs:
           export GFG_NATIVE_GPU_SYNC=same-device GFG_NATIVE_ASYNC=1
           export GFG_NATIVE_FORCE_FIFO=1 GFG_NATIVE_MODE=2 GFG_NATIVE_ALGO=lmc-gpu
           export GFG_NATIVE_LMC_TIER=2 GFG_NATIVE_PACING=1 GFG_NATIVE_OUTPUT_HZ=90
-          export GFG_NATIVE_ADAPTIVE_PAIRS=1 GFG_NATIVE_TIMELINE_WATCH=1
+          export GFG_NATIVE_ADAPTIVE_PAIRS=1 GFG_NATIVE_SHADOW_ADMISSION=1 GFG_NATIVE_TIMELINE_WATCH=1
           export GFG_TEST_EXPECT_GPU=1 GFG_TEST_FRAMES=18
           export GFG_TEST_SOURCE_HZ=5 GFG_TEST_ALLOW_SKIPS=1
           export GFG_NATIVE_TELEMETRY="$RUNNER_TEMP/adaptive-pair-wsi.jsonl"
@@ -69,8 +69,13 @@ jobs:
           events=[json.loads(x) for x in p.read_text().splitlines() if x.startswith('{')]
           pairs=[x for x in events if x.get('event')=='pair']
           adaptive=[x for x in events if x.get('event')=='adaptive_pair']
+          shadow=[x for x in events if x.get('event')=='shadow_admission']
           assert len(pairs)==18, ('missing real source frames',len(pairs))
           assert len(adaptive)==18, ('missing adaptive policy events',len(adaptive))
+          assert len(shadow)==18, ('missing passive shadow events',len(shadow))
+          assert all('real_desired_present_time_sent_ns' in x and 'real_present_timing_attached' in x for x in shadow)
+          assert all(x['would_be_successful'] is None for x in shadow)
+          assert all(x['shadow_prediction'] in ('admit','skip','unknown') for x in shadow)
           assert all(x['scheduled_real_ns']<=x['base_real_ns']+
                      2*11111111 for x in adaptive if x['eligible'])
           assert all(x['scheduled_g1_ns']<x['scheduled_real_ns']

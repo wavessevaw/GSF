@@ -52,6 +52,8 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.set_diagnostic_mode(42, 'unknown-mode')
         self.runtime.set_diagnostic_mode(42, 'matched-compute')
         self.assertEqual(Runtime(self.home, PLUGIN).status(42)['diagnostic_mode'], 'matched-compute')
+        self.runtime.set_diagnostic_mode(42, 'normal-no-shadow')
+        self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-shadow')
         self.runtime.set_diagnostic_mode(42, 'normal-adaptive-pairs')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-adaptive-pairs')
         self.runtime.set_diagnostic_mode(42, 'normal-queue-observe')
@@ -120,6 +122,11 @@ class RuntimeTests(unittest.TestCase):
         with patch.object(launch, 'candidate_module', return_value=Base):
             env = launch.game_environment(self.home/'kit', self.home/'run', inherited)
         self.assertEqual(env['GFG_NATIVE_MODE'], '2')
+        self.assertEqual(env['GFG_NATIVE_SHADOW_ADMISSION'], '1')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            no_shadow = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-shadow')
+        self.assertEqual(no_shadow['GFG_NATIVE_SHADOW_ADMISSION'], '0')
+        self.assertNotIn('GFG_NATIVE_DIAGNOSTIC_MODE', no_shadow)
         self.assertEqual(env['GFG_NATIVE_PACING'], '1')
         self.assertEqual(env['GFG_NATIVE_VISIBILITY_PROBE'], '1')
         self.assertEqual(env['GFG_NATIVE_LMC_TIER'], '2')
