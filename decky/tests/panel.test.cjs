@@ -81,6 +81,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(enabled, true);
     assert.equal(writes.length, 1);
     assert.equal(writes[0][0], 42);
+    assert.match(JSON.stringify(tree.toJSON()), /Steam подтвердил/);
     assert.ok(multiplierSelect(), 'actual x2/x3 selector mounted');
     assert.equal(multiplierSelect().props.disabled, false);
     await act(async () => {multiplierSelect().props.onChange({data: 3, label: '×3'});});
@@ -88,7 +89,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(multiplier, 3, 'per-game API persists 3x');
     assert.equal(multiplierSelect().props.selectedOption, 3);
     assert.match(tree.root.findByType('code').props.children, /--appid 42 -- %command%/);
-    assert.match(JSON.stringify(tree.toJSON()), /Steam подтвердил/);
+    assert.match(JSON.stringify(tree.toJSON()), /Множитель ×3 сохранён/);
     assert.equal(listeners.size, 0);
     act(() => tree.unmount());
     await act(async () => {tree = Renderer.create(context.plugin().content);});
