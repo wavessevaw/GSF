@@ -217,7 +217,7 @@ class Runtime:
             atomic_json(self.root/'config.json', cfg)
 
     def set_diagnostic_mode(self, appid, mode):
-        if mode not in ('normal', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
+        if mode not in ('normal', 'normal-lmc-gpu', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
             raise ValueError('Неверный диагностический режим')
         aid = app_id(appid)
         cfg = self.config()
@@ -284,7 +284,13 @@ class Runtime:
         records = live_records(run) if run else []
         active = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
         blocked = gate_rejection(run) if run else None
-        return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
+        packaged = load_json(self.plugin/'payload/BUILD_INFO.json', {})
+        installed = load_json(self.root/'current.json', {})
+        packaged_sha = packaged.get('source_commit', '')
+        active_sha = installed.get('build', '')
+        matches = bool(packaged_sha and active_sha == packaged_sha)
+        return {'packaged_source_commit': packaged_sha,
+                'active_build_source_commit': active_sha, 'build_matches': matches,'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'multiplier': saved.get('multiplier', 2),
