@@ -40,6 +40,10 @@ def analyze(events, start, end):
             'dispatched': sum(p['dispatched_outputs'] for p in pairs),
             'wsi_accepted': sum(bool(p['wsi_accepted_ns'][0]) for p in pairs),
             'calibrated_records': len(records),
+            'gpu_span_median_ms': median([e['ready_ms'][0] for e in events
+                if e.get('event') == 'gpu_pair' and
+                (p := origins.get((e['pid'], e['generation'], e['te_sequence']))) is not None
+                and start <= p['source1_id']-1 < end and e.get('timed')]),
             'submit_to_gpu_start_median_ms': median([e['submit_to_gpu_start_ns']/1e6 for _, e in records]),
             'source_to_gpu_start_median_ms': median([(e['gpu_start_cpu_ns']-p['source1_ns'])/1e6 for p, e in records]),
             'source_to_compute_admission_median_ms': median([(p['compute_admission_ns']-p['source1_ns'])/1e6
@@ -49,24 +53,28 @@ def analyze(events, start, end):
 def run(build, output, order):
     output.mkdir(parents=True, exist_ok=True)
     cases = [
-        # name, layer enabled, admission enabled, source Hz, frames, delay range
-        ('healthy', True, True, 5, 30, 0, 0),
-        ('baseline-delayed', False, False, 45, 180, 0, 180),
-        ('old-admission-delayed', True, False, 45, 180, 0, 180),
-        ('new-admission-delayed', True, True, 45, 180, 0, 180),
-        ('delay-then-recovery', True, True, 45, 450, 30, 140),
+        # name, layer, admission, requested source Hz, frames, delay ms/range
+        ('healthy', True, True, 5, 30, 0, 0, 0),
+        ('baseline-delayed', False, False, 45, 180, 35, 0, 180),
+        ('old-admission-delayed', True, False, 45, 180, 35, 0, 180),
+        ('new-admission-delayed', True, True, 45, 180, 35, 0, 180),
+        # llvmpipe LMC costs ~90 ms in the first experiment: no healthy
+        # 45 Hz baseline existed to recover to. Use the same correctness
+        # rate as healthy, prove generation BEFORE the delay, then remove
+        # only that dependency. This is not a Deck performance setting.
+        ('delay-then-recovery', True, True, 5, 90, 150, 20, 45),
     ]
     result = {'scope': 'SOFTWARE_APP_RENDER_DEPENDENCY_NOT_DECK_OR_SCANOUT',
               'order': order, 'cases': [], 'status': 'FAIL'}
     try:
-        for name, active, admission, hz, frames, start, end in cases:
+        for name, active, admission, hz, frames, delay_ms, start, end in cases:
             env = {k: v for k, v in os.environ.items()
                    if not k.startswith(('GFG_NATIVE_', 'GFG_TEST_', 'DISABLE_GFG_NATIVE_'))}
             env.update(VK_LAYER_PATH=str(build)+':/usr/share/vulkan/explicit_layer.d',
                        GFG_TEST_VALIDATION='1', GFG_TEST_FRAMES=str(frames),
                        GFG_TEST_SOURCE_HZ=str(hz), GFG_TEST_ABSOLUTE_PACING='1',
                        GFG_TEST_ALLOW_SKIPS='1', GFG_TEST_WIDTH='96', GFG_TEST_HEIGHT='64',
-                       GFG_TEST_RENDER_READY_DELAY_MS='35' if end else '0',
+                       GFG_TEST_RENDER_READY_DELAY_MS=str(delay_ms),
                        GFG_TEST_RENDER_READY_FROM=str(start), GFG_TEST_RENDER_READY_UNTIL=str(end))
             layers = ['VK_LAYER_GFG_native', 'VK_LAYER_KHRONOS_validation'] if active else ['VK_LAYER_KHRONOS_validation']
             if order == 'validation-first':
@@ -90,7 +98,9 @@ def run(build, output, order):
             assert p.returncode == 0, (name, p.stdout[-7000:])
             assert 'validation errors=0' in p.stdout, name
             row = {'name': name, 'frames': frames, 'source_hz': hz,
-                   'gate_from': start, 'gate_until': end}
+                   'gate_delay_ms': delay_ms, 'gate_from': start, 'gate_until': end}
+            # Retain the case even if an assertion below fails.
+            result['cases'].append(row)
             row['source_rate'] = numbers(next(l for l in p.stdout.splitlines() if l.startswith('GSF_SOURCE_RATE ')))
             app_events = [json.loads(l) for l in app_trace.read_text().splitlines()]
             source_markers = [m for m in app_events if m['event'] == 'source']
@@ -128,10 +138,12 @@ def run(build, output, order):
                     else:
                         assert row['steady']['dispatched'] >= 8, row
                 else:
+                    row['before_delay'] = analyze(events, 5, start)
                     row['delayed'] = analyze(events, start, end)
-                    row['recovered'] = analyze(events, 320, frames)
-                    assert row['recovered']['wsi_accepted'] > 0, row
-            result['cases'].append(row)
+                    row['recovered'] = analyze(events, 75, frames)
+                    assert row['before_delay']['wsi_accepted'] >= 3, ('No viable recovery baseline', row)
+                    assert row['delayed']['wsi_accepted'] == 0, ('Dependency did not suppress generation', row)
+                    assert row['recovered']['wsi_accepted'] >= 3, row
             (output/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
             print('READINESS_CASE', json.dumps(row), flush=True)
         delayed = [c for c in result['cases'] if c['name'] in ('old-admission-delayed', 'new-admission-delayed')]

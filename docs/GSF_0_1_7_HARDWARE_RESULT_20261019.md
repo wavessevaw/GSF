@@ -42,6 +42,11 @@ per two seconds. This weakens the hypothesis that an accumulating queue of
 GSF interpolation jobs alone explains the delay; it does not identify the
 remaining dependency or establish a pure queue wait.
 
+For the 73 post-60s dispatched pairs, source arrival to TE submit return has a
+median of 0.356 ms (p95 1.155 ms). Median worker wakeup is 0.053 ms, source-copy
+CPU recording/submission 0.084 ms, and TE submission 0.103 ms. These measured
+CPU phases do not account for the roughly 41 ms before the calibrated GPU start.
+
 One hypothesis is that CPU `vkQueuePresentKHR` timestamps precede actual GPU
 source-image readiness. The clock's potential intermediate deadline can then
 expire before source copy/interpolation can start, despite acceptable producer
@@ -77,6 +82,30 @@ the layer's source-copy submit) from delays measured after TE submission.
 `deck_gpu_delay_mechanism_reproduced` is false when the driver exposes the
 injected wait at a different location. Successful Vulkan/lifetime and recovery
 checks alone do not turn that different result into a Deck reproduction.
+
+### First controlled result and recovery precondition
+
+[CI run 39190787118](https://github.com/wavessevaw/GSF/actions/runs/39190787118)
+failed the original recovery assertion in both layer orders. The evidence is
+preserved rather than counted as a pass. In native-first order, the 35 ms
+application event wait appeared in source-to-compute admission (median about
+35.4 ms), while calibrated submit-to-GPU-start latency was below 0.03 ms.
+This driver therefore did **not** reproduce the Deck's after-submit delay.
+
+The original 45 Hz recovery case had no working generation before the injected
+delay either. The real LMC GPU spans were about 84–95 ms, versus roughly 11 ms
+to the scheduled intermediate deadline. Removing a 35 ms dependency cannot make
+that underlying software-GPU workload feasible. The recovery case now uses the
+same requested 5 Hz correctness rate as the healthy control, requires at least
+three accepted intermediates before the delay, injects 150 ms for frames 20–44,
+requires zero accepted intermediates during that interval, and requires at least
+three again in frames 75–89. Only the app dependency changes within this run.
+These are correctness conditions with measured headroom, not Deck FPS limits
+or a performance claim. A failed baseline or failed recovery still fails CI.
+
+The 45 Hz delayed admission comparison remains separate, including its actual
+observed source rate. GPU span and the complete failing case are now retained
+in structured results so a fast GPU start cannot hide excessive shader cost.
 
 The injected wait is **not GPU saturation or a measured cause on Deck**. A
 successful reproduction establishes a controlled failure mechanism for further
