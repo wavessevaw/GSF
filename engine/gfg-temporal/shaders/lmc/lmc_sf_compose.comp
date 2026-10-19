@@ -37,6 +37,34 @@ void consider(vec2 v) {
 void main() {
     ivec2 p=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(p,P.size.xy)))return;
     pixel_=vec2(p);time_=PC.t;
+    if((PC.flags&64)!=0 && (PC.flags&1)==0 && G.pal_count==0u) {
+        // Flow Lite: O(1) single-hypothesis full-resolution warp.
+        // Coarse A->B flow is computed once per pair, not per output.
+        // No RGB patch comparisons, no second reverse optical-flow search,
+        // and no per-pixel loops on busy camera turns.
+        vec4 f=field(0,pixel_);
+        vec2 v=f.xy*2.0; // level-1 flow -> native pixels
+        vec2 a=pixel_-time_*v;
+        vec2 b=pixel_+(1.0-time_)*v;
+        bool ia=inside(a,P.size.xy),ib=inside(b,P.size.xy);
+        bool hud=imageLoad(hudCount,p).r>=uint(P.hud_pairs);
+        vec3 colour;
+        if(hud || (!ia && !ib)) {
+            colour=composition_rgb(time_<0.5?0:1,pixel_);
+        } else if(ia && ib) {
+            // Uncertain flow favours a real source over interpolated ghosts.
+            // The confidence comes from the 1/8-scale matched blocks.
+            if(f.z>0.13)
+                colour=composition_rgb(time_<0.5?0:1,time_<0.5?a:b);
+            else
+                colour=mix(composition_rgb(0,a),composition_rgb(1,b),time_);
+        } else {
+            colour=composition_rgb(ia?0:1,ia?a:b);
+        }
+        vec4 outc=vec4(composition_encode(colour),1.0);
+        imageStore(dst,p,P.pad1!=0?outc.bgra:outc);
+        return;
+    }
     vec3 ca=texelFetch(srcA,p,0).rgb,cb=texelFetch(srcB,p,0).rgb;
     if((PC.flags&1)!=0 || G.pal_count!=0u) {
         vec3 c=(PC.flags&1)!=0 || time_>=0.5?cb:ca;

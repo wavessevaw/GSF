@@ -992,13 +992,13 @@ static VkResult validate_desc(te_device* dev, const te_context_desc* d) {
     if (d->application_timeline && !dev->borrowed)
         return fail(VK_ERROR_FEATURE_NOT_PRESENT, "application timeline requires borrowed device");
     if(p->algorithm>TE_ALGO_SHARED_FLOW) return VK_ERROR_FEATURE_NOT_PRESENT;
-    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>4))
+    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>5))
         return fail(VK_ERROR_FEATURE_NOT_PRESENT,"unknown experimental shared-flow variant");
-    if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3)) &&
+    if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3 && d->shared_flow_dense<=4)) &&
         (dev->props.limits.maxComputeWorkGroupInvocations<512 || dev->props.limits.maxComputeWorkGroupSize[0]<512 ||
          dev->props.limits.maxComputeSharedMemorySize<16900))
         return fail(VK_ERROR_FEATURE_NOT_PRESENT,"GPU LMC requires 512-thread groups and 16900 bytes shared memory");
-    if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3)) && !dev->subgroup_arithmetic)
+    if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3 && d->shared_flow_dense<=4)) && !dev->subgroup_arithmetic)
         return fail(VK_ERROR_FEATURE_NOT_PRESENT,"GPU LMC requires compute subgroup arithmetic");
     if (dev->borrowed && ((p->algorithm != TE_ALGO_TILES && p->algorithm != TE_ALGO_LMC_GPU && p->algorithm != TE_ALGO_SHARED_FLOW) || d->export_fds || d->sync_fd >= 0 ||
             d->source_fds[0] >= 0 || d->source_fds[1] >= 0))
