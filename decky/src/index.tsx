@@ -5,7 +5,7 @@ import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number};
-type Status = {enabled: boolean; configured?: boolean; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; configured?: boolean; manual_unverified?: boolean; package_build?: string; active_build?: string; active_matches_package?: boolean; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -16,7 +16,9 @@ const rpc = {
   forget: callable<[number, string], void>('finish_restore'),
   status: callable<[number], Status>('get_status'),
   export: callable<[number], {path: string}>('export_report'),
-  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode')
+  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
+  restore: callable<[number], {build: string; enabled: boolean; has_launch_options: boolean}>('restore_known_good'),
+  rearm: callable<[number, string], {enabled: boolean; steam_verified: boolean}>('rearm_existing')
 };
 
 function Content() {
@@ -98,6 +100,28 @@ function Content() {
       onChange={o => void choose(o)} /></PanelSectionRow>
     {appid > 0 && <>
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
+      <PanelSectionRow>
+        <div style={{fontSize: 12}}>
+          Движок в пакете: <strong>{status?.package_build?.slice(0, 10) || 'проверка…'}</strong><br/>
+          Движок на Deck: <strong>{status?.active_build?.slice(0, 10) || 'не установлен'}</strong><br/>
+          {status?.active_matches_package ? 'Версия движка совпадает с пакетом.' :
+            'Версии различаются. Нажмите восстановление ниже перед запуском игры.'}
+        </div>
+      </PanelSectionRow>
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+        const r = await rpc.restore(appid);
+        if (!r.build) throw Error('Движок не восстановлен');
+        return 'Проверенный движок 0.1.10 восстановлен: '+r.build.slice(0, 10)+'. Steam параметры не менялись. Перезапустите игру.';
+      }, 'Проверяю и возвращаю исходный движок GSF 0.1.10…')}>Восстановить движок GSF 0.1.10</ButtonItem></PanelSectionRow>
+      {!status?.enabled && !!status?.launch_options && <PanelSectionRow>
+        <ButtonItem layout="below" disabled={busy || !status?.active_matches_package}
+          onClick={() => void act(async () => {
+            await rpc.rearm(appid, status!.launch_options!);
+            return 'Ручной запуск ×2 включён без проверки Steam API. Команда должна уже быть вставлена в свойствах игры. Перезапустите её.';
+          }, 'Активирую существующую команду GSF ×2…')}>
+          Команда уже в Steam: включить ×2 вручную
+        </ButtonItem>
+      </PanelSectionRow>}
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
           {data: 'normal', label: 'Обычный 2× + Shadow Admission 0.1.10'},
@@ -128,7 +152,7 @@ function Content() {
           Принято WSI: исходных {live.real_wsi_accepted}, сгенерированных {live.generated_wsi_accepted}</div>}
         {!live && status?.report && <div>Последний прогон: {status.report.result}</div>}
       </div></PanelSectionRow>
-      {(command || (status?.enabled && status.launch_options)) && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
+      {(command || status?.launch_options) && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
         Команда запуска GSF:<br/><code>{command || status?.launch_options}</code>
       </div></PanelSectionRow>}
       <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
@@ -140,7 +164,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.10 LAB · Исправлено сохранение timing B от предыдущей пары. Shadow диагностирует ранние отказы GPU-budget, настоящий pacing/давление очереди и причину нулевого timing; пробы восстановления только виртуальные. 0.1.8 Adaptive по-прежнему экспериментален. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.10.1 ROLLBACK · Движок и генератор кадров точно из 0.1.10. Кнопка восстановления проверяет активную копию и не изменяет параметры Steam.  Исправлено сохранение timing B от предыдущей пары. Shadow диагностирует ранние отказы GPU-budget, настоящий pacing/давление очереди и причину нулевого timing; пробы восстановления только виртуальные. 0.1.8 Adaptive по-прежнему экспериментален. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 

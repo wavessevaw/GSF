@@ -48,5 +48,13 @@ class Plugin:
         async with self.lock:
             return await asyncio.to_thread(self.runtime.set_diagnostic_mode, appid, mode)
 
+    async def restore_known_good(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.restore_known_good, appid)
+
+    async def rearm_existing(self, appid: int, expected: str):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.rearm_existing, appid, expected)
+
     async def export_report(self, appid: int):
         return await asyncio.to_thread(self.runtime.export, appid)
