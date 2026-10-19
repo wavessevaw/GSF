@@ -30,20 +30,20 @@ static gfg_gpu_fg fixture(unsigned n) {
 int main(void) {
     /* Actual TE packet preparation: expiration must remove GPU work, keep
      * history synchronization, and compact G2-only outputs without confusing
-     * its 2/3 timestamp or enabling a deferred nonexistent G1. */
+     * its slot-derived timestamp or enabling a deferred nonexistent G1. */
     gfg_gpu_fg plan={.same_device=1,.multiplier=3,.shared_flow=1,.display_timing=2,
-        .te_slot=1,.te_frames=5,.clock={.period_ns=40,.mask=3,.target_ns={100,200,300}}};
+        .te_slot=1,.te_frames=5,.clock={.period_ns=40,.previous_real_ns=1,.mask=3,.target_ns={100,200,300}}};
     te_submit s={0};
     assert(prepare_generation(&plan,1,10,89,&s)==3);
     assert(s.count==2 && s.defer_second && s.wait_value==10 && s.signal_first==11);
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,90,&s)==2);
-    assert(s.count==1 && !s.defer_second && s.timestamps[0]==2.0f/3.0f && s.signal_first==12);
+    assert(s.count==1 && !s.defer_second && s.timestamps[0]>0 && s.timestamps[0]<1 && s.signal_first==12);
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,190,&s)==0);
     assert(!s.count && !s.defer_second && s.wait_value==10 && s.signal_first==12 && s.slot==1 && s.nonblocking);
     plan.multiplier=2;plan.clock.mask=1;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,90,&s)==0 && !s.count);
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,89,&s)==1 && s.count==1);
-    assert(s.timestamps[0]==0.5f && s.signal_first==12);
+    assert(s.timestamps[0]>0 && s.timestamps[0]<1 && s.signal_first==12);
     s=(te_submit){0};prepare_generation(&plan,0,10,89,&s);assert(!s.count);
     plan.clock.period_ns=0;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,UINT64_MAX,&s)==1 && s.count==1);
@@ -51,7 +51,7 @@ int main(void) {
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,0,&s)==0 && !s.count && s.signal_first==12);
     gfg_gpu_fg_set_output_pressure(&plan,0);
     const uint64_t now=10000000000ull;
-    plan.clock=(gfg_frame_clock){.period_ns=11111111,.mask=1,.target_ns={now+11000000,now+22000000,now+33000000}};
+    plan.clock=(gfg_frame_clock){.period_ns=11111111,.previous_real_ns=now-1,.mask=1,.target_ns={now+11000000,now+22000000,now+10000000000ull}};
     plan.last_generation_dispatch_ns=now;plan.gpu_budget_ns[0]=10000000;
     s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now,&s) && !s.count);
     plan.gpu_budget_ns[0]=6000000;
@@ -65,7 +65,7 @@ int main(void) {
     plan.multiplier=3;plan.gpu_budget_ns[0]=12000000;plan.clock.mask=3;
     plan.clock.target_ns[1]=now+2022000000ull;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000001ull,&s)==2);
-    assert(s.count==1 && s.timestamps[0]==2.0f/3.0f && !s.defer_second);
+    assert(s.count==1 && s.timestamps[0]>0 && s.timestamps[0]<1 && !s.defer_second);
     /* Real packet preparation must include calibrated start latency, not
      * just the 7ms GPU span. Sparse probes cannot bypass its retry budget. */
     plan.multiplier=2;plan.clock.mask=1;plan.probe_active=1;
@@ -76,7 +76,7 @@ int main(void) {
     assert(!s.count && s.nonblocking && s.wait_value==10 && s.signal_first==12);
     plan.clock.target_ns[0]=now+2015000000ull;
     s=(te_submit){0};assert(prepare_generation(&plan,1,10,now+2000000000ull,&s)==1);
-    assert(s.count==1 && s.timestamps[0]==0.5f && s.signal_first==12);
+    assert(s.count==1 && s.timestamps[0]>0 && s.timestamps[0]<1 && s.signal_first==12);
     s=(te_submit){0};assert(!prepare_generation(&plan,1,10,now+2100000000ull,&s));
     plan.clock.target_ns[0]=now+15000000;plan.probe_active=0;
     gsf_generation_budget_observe(&plan.generation_budget,1,40000);

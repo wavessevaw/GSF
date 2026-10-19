@@ -48,7 +48,8 @@ async def test(archive, output):
         run = backend.runtime.latest(42)
         log = (run/'game.log').read_text()
         (output/'game.log').write_text(log)
-        assert launched.returncode == 0, log[-5000:]
+        assert launched.returncode == 0, (launched.stdout+launched.stderr+log)[-7000:]
+        assert (backend.runtime.root/'gsf_segments.py').is_file()
         assert 'GSF_MUTABLE_SWAPCHAIN unorm_srgb_alias_view=PASS' in log
         line = next(s for s in log.splitlines() if s.startswith('GFG native: gpu stats '))
         stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', line)}

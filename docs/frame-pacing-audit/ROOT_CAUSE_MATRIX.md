@@ -7,7 +7,7 @@
 | In-place telemetry truncation destroys transition history | launch.py truncate(0) above32MiB; both reports mark telemetry_truncated | Replaced by writer-owned line-boundary segmentation and hashed prefix export |
 | Completion sample collection placed in constructor | calloc contextNULL makes guarded te_poll unreachable | Moved nonblocking poll to each present entry |
 | B timing deliberately zeroed | output_present uses !pace_real/pressure; shadow records sent value/reason | Confirmed policy; not attributed to Gamescope failure |
-| Adaptive ready callback may move slots after interpolation phase chosen | adaptive_pair gsf_ap_ready vs prepare_generation timestamps | Open: immutable owner/prototype acceptance required |
+| Adaptive ready callback may move slots after interpolation phase chosen | adaptive_pair gsf_ap_ready vs prepare_generation timestamps | Corrected: baseline targets immutable; late output expires; buffered owner remains separate gate |
 | Early source pressure cancels optional work before long GPU delivery completes | output_worker sets pressure on next source; readiness loop cancels | Protective behavior; a bounded buffered alternative requires ownership redesign |
 | Counter/CI mistaken for physical proof | WSI accepted and compositor timestamps do not identify panel pixels | G3 remains unqualified until independent15W hardware test |
 

@@ -47,6 +47,7 @@
 #include "gpu_bridge.h"
 #include "frame_clock.h"
 #include "adaptive_pair.h"
+#include "pacing_owner_plan.h"
 #include "telemetry_segments.h"
 #include "shadow_admission.h"
 #include "present_chain.h"
@@ -201,6 +202,7 @@ struct gfg_gpu_fg {
     int diagnostic; /* 0 normal, 1 source-only, 2 compute-only, 3 matched-compute */
     int adaptive_pairs; /* opt-in experimental 2x only */
     gsf_adaptive_pair adaptive;
+    gsf_pacing_controller recovery; /* observed ready+WSI, never shadow success */
     int shadow_enabled;
     gsf_shadow_history shadow;
     uint64_t timing_desired_sent[3], timing_target_at_call[3];
@@ -255,7 +257,7 @@ static inline void gsf_begin_native_pair(gfg_gpu_fg *fg) { fg->pace_real=0; }
 static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKHR *pi,
                                PFN_vkQueuePresentKHR next,unsigned kind) {
     if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
-       !fg->diagnostic && !fg->probe_active && !atomic_load(&fg->output_pressure)) {
+       !fg->diagnostic && !atomic_load(&fg->output_pressure)) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,kind)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
         const uint64_t ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
@@ -286,7 +288,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || fg->probe_active || (kind==2 && !fg->pace_real) || at_pressure?
+        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || at_pressure?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }
@@ -305,7 +307,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         /* Zero reason: 1 unattached, 2 diagnostic, 3 visibility probe,
          * 4 native B without accepted synthetic, 5 source pressure, 6 other. */
         fg->timing_zero_reason[kind]=timed.pNext!=&times?1:
-            at.desiredPresentTime?0:fg->diagnostic?2:fg->probe_active?3:
+            at.desiredPresentTime?0:fg->diagnostic?2:
             (kind==2 && !fg->pace_real)?4:at_pressure?5:6;
     }
     VkResult r = next(queue, &timed);
@@ -351,7 +353,7 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
             fg->display_timing==2?fg->clock.period_ns/4:0):(1u<<(fg->multiplier-1))-1u;
     /* Before calibrated latency is known, retain the bounded visibility
      * probe. Afterwards, only an unexpired slot can be used for recovery. */
-    if(probe && have_pair && !mask && !fg->generation_budget.calibrated)mask=fg->clock.mask&1u;
+    /* A recovery probe must still own an unexpired reserved slot. */
     if(probe)mask&=1u;
     if(fg->diagnostic!=1 && fg->diagnostic!=2 && atomic_load(&fg->output_pressure))mask=0;
     if(fg->clock.period_ns && (fg->diagnostic==0 || fg->diagnostic==3) && fg->gpu_budget_ns[0]) {
@@ -1184,12 +1186,13 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     fg->adaptive_pairs=env_flag("GFG_NATIVE_ADAPTIVE_PAIRS") &&
         fg->multiplier==2 && fg->same_device && cd.params.algorithm==TE_ALGO_LMC_GPU;
     gsf_ap_init(&fg->adaptive);
+    fg->recovery.state=GSF_PC_STABILIZING;
     fg->shadow_enabled=env_flag("GFG_NATIVE_SHADOW_ADMISSION") &&
         fg->same_device && cd.params.algorithm==TE_ALGO_LMC_GPU;
     if(fg->shadow_enabled)fprintf(stderr,
         "[gfg-native] shadow_admission=read_only threshold_ms=5 stale_ms=500 source_unchanged=1\n");
     if(fg->adaptive_pairs)fprintf(stderr,
-        "[gfg-native] adaptive_pairs=experimental max_B_extension=2_refresh_periods native_priority=1 physical_scanout=unverified\n");
+        "[gfg-native] adaptive_pairs=experimental max_B_extension=0 immutable_slots=1 native_priority=1 physical_scanout=unverified\n");
     cd.export_fds = !fg->same_device;
     cd.application_timeline = fg->same_device ? fg->timeline : VK_NULL_HANDLE;
     cd.host_io = 0;
@@ -1582,21 +1585,18 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
     double tp = now_us();
     VkResult r;
     double target_us=fg->output_deadline_us;
-    const int probe=fg->probe_active && k==0;
     if(atomic_load(&fg->output_pressure)) {
         fg->slot_detail[k]="source-backlog";fg->pressure_drop=1;return 0;
     }
     if(fg->pacing_active && fg->clock.period_ns) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,(unsigned)k)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         uint64_t now=(uint64_t)(now_us()*1000.0),value=v+1+(uint64_t)output_index;
-        /* The probe gets at most 12ms for GPU readiness, independent of a
-         * past output deadline. Normal scheduling retains strict deadlines. */
-        const uint64_t ready_until=probe?now+12000000ull:
-            fg->adaptive_pairs && fg->adaptive.eligible?
-              fg->adaptive.latest_g1-fg->clock.period_ns/4:target;
+        /* Retry observes recovery only within the original slot deadline. */
+        const uint64_t ready_until=fg->adaptive_pairs && fg->adaptive.eligible?
+              fg->adaptive.target_g1-fg->clock.period_ns/4:target;
         tw_deadline(fg->timeline_observer,v,(unsigned)output_index,ready_until);
         if(fg->cut_drop || fg->duplicate_drop)return 0;
-        if(!probe && !(fg->adaptive_pairs && fg->adaptive.eligible ?
+        if(!(fg->adaptive_pairs && fg->adaptive.eligible ?
               now<ready_until :
               (gfg_frame_clock_compute_mask(&fg->clock,now,
                  fg->display_timing==2?fg->clock.period_ns/4:0)&(1u<<k)))) {
@@ -1616,7 +1616,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         const uint64_t observed=(uint64_t)(now_us()*1000.0);
         fg->readiness_wait_ns[k]=observed-now;
         if(r==VK_SUCCESS)fg->readiness_ns[k]=observed;
-        if(r==VK_TIMEOUT || (!probe && r==VK_SUCCESS &&
+        if(r==VK_TIMEOUT || (r==VK_SUCCESS &&
             (uint64_t)(now_us()*1000.0)>
               (fg->adaptive_pairs && fg->adaptive.eligible ? ready_until:target))) {
             fg->slot_detail[k]="gpu-readiness-deadline";fg->deadline_drop=1;return 0;
@@ -1630,8 +1630,10 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
                 fg->slot_detail[k]="adaptive-pair-exceeds-B-budget";
                 fg->deadline_drop=1;return 0;
             }
-            fg->clock.target_ns[0]=adjusted_g1;
-            fg->clock.target_ns[2]=adjusted_real;
+            /* Immutable targets: readiness validates, never retargets. */
+            if(adjusted_g1!=fg->clock.target_ns[0] || adjusted_real!=fg->clock.target_ns[2]) {
+                fg->slot_detail[k]="immutable-slot-mismatch";fg->deadline_drop=1;return 0;
+            }
         }
         /* Only SharedFlow exports its cut/duplicate control header.
          * LMC pacing uses readiness and deadlines, as its unpaced path does. */
@@ -1643,8 +1645,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
             if(cut || held){fg->cut_drop=1;return 0;}
             if(duplicate){fg->duplicate_drop=1;return 0;}
         }
-        target_us=probe?now_us()+2000.0:
-            (double)(fg->adaptive_pairs && fg->adaptive.eligible ?
+        target_us=(double)(fg->adaptive_pairs && fg->adaptive.eligible ?
                 fg->clock.target_ns[0]-
                   (fg->display_timing==2?fg->clock.period_ns/4:0):target)/1000.0;
     }
@@ -2023,9 +2024,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
             for(;k<fg->multiplier-1;++k)if(compute_mask&(1u<<k)) {
                 if(seen++==j)break;
             }
-            const uint64_t deadline=fg->probe_active?
-                compute_admission_ns+12000000ull:
-                fg->clock.target_ns[k]>lead?fg->clock.target_ns[k]-lead:0;
+            const uint64_t deadline=fg->clock.target_ns[k]>lead?fg->clock.target_ns[k]-lead:0;
             tw_register(fg->timeline_observer,v,fg->te_frames+1,j,
                 v+1+(uint64_t)j,s.signal_first+j,deadline,fg->probe_active);
         }
@@ -2044,7 +2043,11 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     drop_reason = have_pair && !compute_mask?(atomic_load(&fg->output_pressure)?DROP_BYPASS:
         !timely_mask && fg->clock.mask?DROP_DEADLINE:DROP_RATE):DROP_HISTORY;
     if (tr == VK_SUCCESS) {
-        if(generate)fg->last_generation_dispatch_ns=compute_admission_ns;
+        if(generate) {
+            fg->last_generation_dispatch_ns=compute_admission_ns;
+            if(fg->recovery.state==GSF_PC_CONGESTED)
+                gsf_pc_probe(&fg->recovery,compute_admission_ns,gfg_gpu_fg_source_period_ns(fg));
+        }
         if(fg->diagnostic==2 || fg->diagnostic==3)fg->diagnostic_outputs+=s.count;
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
@@ -2177,7 +2180,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->in_present = 0;
     /* Real-only fences/timing and immutable copied metadata stay on the app's
      * real present; synthetic calls never borrow those completion objects. */
-    fg->pace_real=presented>0 && !fg->probe_active;
+    fg->pace_real=presented>0;
     result = forward_real(fg, queue, app, &fg->ready[idx], next, ids, &next_us);
     if(fg->recreate_required && (result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR)){
         result=VK_ERROR_OUT_OF_DATE_KHR;
@@ -2238,6 +2241,20 @@ timing:
             (unsigned)(fg->display_timing==2),
             fg->past_timing!=NULL,(unsigned long long)fg->accepted_ns[2]);
     }
+    if(fg->pacing_active && fg->diagnostic==0) {
+        const int ready_wsi=(fg->readiness_ns[0] && fg->accepted_ns[0]) ||
+            (fg->readiness_ns[1] && fg->accepted_ns[1]);
+        if(dispatched_outputs)gsf_pc_result(&fg->recovery,ready_wsi,ready_wsi);
+        if(fg->telemetry)fprintf(fg->telemetry,
+            "{\"schema\":1,\"event\":\"pacing_recovery\",\"pid\":%ld,\"generation\":%llu,"
+            "\"source_serial\":%llu,\"state\":\"%s\",\"dispatched_outputs\":%u,"
+            "\"ready_and_wsi_accepted\":%d,\"probe_attempts\":%llu,\"stable_recoveries\":%llu,"
+            "\"congestion_reentries\":%llu,\"physical_scanout\":null}\n",
+            (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)fg->frame,
+            gsf_pc_name(fg->recovery.state),dispatched_outputs,ready_wsi,
+            (unsigned long long)fg->recovery.probes,(unsigned long long)fg->recovery.recoveries,
+            (unsigned long long)fg->recovery.reentries);
+    }
     if(fg->adaptive_pairs) {
         const uint64_t adaptive_now=(uint64_t)(now_us()*1000.0);
         gsf_ap_outcome(&fg->adaptive,adaptive_now,adaptive_dispatched,
@@ -2262,7 +2279,7 @@ timing:
             (unsigned long long)fg->adaptive.observed_ready_ns);
     }
     if(fg->probe_active)
-        fprintf(stderr,"[gfg-native] visibility_probe frame=%llu synthetic_wsi=%d real_wsi=%d detail=%s bounded_wait_ms=12\n",
+        fprintf(stderr,"[gfg-native] visibility_probe frame=%llu synthetic_wsi=%d real_wsi=%d detail=%s immutable_deadline=1\n",
             (unsigned long long)frame,fg->slot_drop[0]==-1,fg->accepted_ns[2]!=0,fg->slot_detail[0]);
     if(fg->telemetry) {
         if(queue_snapshot.captures)fprintf(fg->telemetry,

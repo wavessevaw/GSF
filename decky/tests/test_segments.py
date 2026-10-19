@@ -78,5 +78,20 @@ class SegmentTests(unittest.TestCase):
             self.assertEqual([w['start_s'] for w in report['windows_10s']],[0,30])
             with telemetry_stream(base) as stream:self.assertEqual(sum(1 for _ in stream),3)
 
+    def test_recovery_distinguishes_no_retry_no_output_and_reentry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'frames.jsonl'
+            states=[('CONGESTED',0,0,0,'CONGESTED_NO_RETRY_OBSERVED'),
+                    ('RECOVERY_PROBE',2,0,0,'RETRY_NO_ACCEPTED_GENERATION'),
+                    ('CONGESTED',3,1,1,'RECOVERED_THEN_CONGESTED')]
+            events=[dict(event='pacing_recovery',pid=i,generation=1,state=state,
+                         probe_attempts=probes,stable_recoveries=stable,
+                         congestion_reentries=reentries,ready_and_wsi_accepted=0)
+                    for i,(state,probes,stable,reentries,_) in enumerate(states)]
+            path.write_text(''.join(json.dumps(e)+'\n' for e in events))
+            report=diagnostic_summary(path)['pacing_recovery']
+            self.assertEqual([e['outcome'] for e in report],[s[-1] for s in states])
+            self.assertTrue(all(e['physical_scanout'] is None for e in report))
+
 
 if __name__=='__main__':unittest.main()

@@ -165,6 +165,7 @@ class Runtime:
         for source, name in ((self.plugin/'launch.py', 'launch.py'),
                              (self.plugin/'py_modules/gsf_runtime.py', 'gsf_runtime.py'),
                              (self.plugin/'py_modules/gsf_diagnostic.py', 'gsf_diagnostic.py'),
+                             (self.plugin/'py_modules/gsf_segments.py', 'gsf_segments.py'),
                              (self.plugin/'py_modules/gsf_amdgpu.py', 'gsf_amdgpu.py')):
             temp = self.root/(name+'.new')
             shutil.copyfile(source, temp)

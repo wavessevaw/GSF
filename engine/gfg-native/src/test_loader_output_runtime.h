@@ -17,6 +17,9 @@
 #include "output_proxy_bootstrap.h"
 #include "async_capture_retire.h"
 #include "output_frame_pacer.h"
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+#include "te_engine.h"
+#endif
 
 typedef struct {
     VkDevice device;
@@ -40,6 +43,22 @@ typedef struct {
     uint32_t last_history_image;
     int have_previous, interleave;
     int started;
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    VkInstance temporal_instance;
+    PFN_vkGetInstanceProcAddr temporal_gipa;
+    PFN_vkGetDeviceProcAddr temporal_gdpa;
+    PFN_vkSetDeviceLoaderData temporal_loader;
+    te_device *temporal_device;
+    te_context *temporal;
+    unsigned temporal_slot,temporal_multiplier;
+    unsigned temporal_outputs,temporal_slot_ids[2];
+    float temporal_tau[2];
+    VkBuffer verify_buffer;
+    VkDeviceMemory verify_memory;
+    unsigned char *verify_map;
+    VkDeviceSize verify_image_bytes;
+    uint64_t verify_outputs;
+#endif
 } gfg_test_loader_runtime;
 
 static inline VkImageMemoryBarrier gfg_test_barrier(VkImage image,
@@ -140,6 +159,19 @@ static inline VkResult gfg_test_live_emit(gfg_test_loader_runtime *r,
         VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,NULL,0,NULL,1,&pre);
     const uint32_t width=r->proxy->source.extent.width;
     const uint32_t height=r->proxy->source.extent.height;
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    if(intermediate && r->temporal) {
+        VkImage generated=te_output_image(r->temporal,(unsigned)intermediate-1u);
+        VkImageMemoryBarrier ready=gfg_test_barrier(generated,VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_LAYOUT_GENERAL,VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);
+        vkCmdPipelineBarrier(r->output_cmd,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,NULL,0,NULL,1,&ready);
+        VkImageCopy copy={.srcSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},
+            .dstSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},.extent={width,height,1}};
+        vkCmdCopyImage(r->output_cmd,generated,VK_IMAGE_LAYOUT_GENERAL,r->output_images[out_idx],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,1,&copy);
+    } else
+#endif
     if(intermediate) {
         /* One output VkImage composed from two *distinct* GPU history
          * images. Left half is preceding A, right half is current B.
@@ -205,12 +237,167 @@ static inline VkResult gfg_test_live_emit(gfg_test_loader_runtime *r,
     if(intermediate)++r->output_intermediates;
     else ++r->output_originals;
     fprintf(stderr,"GSF_LOADER_LIVE %s output_present=%llu originals=%llu intermediate=%llu one_real_wsi=1 worker=1\n",
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+        intermediate?"LMC":"ORIGINAL",
+#else
         intermediate?"AB_SPLIT":"ORIGINAL",
+#endif
         (unsigned long long)r->output_presents,
         (unsigned long long)r->output_originals,
         (unsigned long long)r->output_intermediates);
     return VK_SUCCESS;
 }
+
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+/* Actual GPU LMC, not A|B diagnostic pixels. This isolated prototype uses the
+ * source-pool retirement worker as ONE output owner. All CPU fence waits are
+ * in this worker; application Present only queues capture and returns. */
+static inline VkResult gfg_test_lmc_start(gfg_test_loader_runtime *r,VkInstance instance,
+        PFN_vkGetInstanceProcAddr gipa,PFN_vkGetDeviceProcAddr gdpa,
+        PFN_vkSetDeviceLoaderData loader_data) {
+    r->temporal_multiplier=getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
+    r->temporal_outputs=r->temporal_multiplier-1u;
+    r->temporal_tau[0]=1.f/(float)r->temporal_multiplier;r->temporal_tau[1]=2.f/3.f;
+    r->temporal_slot_ids[0]=0;r->temporal_slot_ids[1]=1;
+    if(getenv("GFG_NATIVE_TEST_LMC_MASK2")) {
+        if(r->temporal_multiplier!=3)return VK_ERROR_FEATURE_NOT_PRESENT;
+        r->temporal_outputs=1;r->temporal_tau[0]=0.5f;r->temporal_slot_ids[0]=1;
+    }
+    VkResult result=te_device_borrow(instance,gipa,r->proxy->physical,r->device,gdpa,
+        loader_data,r->queue,r->family,&r->temporal_device);
+    if(result!=VK_SUCCESS)return result;
+    te_context_desc desc;te_context_desc_default(&desc,r->proxy->source.extent.width,
+        r->proxy->source.extent.height,r->temporal_outputs);
+    desc.host_io=0;desc.source_format=VK_FORMAT_UNDEFINED;
+    desc.source_bgra=r->proxy->source.format==VK_FORMAT_B8G8R8A8_UNORM || r->proxy->source.format==VK_FORMAT_B8G8R8A8_SRGB;
+    desc.output_bgra=desc.source_bgra;
+    desc.params.algorithm=TE_ALGO_LMC_GPU;desc.params.cut_thr=2;
+    result=te_context_create(r->temporal_device,&desc,&r->temporal);
+    if(result!=VK_SUCCESS){fprintf(stderr,"LMC owner context: %s\n",te_last_error());return result;}
+    /* TEST ONLY: retain two GPU-copied source snapshots and independently
+     * read the real LMC destination. Never compiled into a normal payload. */
+    r->verify_image_bytes=(VkDeviceSize)desc.width*desc.height*4;
+    VkBufferCreateInfo bc={.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size=3*r->verify_image_bytes,.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+    result=vkCreateBuffer(r->device,&bc,NULL,&r->verify_buffer);if(result!=VK_SUCCESS)return result;
+    VkMemoryRequirements req;vkGetBufferMemoryRequirements(r->device,r->verify_buffer,&req);
+    PFN_vkGetPhysicalDeviceMemoryProperties memory_properties=(PFN_vkGetPhysicalDeviceMemoryProperties)
+        gipa(instance,"vkGetPhysicalDeviceMemoryProperties");
+    if(!memory_properties)return VK_ERROR_INITIALIZATION_FAILED;
+    VkPhysicalDeviceMemoryProperties mp;memory_properties(r->proxy->physical,&mp);
+    unsigned mt=0;
+    for(;mt<mp.memoryTypeCount;++mt)if((req.memoryTypeBits&(1u<<mt)) &&
+        (mp.memoryTypes[mt].propertyFlags&(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))==
+        (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))break;
+    if(mt==mp.memoryTypeCount)return VK_ERROR_FEATURE_NOT_PRESENT;
+    VkMemoryAllocateInfo ma={.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,.allocationSize=req.size,.memoryTypeIndex=mt};
+    result=vkAllocateMemory(r->device,&ma,NULL,&r->verify_memory);if(result!=VK_SUCCESS)return result;
+    result=vkBindBufferMemory(r->device,r->verify_buffer,r->verify_memory,0);if(result!=VK_SUCCESS)return result;
+    result=vkMapMemory(r->device,r->verify_memory,0,VK_WHOLE_SIZE,0,(void**)&r->verify_map);if(result!=VK_SUCCESS)return result;
+    gfg_output_pacer_init(&r->output_pacer,90);
+    return VK_SUCCESS;
+}
+static inline VkResult gfg_test_lmc_init(gfg_test_loader_runtime *r,VkInstance instance,
+        PFN_vkGetInstanceProcAddr gipa,PFN_vkGetDeviceProcAddr gdpa,
+        PFN_vkSetDeviceLoaderData loader_data) {
+    /* CreateSwapchain can precede the app's GetDeviceQueue. Defer TE creation
+     * until the first capture, after the loader initialized queue dispatch. */
+    r->temporal_instance=instance;r->temporal_gipa=gipa;r->temporal_gdpa=gdpa;
+    r->temporal_loader=loader_data;return VK_SUCCESS;
+}
+static inline VkResult gfg_test_lmc_feed(gfg_test_loader_runtime *r,uint32_t image) {
+    if(!r->temporal) {
+        VkResult init=gfg_test_lmc_start(r,r->temporal_instance,r->temporal_gipa,
+            r->temporal_gdpa,r->temporal_loader);
+        if(init!=VK_SUCCESS)return init;
+    }
+    VkResult result=vkWaitForFences(r->device,1,&r->output_fence,VK_TRUE,UINT64_MAX);
+    if(result!=VK_SUCCESS)return result;
+    result=vkResetCommandBuffer(r->output_cmd,0);if(result!=VK_SUCCESS)return result;
+    VkCommandBufferBeginInfo begin={.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    result=vkBeginCommandBuffer(r->output_cmd,&begin);if(result!=VK_SUCCESS)return result;
+    VkImage input=te_source_image(r->temporal,r->temporal_slot);
+    VkImageMemoryBarrier ready=gfg_test_barrier(input,VK_IMAGE_LAYOUT_GENERAL,VK_IMAGE_LAYOUT_GENERAL,
+        VK_ACCESS_SHADER_READ_BIT,VK_ACCESS_TRANSFER_WRITE_BIT);
+    vkCmdPipelineBarrier(r->output_cmd,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,NULL,0,NULL,1,&ready);
+    VkImageCopy copy={.srcSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},
+        .dstSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},
+        .extent={r->proxy->source.extent.width,r->proxy->source.extent.height,1}};
+    vkCmdCopyImage(r->output_cmd,r->history.images[image],VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        input,VK_IMAGE_LAYOUT_GENERAL,1,&copy);
+    VkBufferImageCopy read={.bufferOffset=r->temporal_slot*r->verify_image_bytes,
+        .imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},.imageExtent=copy.extent};
+    vkCmdCopyImageToBuffer(r->output_cmd,r->history.images[image],VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        r->verify_buffer,1,&read);
+    ready.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ready.dstAccessMask=VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(r->output_cmd,VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,0,NULL,0,NULL,1,&ready);
+    result=vkEndCommandBuffer(r->output_cmd);if(result!=VK_SUCCESS)return result;
+    result=vkResetFences(r->device,1,&r->output_fence);if(result!=VK_SUCCESS)return result;
+    VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&r->output_cmd};
+    result=vkQueueSubmit(r->queue,1,&submit,r->output_fence);if(result!=VK_SUCCESS)return result;
+    te_submit work={.slot=r->temporal_slot,.count=r->have_previous?r->temporal_outputs:0,
+        .timestamps={r->temporal_tau[0],r->temporal_tau[1]},.nonblocking=1,.lmc_tier=2};
+    result=te_submit_frame(r->temporal,&work);
+    if(result==VK_NOT_READY) {
+        /* Prototype only: source pool bounds outstanding images. This is a
+         * worker wait, never the game's Present; not a production latency claim. */
+        result=te_wait_idle(r->temporal);if(result==VK_SUCCESS)result=te_submit_frame(r->temporal,&work);
+    }
+    if(result==VK_SUCCESS)r->temporal_slot^=1u;
+    return result;
+}
+static inline VkResult gfg_test_lmc_verify(gfg_test_loader_runtime *r,unsigned output,uint64_t source,uint32_t image) {
+    VkResult result=vkWaitForFences(r->device,1,&r->output_fence,VK_TRUE,UINT64_MAX);
+    if(result!=VK_SUCCESS)return result;
+    result=vkResetCommandBuffer(r->output_cmd,0);if(result!=VK_SUCCESS)return result;
+    VkCommandBufferBeginInfo begin={.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    result=vkBeginCommandBuffer(r->output_cmd,&begin);if(result!=VK_SUCCESS)return result;
+    const int duplicate=getenv("GFG_NATIVE_TEST_LMC_VERIFY_DUPLICATE")!=NULL;
+    VkImage generated=duplicate?r->history.images[image]:te_output_image(r->temporal,output);
+    VkImageLayout layout=duplicate?VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:VK_IMAGE_LAYOUT_GENERAL;
+    VkImageMemoryBarrier ready=gfg_test_barrier(generated,layout,layout,
+        duplicate?VK_ACCESS_TRANSFER_WRITE_BIT:VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);
+    vkCmdPipelineBarrier(r->output_cmd,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,0,NULL,0,NULL,1,&ready);
+    VkBufferImageCopy read={.bufferOffset=2*r->verify_image_bytes,
+        .imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},
+        .imageExtent={r->proxy->source.extent.width,r->proxy->source.extent.height,1}};
+    vkCmdCopyImageToBuffer(r->output_cmd,generated,layout,r->verify_buffer,1,&read);
+    VkMemoryBarrier host={.sType=VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT,.dstAccessMask=VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(r->output_cmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,
+        0,1,&host,0,NULL,0,NULL);
+    result=vkEndCommandBuffer(r->output_cmd);if(result!=VK_SUCCESS)return result;
+    result=vkResetFences(r->device,1,&r->output_fence);if(result!=VK_SUCCESS)return result;
+    VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&r->output_cmd};
+    result=vkQueueSubmit(r->queue,1,&submit,r->output_fence);if(result!=VK_SUCCESS)return result;
+    result=vkWaitForFences(r->device,1,&r->output_fence,VK_TRUE,UINT64_MAX);if(result!=VK_SUCCESS)return result;
+    const double tau=r->temporal_tau[output];
+    const unsigned char *a=r->verify_map+r->temporal_slot*r->verify_image_bytes;
+    const unsigned char *b=r->verify_map+(r->temporal_slot^1u)*r->verify_image_bytes;
+    const unsigned char *g=r->verify_map+2*r->verify_image_bytes;
+    unsigned distinct_a=0,distinct_b=0,max_error=0;
+    for(VkDeviceSize px=0;px<r->verify_image_bytes;px+=4)for(unsigned c=0;c<3;++c) {
+        const int expected=(int)((double)a[px+c]*(1-tau)+(double)b[px+c]*tau+0.5);
+        int error=abs((int)g[px+c]-expected);
+        if((unsigned)error>max_error)max_error=(unsigned)error;
+        distinct_a|=abs((int)g[px+c]-(int)a[px+c])>2;
+        distinct_b|=abs((int)g[px+c]-(int)b[px+c])>2;
+    }
+    if(max_error>2 || !distinct_a || !distinct_b) {
+        fprintf(stderr,"GSF_LMC_GPU_VERIFY FAIL source=%llu output=%u A=%u B=%u G=%u max_error=%u distinct=%u/%u\n",
+            (unsigned long long)source,output,a[0],b[0],g[0],max_error,distinct_a,distinct_b);
+        return VK_ERROR_VALIDATION_FAILED_EXT;
+    }
+    ++r->verify_outputs;
+    fprintf(stderr,"GSF_LMC_GPU_VERIFY PASS source_A=%llu source_B=%llu output=%u tau=%.9f slot_id=%u pixels=%llu max_error=%u distinct_from_A=1 distinct_from_B=1 physical_scanout=UNVERIFIED\n",
+        (unsigned long long)(source-1),(unsigned long long)source,output,tau,r->temporal_slot_ids[output],
+        (unsigned long long)(r->verify_image_bytes/4),max_error);
+    return VK_SUCCESS;
+}
+#endif
 
 /* GPU-copy retirement worker owns output presentation. Once B arrives,
  * output A/B marked composite BEFORE original B. Initial A is unmodified.
@@ -221,9 +408,22 @@ static inline VkResult gfg_test_live_output(void *user,
     gfg_test_loader_runtime *r=user;
     if(!r||!r->started||!ticket||image!=ticket%r->history.count)
         return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    if(r->temporal_instance){VkResult feed=gfg_test_lmc_feed(r,image);if(feed!=VK_SUCCESS)return feed;}
+#endif
     if(r->interleave && r->have_previous) {
-        VkResult result=gfg_test_live_emit(r,image,r->last_history_image,1);
-        if(result!=VK_SUCCESS)return result;
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+        const unsigned outputs=r->temporal?r->temporal_outputs:1u;
+#else
+        const unsigned outputs=1;
+#endif
+        for(unsigned out=1;out<=outputs;++out) {
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+            if(r->temporal){VkResult verified=gfg_test_lmc_verify(r,out-1,ticket,image);if(verified!=VK_SUCCESS)return verified;}
+#endif
+            VkResult result=gfg_test_live_emit(r,image,r->last_history_image,(int)out);
+            if(result!=VK_SUCCESS)return result;
+        }
         /* No fixed 35ms diagnostic exposure. The actual worker pacer
          * spaces BOTH A/B and B output by the same target interval. */
     }
@@ -317,6 +517,13 @@ static inline void gfg_test_live_destroy(gfg_test_loader_runtime *r) {
             (unsigned long long)r->output_pacer.reanchors);
     }
     vkDeviceWaitIdle(r->device); /* teardown only */
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    if(r->verify_map)vkUnmapMemory(r->device,r->verify_memory);
+    if(r->verify_buffer)vkDestroyBuffer(r->device,r->verify_buffer,NULL);
+    if(r->verify_memory)vkFreeMemory(r->device,r->verify_memory,NULL);
+    if(r->temporal)te_context_destroy(r->temporal);
+    if(r->temporal_device)te_device_destroy(r->temporal_device);
+#endif
     if(r->output_fence)vkDestroyFence(r->device,r->output_fence,NULL);
     if(r->output_pool)vkDestroyCommandPool(r->device,r->output_pool,NULL);
     for(uint32_t i=0;i<GFG_OFFSCREEN_MAX_IMAGES;i++)

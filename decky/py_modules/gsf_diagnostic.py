@@ -46,7 +46,7 @@ def diagnostic_summary(path):
               'teardown': 0, 'device_error': 0, 'watch_queue_overflow': 0}
     counts = {'planned_slots': 0, 'submitted_outputs': 0, 'accepted_outputs': 0,
               'gpu_budget_drops': 0}
-    windows, gpu_events = {}, []
+    windows, gpu_events, recovery = {}, [], {}
     submissions = _SubmissionIndex()
     joins = {kind: dict.fromkeys(('matched', 'unmatched', 'ambiguous'), 0)
              for kind in ('gpu_pair', 'gpu_correlated')}
@@ -60,7 +60,13 @@ def diagnostic_summary(path):
                 except (ValueError, TypeError):
                     continue
                 kind = event.get('event')
-                if kind == 'timeline_watch':
+                if kind == 'pacing_recovery':
+                    key = (event.get('pid'), event.get('generation'))
+                    item = recovery.setdefault(key, {'observations': 0, 'ready_wsi_outputs': 0})
+                    item['observations'] += 1
+                    item['ready_wsi_outputs'] += int(bool(event.get('ready_and_wsi_accepted')))
+                    item['last'] = event
+                elif kind == 'timeline_watch':
                     outcome = event.get('watch_end_reason')
                     if outcome in totals:
                         totals[outcome] += 1
@@ -133,6 +139,28 @@ def diagnostic_summary(path):
               'gpu_queue_wait_ms': None,  # never report an unproven pure queue wait
               'windows_10s': result_windows, 'admission_bins': admission_bins,
               'gpu_sample_joins': joins}
+    recovery_reports = []
+    for (pid, generation), item in sorted(recovery.items(), key=lambda x: str(x[0])):
+        last = item['last']
+        probes = int(last.get('probe_attempts', 0))
+        stable = int(last.get('stable_recoveries', 0))
+        reentries = int(last.get('congestion_reentries', 0))
+        state = last.get('state')
+        if state == 'STABLE':
+            outcome = 'STABLE_OBSERVED'
+        elif stable and reentries:
+            outcome = 'RECOVERED_THEN_CONGESTED'
+        elif probes and not item['ready_wsi_outputs']:
+            outcome = 'RETRY_NO_ACCEPTED_GENERATION'
+        elif state == 'CONGESTED' and not probes:
+            outcome = 'CONGESTED_NO_RETRY_OBSERVED'
+        else:
+            outcome = 'RECOVERY_NOT_YET_STABLE'
+        recovery_reports.append(dict(pid=pid, generation=generation, final_state=state,
+            outcome=outcome, probe_attempts=probes, stable_recoveries=stable,
+            congestion_reentries=reentries, observations=item['observations'],
+            ready_wsi_outputs=item['ready_wsi_outputs'], physical_scanout=None))
+    report['pacing_recovery'] = recovery_reports
     if overruns:
         ordered = sorted(overruns)
         report['completion_overrun_median_ms'] = _median(ordered)

@@ -1,3 +1,21 @@
+## 0.1.12 frame pacing audit candidate
+
+Phase follows the actual reserved A/G/B slot (x3 mask=2 on 45→90 uses tau=0.5).
+All paced outputs, including recovery probes, retain their original deadlines.
+The opt-in x2 recovery policy no longer moves G1 or B after dispatch and adds no
+B scheduling extension. Two observed GPU-ready + WSI-accepted outputs are
+required for STABLE; a retry timer alone is never success. State telemetry is
+available in normal x2/x3 modes too. The shadow classifier remains passive.
+
+Segmented frames JSONL is enabled by the installed launcher. The writer keeps
+earlier segments and the export includes exact hashes and a loss manifest.
+The separate real-LMC output-owner proof is test-only and excluded from this
+plugin. This package does not establish sustained OLED90 or 15W hardware
+qualification. See `docs/frame-pacing-audit/FINAL_REPORT.md` and PR45.
+
+The sections below preserve the previous experiment history; their 2-refresh
+B-extension and ready-time retarget behavior is superseded in this candidate.
+
 ## x2 / x3 frame-generation mode (GSF 0.1.11)
 
 Select multiplier per game in Decky. x2 = at most one interpolated output per source pair; x3 = at most two. The underlying frame clock already schedules only free display slots: at 90 Hz, x2 45→90, x3 30→90, either mode 60→90 can admit a single G1 on alternating pairs. Switching game base FPS does not require changing multiplier, although switching the multiplier itself requires restarting the game. The game and SteamOS display should both be set to 90 Hz for the requested target.

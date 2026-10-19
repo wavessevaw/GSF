@@ -24,7 +24,8 @@ source30/45/60/75/90, output60/90 and jitter0/0.2/1/3ms, and replays all10273 re
 phase rows. It reproduces4433 exact mask2 midpoints. A successful phase unit does
 not qualify frame pacing or software/Gamescope/Deck display output.
 
-The old opt-in adaptive_pair mechanism can retarget G1/B after GPU readiness.
-That remains a separate architectural issue: a new owner must freeze a pair's
-phase anchors and deadlines before dispatch, or cancel that synthetic output.
-It must not reinterpret a completed image as a different temporal phase.
+The old opt-in adaptive_pair mechanism retargeted G1/B after GPU readiness.
+This candidate removes that operation: begin reserves baseline targets, ready
+validates the same deadline and returns the same targets. It adds no B extension.
+Recovery probes may test an old forecast but cannot move the completed image.
+A buffered alternative requires a new retained-resource owner before exposure.
