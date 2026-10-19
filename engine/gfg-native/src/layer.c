@@ -43,6 +43,8 @@ typedef struct native_instance {
     PFN_vkDestroyInstance destroy;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR surface_caps;
     uint32_t api_version;
+    uint32_t engine_version;
+    const char *frontend_hint;
     int enabled;
 } native_instance;
 
@@ -216,6 +218,9 @@ native_CreateInstance(const VkInstanceCreateInfo *ci,
     }
     const char *engine = ci->pApplicationInfo
         ? ci->pApplicationInfo->pEngineName : NULL;
+    i->frontend_hint=engine && !strcmp(engine,"DXVK")?"dxvk":
+        engine && !strcmp(engine,"vkd3d")?"vkd3d":"other_or_unspecified";
+    i->engine_version=ci->pApplicationInfo?ci->pApplicationInfo->engineVersion:0;
     const char *flag = getenv("GFG_NATIVE_FG");
     i->enabled = flag && strcmp(flag, "1") == 0 &&
         !(engine && (strcmp(engine, "gfg-temporal") == 0 ||
@@ -1973,6 +1978,8 @@ native_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
                 for (native_queue *q = d->queues; q; q = q->next) {
                     if (q->handle != queue) continue;
                     gfg_gpu_fg_create_info gi = {
+                        .frontend_hint=d->instance->frontend_hint,.engine_version=d->instance->engine_version,
+                        .instance_api_version=d->instance->api_version,
                         .instance = d->instance->handle, .gipa = d->instance->gipa,
                         .physical = d->physical, .device = d->handle,
                         .gdpa = d->async_output ? native_worker_gdpa : d->gdpa,

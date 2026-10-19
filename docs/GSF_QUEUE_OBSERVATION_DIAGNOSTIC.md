@@ -104,3 +104,16 @@ intermediates while delayed, and at least three in the final recovery window.
 Admission exits alone are never a successful recovery or a working multiplier.
 `generation_started` is a cumulative first-start marker, not a restart counter.
 New queue diagnostics are tested both enabled and disabled, in both layer orders.
+
+## Proton and refresh-source audit
+
+See [the pinned DXVK/VKD3D/Gamescope audit](research/GSF_PROTON_PRESENT_AUDIT_20261019.md).
+In particular, ordinary VKD3D Submit2 batches may have no fence and use timeline
+signals instead. A fence-only observer then has incomplete completion coverage;
+its growing upper bound must not be called measured hardware backlog.
+
+Each bridge now records its declared frontend hint and source timestamp semantics.
+Pair records distinguish an actual successful refresh query from a missing/error
+query, retained value, explicit override or initial fallback. A successful 60 Hz
+response is preserved; the user's game may legitimately be configured for 60 Hz.
+No automatic 90 Hz substitution or presentation-policy change is part of this audit.

@@ -13,6 +13,8 @@
 typedef struct gfg_gpu_fg gfg_gpu_fg;
 
 typedef struct {
+    const char *frontend_hint; /* declared VkApplicationInfo engine, not a Proton/version detector */
+    uint32_t engine_version, instance_api_version;
     gsf_queue_probe_fn queue_probe; /* diagnostic only, no admission input */
     VkInstance instance;
     PFN_vkGetInstanceProcAddr gipa;   /* next-layer instance dispatch */

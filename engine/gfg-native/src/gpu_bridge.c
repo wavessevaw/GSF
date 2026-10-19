@@ -48,6 +48,7 @@
 #include "frame_clock.h"
 #include "present_chain.h"
 #include "past_timing.h"
+#include "refresh_observation.h"
 #include "te_engine.h"
 #include "timeline_watch.h"
 #include "calibrated_clock.h"
@@ -212,6 +213,7 @@ struct gfg_gpu_fg {
     FILE *telemetry;
     uint64_t telemetry_flush_ns;
     int display_timing;
+    gsf_refresh_observation refresh_observation;
     uint32_t google_id;
     PFN_vkGetRefreshCycleDurationGOOGLE refresh_cycle;
     PFN_vkGetPastPresentationTimingGOOGLE past_timing;
@@ -1074,9 +1076,9 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         fg->refresh_cycle=(PFN_vkGetRefreshCycleDurationGOOGLE)info->gdpa(info->device,"vkGetRefreshCycleDurationGOOGLE");
         fg->past_timing=(PFN_vkGetPastPresentationTimingGOOGLE)info->gdpa(info->device,"vkGetPastPresentationTimingGOOGLE");
     }
-    fprintf(stderr,"[gfg-native] display_timing enabled=%d namespace=%s refresh_source=%s physical_scanout=unverified\n",
+    fprintf(stderr,"[gfg-native] display_timing enabled=%d namespace=%s refresh_query_available=%d physical_scanout=unverified\n",
         fg->display_timing,fg->display_timing==2?"layer":fg->display_timing==1?"application":"unavailable",
-        fg->refresh_cycle?"WSI-query":"configured-fallback");
+        fg->refresh_cycle!=NULL);
     const char *algorithm = getenv("GFG_NATIVE_ALGO");
     cd.params.algorithm=algorithm && !strcmp(algorithm,"lmc-gpu")?TE_ALGO_LMC_GPU:
         algorithm && !strcmp(algorithm,"lmc")?TE_ALGO_LMC:
@@ -1119,12 +1121,24 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     if(cd.params.algorithm==TE_ALGO_LMC_GPU && env_flag("GFG_NATIVE_PACING"))
         fg->clock.period_ns=1000000000ull/90;
     const char *rate=getenv("GFG_NATIVE_OUTPUT_HZ");
+    int refresh_override_applied=0;
     /* Explicit pacing also applies to GPU LMC; its default stays unpaced.
      * Correctness probes and visible cadence demos are separate contracts. */
     if(rate && (cd.params.algorithm==TE_ALGO_SHARED_FLOW || cd.params.algorithm==TE_ALGO_LMC_GPU)) {
         char *end=NULL;long hz=strtol(rate,&end,10);
-        if(end!=rate && !*end && hz>=1 && hz<=240)fg->clock.period_ns=1000000000ull/(uint64_t)hz;
+        if(end!=rate && !*end && hz>=1 && hz<=240) {
+            fg->clock.period_ns=1000000000ull/(uint64_t)hz;refresh_override_applied=1;
+        }
     }
+    gsf_refresh_init(&fg->refresh_observation,fg->clock.period_ns,refresh_override_applied);
+    if(fg->telemetry)fprintf(fg->telemetry,
+        "{\"schema\":1,\"event\":\"bridge_context\",\"pid\":%ld,\"generation\":%llu,"
+        "\"frontend_hint\":\"%s\",\"engine_version\":%u,\"instance_api_version\":%u,"
+        "\"present_queue_family\":%u,\"te_uses_present_queue\":%s,"
+        "\"source_timestamp_semantics\":\"cpu_vulkan_present_entry\",\"source_clock\":\"CLOCK_MONOTONIC\","
+        "\"source_gpu_ready_ns\":null,\"physical_display_hz\":null}\n",
+        (long)getpid(),(unsigned long long)fg->generation,info->frontend_hint?info->frontend_hint:"unspecified",
+        info->engine_version,info->instance_api_version,info->family,fg->same_device?"true":"false");
     const char *diagnostic=getenv("GFG_NATIVE_DIAGNOSTIC_MODE");
     fg->diagnostic=diagnostic && !strcmp(diagnostic,"source-only")?1:
         diagnostic && !strcmp(diagnostic,"compute-only")?2:
@@ -1722,16 +1736,21 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->source_serial=fg->frame+1;
     const uint64_t source0=fg->previous_source_ns,serial0=fg->previous_serial;
     fg->previous_source_ns=fg->source_ns;fg->previous_serial=fg->source_serial;
+    gsf_refresh_begin(&fg->refresh_observation,fg->pacing_active,fg->clock.period_ns,
+        getenv("GFG_NATIVE_OUTPUT_HZ")!=NULL,fg->refresh_cycle!=NULL);
     if(fg->pacing_active && fg->clock.period_ns) {
-        /* Gamescope's WSI returns the compositor refresh cycle. A callable
-         * GDPA pointer alone is insufficient: the extension was enabled by
+        /* Record the WSI response, not a claim about physical panel refresh.
+         * A callable GDPA pointer alone is insufficient: the extension was enabled by
          * CreateDevice. Explicit OUTPUT_HZ remains a lab/user override. */
         if(fg->refresh_cycle && !getenv("GFG_NATIVE_OUTPUT_HZ")) {
             VkRefreshCycleDurationGOOGLE cycle={0};
+            const uint64_t query_start=(uint64_t)(now_us()*1000.0);
             if(fg->output_wsi)pthread_mutex_lock(fg->output_wsi);
             VkResult q=fg->refresh_cycle(fg->device,fg->swapchain,&cycle);
             if(fg->output_wsi)pthread_mutex_unlock(fg->output_wsi);
-            if(q==VK_SUCCESS && cycle.refreshDuration>=1000000000ull/240 && cycle.refreshDuration<=1000000000ull)
+            const uint64_t query_end=(uint64_t)(now_us()*1000.0);
+            if(gsf_refresh_record(&fg->refresh_observation,q,cycle.refreshDuration,
+                                  query_end-query_start,query_end))
                 fg->clock.period_ns=cycle.refreshDuration;
         }
         gfg_frame_clock_pair(&fg->clock,fg->source_ns,fg->multiplier);
@@ -2046,10 +2065,15 @@ timing:
             (unsigned long long)queue_snapshot.unretired_upper_bound,queue_snapshot.tracked_not_ready,
             (unsigned long long)queue_snapshot.unfenced_unretired,queue_snapshot.tracking_lost,queue_snapshot.query_errors,
             (unsigned long long)queue_snapshot.other_queue_unretired);
+        char refresh_result[32]="null";
+        if(fg->refresh_observation.attempted)snprintf(refresh_result,sizeof(refresh_result),"%d",
+            (int)fg->refresh_observation.result);
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"pair\",\"pid\":%ld,\"generation\":%llu,\"pair\":%llu,"
             "\"source0_id\":%llu,\"source1_id\":%llu,\"source0_ns\":%llu,\"source1_ns\":%llu,"
             "\"admitted_ns\":%llu,\"worker_start_ns\":%llu,\"worker_end_ns\":%llu,\"interval_ns\":%llu,"
-            "\"refresh_period_ns\":%llu,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
+            "\"refresh_period_ns\":%llu,\"refresh_origin\":\"%s\",\"refresh_query_state\":\"%s\","
+            "\"refresh_query_result\":%s,\"refresh_query_raw_ns\":%llu,\"refresh_query_cpu_ns\":%llu,"
+            "\"refresh_last_success_ns\":%llu,\"refresh_override_present\":%u,\"multiplier\":%u,\"planned_mask\":%u,\"dispatched_outputs\":%u,\"compute_mask\":%u,\"transport_submit_mask\":%u,\"source_discontinuity\":%u,"
             "\"admission_decision\":\"%s\",\"generation_candidate_mask\":%u,\"compute_admission_ns\":%llu,\"gpu_budget_ns\":[%llu,%llu],\"submit_delay_budget_ns\":%llu,\"submit_delay_budget_calibrated\":%d,\"deferred_g2\":%u,\"g2_submit_return_ns\":%llu,\"te_submit_sequence\":%llu,"
             "\"target_ns\":[%llu,%llu,%llu],\"readiness_observed_ns\":[%llu,%llu],"
             "\"wsi_accepted_ns\":[%llu,%llu,%llu],\"wsi_call_ns\":[%llu,%llu,%llu],"
@@ -2058,7 +2082,10 @@ timing:
             (unsigned long long)serial0,(unsigned long long)fg->source_serial,
             (unsigned long long)source0,(unsigned long long)fg->source_ns,
             (unsigned long long)fg->admitted_ns,(unsigned long long)(t0*1000.0),(unsigned long long)(now_us()*1000.0),
-            (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
+            (unsigned long long)fg->clock.interval_ns,(unsigned long long)fg->clock.period_ns,
+            fg->refresh_observation.origin,fg->refresh_observation.query_state,refresh_result,
+            (unsigned long long)fg->refresh_observation.raw_ns,(unsigned long long)fg->refresh_observation.query_cpu_ns,
+            (unsigned long long)fg->refresh_observation.last_success_ns,fg->refresh_observation.override_present,fg->multiplier,fg->clock.mask,dispatched_outputs,dispatched_mask,fg->transport_submit_mask,fg->clock.discontinuity,
             admission_decision,generation_candidate_mask,(unsigned long long)compute_admission_ns,(unsigned long long)fg->gpu_budget_ns[0],
             (unsigned long long)fg->gpu_budget_ns[1],(unsigned long long)fg->generation_budget.submit_delay_ns,
             fg->generation_budget.calibrated,deferred_g2,(unsigned long long)g2_submit_return_ns,

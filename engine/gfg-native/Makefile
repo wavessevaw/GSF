@@ -8,7 +8,7 @@ ENABLE_CPU_BRIDGE ?= 0
 TE_LIB ?= ../gfg-temporal/build/libgfg-temporal.a
 ifeq ($(ENABLE_TE),1)
 NATIVE_SOURCES := src/layer.c src/gpu_bridge.c src/output_worker.c
-NATIVE_HEADERS := src/queue_observation.h src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/calibrated_clock.h src/generation_budget.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
+NATIVE_HEADERS := src/refresh_observation.h src/queue_observation.h src/cpu_bridge.h src/gpu_bridge.h src/output_worker.h src/frame_clock.h src/timeline_watch.h src/calibrated_clock.h src/generation_budget.h src/wsi_queries.inc src/present_ids.h src/present_chain.h src/past_timing.h src/memory_policy.h src/swapchain_chain.h ../gfg-temporal/src/te_engine.h
 NATIVE_CPPFLAGS := -DGFG_NATIVE_WITH_TE -I../gfg-temporal/src
 ifeq ($(ENABLE_CPU_BRIDGE),1)
 NATIVE_SOURCES += src/cpu_bridge.c
@@ -364,3 +364,11 @@ $(BUILD)/generation-budget: tests/generation_budget.c src/generation_budget.h
 generation-budget: $(BUILD)/generation-budget
 	$(BUILD)/generation-budget tests/fixtures/deck-calibrated-slack-20261019.csv
 .PHONY: generation-budget
+
+$(BUILD)/refresh-observation: tests/refresh_observation.c src/refresh_observation.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -o $@ $<
+
+refresh-observation: $(BUILD)/refresh-observation
+	$(BUILD)/refresh-observation
+.PHONY: refresh-observation

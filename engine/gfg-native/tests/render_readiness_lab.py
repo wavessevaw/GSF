@@ -57,6 +57,7 @@ def run(build, output, order):
         # name, layer, admission, requested source Hz, frames, delay ms/range
         ('healthy', True, True, 5, 30, 0, 0, 0),
         ('healthy-observed', True, True, 5, 30, 0, 0, 0),
+        ('refresh-wsi-query', True, True, 5, 12, 0, 0, 0),
         ('baseline-delayed', False, False, 45, 180, 35, 0, 180),
         ('old-admission-delayed', True, False, 45, 180, 35, 0, 180),
         ('new-admission-delayed', True, True, 45, 180, 35, 0, 180),
@@ -92,9 +93,11 @@ def run(build, output, order):
                            GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_OUTPUT_HZ='90',
                            GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_TIMELINE_WATCH='1',
                            GFG_NATIVE_CALIBRATED_TIMESTAMPS='1',
-                           GFG_NATIVE_QUEUE_OBSERVE='0' if name == 'healthy' else '1',
+                           GFG_NATIVE_QUEUE_OBSERVE='0' if name in ('healthy', 'refresh-wsi-query') else '1',
                            GFG_NATIVE_LATENCY_ADMISSION='1' if admission else '0',
                            GFG_NATIVE_TELEMETRY=str(trace))
+            if name == 'refresh-wsi-query':
+                env.pop('GFG_NATIVE_OUTPUT_HZ', None)
             p = subprocess.run([str(build/'wsi-gpu-smoke')], env=env, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, timeout=90)
             (output/(name+'.log')).write_text(p.stdout)
@@ -119,8 +122,28 @@ def run(build, output, order):
                 assert stats['present_path_host_pixel_reads'] == stats['present_path_cpu_waits'] == 0, stats
                 events = [json.loads(l) for l in trace.read_text().splitlines()]
                 row.update(stats=stats, all=analyze(events, 0, frames))
+                contexts = {(e['pid'], e['generation']): e for e in events if e.get('event') == 'bridge_context'}
+                pairs = [e for e in events if e.get('event') == 'pair']
+                assert pairs and all((e['pid'], e['generation']) in contexts for e in pairs), name
+                assert all(c['source_timestamp_semantics'] == 'cpu_vulkan_present_entry' and
+                           c['source_gpu_ready_ns'] is None and c['physical_display_hz'] is None and
+                           c['te_uses_present_queue'] for c in contexts.values()), name
+                if name == 'refresh-wsi-query':
+                    for e in pairs:
+                        assert e['refresh_override_present'] == 0, e
+                        if e['refresh_query_state'] == 'accepted':
+                            assert e['refresh_query_result'] == 0 and e['refresh_query_raw_ns'] == e['refresh_period_ns'], e
+                            assert e['refresh_origin'] == 'successful_wsi_query', e
+                        else:
+                            assert e['refresh_query_state'] in ('unavailable', 'query_failed', 'rejected_range'), e
+                    row['refresh_query_states'] = sorted({e['refresh_query_state'] for e in pairs})
+                else:
+                    assert all(e['refresh_origin'] == 'explicit_override' and
+                               e['refresh_query_state'] == 'override_present' and
+                               e['refresh_query_result'] is None and
+                               e['refresh_period_ns'] == 1000000000//90 for e in pairs), name
                 observations = [e for e in events if e.get('event') == 'queue_observation']
-                if name == 'healthy':
+                if name in ('healthy', 'refresh-wsi-query'):
                     assert not observations, 'Observer was not disabled'
                 else:
                     assert observations, 'No actual TE-submit queue snapshot'
@@ -134,8 +157,11 @@ def run(build, output, order):
                         'query_cpu_median_ms': median([e['query_cpu_ns']/1e6 for e in observations]),
                         'unretired_upper_bound_median': median([e['app_submits_unretired_upper_bound'] for e in observations]),
                         'incomplete_samples': sum(bool(e['tracking_lost'] or e['unfenced_unretired']) for e in observations)}
-                assert row['all']['calibrated_records'] > 0, 'Calibration unavailable; cannot establish this experiment'
-                if name.startswith('healthy'):
+                if name != 'refresh-wsi-query':
+                    assert row['all']['calibrated_records'] > 0, 'Calibration unavailable; cannot establish this experiment'
+                if name == 'refresh-wsi-query':
+                    pass  # Refresh provenance only; no software-GPU throughput threshold.
+                elif name.startswith('healthy'):
                     assert stats['synthetic'] >= 10, row
                 elif name.endswith('delayed'):
                     row['steady'] = analyze(events, 60, frames)
