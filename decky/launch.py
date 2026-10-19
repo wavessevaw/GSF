@@ -57,7 +57,7 @@ def game_environment(kit, run, inherited, diagnostic_mode="normal", multiplier=2
                GFG_NATIVE_ALGO='gsf', GFG_NATIVE_GSF_ECO='1', GFG_NATIVE_LMC_TIER='2', GFG_NATIVE_PACING='1', GFG_NATIVE_VISIBILITY_PROBE='1', GFG_NATIVE_REAL_WSI_PROBE='1',
                GFG_NATIVE_TIMING='1', GFG_NATIVE_SHADOW_ADMISSION='1', GFG_NATIVE_TIMELINE_WATCH='1', GFG_NATIVE_CALIBRATED_TIMESTAMPS='1', GFG_NATIVE_LATENCY_ADMISSION='1', GFG_NATIVE_STATUS_DIR=str(run/'status'),
                GFG_NATIVE_TELEMETRY=str(run/'frames.jsonl'), GFG_NATIVE_TELEMETRY_SEGMENTED='1')
-      if diagnostic_mode not in ("normal", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
+    if diagnostic_mode not in ("normal", "normal-lmc-gpu", "normal-no-shadow", "normal-adaptive-pairs", "normal-queue-observe", "normal-no-watch", "normal-no-calibration", "normal-calibration-every-frame", "normal-no-latency-admission"):
         env["GFG_NATIVE_DIAGNOSTIC_MODE"] = diagnostic_mode
     if diagnostic_mode == "normal-adaptive-pairs":
         env["GFG_NATIVE_ADAPTIVE_PAIRS"] = "1"
