@@ -40,7 +40,10 @@ def analyze(events, start, end):
             'dispatched': sum(p['dispatched_outputs'] for p in pairs),
             'wsi_accepted': sum(bool(p['wsi_accepted_ns'][0]) for p in pairs),
             'calibrated_records': len(records),
-            'submit_to_gpu_start_median_ms': median([e['submit_to_gpu_start_ns']/1e6 for _, e in records])}
+            'submit_to_gpu_start_median_ms': median([e['submit_to_gpu_start_ns']/1e6 for _, e in records]),
+            'source_to_gpu_start_median_ms': median([(e['gpu_start_cpu_ns']-p['source1_ns'])/1e6 for p, e in records]),
+            'source_to_compute_admission_median_ms': median([(p['compute_admission_ns']-p['source1_ns'])/1e6
+                for p in pairs if p.get('compute_admission_ns')])}
 
 
 def run(build, output, order):
@@ -70,6 +73,8 @@ def run(build, output, order):
                 layers.reverse()
             env['VK_INSTANCE_LAYERS'] = ':'.join(layers)
             trace = output/(name+'.jsonl')
+            app_trace = output/(name+'-app.jsonl')
+            env['GFG_TEST_RENDER_READY_TRACE'] = str(app_trace)
             if active:
                 env.update(GFG_TEST_EXPECT_GPU='1', GFG_NATIVE_FG='1', GFG_NATIVE_GPU_BRIDGE='1',
                            GFG_NATIVE_GPU_SYNC='same-device', GFG_NATIVE_ASYNC='1',
@@ -87,12 +92,14 @@ def run(build, output, order):
             row = {'name': name, 'frames': frames, 'source_hz': hz,
                    'gate_from': start, 'gate_until': end}
             row['source_rate'] = numbers(next(l for l in p.stdout.splitlines() if l.startswith('GSF_SOURCE_RATE ')))
-            source_markers = [numbers(l) for l in p.stdout.splitlines() if l.startswith('GSF_RENDER_READY_SOURCE ')]
+            app_events = [json.loads(l) for l in app_trace.read_text().splitlines()]
+            source_markers = [m for m in app_events if m['event'] == 'source']
+            assert len(source_markers) == frames, (name, 'Incomplete application evidence')
             row['application_submit_to_present_median_ms'] = median(
                 [(m['present_ns']-m['submit_ns'])/1e6 for m in source_markers if m['injected_delay_ms']])
             if end:
-                gate = numbers(next(l for l in p.stdout.splitlines() if l.startswith('GSF_RENDER_READY_GATE ')))
-                assert gate['armed'] == gate['released'] == end-start, (name, gate)
+                gate = next(m for m in app_events if m['event'] == 'gate_summary')
+                assert gate['ok'] and gate['armed'] == gate['released'] == end-start, (name, gate)
             if active:
                 stats = numbers(next(l for l in p.stdout.splitlines() if l.startswith('GFG native: gpu stats ')))
                 assert stats['real'] == frames and stats['errors'] == 0, (name, stats)
@@ -107,8 +114,15 @@ def run(build, output, order):
                     # Require genuinely asynchronous producer readiness, not
                     # an app-side vkQueueSubmit wait disguised as GPU latency.
                     assert row['application_submit_to_present_median_ms'] < 17.5, row
-                    assert row['steady']['submit_to_gpu_start_median_ms'] is not None, row
-                    assert row['steady']['submit_to_gpu_start_median_ms'] >= 20, row
+                    # Drivers may absorb the dependency in the layer's source
+                    # copy submit instead of after TE submit. Preserve and
+                    # classify that difference; never call it the Deck result.
+                    gpu = row['steady']['submit_to_gpu_start_median_ms']
+                    cpu = row['steady']['source_to_compute_admission_median_ms']
+                    row['wait_location'] = ('after_TE_submit' if gpu is not None and gpu >= 20
+                                            else 'before_TE_submit' if cpu is not None and cpu >= 20
+                                            else 'not_reproduced')
+                    assert row['wait_location'] != 'not_reproduced', row
                     if admission:
                         assert row['steady']['dispatched'] <= 4, row
                     else:
@@ -120,6 +134,8 @@ def run(build, output, order):
             result['cases'].append(row)
             (output/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
             print('READINESS_CASE', json.dumps(row), flush=True)
+        delayed = [c for c in result['cases'] if c['name'] in ('old-admission-delayed', 'new-admission-delayed')]
+        result['deck_gpu_delay_mechanism_reproduced'] = all(c['wait_location']=='after_TE_submit' for c in delayed)
         result['status'] = 'PASS'
     except Exception as e:
         result['error'] = str(e)

@@ -71,11 +71,13 @@ static int rrg_arm(render_readiness_gate *g,unsigned slot,uint64_t delay_ns) {
     pthread_mutex_unlock(&g->lock);return ok;
 }
 /* Call after application GPU work has drained, while its VkDevice is alive. */
-static int rrg_stop(render_readiness_gate *g) {
+static int rrg_stop(render_readiness_gate *g,FILE *trace) {
     if(!g)return 1;
     pthread_mutex_lock(&g->lock);g->stop=1;pthread_cond_signal(&g->changed);
     pthread_mutex_unlock(&g->lock);pthread_join(g->thread,NULL);
     int ok=!g->failed && g->armed==g->released;
+    if(trace)fprintf(trace,"{\"event\":\"gate_summary\",\"armed\":%llu,\"released\":%llu,\"ok\":%d}\n",
+        (unsigned long long)g->armed,(unsigned long long)g->released,ok);
     printf("GSF_RENDER_READY_GATE armed=%llu released=%llu status=%s\n",
         (unsigned long long)g->armed,(unsigned long long)g->released,ok?"PASS":"FAIL");
     for(unsigned i=0;i<2;++i)vkDestroyEvent(g->device,g->events[i],NULL);

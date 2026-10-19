@@ -493,6 +493,9 @@ int main(void) {
     for (uint32_t i = 0; i < image_count; ++i) TRY(vkCreateSemaphore(device, &semci, NULL, &rendered[i]));
     render_readiness_gate *render_gate=render_delay_ms?rrg_start(device):NULL;
     REQUIRE(!render_delay_ms || (render_gate && !lifecycle));
+    const char *render_trace_path=getenv("GFG_TEST_RENDER_READY_TRACE");
+    FILE *render_trace=render_trace_path?fopen(render_trace_path,"w"):NULL;
+    REQUIRE(!render_trace_path || render_trace);
 
     struct timespec source_origin;
     clock_gettime(CLOCK_MONOTONIC, &source_origin);
@@ -571,7 +574,9 @@ int main(void) {
         struct timespec source_now;
         clock_gettime(CLOCK_MONOTONIC, &source_now);
         source_last = (uint64_t)source_now.tv_sec*1000000000ull + source_now.tv_nsec;
-        if(render_gate)printf("GSF_RENDER_READY_SOURCE frame=%u submit_ns=%llu present_ns=%llu injected_delay_ms=%u\n",
+        if(render_trace)fprintf(render_trace,"{\"event\":\"source\",\"frame\":%u,\"submit_ns\":%llu,\"present_ns\":%llu,\"injected_delay_ms\":%u}\n",
+            frame,(unsigned long long)render_submit_ns,(unsigned long long)source_last,delayed?render_delay_ms:0);
+        else if(render_gate)printf("GSF_RENDER_READY_SOURCE frame=%u submit_ns=%llu present_ns=%llu injected_delay_ms=%u\n",
             frame,(unsigned long long)render_submit_ns,(unsigned long long)source_last,delayed?render_delay_ms:0);
         if (!frame) source_first = source_last;
         if (frame == 2) steady_first = source_last;
@@ -666,7 +671,8 @@ int main(void) {
         puts("GFG native: recreate with pending output + queue idle drain PASS");
     } else if(env_1("GFG_TEST_QUEUE_IDLE_ONLY")) TRY(vkQueueWaitIdle(queue));
     else TRY(vkDeviceWaitIdle(device));
-    REQUIRE(rrg_stop(render_gate));
+    REQUIRE(rrg_stop(render_gate,render_trace));
+    if(render_trace)REQUIRE(fclose(render_trace)==0);
     if (maintenance_chain) {
         TRY(vkWaitForFences(device, frames, present_fences, VK_TRUE, 5000000000ull));
         for (uint32_t i = 0; i < frames; ++i) {

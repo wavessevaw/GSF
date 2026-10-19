@@ -71,6 +71,13 @@ preserved originals, zero bridge host pixel reads/waits and clean Vulkan
 validation. A failure remains a failure, with logs and machine-readable data
 uploaded by the dedicated CI workflow in both layer orders.
 
+Application evidence uses a dedicated JSONL stream, not mixed stdout/stderr.
+The lab distinguishes delays absorbed before TE submission (for example in
+the layer's source-copy submit) from delays measured after TE submission.
+`deck_gpu_delay_mechanism_reproduced` is false when the driver exposes the
+injected wait at a different location. Successful Vulkan/lifetime and recovery
+checks alone do not turn that different result into a Deck reproduction.
+
 The injected wait is **not GPU saturation or a measured cause on Deck**. A
 successful reproduction establishes a controlled failure mechanism for further
 timing work. A new candidate should follow evidence of how source readiness and
