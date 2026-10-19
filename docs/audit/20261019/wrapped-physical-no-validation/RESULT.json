@@ -1,0 +1,6 @@
+{
+  "scope": "ACTUAL_SOFTWARE_VULKAN_OPAQUE_PHYSICAL_NOT_GAMESCOPE_OR_DECK",
+  "status": "PASS",
+  "negative_control_returncode": -6,
+  "mutation": "format_ok uses global loader trampoline"
+}

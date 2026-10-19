@@ -1,0 +1,5 @@
+WRAPPED_PHYSICAL_BORROW_SETUP complete
+HDR precision: format=64 outputs=2 all 1024 packed levels preserved exactly PASS
+HDR precision: format=58 BLIT_DST unsupported, skipped (runtime also refuses it)
+WRAPPED_PHYSICAL_DISPATCH_PASS format_queries=4 packed_queries=1 loader_handle_compatible=0 Gamescope_test=0
+HDR precision: supported packed10 formats, FP16 synthesis, 1024 distinct levels, two outputs bit-exact PASS; scanout unobserved

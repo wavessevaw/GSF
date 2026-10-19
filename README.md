@@ -4,6 +4,8 @@ Independent research and development of a Vulkan GPU frame-generation engine for
 
 **Status: EXPERIMENTAL.** This repository is being separated from [GFG Extreme](https://github.com/wavessevaw/GFG-Extreme). Software validation and a real Vulkan WSI prototype exist, but **Steam Deck OLED physical display output, stable 2×/3×, latency and HDR are not accepted**. Do not use as a production-ready gaming feature.
 
+[Game-generation blocker audit, 2026-10-19](docs/audit/20261019/GENERATION_BLOCKERS_RU.md): six hardware captures, scoped GPU deadline evidence, packed10 activation refusal, and a reproducible historical dispatch regression. Passing the audit tests does not qualify a Deck candidate.
+
 ## Components
 
 - [Native Vulkan layer and output experiments](engine/gfg-native/): real-WSI interception, GPU bridge, present scheduling, Vulkan loader integration and unit / lavapipe tests.

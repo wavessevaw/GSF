@@ -1,0 +1,55 @@
+name: GSF Generation Blocker Audit
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/audit_generation.py'
+      - 'tools/check_borrowed_dispatch_regression.py'
+      - 'tests/test_generation_audit.py'
+      - 'tests/fixtures/deck_generation_deadlines.csv'
+      - 'docs/audit/**'
+      - 'engine/gfg-temporal/src/**'
+      - 'engine/gfg-native/tests/borrowed_device.c'
+      - 'engine/gfg-native/tests/hdr_precision.c'
+      - 'engine/gfg-native/tests/wrapped_physical_dispatch.h'
+      - 'engine/gfg-native/Makefile'
+      - '.github/workflows/gsf-generation-audit.yml'
+permissions:
+  contents: read
+jobs:
+  evidence-replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s tests -p 'test_generation_audit.py'
+  borrowed-dispatch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        validation: ['off', 'on']
+    env:
+      LP_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actual Vulkan compiler, software driver and validation
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers glslang-tools spirv-tools
+          git clone -q --depth 1 --branch v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers "$RUNNER_TEMP/vkh"
+      - name: Build actual Temporal Engine and GPU tests
+        run: |
+          make -C engine/gfg-temporal lib
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" build/borrowed-device build/hdr-precision
+      - name: Positive proof and historical wrong-dispatch negative control
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          if [ '${{ matrix.validation }}' = on ]; then export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation; fi
+          python3 tools/check_borrowed_dispatch_regression.py --vulkan-headers "$RUNNER_TEMP/vkh/include" --out dispatch-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: borrowed-dispatch-${{ matrix.validation }}
+          path: dispatch-evidence/
+          retention-days: 21

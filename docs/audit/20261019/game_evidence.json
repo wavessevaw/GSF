@@ -1,0 +1,936 @@
+{
+  "runs": [
+    {
+      "appid": 582160,
+      "archive": "GSF-Game-Latest(3).zip",
+      "blockers": [],
+      "bridge_active_lines": 1,
+      "bridge_scopes": 1,
+      "calibrated_all": {
+        "deadline_slack_after_submit_median_ms": null,
+        "estimated_ready_after_deadline": 0,
+        "estimated_ready_lateness_median_ms": null,
+        "gpu_span_median_ms": null,
+        "samples": 0,
+        "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+        "source_to_submit_median_ms": null,
+        "start_definitely_after_deadline": 0,
+        "start_lateness_median_ms": null,
+        "submit_to_start_median_ms": null
+      },
+      "event_counts": {
+        "compositor_feedback": 6975,
+        "gpu_pair": 1248,
+        "pair": 6775,
+        "timeline_watch": 1248
+      },
+      "exit_code": -2,
+      "first_accepted_offset_s": 0.651629468,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "1",
+          "create_flags": "0x4",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "6",
+          "image_format": "37",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "1000275002",
+          "real_swapchain": "1",
+          "reason": "existing-usage-ready",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 1,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 1,
+      "joins": {
+        "gpu_correlated": {},
+        "gpu_pair": {
+          "matched": 1248
+        },
+        "timeline_watch": {
+          "matched": 1248
+        }
+      },
+      "last_accepted_offset_s": 56.876060378,
+      "legacy_result": "GAME_EXIT_ERROR",
+      "missing_duration_or_deadline": 0,
+      "pairs": 6775,
+      "physical_2x": null,
+      "post_60s": {
+        "dispatch_rate_per_s": 9.964836893413544,
+        "dispatched": 685,
+        "source_pairs": 2686,
+        "synthetic_wsi_accepted": 0,
+        "timing": {
+          "deadline_slack_after_submit_median_ms": null,
+          "estimated_ready_after_deadline": 0,
+          "estimated_ready_lateness_median_ms": null,
+          "gpu_span_median_ms": null,
+          "samples": 0,
+          "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+          "source_to_submit_median_ms": null,
+          "start_definitely_after_deadline": 0,
+          "start_lateness_median_ms": null,
+          "submit_to_start_median_ms": null
+        }
+      },
+      "refresh_period_counts": {
+        "11110617": 6773,
+        "16666666": 2
+      },
+      "reported_compositor_ready_minus_real_ms": {
+        "median": null,
+        "ready_after_reported_real": 0,
+        "samples": 0,
+        "scope": "Estimated GPU completion vs compositor-reported actual time; NOT physical scanout"
+      },
+      "sha256": "988306b5d4fdc7fb01c49f738470d346a07d273ddae5bb0394754ccd58ca9444",
+      "source_commit": "a5c579fe0ab9bf523e796cbd399e7315bd066152",
+      "source_span_s": 128.741717233,
+      "synthetic_dispatched": 1249,
+      "synthetic_wsi_accepted": 212,
+      "trace_present": true,
+      "windows": [
+        {
+          "source_pairs": 740,
+          "start_s": 0,
+          "synthetic_dispatched": 155,
+          "synthetic_wsi_accepted": 138
+        },
+        {
+          "source_pairs": 828,
+          "start_s": 10,
+          "synthetic_dispatched": 115,
+          "synthetic_wsi_accepted": 64
+        },
+        {
+          "source_pairs": 886,
+          "start_s": 20,
+          "synthetic_dispatched": 62,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 618,
+          "start_s": 30,
+          "synthetic_dispatched": 72,
+          "synthetic_wsi_accepted": 8
+        },
+        {
+          "source_pairs": 532,
+          "start_s": 40,
+          "synthetic_dispatched": 73,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 485,
+          "start_s": 50,
+          "synthetic_dispatched": 87,
+          "synthetic_wsi_accepted": 2
+        },
+        {
+          "source_pairs": 408,
+          "start_s": 60,
+          "synthetic_dispatched": 102,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 405,
+          "start_s": 70,
+          "synthetic_dispatched": 97,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 392,
+          "start_s": 80,
+          "synthetic_dispatched": 90,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 373,
+          "start_s": 90,
+          "synthetic_dispatched": 107,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 388,
+          "start_s": 100,
+          "synthetic_dispatched": 104,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 392,
+          "start_s": 110,
+          "synthetic_dispatched": 88,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 328,
+          "start_s": 120,
+          "synthetic_dispatched": 97,
+          "synthetic_wsi_accepted": 0
+        }
+      ]
+    },
+    {
+      "appid": 582160,
+      "archive": "GSF-Game-Latest(4).zip",
+      "blockers": [
+        "OBSERVED_GPU_START_AFTER_DEADLINE: shader-zero-cost control still misses those slots"
+      ],
+      "bridge_active_lines": 1,
+      "bridge_scopes": 1,
+      "calibrated_all": {
+        "deadline_slack_after_submit_median_ms": 11.83105,
+        "estimated_ready_after_deadline": 1192,
+        "estimated_ready_lateness_median_ms": 31.201467,
+        "gpu_span_median_ms": 7.0744,
+        "samples": 1409,
+        "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+        "source_to_submit_median_ms": 0.350952,
+        "start_definitely_after_deadline": 1132,
+        "start_lateness_median_ms": 23.51427,
+        "submit_to_start_median_ms": 35.699152
+      },
+      "event_counts": {
+        "calibration": 758,
+        "calibration_init": 1,
+        "compositor_feedback": 8204,
+        "gpu_correlated": 1410,
+        "gpu_pair": 1410,
+        "pair": 8034,
+        "timeline_watch": 1412
+      },
+      "exit_code": -2,
+      "first_accepted_offset_s": 0.067921416,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "1",
+          "create_flags": "0x4",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "6",
+          "image_format": "37",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "1000275002",
+          "real_swapchain": "1",
+          "reason": "existing-usage-ready",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 1,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 0,
+      "joins": {
+        "gpu_correlated": {
+          "matched": 1410
+        },
+        "gpu_pair": {
+          "matched": 1410
+        },
+        "timeline_watch": {
+          "matched": 1412
+        }
+      },
+      "last_accepted_offset_s": 57.221293624,
+      "legacy_result": "GAME_EXIT_ERROR",
+      "missing_duration_or_deadline": 0,
+      "pairs": 8034,
+      "physical_2x": null,
+      "post_60s": {
+        "dispatch_rate_per_s": 9.567712407568612,
+        "dispatched": 828,
+        "source_pairs": 3669,
+        "synthetic_wsi_accepted": 0,
+        "timing": {
+          "deadline_slack_after_submit_median_ms": 12.651063,
+          "estimated_ready_after_deadline": 826,
+          "estimated_ready_lateness_median_ms": 36.652414,
+          "gpu_span_median_ms": 8.73886,
+          "samples": 826,
+          "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+          "source_to_submit_median_ms": 0.387091,
+          "start_definitely_after_deadline": 824,
+          "start_lateness_median_ms": 28.54393,
+          "submit_to_start_median_ms": 41.748807
+        }
+      },
+      "refresh_period_counts": {
+        "11110617": 8032,
+        "16666666": 2
+      },
+      "reported_compositor_ready_minus_real_ms": {
+        "median": -0.397072,
+        "ready_after_reported_real": 387,
+        "samples": 826,
+        "scope": "Estimated GPU completion vs compositor-reported actual time; NOT physical scanout"
+      },
+      "sha256": "4e1bf669f076d3720f6e926be6cd22d47a56f1649aff9f4dcc515de399446c4a",
+      "source_commit": "0440b21fc8694f5676526b0921517ff6e96e8ed0",
+      "source_span_s": 146.541062767,
+      "synthetic_dispatched": 1412,
+      "synthetic_wsi_accepted": 197,
+      "trace_present": true,
+      "windows": [
+        {
+          "source_pairs": 740,
+          "start_s": 0,
+          "synthetic_dispatched": 159,
+          "synthetic_wsi_accepted": 140
+        },
+        {
+          "source_pairs": 866,
+          "start_s": 10,
+          "synthetic_dispatched": 56,
+          "synthetic_wsi_accepted": 25
+        },
+        {
+          "source_pairs": 889,
+          "start_s": 20,
+          "synthetic_dispatched": 36,
+          "synthetic_wsi_accepted": 1
+        },
+        {
+          "source_pairs": 753,
+          "start_s": 30,
+          "synthetic_dispatched": 92,
+          "synthetic_wsi_accepted": 10
+        },
+        {
+          "source_pairs": 592,
+          "start_s": 40,
+          "synthetic_dispatched": 122,
+          "synthetic_wsi_accepted": 19
+        },
+        {
+          "source_pairs": 525,
+          "start_s": 50,
+          "synthetic_dispatched": 119,
+          "synthetic_wsi_accepted": 2
+        },
+        {
+          "source_pairs": 414,
+          "start_s": 60,
+          "synthetic_dispatched": 109,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 419,
+          "start_s": 70,
+          "synthetic_dispatched": 80,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 377,
+          "start_s": 80,
+          "synthetic_dispatched": 92,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 427,
+          "start_s": 90,
+          "synthetic_dispatched": 122,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 476,
+          "start_s": 100,
+          "synthetic_dispatched": 82,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 436,
+          "start_s": 110,
+          "synthetic_dispatched": 105,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 460,
+          "start_s": 120,
+          "synthetic_dispatched": 73,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 409,
+          "start_s": 130,
+          "synthetic_dispatched": 92,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 251,
+          "start_s": 140,
+          "synthetic_dispatched": 73,
+          "synthetic_wsi_accepted": 0
+        }
+      ]
+    },
+    {
+      "appid": 582160,
+      "archive": "GSF-Game-Latest(5).zip",
+      "blockers": [
+        "OBSERVED_GPU_START_AFTER_DEADLINE: shader-zero-cost control still misses those slots"
+      ],
+      "bridge_active_lines": 1,
+      "bridge_scopes": 1,
+      "calibrated_all": {
+        "deadline_slack_after_submit_median_ms": 7.585137,
+        "estimated_ready_after_deadline": 99,
+        "estimated_ready_lateness_median_ms": 0.726987,
+        "gpu_span_median_ms": 5.5068,
+        "samples": 197,
+        "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+        "source_to_submit_median_ms": 0.298967,
+        "start_definitely_after_deadline": 93,
+        "start_lateness_median_ms": -4.877439,
+        "submit_to_start_median_ms": 1.587213
+      },
+      "event_counts": {
+        "calibration": 139,
+        "calibration_init": 1,
+        "compositor_feedback": 10591,
+        "gpu_correlated": 197,
+        "gpu_pair": 197,
+        "pair": 10510,
+        "timeline_watch": 197
+      },
+      "exit_code": -2,
+      "first_accepted_offset_s": 0.077230029,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "1",
+          "create_flags": "0x4",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "6",
+          "image_format": "37",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "1000275002",
+          "real_swapchain": "1",
+          "reason": "existing-usage-ready",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 1,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 1,
+      "joins": {
+        "gpu_correlated": {
+          "matched": 197
+        },
+        "gpu_pair": {
+          "matched": 197
+        },
+        "timeline_watch": {
+          "matched": 197
+        }
+      },
+      "last_accepted_offset_s": 9.268843026,
+      "legacy_result": "GAME_EXIT_ERROR",
+      "missing_duration_or_deadline": 0,
+      "pairs": 10510,
+      "physical_2x": null,
+      "post_60s": {
+        "dispatch_rate_per_s": 0.4919050611054923,
+        "dispatched": 73,
+        "source_pairs": 6460,
+        "synthetic_wsi_accepted": 0,
+        "timing": {
+          "deadline_slack_after_submit_median_ms": 11.672825,
+          "estimated_ready_after_deadline": 73,
+          "estimated_ready_lateness_median_ms": 38.222076,
+          "gpu_span_median_ms": 8.02064,
+          "samples": 73,
+          "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+          "source_to_submit_median_ms": 0.356191,
+          "start_definitely_after_deadline": 73,
+          "start_lateness_median_ms": 30.551355,
+          "submit_to_start_median_ms": 41.25781
+        }
+      },
+      "refresh_period_counts": {
+        "11110617": 10508,
+        "16666666": 2
+      },
+      "reported_compositor_ready_minus_real_ms": {
+        "median": 0.937695,
+        "ready_after_reported_real": 41,
+        "samples": 73,
+        "scope": "Estimated GPU completion vs compositor-reported actual time; NOT physical scanout"
+      },
+      "sha256": "eef09242b98fbd35abe8c4ec4ade367ed6761eda3f9f2de0fcb93654a4413f03",
+      "source_commit": "0ee3a9bdca2b9070bcf723d853b378168d0afe00",
+      "source_span_s": 208.402620286,
+      "synthetic_dispatched": 197,
+      "synthetic_wsi_accepted": 85,
+      "trace_present": true,
+      "windows": [
+        {
+          "source_pairs": 780,
+          "start_s": 0,
+          "synthetic_dispatched": 101,
+          "synthetic_wsi_accepted": 85
+        },
+        {
+          "source_pairs": 888,
+          "start_s": 10,
+          "synthetic_dispatched": 4,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 853,
+          "start_s": 20,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 521,
+          "start_s": 30,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 576,
+          "start_s": 40,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 432,
+          "start_s": 50,
+          "synthetic_dispatched": 4,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 444,
+          "start_s": 60,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 403,
+          "start_s": 70,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 412,
+          "start_s": 80,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 429,
+          "start_s": 90,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 449,
+          "start_s": 100,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 446,
+          "start_s": 110,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 452,
+          "start_s": 120,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 444,
+          "start_s": 130,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 439,
+          "start_s": 140,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 450,
+          "start_s": 150,
+          "synthetic_dispatched": 4,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 435,
+          "start_s": 160,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 436,
+          "start_s": 170,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 415,
+          "start_s": 180,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 437,
+          "start_s": 190,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 369,
+          "start_s": 200,
+          "synthetic_dispatched": 4,
+          "synthetic_wsi_accepted": 0
+        }
+      ]
+    },
+    {
+      "appid": 2215430,
+      "archive": "GSF-Game-Latest(6).zip",
+      "blockers": [
+        "ACTIVATION_REFUSED: gamescope-packed10-physical-dispatch-unverified",
+        "NO_GENERATION_TRACE: no TE timing or recovery claim possible"
+      ],
+      "bridge_active_lines": 0,
+      "event_counts": {},
+      "exit_code": -2,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "0",
+          "create_flags": "0x0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "3",
+          "image_format": "64",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "gamescope-packed10-physical-dispatch-unverified",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        },
+        {
+          "async": "1",
+          "candidate": "0",
+          "create_flags": "0x0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "3",
+          "image_format": "64",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "gamescope-packed10-physical-dispatch-unverified",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 0,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 0,
+      "legacy_result": "GENERATION_BLOCKED",
+      "pairs": 0,
+      "sha256": "b994035eb79f1381b125270643a7e52a9ae3dddbe8fd7d94b28ca46767fe721f",
+      "source_commit": "0ee3a9bdca2b9070bcf723d853b378168d0afe00",
+      "trace_present": false
+    },
+    {
+      "appid": 2215430,
+      "archive": "GSF-Game-Latest(7).zip",
+      "blockers": [
+        "OBSERVED_GPU_START_AFTER_DEADLINE: shader-zero-cost control still misses those slots"
+      ],
+      "bridge_active_lines": 2,
+      "bridge_scopes": 2,
+      "calibrated_all": {
+        "deadline_slack_after_submit_median_ms": 16.70394,
+        "estimated_ready_after_deadline": 37,
+        "estimated_ready_lateness_median_ms": 22.42211,
+        "gpu_span_median_ms": 5.9486,
+        "samples": 55,
+        "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+        "source_to_submit_median_ms": 0.282877,
+        "start_definitely_after_deadline": 33,
+        "start_lateness_median_ms": 14.132628,
+        "submit_to_start_median_ms": 32.362159
+      },
+      "event_counts": {
+        "calibration": 45,
+        "calibration_init": 2,
+        "compositor_feedback": 5783,
+        "gpu_correlated": 55,
+        "gpu_pair": 55,
+        "pair": 5768,
+        "timeline_watch": 55,
+        "timeline_watch_summary": 1
+      },
+      "exit_code": -2,
+      "first_accepted_offset_s": 3.940252742,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "1",
+          "create_flags": "0x0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "5",
+          "image_format": "37",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "existing-usage-ready",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        },
+        {
+          "async": "1",
+          "candidate": "1",
+          "create_flags": "0x0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "5",
+          "image_format": "37",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "existing-usage-ready",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 1,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 1,
+      "joins": {
+        "gpu_correlated": {
+          "matched": 55
+        },
+        "gpu_pair": {
+          "matched": 55
+        },
+        "timeline_watch": {
+          "matched": 55
+        }
+      },
+      "last_accepted_offset_s": 44.727072742,
+      "legacy_result": "GAME_EXIT_ERROR",
+      "missing_duration_or_deadline": 0,
+      "pairs": 5768,
+      "physical_2x": null,
+      "post_60s": {
+        "dispatch_rate_per_s": 0.5070122993331581,
+        "dispatched": 22,
+        "source_pairs": 1674,
+        "synthetic_wsi_accepted": 0,
+        "timing": {
+          "deadline_slack_after_submit_median_ms": 15.386707,
+          "estimated_ready_after_deadline": 21,
+          "estimated_ready_lateness_median_ms": 26.176501,
+          "gpu_span_median_ms": 6.00524,
+          "samples": 21,
+          "shader_zero_cost_control": "Observed start is held fixed; NOT a causal FPS replay or promised fix",
+          "source_to_submit_median_ms": 0.251478,
+          "start_definitely_after_deadline": 21,
+          "start_lateness_median_ms": 19.288653,
+          "submit_to_start_median_ms": 34.5348
+        }
+      },
+      "refresh_period_counts": {
+        "16666666": 5768
+      },
+      "reported_compositor_ready_minus_real_ms": {
+        "median": -1.497448,
+        "ready_after_reported_real": 7,
+        "samples": 21,
+        "scope": "Estimated GPU completion vs compositor-reported actual time; NOT physical scanout"
+      },
+      "sha256": "8f2876def54c49647d72ec9fee122a697bda250a7e053ce3a6f591e7a92c781c",
+      "source_commit": "0ee3a9bdca2b9070bcf723d853b378168d0afe00",
+      "source_span_s": 103.391452296,
+      "synthetic_dispatched": 56,
+      "synthetic_wsi_accepted": 17,
+      "trace_present": true,
+      "windows": [
+        {
+          "source_pairs": 797,
+          "start_s": 0,
+          "synthetic_dispatched": 19,
+          "synthetic_wsi_accepted": 16
+        },
+        {
+          "source_pairs": 899,
+          "start_s": 10,
+          "synthetic_dispatched": 0,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 639,
+          "start_s": 20,
+          "synthetic_dispatched": 4,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 900,
+          "start_s": 30,
+          "synthetic_dispatched": 0,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 489,
+          "start_s": 40,
+          "synthetic_dispatched": 6,
+          "synthetic_wsi_accepted": 1
+        },
+        {
+          "source_pairs": 370,
+          "start_s": 50,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 373,
+          "start_s": 60,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 396,
+          "start_s": 70,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 390,
+          "start_s": 80,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 384,
+          "start_s": 90,
+          "synthetic_dispatched": 5,
+          "synthetic_wsi_accepted": 0
+        },
+        {
+          "source_pairs": 131,
+          "start_s": 100,
+          "synthetic_dispatched": 2,
+          "synthetic_wsi_accepted": 0
+        }
+      ]
+    },
+    {
+      "appid": 292030,
+      "archive": "GSF-Game-Latest(8).zip",
+      "blockers": [
+        "ACTIVATION_REFUSED: gamescope-packed10-physical-dispatch-unverified",
+        "NO_GENERATION_TRACE: no TE timing or recovery claim possible"
+      ],
+      "bridge_active_lines": 0,
+      "event_counts": {},
+      "exit_code": -2,
+      "gates": [
+        {
+          "async": "1",
+          "candidate": "0",
+          "create_flags": "0xc0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "3",
+          "image_format": "64",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "gamescope-packed10-physical-dispatch-unverified",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        },
+        {
+          "async": "1",
+          "candidate": "0",
+          "create_flags": "0xc0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "3",
+          "image_format": "64",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "gamescope-packed10-physical-dispatch-unverified",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        },
+        {
+          "async": "1",
+          "candidate": "0",
+          "create_flags": "0xc0",
+          "effective_mode": "2",
+          "fifo_requested": "1",
+          "gpu_capable": "1",
+          "gpu_requested": "1",
+          "image_count_requested": "3",
+          "image_format": "64",
+          "image_usage": "0x1b",
+          "original_mode": "2",
+          "original_pnext": "-1",
+          "real_swapchain": "1",
+          "reason": "gamescope-packed10-physical-dispatch-unverified",
+          "spare": "2",
+          "virtual_swapchain": "0"
+        }
+      ],
+      "generation_started_lines": 0,
+      "installed_diagnostic_mode": "normal",
+      "invalid_json_lines": 0,
+      "legacy_result": "GENERATION_BLOCKED",
+      "pairs": 0,
+      "sha256": "0f66a73d4ee98eae63026fb52085feb0b32c7c7e64370c8838fa94bf81865eaa",
+      "source_commit": "0ee3a9bdca2b9070bcf723d853b378168d0afe00",
+      "trace_present": false
+    }
+  ],
+  "scope": "HARDWARE_LOG_AUDIT_NOT_CAUSAL_FIX_REPLAY_OR_SCANOUT"
+}

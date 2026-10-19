@@ -1,0 +1,2 @@
+WRAPPED_PHYSICAL_BORROW_SETUP complete
+ERROR:             vkGetPhysicalDeviceFormatProperties: Invalid physicalDevice [VUID-vkGetPhysicalDeviceFormatProperties-physicalDevice-parameter]

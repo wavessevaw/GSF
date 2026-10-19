@@ -1,0 +1,5 @@
+WRAPPED_PHYSICAL_BORROW_SETUP complete
+borrowed motion: t=1/3 psnr_db=37.125 endpoint_db=20.801
+borrowed motion: t=2/3 psnr_db=35.835 endpoint_db=20.813
+WRAPPED_PHYSICAL_DISPATCH_PASS format_queries=4 packed_queries=0 loader_handle_compatible=0 Gamescope_test=0
+borrowed GPU: exact 1/3,2/3 pixels, BGRA packing, no optional features, device lifetime PASS
