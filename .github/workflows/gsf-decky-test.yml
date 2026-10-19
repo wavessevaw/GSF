@@ -35,13 +35,50 @@ jobs:
           npm --prefix decky run build
           npm --prefix decky run test:panel
           python3 -m unittest discover -s decky/tests -p 'test_*.py'
-          make -C engine/gfg-native frame-clock timeline-watch calibration-clock generation-budget
+          make -C engine/gfg-native adaptive-pair frame-clock timeline-watch calibration-clock generation-budget
       - name: Build GPU layer and package exact source
         run: |
           make -C engine/gfg-temporal lib
           make -C engine/gfg-native ENABLE_TE=1 BUILD=build-decky VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-decky/wsi-gpu-smoke
           python3 scripts/package_deck_candidate.py --build engine/gfg-native/build-decky --out "$RUNNER_TEMP/candidate"
           python3 scripts/package_decky_test.py --candidate "$RUNNER_TEMP/candidate/GSF-Deck-Test.zip" --out "$RUNNER_TEMP/decky"
+      - name: Opt-in adaptive 2x real Vulkan WSI integration (lavapipe only)
+        run: |
+          set -euo pipefail
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          export VK_LAYER_PATH="$PWD/engine/gfg-native/build-decky:/usr/share/vulkan/explicit_layer.d"
+          export VK_INSTANCE_LAYERS=VK_LAYER_GFG_native
+          export GFG_NATIVE_FG=1 GFG_NATIVE_GPU_BRIDGE=1
+          export GFG_NATIVE_GPU_SYNC=same-device GFG_NATIVE_ASYNC=1
+          export GFG_NATIVE_FORCE_FIFO=1 GFG_NATIVE_MODE=2 GFG_NATIVE_ALGO=lmc-gpu
+          export GFG_NATIVE_LMC_TIER=2 GFG_NATIVE_PACING=1 GFG_NATIVE_OUTPUT_HZ=90
+          export GFG_NATIVE_ADAPTIVE_PAIRS=1 GFG_NATIVE_TIMELINE_WATCH=1
+          export GFG_TEST_EXPECT_GPU=1 GFG_TEST_FRAMES=18
+          export GFG_TEST_SOURCE_HZ=5 GFG_TEST_ALLOW_SKIPS=1
+          export GFG_NATIVE_TELEMETRY="$RUNNER_TEMP/adaptive-pair-wsi.jsonl"
+          timeout 120s xvfb-run -a -s '-screen 0 1024x768x24' \
+            engine/gfg-native/build-decky/wsi-gpu-smoke > "$RUNNER_TEMP/adaptive-pair-wsi.log" 2>&1 || {
+              tail -n 110 "$RUNNER_TEMP/adaptive-pair-wsi.log"
+              exit 1
+            }
+          grep -q 'adaptive_pairs=experimental' "$RUNNER_TEMP/adaptive-pair-wsi.log"
+          grep -q 'GPU bridge WSI smoke PASS' "$RUNNER_TEMP/adaptive-pair-wsi.log"
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'adaptive-pair-wsi.jsonl'
+          events=[json.loads(x) for x in p.read_text().splitlines() if x.startswith('{')]
+          pairs=[x for x in events if x.get('event')=='pair']
+          adaptive=[x for x in events if x.get('event')=='adaptive_pair']
+          assert len(pairs)==18, ('missing real source frames',len(pairs))
+          assert len(adaptive)==18, ('missing adaptive policy events',len(adaptive))
+          assert all(x['scheduled_real_ns']<=x['base_real_ns']+
+                     2*11111111 for x in adaptive if x['eligible'])
+          assert all(x['scheduled_g1_ns']<x['scheduled_real_ns']
+                     for x in adaptive if x['eligible'])
+          print('GSF_ADAPTIVE_PAIR_ACTUAL_VULKAN_PASS real=',len(pairs),
+                'eligible=',sum(x['eligible'] for x in adaptive),
+                'synthetic_wsi=',sum(x['synthetic_wsi'] for x in adaptive))
+          PY
       - name: Extracted offline plugin actual install, GPU generation, diagnostics and uninstall bypass
         run: |
           export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"

@@ -1,3 +1,15 @@
+# GSF 0.1.8 LAB: Adaptive pairs and stream reacquisition
+
+This is a **research-only Decky candidate**, built on the stacked PR #38 and #40 diagnostic audit; main and the packed10 guard remain unchanged.
+
+Select **Эксперимент 0.1.8: адаптивная пара G1/B** in the Decky diagnostic dropdown (restart the game). Normal mode retains the existing 0.1.7 timing and latency-admission policy.
+
+Opt-in flag GFG_NATIVE_ADAPTIVE_PAIRS=1 activates on 2x same-device GPU LMC only. The policy forecasts finish from calibrated submit-to-GPU-start and TE GPU span, tentatively reallocates a G1 slot while limiting real B's *scheduled* extension to 2 refreshes. After observing GPU completion through the existing timeline wait, it re-selects an actual G1/B ordered pair. Source pressure, lateness and no viable pair cause real-only fallback. It never moves waits into the application Present thread and never holds an unlimited queue. The native output owner calls remain G1 then B.
+
+Adaptive recovery states: SYNCING, GENERATING, DEGRADED and REACQUIRE. A failed transient pair does not require restarting the game. A stale calibrated estimate cannot disable the game session forever: a bounded re-acquisition probe is allowed after a backed-off quiet period. Each bridge has its own state, and GSF writes `adaptive_pair` JSONL events. The test checks healthy generation, impossible-late G1, bounded-B scheduling, pressure, discontinuities and repeated recovery under 2200 variable-source steps.
+
+**Evidence limits:** This is a host-side slot policy, NOT direct GPU-input-ready observation. It observes when generated G1 becomes ready, but cannot make an input image ready earlier or guarantee that the compositor displays the requested timestamp. Two refreshes constrain planned native-B *scheduling*, not a guarantee on driver/Gamescope execution latency. Existing packed10 gating is not relaxed, and 0.1.8 has no hardware 2x validation. Never interpret WSI acceptance as physical scanout.
+
 # GSF Decky Test 0.1.7 — calibrated latency admission
 
 0.1.7 includes trustworthy submit-to-GPU-start latency in the synthetic-work

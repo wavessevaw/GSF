@@ -372,3 +372,13 @@ $(BUILD)/refresh-observation: tests/refresh_observation.c src/refresh_observatio
 refresh-observation: $(BUILD)/refresh-observation
 	$(BUILD)/refresh-observation
 .PHONY: refresh-observation
+
+
+# Pure adaptive scheduler + stream reacquisition, variable source latency.
+$(BUILD)/adaptive-pair: tests/adaptive_pair.c src/adaptive_pair.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ tests/adaptive_pair.c
+
+adaptive-pair: $(BUILD)/adaptive-pair
+	$(BUILD)/adaptive-pair
+.PHONY: adaptive-pair
