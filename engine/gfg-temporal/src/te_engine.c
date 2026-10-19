@@ -992,7 +992,7 @@ static VkResult validate_desc(te_device* dev, const te_context_desc* d) {
     if (d->application_timeline && !dev->borrowed)
         return fail(VK_ERROR_FEATURE_NOT_PRESENT, "application timeline requires borrowed device");
     if(p->algorithm>TE_ALGO_SHARED_FLOW) return VK_ERROR_FEATURE_NOT_PRESENT;
-    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>5))
+    if(p->algorithm==TE_ALGO_SHARED_FLOW && (d->shared_flow_dense<0 || d->shared_flow_dense>6))
         return fail(VK_ERROR_FEATURE_NOT_PRESENT,"unknown experimental shared-flow variant");
     if((p->algorithm==TE_ALGO_LMC_GPU || (p->algorithm==TE_ALGO_SHARED_FLOW && d->shared_flow_dense>=3 && d->shared_flow_dense<=4)) &&
         (dev->props.limits.maxComputeWorkGroupInvocations<512 || dev->props.limits.maxComputeWorkGroupSize[0]<512 ||
