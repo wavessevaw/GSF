@@ -98,8 +98,8 @@ static double now_ms(void) {
 int main(int argc, char** argv) {
     const char *frames_path = NULL, *out_path = NULL, *json_path = NULL, *analysis_dir = NULL, *device = NULL;
     size_t start = 0, pairs = 0, step = 3, cw = 0, ch = 0;
-    int profile = 0, validation = 0, download = 1, tier = 0;
-    uint32_t outputs=0;int shared_dense=0;
+    int profile = 0, validation = 0, download = 1, tier = 0, uniform_phases = 0;
+    uint32_t outputs=0;int shared_dense=0,batch=0;
     te_params params;
     te_params_default(&params);
     for (int i = 1; i < argc; ++i) {
@@ -109,6 +109,7 @@ int main(int argc, char** argv) {
         if (ARG("--frames")) frames_path = v;
         else if (ARG("--start")) start = strtoul(v, NULL, 10);
         else if (ARG("--outputs")) outputs=(uint32_t)strtoul(v,NULL,10);
+        else if (ARG("--batch")) batch=atoi(v);
         else if (ARG("--pairs")) pairs = strtoul(v, NULL, 10);
         else if (ARG("--step")) step = strtoul(v, NULL, 10);
         else if (ARG("--crop")) {
@@ -122,7 +123,9 @@ int main(int argc, char** argv) {
                 else { usage(); return 2; }
             }
         } else if (ARG("--algo")) {
-            if (strcmp(v,"gsf")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=4;}
+            if (strcmp(v,"flow-lite2")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=6;}
+            else if (strcmp(v,"flow-lite1")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=5;}
+            else if (strcmp(v,"gsf")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=4;}
             else if (strcmp(v,"shared-flow-palette")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=3;}
             else if (strcmp(v,"shared-flow-affine")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=2;}
             else if (strcmp(v,"shared-flow-dense")==0){params.algorithm=TE_ALGO_SHARED_FLOW;shared_dense=1;}
@@ -141,6 +144,7 @@ int main(int argc, char** argv) {
         else if (ARG("--json")) json_path = v;
         else if (ARG("--analysis")) analysis_dir = v;
         else if (ARG("--device")) device = v;
+        else if (strcmp(a, "--uniform-phases") == 0) uniform_phases = 1;
         else if (strcmp(a, "--profile") == 0) profile = 1;
         else if (strcmp(a, "--validation") == 0) validation = 1;
         else if (strcmp(a, "--no-download") == 0) download = 0;
@@ -169,7 +173,7 @@ int main(int argc, char** argv) {
     }
     te_context_desc cd;
     te_context_desc_default(&cd, (uint32_t)W, (uint32_t)H, outputs);
-    cd.params = params;cd.shared_flow_dense=shared_dense;
+    cd.params = params;cd.shared_flow_dense=shared_dense;cd.flow_lite_batch=batch;
     cd.profile = profile;
     cd.host_io = 1;
     te_context* ctx;
@@ -181,7 +185,7 @@ int main(int argc, char** argv) {
     uint32_t tx, ty;
     uint32_t tiles = te_tile_count(ctx, &tx, &ty);
     fprintf(stderr, "te-bench: %s %zux%zu algo %s tiles %ux%u pairs %zu step %zu mode %s%s\n", te_device_name(dev), W, H,
-            params.algorithm == TE_ALGO_SHARED_FLOW ? (shared_dense==4?"gsf":shared_dense==3?"shared-flow-palette":shared_dense==2?"shared-flow-affine":shared_dense?"shared-flow-dense":"shared-flow") : params.algorithm == TE_ALGO_LMC_GPU ? "lmc-gpu" : params.algorithm == TE_ALGO_LMC ? "lmc" : "tiles", tx, ty, pairs, step, params.adaptive ? "adaptive" : (params.force_class == 2 ? "full" : params.force_class == 1 ? "light" : "reuse"),
+            params.algorithm == TE_ALGO_SHARED_FLOW ? (shared_dense==6?"flow-lite2":shared_dense==5?"flow-lite1":shared_dense==4?"gsf":shared_dense==3?"shared-flow-palette":shared_dense==2?"shared-flow-affine":shared_dense?"shared-flow-dense":"shared-flow") : params.algorithm == TE_ALGO_LMC_GPU ? "lmc-gpu" : params.algorithm == TE_ALGO_LMC ? "lmc" : "tiles", tx, ty, pairs, step, params.adaptive ? "adaptive" : (params.force_class == 2 ? "full" : params.force_class == 1 ? "light" : "reuse"),
             profile ? " profile" : "");
     FILE* out = out_path ? npy_create(out_path, pairs * outputs, H, W) : NULL;
     FILE* json = json_path ? fopen(json_path, "w") : NULL;
@@ -216,7 +220,7 @@ int main(int argc, char** argv) {
         uint32_t slot = (uint32_t)(k % 2);
         if (te_upload_rgb(ctx, slot, rgb) != VK_SUCCESS) { status = 4; break; }
         te_submit s = {.slot = slot, .count = k ? outputs : 0, .download = download, .lmc_tier = tier};
-        for (size_t j = 1; j <= outputs; ++j) s.timestamps[j - 1] = (float)j / (float)step;
+        for (size_t j = 1; j <= outputs; ++j) s.timestamps[j - 1] = (float)j / (float)(uniform_phases?outputs+1:step);
         double t0 = now_ms();
         if (te_submit_frame(ctx, &s) != VK_SUCCESS) { status = 4; break; }
         double submit_ms=now_ms()-t0;
@@ -263,9 +267,9 @@ int main(int argc, char** argv) {
             fprintf(json, ", \"frames\": [");
             for (uint32_t i = 0; i < ps.outputs; ++i)
                 fprintf(json, "%s{\"t\": %.6f, \"lists_ms\": %.4f, \"reuse_ms\": %.4f, \"light_ms\": %.4f, "
-                              "\"full_ms\": %.4f, \"total_ms\": %.4f, \"reuse\": %u, \"light\": %u, \"full\": %u}",
+                              "\"full_ms\": %.4f, \"reconstruction_ms\": %.4f, \"upscale_repair_ms\": %.4f, \"total_ms\": %.4f, \"reuse\": %u, \"light\": %u, \"full\": %u}",
                         i ? ", " : "", s.timestamps[i], ps.frame_ms[i][TE_FRAME_LISTS], ps.frame_ms[i][TE_FRAME_REUSE],
-                        ps.frame_ms[i][TE_FRAME_LIGHT], ps.frame_ms[i][TE_FRAME_FULL], ps.frame_ms[i][TE_FRAME_TOTAL],
+                        ps.frame_ms[i][TE_FRAME_LIGHT], ps.frame_ms[i][TE_FRAME_FULL], ps.reconstruction_ms[i], ps.upscale_ms[i], ps.frame_ms[i][TE_FRAME_TOTAL],
                         ps.tiles[i][0], ps.tiles[i][1], ps.tiles[i][2]);
             fprintf(json, "]}\n");
         }

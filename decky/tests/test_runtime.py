@@ -59,8 +59,10 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(Runtime(self.home, PLUGIN).status(42)['multiplier'], 3)
         with self.assertRaises(ValueError):
             self.runtime.set_diagnostic_mode(42, 'normal-adaptive-pairs')
+        self.runtime.set_multiplier(42, 4)
+        self.assertEqual(Runtime(self.home, PLUGIN).status(42)['multiplier'], 4)
         with self.assertRaises(ValueError):
-            self.runtime.set_multiplier(42, 4)
+            self.runtime.set_multiplier(42, 5)
         with self.assertRaises(ValueError):
             self.runtime.set_multiplier(42, True)
         self.runtime.set_multiplier(42, 2)
@@ -206,3 +208,22 @@ class RuntimeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class MotionIntelligenceSettingsTests(RuntimeTests):
+    def test_x4_buffer_quality_and_off_survive_reload(self):
+        with patch.object(self.runtime, 'install', return_value={}):
+            p = self.runtime.prepare(42, '%command%')
+        self.runtime.confirm(42, p['options'])
+        self.runtime.set_multiplier(42, 4)
+        for depth in (0, 1, 2):
+            self.runtime.set_buffer_depth(42, depth)
+            for quality in ('ultra-lite', 'balanced', 'quality', 'adaptive'):
+                self.runtime.set_reconstruction_quality(42, quality)
+                status = Runtime(self.home, PLUGIN).status(42)
+                self.assertEqual((status['multiplier'], status['buffer_depth'], status['reconstruction_quality']), (4, depth, quality))
+        for bad in (-1, 3, True, 1.0):
+            with self.assertRaises(ValueError):
+                self.runtime.set_buffer_depth(42, bad)
+        self.runtime.set_multiplier(42, 0)
+        self.assertFalse(self.runtime.status(42)['enabled'])
+        self.assertEqual(self.runtime.status(42)['multiplier'], 0)

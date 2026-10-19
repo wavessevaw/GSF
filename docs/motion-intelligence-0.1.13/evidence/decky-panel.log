@@ -1,0 +1,13 @@
+
+> gsf-decky-test@0.1.13 test:panel
+> node --test tests/panel.test.cjs
+
+✔ tests/panel.test.cjs (195.565814ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 223.285811

@@ -217,32 +217,53 @@ class Runtime:
             atomic_json(self.root/'config.json', cfg)
 
     def set_diagnostic_mode(self, appid, mode):
-        if mode not in ('normal', 'normal-eco45', 'normal-lmc-gpu', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
+        if mode not in ('normal', 'normal-flow-lite1', 'normal-eco45', 'normal-lmc-gpu', 'normal-no-shadow', 'normal-adaptive-pairs', 'normal-queue-observe', 'normal-no-watch', 'normal-no-calibration', 'normal-calibration-every-frame', 'normal-no-latency-admission', 'source-only', 'compute-only', 'matched-compute'):
             raise ValueError('Неверный диагностический режим')
         aid = app_id(appid)
         cfg = self.config()
         entry = cfg['games'].get(aid)
         if not entry:
             raise ValueError('Сначала настройте выбранную игру')
-        if mode == 'normal-adaptive-pairs' and entry.get('multiplier', 2) == 3:
+        if mode == 'normal-adaptive-pairs' and entry.get('multiplier', 2) != 2:
             raise ValueError('Адаптивная пара доступна только для ×2')
         entry['diagnostic_mode'] = mode
         atomic_json(self.root/'config.json', cfg)
         return {'diagnostic_mode': mode, 'restart_required': True}
 
     def set_multiplier(self, appid, multiplier):
-        if type(multiplier) is not int or multiplier not in (2, 3):
-            raise ValueError('Множитель генерации должен быть ×2 или ×3')
+        if type(multiplier) is not int or multiplier not in (0, 2, 3, 4):
+            raise ValueError('Множитель генерации должен быть Off, ×2, ×3 или ×4')
         aid = app_id(appid)
         cfg = self.config()
         entry = cfg['games'].get(aid)
         if not entry:
             raise ValueError('Сначала настройте выбранную игру')
-        if multiplier == 3 and entry.get('diagnostic_mode') == 'normal-adaptive-pairs':
+        if multiplier != 2 and entry.get('diagnostic_mode') == 'normal-adaptive-pairs':
             raise ValueError('Адаптивная пара доступна только для ×2. Сначала выберите обычный режим.')
         entry['multiplier'] = multiplier
+        if multiplier == 0:
+            entry['enabled'] = False
         atomic_json(self.root/'config.json', cfg)
         return {'multiplier': multiplier, 'restart_required': True}
+
+    def set_buffer_depth(self, appid, depth):
+        if type(depth) is not int or depth not in (0, 1, 2):
+            raise ValueError('Buffer должен быть 0, 1 или 2')
+        return self._set_render_option(appid, 'buffer_depth', depth)
+
+    def set_reconstruction_quality(self, appid, quality):
+        if quality not in ('ultra-lite', 'balanced', 'quality', 'adaptive'):
+            raise ValueError('Неизвестное качество реконструкции')
+        return self._set_render_option(appid, 'reconstruction_quality', quality)
+
+    def _set_render_option(self, appid, key, value):
+        cfg = self.config()
+        entry = cfg['games'].get(app_id(appid))
+        if not entry:
+            raise ValueError('Сначала настройте выбранную игру')
+        entry[key] = value
+        atomic_json(self.root/'config.json', cfg)
+        return {key: value, 'restart_required': True}
 
     def disable_all(self):
         cfg = self.config()
@@ -294,6 +315,8 @@ class Runtime:
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'multiplier': saved.get('multiplier', 2),
+                'buffer_depth': saved.get('buffer_depth', 1),
+                'reconstruction_quality': saved.get('reconstruction_quality', 'balanced'),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,

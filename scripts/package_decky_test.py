@@ -27,6 +27,7 @@ def main():
         for name in ('main.py', 'launch.py', 'plugin.json', 'package.json', 'README.md'):
             shutil.copy2(ROOT/'decky'/name, plugin/name)
         shutil.copytree(ROOT/'decky/py_modules', plugin/'py_modules', ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(ROOT/'docs/motion-intelligence-0.1.13', plugin/'docs/motion-intelligence-0.1.13')
         (plugin/'dist').mkdir()
         shutil.copy2(ROOT/'decky/dist/index.js', plugin/'dist/index.js')
         for name in ('LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md'):
@@ -59,7 +60,7 @@ def main():
         with (plugin/'SOURCE.tar.gz').open('wb') as source:
             subprocess.run(['git', 'archive', '--format=tar.gz', 'HEAD', 'decky', 'engine/gfg-native',
                             'engine/gfg-temporal', 'scripts/package_decky_test.py',
-                            'scripts/package_deck_candidate.py', 'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md'],
+                            'scripts/package_deck_candidate.py', 'docs/motion-intelligence-0.1.13', 'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md'],
                            cwd=ROOT, stdout=source, check=True)
         hashes = {p.relative_to(plugin).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                   for p in plugin.rglob('*') if p.is_file()}

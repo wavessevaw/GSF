@@ -205,7 +205,7 @@ void main() {
             }
             p0 = pv[0]; p1 = pv[1]; p2 = pv[2]; p3 = pv[3]; p4 = pv[4];
         }
-        int r = P.coarse_r, side = 2 * r + 1;
+        int r = (PC.flags&128)!=0?4:(PC.flags&256)!=0?8:P.coarse_r, side = 2 * r + 1;
         int nbase = from_b ? 1 : L_ == LMC_LEVELS ? side * side : 5;
         int nl = int(LY.layer_count);
         int steps = L_ == 1 ? 2 : 1;

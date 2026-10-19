@@ -36,7 +36,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
       return {options: expected};
     },
     async confirm_game(id, actual) {assert.equal(id, 42);assert.equal(actual, current);enabled = true;},
-    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok(value === 2 || value === 3); multiplier = value; return {multiplier: value};}
+    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok([0, 2, 3, 4].includes(value)); multiplier = value; return {multiplier: value};}
   };
   const context = {
     console, setTimeout, clearTimeout, setInterval, clearInterval,
@@ -90,6 +90,10 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(multiplierSelect().props.selectedOption, 3);
     assert.match(tree.root.findByType('code').props.children, /--appid 42 -- %command%/);
     assert.match(JSON.stringify(tree.toJSON()), /Множитель ×3 сохранён/);
+    await act(async () => {multiplierSelect().props.onChange({data: 4, label: '×4'});});
+    assert.equal(multiplier, 4);
+    assert.match(JSON.stringify(tree.toJSON()), /120 FPS/);
+    await act(async () => {multiplierSelect().props.onChange({data: 3, label: '×3'});});
     assert.equal(listeners.size, 0);
     act(() => tree.unmount());
     await act(async () => {tree = Renderer.create(context.plugin().content);});

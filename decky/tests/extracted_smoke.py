@@ -145,6 +145,23 @@ async def test(archive, output):
         assert any((x['planned_mask'] & 3) == 3 for x in frames3), 'x3 never planned two synthetic slots'
         assert any(x['dispatched_outputs'] == 2 for x in frames3), ('x3 GPU never dispatched two outputs', [(x['planned_mask'], x['dispatched_outputs'], x['admission_decision'], x['gpu_budget_ns']) for x in frames3][-20:])
         assert all(x['physical_displayed'] is None for x in frames3)
+        assert (await backend.set_multiplier(42, 4))['multiplier'] == 4
+        assert (await backend.set_buffer_depth(42, 2))['buffer_depth'] == 2
+        assert (await backend.set_reconstruction_quality(42, 'balanced'))['reconstruction_quality'] == 'balanced'
+        four_env = dict(env, GFG_TEST_FRAMES='24')
+        run_four = subprocess.run(launcher+[str(app)], env=four_env, capture_output=True, text=True, timeout=100)
+        (output/'x4-launcher.log').write_text(run_four.stdout+run_four.stderr)
+        assert run_four.returncode == 0, run_four.stdout+run_four.stderr
+        run4 = backend.runtime.latest(42)
+        shutil.copytree(run4, output/'x4-session', dirs_exist_ok=True)
+        meta4 = json.loads((run4/'LAUNCH.json').read_text())['native_environment']
+        assert meta4['GFG_NATIVE_MODE'] == '4' and meta4['GFG_NATIVE_BUFFER_DEPTH'] == '2'
+        assert meta4['GFG_NATIVE_FLOW_LITE2'] == '1'
+        events4 = [json.loads(x) for x in ''.join(p.read_text() for p in run4.glob('frames*.jsonl')).splitlines() if x.startswith('{')]
+        pairs4 = [x for x in events4 if x.get('event') == 'pair']
+        assert len(pairs4) == 24 and all(x['multiplier'] == 4 for x in pairs4)
+        assert any(x['dispatched_outputs'] == 3 for x in pairs4), 'packaged x4 never dispatched G1/G2/G3'
+        assert any(x.get('event') == 'synthetic_lifecycle' and x['slot_id'] == 2 and x['wsi_accepted_ns'] for x in events4), 'packaged G3 never accepted'
         assert (await backend.set_multiplier(42, 2))['multiplier'] == 2
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:

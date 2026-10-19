@@ -27,6 +27,7 @@ typedef struct {
     VkColorSpaceKHR color_space;       /* packed10 alone does not imply HDR PQ */
     VkPresentModeKHR present_mode;
     int force_fifo;
+    int buffered_owner; /* independent source snapshots, Buffer 0/1/2 allowed */
     VkQueue queue;                    /* the app's present queue */
     uint32_t family;
     int display_timing;               /* GOOGLE extension enabled: 1 app namespace, 2 private */
@@ -61,7 +62,7 @@ typedef struct {
  * increasing per-swapchain ID sequence: EVERY present the bridge issues
  * (G1, G2, the real one, pass-through) gets assign()'s id; the app's id on a
  * real present is handed to assign() so the layer can translate the app's own
- * vkWaitForPresent(2)KHR calls. kind: 0 real, 1 G1, 2 G2, 3 recovery duplicate (not synthetic). */
+ * vkWaitForPresent(2)KHR calls. kind: 0 real, 1 G1, 2 G2, 3 G3, 4 recovery duplicate (not synthetic). */
 typedef struct {
     int mode;                         /* 0 none, 1 VkPresentIdKHR, 2 VkPresentId2KHR */
     uint64_t (*assign)(void *user, int kind, uint64_t app_id);
@@ -82,6 +83,7 @@ void gfg_gpu_fg_set_output_thread(gfg_gpu_fg *fg, pthread_mutex_t *wsi);
 void gfg_gpu_fg_set_output_pacing(gfg_gpu_fg *fg,int active);
 void gfg_gpu_fg_set_output_pressure(gfg_gpu_fg *fg,int active);
 /* Output worker only; timestamps were captured before mailbox backpressure. */
+void gfg_gpu_fg_set_native_period(gfg_gpu_fg *fg,uint64_t period_ns); /* output worker: producer cadence, before snapshot drops */
 void gfg_gpu_fg_set_source(gfg_gpu_fg *fg,uint64_t captured_ns,uint64_t admitted_ns,uint64_t serial);
 uint64_t gfg_gpu_fg_source_period_ns(gfg_gpu_fg *fg);
 void gfg_gpu_fg_restart_history(gfg_gpu_fg *fg); /* output thread only */

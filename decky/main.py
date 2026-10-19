@@ -58,5 +58,13 @@ class Plugin:
         async with self.lock:
             return await asyncio.to_thread(self.runtime.set_multiplier, appid, multiplier)
 
+    async def set_buffer_depth(self, appid: int, depth: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.set_buffer_depth, appid, depth)
+
+    async def set_reconstruction_quality(self, appid: int, quality: str):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.set_reconstruction_quality, appid, quality)
+
     async def export_report(self, appid: int):
         return await asyncio.to_thread(self.runtime.export, appid)

@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#define TE_VERSION "0.2.4-exp"
+#define TE_VERSION "0.2.5-mi2-exp"
 #define TE_MAX_OUTPUTS 4
 #define TE_MAX_LEVELS 3
 
@@ -67,7 +67,8 @@ typedef struct {
     VkSemaphore application_timeline; /* borrowed device: caller-owned, feature enabled by caller */
     int output_bgra;           /* tile outputs store BGRA bytes for GPU copy into a BGRA swapchain */
     VkFormat source_format;   /* 0: legacy SDR8; native GPU may sample packed UNORM10 */
-    int shared_flow_dense;    /* experiment: 0 compact; 1 dense; 2 affine; 3 palette; 4 guarded projective fit */
+    int flow_lite_batch;       /* opt-in batched half-res reconstruction experiment */
+    int shared_flow_dense;    /* experiment: 0 compact; 1 dense; 2 affine; 3 palette; 4 guarded projective; 5 Flow Lite 1.0; 6 Flow Lite 2.0 */
     int output_fp16;          /* native HDR: rgba16f outputs, no intermediate 8-bit quantization */
     uint32_t color_transfer;  /* PQ: reconstruct in cached linear nits, return PQ-encoded FP16 */
 } te_context_desc;
@@ -100,6 +101,7 @@ typedef struct {
     int source_duplicate;                 /* exact full-resolution RGB equality, GSF only */
     int model_gpu;                      /* LMC model/IRLS/palette execute on GPU, no fit worker */
     int lmc_tier;                        /* LMC: cost tier of the pair */
+    double reconstruction_ms[TE_MAX_OUTPUTS], upscale_ms[TE_MAX_OUTPUTS];
     double frame_ms[TE_MAX_OUTPUTS][TE_FRAME_COUNT];
     uint32_t tiles[TE_MAX_OUTPUTS][3];   /* reuse, light, full tile counts per output */
     uint32_t tile_total;
@@ -124,15 +126,16 @@ typedef struct {
     int hold;                   /* cost guard: no analysis, outputs copy the new real frame */
     int lmc_tier;               /* LMC cost tier: 0 full, 1 single grid (A from B), 2 also one
                                    propagation sweep (TE_LMC_TIERS) */
-    int defer_second;           /* borrowed GPU GSF x3: queue analysis/G1 now; caller resumes G2 after G1 transport */
+    unsigned flow_quality;      /* 0 default Balanced, 1 Ultra Lite, 2 Balanced, 3 Quality */
+    int defer_second;           /* borrowed GPU GSF x3: queue analysis/G1 now; caller resumes G2/G3 after G1 transport */
 } te_submit;
 
 const char* te_last_error(void);
-/* Completes a deferred G2 submission without a CPU/GPU wait; no-op otherwise.
+/* Completes deferred G2/G3 submissions without a CPU/GPU wait; no-op otherwise.
  * Poll/stats never resume implicitly. Blocking idle/destroy flush pending work.
  * Caller must keep the context/source images alive and synchronize its queue. */
 VkResult te_resume_outputs(te_context* ctx);
-/* Retire an unsubmitted G2 with its final signal/fence but no reconstruction.
+/* Retire unsubmitted G2/G3 with its final signal/fence but no reconstruction.
  * Statistics/control then expose only G1. Safe for cut/duplicate/deadline drops. */
 VkResult te_cancel_deferred_output(te_context* ctx);
 
@@ -170,6 +173,7 @@ VkResult te_wait_idle(te_context* ctx);
 int te_context_idle(te_context* ctx, uint64_t timeout_ns);
 /* Collect statistics of completed work without waiting. */
 void te_poll(te_context* ctx);
+uint64_t te_generated_outputs_completed(const te_context* ctx); /* completed GPU outputs, excludes holds */
 uint64_t te_context_memory_bytes(const te_context* ctx);
 /* Shared timeline (internal or imported): current value and host signal. */
 uint64_t te_timeline_value(te_context* ctx);

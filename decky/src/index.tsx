@@ -4,8 +4,8 @@ import {useEffect, useRef, useState} from 'react';
 import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
-type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
-type Status = {enabled: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
+type Live = {generated_fps?: number; output_fps?: number; effective_multiplier?: number; generated_total?: number; dropped_synthetic?: number; gpu_generation_ms?: number; buffer_depth?: number; buffer_latency_ms?: number; buffered_owner?: number; source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
+type Status = {enabled: boolean; configured?: boolean; multiplier?: number; buffer_depth?: number; reconstruction_quality?: string; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -17,7 +17,9 @@ const rpc = {
   status: callable<[number], Status>('get_status'),
   export: callable<[number], {path: string}>('export_report'),
   diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
-  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier')
+  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier'),
+  buffer: callable<[number, number], {buffer_depth: number}>('set_buffer_depth'),
+  quality: callable<[number, string], {reconstruction_quality: string}>('set_reconstruction_quality')
 };
 
 function Content() {
@@ -81,7 +83,7 @@ function Content() {
     if (actionLock.current) return;
     actionLock.current = true; setBusy(true);
     setAppid(id);
-    const text = 'Выбрана: '+game.name+'. Выбери ×2 или ×3 перед запуском GSF.';
+    const text = 'Выбрана: '+game.name+'. Выбери ×2, ×3 или ×4 перед запуском GSF.';
     setMessage(text);
     try {await rpc.select(id); toaster.toast({title: 'GSF · игра выбрана', body: game.name});}
     catch (e) {setMessage('Не удалось сохранить выбор: '+String(e));}
@@ -93,7 +95,7 @@ function Content() {
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF · Flow Lite ×2 / ×3 · 90 Гц">
+  return <PanelSection title="GSF Motion Intelligence · 0.1.13">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
@@ -101,18 +103,39 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Генерация (изменение применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
+          {data: 0, label: 'Off · без генерации'},
           {data: 2, label: '×2 · один G1, 30→60 / 45→90 / 60→90'},
-          {data: 3, label: '×3 · до двух G1/G2, 30→90 / 60→90'}
-        ]} selectedOption={status?.multiplier || 2} disabled={busy || !status?.configured}
+          {data: 3, label: '×3 · до двух G1/G2, 30→90 / 40→120'},
+          {data: 4, label: '×4 · до трёх G1/G2/G3, 22,5→90 / 30→120'}
+        ]} selectedOption={status?.multiplier ?? 2} disabled={busy || !status?.configured}
           onChange={option => void act(async () => {
             const value = typeof option === 'object' && option && 'data' in option ? Number(option.data) : Number(option);
             await rpc.multiplier(appid, value);
             return 'Множитель ×'+value+' сохранён для игры. Перезапустите её.';
           }, 'Сохраняю режим генерации…')} />
       </PanelSectionRow>
+      <PanelSectionRow><div style={{fontSize: 12}}>Frame Buffer · независимый Output Owner:</div>
+        <Dropdown rgOptions={[{data: 0, label: '0 · Low Latency'}, {data: 1, label: '1 · Balanced'}, {data: 2, label: '2 · Stable'}]}
+          selectedOption={status?.buffer_depth ?? 1} disabled={busy || !status?.configured}
+          onChange={option => void act(async () => {
+            const depth = Number(typeof option === 'object' && option && 'data' in option ? option.data : option);
+            await rpc.buffer(appid, depth); return 'Buffer '+depth+' сохранён. Перезапустите игру.';
+          }, 'Сохраняю буфер…')} />
+        <div style={{fontSize: 11}}>Буфер действует при совместимом независимом выводе. Совместимость Game Mode пока не подтверждена. Buffer 0 использует обычные кадры при отсутствии причинно доступного слота.</div>
+      </PanelSectionRow>
+      <PanelSectionRow><div style={{fontSize: 12}}>Reconstruction Quality:</div>
+        <Dropdown rgOptions={[{data: 'ultra-lite', label: 'Ultra Lite'}, {data: 'balanced', label: 'Balanced'}, {data: 'quality', label: 'Quality'}, {data: 'adaptive', label: 'Adaptive'}]}
+          selectedOption={status?.reconstruction_quality || 'balanced'} disabled={busy || !status?.configured}
+          onChange={option => void act(async () => {
+            const quality = String(typeof option === 'object' && option && 'data' in option ? option.data : option);
+            await rpc.quality(appid, quality); return 'Качество сохранено. Перезапустите игру.';
+          }, 'Сохраняю качество…')} />
+      </PanelSectionRow>
+      {status?.multiplier === 4 && <PanelSectionRow><div style={{fontSize: 12}}>×4: 30 FPS запрашивают 120 FPS, 45 FPS — 180 FPS. При 90 Гц доступны максимум 90 слотов/с; строятся только кадры для свободных слотов. Физический показ требует измерений дисплея.</div></PanelSectionRow>}
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
-          {data: 'normal', label: 'Flow Lite: быстрый оптический поток (1/8, 1/16)'},
+          {data: 'normal', label: 'Flow Lite 2.0: общие motion/confidence, low-res реконструкция'},
+          {data: 'normal-flow-lite1', label: 'Контроль: Flow Lite 1.0'},
           {data: 'normal-eco45', label: 'Контроль: прежний ECO45 / Shared Flow'},
           {data: 'normal-lmc-gpu', label: 'Контроль: прежний тяжёлый GPU LMC'},
           {data: 'normal-no-shadow', label: 'Контроль: без Shadow Admission'},
@@ -135,13 +158,18 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <span style={{fontFamily: 'monospace'}}>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</span>; активный: <span style={{fontFamily: 'monospace'}}>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</span>.
         {status && !status.build_matches && <strong> ОШИБКА: установленный GPU слой не соответствует пакету. Генерация заблокирована до переустановки.</strong>}
       </div></PanelSectionRow>
-      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.build_matches === false} onClick={() => void act(async () => {
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.multiplier === 0 || status?.build_matches === false} onClick={() => void act(async () => {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
         return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
       }, 'Устанавливаю GSF и записываю команду запуска…')}>Включить GSF ×{status?.multiplier || 2}</ButtonItem></PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Включить 2×» для настройки запуска.'}
         {live && <div>Источник: {live.source_fps.toFixed(1)} FPS<br/>
+          Generated: {live.generated_fps?.toFixed(1) ?? '—'} FPS; Output (WSI): {live.output_fps?.toFixed(1) ?? '—'} FPS<br/>
+          Effective Multiplier: {live.effective_multiplier?.toFixed(2) ?? '—'}<br/>
+          GPU Generation: {live.gpu_generation_ms?.toFixed(2) ?? '—'} ms; Dropped Synthetic: {live.dropped_synthetic ?? '—'}<br/>
+          Buffer: {live.buffer_depth ?? '—'}; latency estimate: {live.buffer_latency_ms?.toFixed(1) ?? '—'} ms; Owner: {live.buffered_owner ? 'active' : 'ordinary WSI'}<br/>
+          Displayed: не измерено<br/>
           Целевой режим: ×{live.multiplier || status?.multiplier || 2}<br/>
           Частота планировщика: {live.output_refresh_hz ? live.output_refresh_hz.toFixed(2) + ' Гц (' + (live.refresh_origin || 'unknown') + ')' : 'не определена'}<br/>
           Принято WSI: исходных {live.real_wsi_accepted}, сгенерированных {live.generated_wsi_accepted}</div>}
@@ -159,7 +187,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>FLOW LITE LAB · Эксперимент: грубый optical flow на 1/8 и 1/16, один дешёвый проход реконструкции. Артефакты при движении возможны, 10 Вт не доказаны. Режим «Контроль: прежний тяжёлый GPU LMC» доступен для сравнения энергии и качества. Целевой режим ×2 при 45 FPS / 90 Гц пока не подтверждён на Steam Deck. Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>EXPERIMENTAL · ×2/×3/×4 используют общий анализ движения пары и реконструкцию в половинном разрешении. Частота игры не фиксируется. WSI Accepted не равен Displayed: физический scanout и 10/15 Вт на Steam Deck ещё не измерены. Независимый буферизованный вывод ограничен поддерживаемым WSI-контрактом; обычный вывод остаётся резервным путём.</div></PanelSectionRow>
   </PanelSection>;
 }
 

@@ -519,6 +519,7 @@ static te_context* make_lmc(te_device* dev, uint32_t outputs) {
     const char* shared=getenv("GFG_TEST_SHARED_FLOW");
     d.params.algorithm = shared?TE_ALGO_SHARED_FLOW:getenv("GFG_TEST_GPU_LMC")?TE_ALGO_LMC_GPU:TE_ALGO_LMC;
     if(shared)d.shared_flow_dense=atoi(shared);
+    d.flow_lite_batch=getenv("GFG_TEST_FLOW_BATCH")!=NULL;
     te_context* ctx = NULL;
     if (te_context_create(dev, &d, &ctx) != VK_SUCCESS) return NULL;
     return ctx;
@@ -760,6 +761,34 @@ static void test_shared_cut(te_device* dev) {
     free(a);free(b);free(o);te_context_destroy(ctx);
 }
 
+/* All three outputs must be independently generated and signalled. Exact
+ * affine colour ramps detect endpoint duplication, wrong tau, G3 aliasing and
+ * reuse of a preceding output, without a perceptual threshold relaxation. */
+static void test_multiframe_three(te_device* dev) {
+    if(!getenv("GFG_TEST_SHARED_FLOW"))return;
+    te_context *ctx=make_lmc(dev,3);EXPECT(ctx,"three-output context");if(!ctx)return;
+    uint8_t *a=malloc(W*H*3),*b=malloc(W*H*3),*o=malloc(W*H*3);
+    const float ts[3]={0.25f,0.5f,0.75f};
+    for(unsigned pixel=0;pixel<W*H;++pixel)for(unsigned c=0;c<3;++c) {
+        a[pixel*3+c]=(uint8_t)(40+c*30);b[pixel*3+c]=(uint8_t)(64+c*30);
+    }
+    EXPECT(run_pair(ctx,0,a,0,ts),"three-output history");
+    EXPECT(run_pair(ctx,1,b,3,ts),"three-output pair");
+    te_pair_stats stats;EXPECT(te_last_stats(ctx,&stats)==VK_SUCCESS,"three-output stats");
+    EXPECT(stats.outputs==3 && !stats.held,"three outputs are generated, not holds");
+    for(unsigned i=0;i<3;++i) {
+        EXPECT(te_download_rgb(ctx,i,o)==VK_SUCCESS,"G%u download",i+1);
+        unsigned bad=0;
+        for(unsigned pixel=0;pixel<W*H;++pixel)for(unsigned c=0;c<3;++c) {
+            int expected=40+(int)c*30+6*(int)(i+1);
+            if(abs((int)o[pixel*3+c]-expected)>1)++bad;
+        }
+        EXPECT(!bad,"G%u is distinct, correct phase across all pixels (%u errors)",i+1,bad);
+        EXPECT(stats.timed && stats.ready_ms[i]>0 && (!i || stats.ready_ms[i]>=stats.ready_ms[i-1]),"G%u independent GPU timestamp",i+1);
+    }
+    free(a);free(b);free(o);te_context_destroy(ctx);
+}
+
 int main(void) {
     test_scheduler();
     te_device_desc dd = {.validation = 1};
@@ -769,6 +798,13 @@ int main(void) {
         return 2;
     }
     printf("te-tests on %s\n", te_device_name(dev));
+    if(getenv("GFG_TEST_MI_ONLY")) {
+        test_shared_cut(dev);test_multiframe_three(dev);test_lmc_chroma_alias(dev);
+        uint32_t errors=te_device_validation_errors(dev);te_device_destroy(dev);
+        EXPECT(errors==0,"Vulkan validation errors: %u",errors);
+        printf("MI targeted: %d checks, %d failures\n",g_checks,g_failures);
+        return g_failures?1:0;
+    }
     test_static_scene(dev);
     test_translation(dev);
     test_scene_cut(dev);
@@ -787,6 +823,7 @@ int main(void) {
     test_lmc_hud(dev);
     test_lmc_hold(dev);
     test_shared_cut(dev);
+    test_multiframe_three(dev);
     uint32_t verr = te_device_validation_errors(dev);
     te_device_destroy(dev);
     EXPECT(verr == 0, "validation errors: %u", verr);

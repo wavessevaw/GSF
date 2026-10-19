@@ -1,0 +1,6 @@
+PQ linear output=0 codes=11,543,972 coded-average-rejected=6,538,967 PASS
+PQ linear output=1 codes=15,562,992 coded-average-rejected=11,556,986 PASS
+PQ linear output=2 codes=19,578,1009 coded-average-rejected=17,574,1004 PASS
+HDR precision: format=64 outputs=3 linear-light PQ reconstruction PASS
+HDR precision: format=58 BLIT_DST unsupported, skipped (runtime also refuses it)
+HDR PQ: packed10, cached linear nits, x2/x3 CPU-oracle comparison PASS; scanout unobserved

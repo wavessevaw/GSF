@@ -106,6 +106,7 @@ layout(push_constant) uniform Push {
     int pass_;      // pass-specific selector
     int parity;
     int flags;
+    float batch_times[4];
 } PC;
 
 vec4 orphan_at(int grid, int i) { return grid == 0 ? ORB.ob[i] : ORA.oa[i]; }

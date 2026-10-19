@@ -168,18 +168,21 @@ static void tw_register(timeline_watch *w,uint64_t base,uint64_t sequence,
     pthread_mutex_unlock(&w->lock);
 }
 
-static void tw_submitted(timeline_watch *w,uint64_t base,int succeeded) {
+static void tw_output_submitted(timeline_watch *w,uint64_t base,unsigned output_index,int succeeded) {
     if(!w)return;
     pthread_mutex_lock(&w->lock);
     for(unsigned i=0;i<TW_CAP;++i) {
         tw_record *r=&w->entries[i];
-        if(r->state!=1 || r->base!=base)continue;
-        r->submit_ns=tw_now();
-        if(succeeded)r->state=2;
-        else tw_finish_locked(w,r,"submit_failed",r->submit_ns,0);
+        if(r->state!=1 || r->base!=base || r->output_index!=output_index)continue;
+        if(succeeded){r->submit_ns=tw_now();r->state=2;}
+        else tw_finish_locked(w,r,"submit_failed",tw_now(),0);
     }
     pthread_cond_signal(&w->changed);
     pthread_mutex_unlock(&w->lock);
+}
+static inline void tw_submitted(timeline_watch *w,uint64_t base,int succeeded) {
+    if(!w)return;
+    for(unsigned i=0;i<4;++i)tw_output_submitted(w,base,i,succeeded);
 }
 
 static void tw_deadline(timeline_watch *w,uint64_t base,unsigned output_index,uint64_t actual_deadline) {

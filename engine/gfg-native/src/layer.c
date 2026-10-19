@@ -18,11 +18,14 @@
 #include <vulkan/vk_layer.h>
 #include "swapchain_chain.h"
 #include "queue_observation.h"
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#if defined(GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS) || defined(GFG_NATIVE_WITH_TE)
+#define GFG_NATIVE_VIRTUAL_WSI 1
 #include "virtual_wsi_facade.h"
 #include "output_proxy_bootstrap.h"
+#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
 #include "test_loader_output_runtime.h"
 #include "test_gamescope_swapchain_policy.h"
+#endif
 #include "virtual_layouts.h"
 #endif
 #ifdef GFG_NATIVE_WITH_TE
@@ -30,6 +33,7 @@
 #include "gpu_bridge.h"
 #include "present_ids.h"
 #include "output_worker.h"
+#include "buffered_output.h"
 #endif
 #include <time.h>
 
@@ -72,6 +76,7 @@ typedef struct native_swapchain {
     gfg_gpu_fg *gpu;
     int gpu_attempted;
     gfg_output *output;
+    gsf_buffered_output *buffered;
     VkSemaphore *acquire_semaphores;
     pthread_mutex_t output_wsi;
     struct native_present_ids *ids; /* B4: layer-owned present ids (PRESENT_TRACE) */
@@ -83,12 +88,14 @@ typedef struct native_swapchain {
     const char *path; /* "gpu", "cpu" or "none": which transport handled presents */
     double *present_us; /* GFG_NATIVE_TIMING=1: CPU time per app present */
     uint32_t present_samples;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     gfg_virtual_wsi *virtual_app; /* only in isolated test builds */
     gfg_output_proxy *test_proxy; /* heap-owned app proxy in TEST builds */
     gfg_offscreen_dispatch test_proxy_ops;
     PFN_vkDestroySwapchainKHR test_proxy_destroy;
+#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
     gfg_test_loader_runtime *test_runtime;
+#endif
 #endif
 } native_swapchain;
 
@@ -112,6 +119,8 @@ typedef struct native_device {
     void *test_proxy_user;
     VkQueue test_loader_queue;
     uint32_t test_loader_family;
+#endif
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     PFN_vkCmdPipelineBarrier cmd_barrier;
     PFN_vkCmdPipelineBarrier2 cmd_barrier2;
     PFN_vkCmdPipelineBarrier2KHR cmd_barrier2_khr;
@@ -287,6 +296,16 @@ static int native_env_is_1(const char *name) {
     const char *v = getenv(name);
     return v && v[0] == '1' && v[1] == '\0';
 }
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+static int native_virtual_hooks_requested(void) {
+#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+    return 1;
+#else
+    return native_env_is_1("GFG_NATIVE_BUFFERED_OUTPUT");
+#endif
+}
+#endif
+
 static int native_has_extension(const VkExtensionProperties *p, uint32_t n, const char *name) {
     for (uint32_t i = 0; i < n; ++i)
         if (!strcmp(p[i].extensionName, name)) return 1;
@@ -617,7 +636,7 @@ native_CreateDevice(VkPhysicalDevice phys, const VkDeviceCreateInfo *ci,
         }
     }
 #endif
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     d->cmd_barrier = (PFN_vkCmdPipelineBarrier)gdpa(*out, "vkCmdPipelineBarrier");
     d->cmd_barrier2 = (PFN_vkCmdPipelineBarrier2)gdpa(*out, "vkCmdPipelineBarrier2");
     d->cmd_barrier2_khr = (PFN_vkCmdPipelineBarrier2KHR)gdpa(*out, "vkCmdPipelineBarrier2KHR");
@@ -668,6 +687,9 @@ native_CreateDevice(VkPhysicalDevice phys, const VkDeviceCreateInfo *ci,
     return VK_SUCCESS;
 }
 
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+static gfg_virtual_wsi *native_test_find_virtual(native_device *d,VkSwapchainKHR h);
+#endif
 #ifdef GFG_NATIVE_WITH_TE
 /* ---- B4: layer-owned present ids + optional presentation monitor ----
  * Active only with GFG_NATIVE_PRESENT_TRACE=1 when IDs were enabled by the
@@ -993,7 +1015,7 @@ static VkResult native_locked_present(VkQueue queue, const VkPresentInfoKHR *inf
 #include "../tests/gpu_observer.h"
 static int test_observer_active;
 void gfg_test_observer_kind(unsigned kind,uint64_t frame,unsigned multiplier) {
-    observer.frame=(uint32_t)frame;observer.interval_calls=kind==2?multiplier-1:kind;
+    observer.frame=(uint32_t)frame;observer.interval_calls=kind==GFG_REAL_OUTPUT?multiplier-1:kind;
     observer.multiplier=multiplier;
 }
 #endif
@@ -1033,6 +1055,9 @@ static VkResult native_drain_device(native_device *d) {
             VkResult r = gfg_output_drain(sc->output,0,UINT64_MAX,NULL);
             if (r < 0) result = r;
         }
+    for(native_swapchain *sc=d->swapchains;sc;sc=sc->next)if(sc->buffered) {
+        VkResult r=gsf_buffered_drain(sc->buffered);if(r<0)result=r;
+    }
     pthread_mutex_unlock(&d->lock);
 #else
     (void)d;
@@ -1089,6 +1114,9 @@ static int native_cmp_double(const void *a, const void *b) {
     return x < y ? -1 : x > y;
 }
 static void native_swapchain_free(native_swapchain *sc) {
+#ifdef GFG_NATIVE_WITH_TE
+    if(sc->buffered) {gsf_buffered_destroy(sc->buffered);sc->buffered=NULL;}
+#endif
 #ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
     if (sc->test_runtime) {
         gfg_test_live_destroy(sc->test_runtime);
@@ -1339,6 +1367,64 @@ native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->create_swapchain || !ci || !out)
         return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_WITH_TE
+    /* Explicit barrier-only source contract until renderpass/framebuffer and
+     * extension virtualization is qualified. Other applications retain real WSI. */
+    if(native_env_is_1("GFG_NATIVE_BUFFERED_OUTPUT") && d->instance && d->gpu_capable &&
+       d->async_output && getenv("GFG_NATIVE_SOURCE_CONTRACT") &&
+       !strcmp(getenv("GFG_NATIVE_SOURCE_CONTRACT"),"barriers") && !ci->oldSwapchain &&
+       !gfg_offscreen_unsupported(ci)) {
+        native_queue *q=d->queues;
+        if(q) {
+            gfg_offscreen_dispatch memory={
+                .create_image=(PFN_vkCreateImage)d->gdpa(device,"vkCreateImage"),
+                .destroy_image=(PFN_vkDestroyImage)d->gdpa(device,"vkDestroyImage"),
+                .get_image_requirements=(PFN_vkGetImageMemoryRequirements)d->gdpa(device,"vkGetImageMemoryRequirements"),
+                .get_memory_properties=(PFN_vkGetPhysicalDeviceMemoryProperties)d->instance->gipa(d->instance->handle,"vkGetPhysicalDeviceMemoryProperties"),
+                .allocate_memory=(PFN_vkAllocateMemory)d->gdpa(device,"vkAllocateMemory"),
+                .free_memory=(PFN_vkFreeMemory)d->gdpa(device,"vkFreeMemory"),
+                .bind_image_memory=(PFN_vkBindImageMemory)d->gdpa(device,"vkBindImageMemory")};
+            gfg_gpu_fg_create_info gi={.instance=d->instance->handle,.gipa=d->instance->gipa,
+                .instance_api_version=d->instance->api_version,.physical=d->physical,.device=device,
+                .gdpa=native_worker_gdpa,.extent=ci->imageExtent,.format=ci->imageFormat,.color_space=ci->imageColorSpace,
+                .present_mode=VK_PRESENT_MODE_FIFO_KHR,.force_fifo=1,.queue=q->handle,.family=q->family,
+                .display_timing=d->display_timing,.semaphore_fd=d->semaphore_fd,.calibrated_mode=d->calibrated_mode,
+                .set_loader_data=d->set_loader_data,.buffered_owner=1};
+            native_swapchain *entry=calloc(1,sizeof(*entry));
+            VkSwapchainCreateInfoKHR real=*ci;
+            real.imageUsage|=VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            gsf_buffered_output *owner=entry?gsf_buffered_create(&gi,ci,&real,d->create_swapchain,
+                d->destroy_swapchain,native_serialized_present,&memory):NULL;
+            if(owner) {
+                gfg_output_proxy *proxy=gsf_buffered_proxy(owner);
+                entry->buffered=owner;entry->virtual_app=&proxy->app;entry->handle=proxy->app.handle;
+                entry->extent=ci->imageExtent;entry->format=ci->imageFormat;entry->color_space=ci->imageColorSpace;
+                if(pthread_mutex_init(&entry->output_wsi,NULL))abort();
+                pthread_mutex_lock(&d->lock);entry->next=d->swapchains;d->swapchains=entry;pthread_mutex_unlock(&d->lock);
+                *out=entry->handle;return VK_SUCCESS;
+            }
+            free(entry);
+            fprintf(stderr,"[gsf-mi] owner unavailable, ordinary WSI fallback before source publication\n");
+        }
+    }
+    /* Never send a virtual oldSwapchain to the driver. Drain the old owner,
+     * then recreate ordinary WSI; the application destroys the old facade. */
+    VkSwapchainCreateInfoKHR ordinary_ci;
+    if(ci->oldSwapchain) {
+        pthread_mutex_lock(&d->lock);
+        for(native_swapchain *old=d->swapchains;old;old=old->next)if(old->handle==ci->oldSwapchain && old->buffered) {
+            gsf_buffered_output *owner=old->buffered;
+            pthread_mutex_unlock(&d->lock);
+            gfg_vwsi_close(old->virtual_app);
+            /* Destruction is deferred to the application's DestroySwapchain;
+             * no virtual handle escapes during real-WSI recovery. */
+            gsf_buffered_stop(owner);ordinary_ci=*ci;ordinary_ci.oldSwapchain=VK_NULL_HANDLE;ci=&ordinary_ci;
+            goto owner_old_resolved;
+        }
+        pthread_mutex_unlock(&d->lock);
+    }
+owner_old_resolved:
+#endif
 #ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
     /* The app asks us to create its source WSI, and ONLY the internally
      * owned output is sent to downstream Vulkan. This entire branch is
@@ -1648,7 +1734,7 @@ native_CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *ci,
     return VK_SUCCESS;
 }
 
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
 static gfg_virtual_wsi *native_test_find_virtual(native_device *d,VkSwapchainKHR h) {
     if(!d)return NULL;
     gfg_virtual_wsi *found=NULL;
@@ -1752,7 +1838,7 @@ native_DestroySwapchainKHR(VkDevice device, VkSwapchainKHR sc,
     const VkAllocationCallbacks *alloc) {
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->destroy_swapchain) return;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     /* Fake virtual swapchain handles NEVER reach a real WSI destroy.
      * The controlled test harness owns actual image allocation/teardown. */
     gfg_virtual_wsi *virtual_app=native_test_find_virtual(d,sc);
@@ -1760,7 +1846,11 @@ native_DestroySwapchainKHR(VkDevice device, VkSwapchainKHR sc,
         native_swapchain *owned=NULL;
         pthread_mutex_lock(&d->lock);
         for(native_swapchain **p=&d->swapchains;*p;p=&(*p)->next) {
-            if((*p)->handle==sc && (*p)->test_proxy) {
+            if((*p)->handle==sc && ((*p)->test_proxy
+#ifdef GFG_NATIVE_WITH_TE
+                || (*p)->buffered
+#endif
+                )) {
                 owned=*p;*p=owned->next;break;
             }
         }
@@ -1861,7 +1951,7 @@ native_AcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain,
         uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t *index) {
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->acquire) return VK_ERROR_INITIALIZATION_FAILED;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     gfg_virtual_wsi *v=native_test_find_virtual(d,swapchain);
     if(v)return gfg_vwsi_acquire(v,swapchain,timeout,semaphore,fence,index);
 #endif
@@ -1888,7 +1978,7 @@ native_AcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR *in
         uint32_t *index) {
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->acquire2) return VK_ERROR_INITIALIZATION_FAILED;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     gfg_virtual_wsi *v=info?native_test_find_virtual(d,info->swapchain):NULL;
     if(v)return gfg_vwsi_acquire2(v,info,index);
 #endif
@@ -1921,7 +2011,7 @@ native_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
 #endif
     native_device *d = find_device(dispatch_key(queue));
     if (!d || !d->present) return VK_ERROR_INITIALIZATION_FAILED;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
     if(info && info->swapchainCount && info->pSwapchains) {
         gfg_virtual_wsi *virtual_app=NULL;
         for(uint32_t i=0;i<info->swapchainCount;++i) {
@@ -1934,8 +2024,26 @@ native_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
              * Fail before consuming *any* application wait semaphore. */
             if(info->swapchainCount!=1)
                 return VK_ERROR_FEATURE_NOT_PRESENT;
+#ifdef GFG_NATIVE_WITH_TE
+            int correct_queue=1;
+            pthread_mutex_lock(&d->lock);
+            for(native_swapchain *sc=d->swapchains;sc;sc=sc->next)
+                if(sc->virtual_app==virtual_app && sc->buffered)
+                    correct_queue=gsf_buffered_uses_queue(sc->buffered,queue);
+            pthread_mutex_unlock(&d->lock);
+            if(!correct_queue) {
+                gfg_vwsi_close(virtual_app);
+                if(info->pResults)info->pResults[0]=VK_ERROR_OUT_OF_DATE_KHR;
+                return VK_ERROR_OUT_OF_DATE_KHR;
+            }
+#endif
             uint64_t token=0;
-            return gfg_vwsi_present(virtual_app,info,&token);
+            VkResult vr=gfg_vwsi_present(virtual_app,info,&token);
+            if(vr==VK_ERROR_INITIALIZATION_FAILED) {
+                gfg_vwsi_close(virtual_app);vr=VK_ERROR_OUT_OF_DATE_KHR;
+                if(info->pResults)info->pResults[0]=vr;
+            }
+            return vr;
         }
     }
 #endif
@@ -2159,6 +2267,9 @@ native_WaitForPresentKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t pre
                          uint64_t timeout) {
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->wait_present) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     native_present_ids *ids = native_find_ids(d, swapchain);
     gfg_output *output = native_find_output(d, swapchain);
     if (output && !ids) return native_output_wait(d,output,swapchain,present_id,timeout,NULL);
@@ -2188,6 +2299,9 @@ native_WaitForPresent2KHR(VkDevice device, VkSwapchainKHR swapchain,
                           const VkPresentWait2InfoKHR *info) {
     native_device *d = find_device(dispatch_key(device));
     if (!d || !d->wait_present2) return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_test_find_virtual(d,swapchain))return VK_ERROR_OUT_OF_DATE_KHR;
+#endif
     native_present_ids *ids = native_find_ids(d, swapchain);
     gfg_output *output = native_find_output(d, swapchain);
     if (output && !ids && info) return native_output_wait(d,output,swapchain,info->presentId,info->timeout,info);
@@ -2233,11 +2347,13 @@ native_gdpa(VkDevice device, const char *symbol) {
     if (d->get_queue2) HOOK(GetDeviceQueue2);
     if (d->create_swapchain) HOOK(CreateSwapchainKHR);
     if (d->destroy_swapchain) HOOK(DestroySwapchainKHR);
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_virtual_hooks_requested()) {
     if(d->get_images) HOOK(GetSwapchainImagesKHR);
     if(d->cmd_barrier) HOOK(CmdPipelineBarrier);
     if(d->cmd_barrier2) HOOK(CmdPipelineBarrier2);
     if(d->cmd_barrier2_khr) HOOK(CmdPipelineBarrier2KHR);
+    }
 #endif
     if (d->present) HOOK(QueuePresentKHR);
     if (d->acquire) HOOK(AcquireNextImageKHR);
@@ -2311,7 +2427,8 @@ native_gipa(VkInstance instance, const char *symbol) {
         return (PFN_vkVoidFunction)native_CreateSwapchainKHR;
     if (!strcmp(symbol, "vkDestroySwapchainKHR"))
         return (PFN_vkVoidFunction)native_DestroySwapchainKHR;
-#ifdef GFG_NATIVE_TEST_OUTPUT_OWNER_HOOKS
+#ifdef GFG_NATIVE_VIRTUAL_WSI
+    if(native_virtual_hooks_requested()) {
     if (!strcmp(symbol, "vkGetSwapchainImagesKHR"))
         return (PFN_vkVoidFunction)native_GetSwapchainImagesKHR;
     if (!strcmp(symbol, "vkCmdPipelineBarrier"))
@@ -2320,6 +2437,7 @@ native_gipa(VkInstance instance, const char *symbol) {
         return (PFN_vkVoidFunction)native_CmdPipelineBarrier2;
     if (!strcmp(symbol, "vkCmdPipelineBarrier2KHR"))
         return (PFN_vkVoidFunction)native_CmdPipelineBarrier2KHR;
+    }
 #endif
     if (!strcmp(symbol, "vkQueuePresentKHR"))
         return (PFN_vkVoidFunction)native_QueuePresentKHR;

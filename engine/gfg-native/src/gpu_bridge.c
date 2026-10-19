@@ -93,8 +93,8 @@ typedef struct {
 
 typedef struct {
     VkCommandBuffer real_cb;
-    VkCommandBuffer gen_cb[2];
-    VkSemaphore acquire_sem[2];
+    VkCommandBuffer gen_cb[GFG_MAX_SYNTHETIC];
+    VkSemaphore acquire_sem[GFG_MAX_SYNTHETIC];
     VkFence fence;
     int busy;
 } ring_slot;
@@ -108,6 +108,10 @@ struct gfg_gpu_fg {
     VkFormat format;
     VkPresentModeKHR present_mode;
     int force_fifo;
+    unsigned quality,adaptive_quality,quality_successes;
+    unsigned buffer_depth;
+    int buffered_owner;
+    uint64_t buffered_previous_real,native_source_interval_ns;
 #define DECLARE(name) FN(name);
     DEVICE_FUNCS(DECLARE)
 #undef DECLARE
@@ -119,7 +123,7 @@ struct gfg_gpu_fg {
     uint32_t image_count;
     VkSemaphore *ready;          /* one binary semaphore per swapchain image */
 
-    imported_image src[2], dst[2];
+    imported_image src[2], dst[GFG_MAX_SYNTHETIC];
     int src_bgra;
     int hdr10;
     VkColorSpaceKHR color_space;
@@ -149,6 +153,7 @@ struct gfg_gpu_fg {
     uint64_t te_frames;          /* frames TE accepted */
     uint64_t history_only_submits;
     int te_gap;                  /* a frame since the last accepted one was not fed to TE */
+    uint64_t current_pair_base;
     uint64_t next_value;         /* first value of the next block */
     uint64_t last_te_value;      /* last value TE will signal */
     timeline_watch *timeline_observer;
@@ -205,13 +210,13 @@ struct gfg_gpu_fg {
     gsf_pacing_controller recovery; /* observed ready+WSI, never shadow success */
     int shadow_enabled;
     gsf_shadow_history shadow;
-    uint64_t timing_desired_sent[3], timing_target_at_call[3];
-    unsigned timing_attached[3], timing_zero_reason[3];
-    unsigned timing_pacing_active[3], timing_display_mode[3], timing_pace_real[3];
-    unsigned timing_pressure[3], timing_worker[3], timing_diagnostic[3], timing_probe[3];
-    uint64_t timing_period_ns[3];
+    uint64_t timing_desired_sent[GFG_OUTPUT_COUNT], timing_target_at_call[GFG_OUTPUT_COUNT];
+    unsigned timing_attached[GFG_OUTPUT_COUNT], timing_zero_reason[GFG_OUTPUT_COUNT];
+    unsigned timing_pacing_active[GFG_OUTPUT_COUNT], timing_display_mode[GFG_OUTPUT_COUNT], timing_pace_real[GFG_OUTPUT_COUNT];
+    unsigned timing_pressure[GFG_OUTPUT_COUNT], timing_worker[GFG_OUTPUT_COUNT], timing_diagnostic[GFG_OUTPUT_COUNT], timing_probe[GFG_OUTPUT_COUNT];
+    uint64_t timing_period_ns[GFG_OUTPUT_COUNT];
     uint64_t diagnostic_outputs;
-    uint64_t gpu_budget_ns[2], last_generation_dispatch_ns;
+    uint64_t gpu_budget_ns[GFG_MAX_SYNTHETIC], last_generation_dispatch_ns;
     gsf_generation_budget generation_budget;
     int latency_admission;
     uint64_t pacing_waits, pacing_late;
@@ -222,7 +227,9 @@ struct gfg_gpu_fg {
     unsigned multiplier;
     uint64_t source_ns, admitted_ns, source_serial, previous_source_ns, previous_serial;
     uint64_t generation;
-    uint64_t real_accepted, generated_accepted, status_last_ns, process_start_ticks;
+    uint64_t real_accepted, generated_accepted, generated_total,dispatched_total,dropped_generated_total,ready_total,first_source_ns,status_last_ns,process_start_ticks;
+    double status_generated_fps,status_output_fps;
+    uint64_t status_generated_before,status_output_before;
     const char *status_dir;
     FILE *telemetry;
     uint64_t telemetry_flush_ns;
@@ -231,11 +238,11 @@ struct gfg_gpu_fg {
     uint32_t google_id;
     PFN_vkGetRefreshCycleDurationGOOGLE refresh_cycle;
     PFN_vkGetPastPresentationTimingGOOGLE past_timing;
-    uint64_t readiness_ns[2], accepted_ns[3], wsi_ns[3];
-    int slot_drop[2];
-    const char *slot_detail[2];
-    uint64_t readiness_wait_ns[2];
-    uint32_t google_ids[3];
+    uint64_t readiness_ns[GFG_MAX_SYNTHETIC], accepted_ns[GFG_OUTPUT_COUNT], wsi_ns[GFG_OUTPUT_COUNT];
+    int slot_drop[GFG_MAX_SYNTHETIC];
+    const char *slot_detail[GFG_MAX_SYNTHETIC];
+    uint64_t readiness_wait_ns[GFG_MAX_SYNTHETIC];
+    uint32_t google_ids[GFG_OUTPUT_COUNT];
     unsigned transport_submit_mask;
 
 };
@@ -260,13 +267,13 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
      * image. Preserve this pair's bounded plan even if C arrives meanwhile.
      * An invalid/unbounded clock must retain the native-priority escape. */
     const uint64_t source=fg->clock.source_ns,interval=fg->clock.interval_ns;
-    const uint64_t real=fg->clock.target_ns[2];
+    const uint64_t real=fg->clock.target_ns[GFG_REAL_OUTPUT];
     const int bounded_pair=source && interval && interval<=UINT64_MAX/2 &&
         real>=source && real-source<=2*interval;
-    const int committed_slot=bounded_pair && ((kind==2 && fg->pace_real) ||
-        (kind<2 && !fg->disabled && (fg->transport_submit_mask&(1u<<kind)) &&
+    const int committed_slot=bounded_pair && ((kind==GFG_REAL_OUTPUT && fg->pace_real) ||
+        (kind<GFG_MAX_SYNTHETIC && !fg->disabled && (fg->transport_submit_mask&(1u<<kind)) &&
          fg->clock.target_ns[kind]>source && fg->clock.target_ns[kind]<=real));
-    if(fg->pacing_active && fg->clock.period_ns && (kind!=2 || fg->pace_real) &&
+    if(fg->pacing_active && fg->clock.period_ns && (kind!=GFG_REAL_OUTPUT || fg->pace_real) &&
        !fg->diagnostic && (committed_slot || !atomic_load(&fg->output_pressure))) {
         const uint64_t target=gfg_frame_clock_target(&fg->clock,kind)-(fg->display_timing==2?fg->clock.period_ns/4:0);
         struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
@@ -298,11 +305,11 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
         .pNext=pi->pNext,.swapchainCount=1,.pTimes=&at};
     if(fg->display_timing==2 && fg->pacing_active && fg->clock.period_ns && pi->swapchainCount==1) {
         at.presentID=++fg->google_id;fg->google_ids[kind]=at.presentID;
-        at.desiredPresentTime=fg->diagnostic || (kind==2 && !fg->pace_real) || (at_pressure && !committed_slot)?
+        at.desiredPresentTime=fg->diagnostic || (kind==GFG_REAL_OUTPUT && !fg->pace_real) || (at_pressure && !committed_slot)?
             0:gfg_frame_clock_target(&fg->clock,kind);
         timed.pNext=&times;
     }
-    if(fg->shadow_enabled && kind<3) {
+    if(fg->shadow_enabled && kind<GFG_OUTPUT_COUNT) {
         fg->timing_pacing_active[kind]=(unsigned)fg->pacing_active;
         fg->timing_display_mode[kind]=(unsigned)fg->display_timing;
         fg->timing_period_ns[kind]=fg->clock.period_ns;
@@ -318,7 +325,7 @@ static VkResult output_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInf
          * 4 native B without accepted synthetic, 5 source pressure, 6 other. */
         fg->timing_zero_reason[kind]=timed.pNext!=&times?1:
             at.desiredPresentTime?0:fg->diagnostic?2:
-            (kind==2 && !fg->pace_real)?4:at_pressure?5:6;
+            (kind==GFG_REAL_OUTPUT && !fg->pace_real)?4:at_pressure?5:6;
     }
     VkResult r = next(queue, &timed);
     clock_gettime(CLOCK_MONOTONIC,&b);
@@ -393,7 +400,8 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
             affordable=mask&(~mask+1u);
         mask=affordable;
     }
-    float slot_phase[2]={1.0f/(float)fg->multiplier,2.0f/3.0f};
+    float slot_phase[GFG_MAX_SYNTHETIC];
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)slot_phase[k]=(float)(k+1)/(float)fg->multiplier;
     if(fg->clock.period_ns)for(unsigned k=0;k<fg->multiplier-1;++k)
         if((mask&(1u<<k)) && !gfg_frame_clock_phase(&fg->clock,k,&slot_phase[k]))mask&=~(1u<<k);
     const int generate=have_pair && mask;
@@ -401,19 +409,19 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
     /* Same-device history updates still signal v+2, with no LMC outputs.
      * Cross-device transport keeps its existing history/hold allocation. */
     s->count=generate?(uint32_t)__builtin_popcount(mask):!fg->same_device?fg->multiplier-1:0u;
-    s->timestamps[0]=1.0f/(float)fg->multiplier;
-    s->timestamps[1]=2.0f/3.0f;
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)s->timestamps[k]=slot_phase[k];
     if(generate) {
         unsigned output=0;
         for(unsigned k=0;k<fg->multiplier-1;++k)if(mask&(1u<<k))
             s->timestamps[output++]=slot_phase[k];
     }
     s->wait_value=v;
-    s->signal_first=s->count?v+3-s->count:v+2;
+    s->signal_first=s->count?v+GFG_OUTPUT_COUNT-s->count:v+GFG_MAX_SYNTHETIC;
     s->nonblocking=1;
     s->discontinuity=fg->te_frames>0 && fg->te_gap;
     s->lmc_tier=fg->lmc_tier;
-    s->defer_second=generate && s->count==2 && fg->same_device && fg->shared_flow;
+    s->flow_quality=fg->quality;
+    s->defer_second=generate && s->count>=2 && fg->same_device && fg->shared_flow;
     return mask;
 }
 static void fail_log(gfg_gpu_fg *fg, const char *what, VkResult r) {
@@ -453,16 +461,28 @@ static void skip_outputs(gfg_gpu_fg *fg, unsigned reason, uint64_t count) {
 /* TE already writes GPU timestamp queries. Read only the latest completed
  * sample collected by its nonblocking fence poll; no GPU wait or pixel read.
  * This is a sample, not an exhaustive trace of every completed pair. */
+/* Deferred output readiness spans include deliberate host presentation
+ * spacing. Admission and quality must charge GPU execution, not that idle
+ * interval; queue-start delay remains a separate calibrated budget. */
+static double gpu_compute_budget_sample(gfg_gpu_fg *fg,const te_pair_stats *s) {
+    if(!s->timed)return 0;
+    double total=0;
+    for(unsigned i=0;i<TE_STAGE_COUNT;++i)if(s->stage_ms[i]>0)total+=s->stage_ms[i];
+    for(unsigned k=0;k<s->outputs && k<GFG_MAX_SYNTHETIC;++k) {
+        if(s->frame_ms[k][TE_FRAME_TOTAL]>0)total+=s->frame_ms[k][TE_FRAME_TOTAL];
+        if(total>0 && total<10000.0)fg->gpu_budget_ns[k]=(uint64_t)(total*1000000.0);
+    }
+    return total;
+}
 static void gpu_sample(gfg_gpu_fg *fg) {
     if (!fg->context) return;
+    fg->generated_total=te_generated_outputs_completed(fg->context);
     te_pair_stats s;
     if (te_last_stats(fg->context, &s) != VK_SUCCESS ||
         s.sequence <= fg->gpu_last_sequence) return;
     fg->gpu_last_sequence = s.sequence;
     if (s.held) { ++fg->gpu_held_samples; return; }
-    if(s.timed && s.outputs)for(unsigned k=0;k<s.outputs && k<2;++k)
-        if(s.ready_ms[k]>0 && s.ready_ms[k]<10000.0)
-            fg->gpu_budget_ns[k]=(uint64_t)(s.ready_ms[k]*1000000.0);
+    const double pair_gpu_ms=gpu_compute_budget_sample(fg,&s);
     uint64_t cal_seq=0,submit_return_ns=0,gpu_start_ticks=0;
     double gpu_tick_period_ns=0;
     uint32_t timestamp_valid_bits=0;
@@ -501,13 +521,29 @@ static void gpu_sample(gfg_gpu_fg *fg) {
     }
     if(fg->telemetry) {
         fprintf(fg->telemetry,"{\"schema\":1,\"event\":\"gpu_pair\",\"pid\":%ld,\"generation\":%llu,\"te_sequence\":%llu,"
-            "\"outputs\":%u,\"timed\":%d,\"ready_ms\":[%.6f,%.6f],\"analysis_ms\":[%.6f,%.6f,%.6f],"
+            "\"outputs\":%u,\"timed\":%d,\"ready_ms\":[%.6f,%.6f,%.6f],\"analysis_ms\":[%.6f,%.6f,%.6f],"
             "\"lmc_pass_ms\":[%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f],\"cut\":%u,\"duplicate\":%d}\n",
             (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)s.sequence,s.outputs,s.timed,
-            s.ready_ms[0],s.ready_ms[1],s.stage_ms[0],s.stage_ms[1],s.stage_ms[2],
+            s.ready_ms[0],s.ready_ms[1],s.ready_ms[2],s.stage_ms[0],s.stage_ms[1],s.stage_ms[2],
             s.lmc_ms[0],s.lmc_ms[1],s.lmc_ms[2],s.lmc_ms[3],s.lmc_ms[4],s.lmc_ms[5],s.lmc_ms[6],s.lmc_ms[7],s.scene_cut,s.source_duplicate);
     }
+    if(fg->telemetry)for(unsigned k=0;k<s.outputs && k<GFG_MAX_SYNTHETIC;++k)
+        fprintf(fg->telemetry,"{\"schema\":2,\"event\":\"gpu_output\",\"generation\":%llu,"
+            "\"te_sequence\":%llu,\"output_index\":%u,\"timed\":%d,\"render_ms\":%.6f,"
+            "\"reconstruction_ms\":%.6f,\"upscale_repair_ms\":%.6f}\n",
+            (unsigned long long)fg->generation,(unsigned long long)s.sequence,k,s.timed,
+            s.frame_ms[k][TE_FRAME_TOTAL],s.reconstruction_ms[k],s.upscale_ms[k]);
     if (!s.timed || s.outputs < 1 || !fg->gpu_pair_ms || !fg->gpu_first_ms || fg->gpu_count == TIMING_CAP) return;
+    if(fg->adaptive_quality && fg->clock.period_ns) {
+        const double budget_ms=(double)fg->clock.period_ns*0.000001*0.55;
+        if(pair_gpu_ms>budget_ms) {
+            if(fg->quality>1)--fg->quality;
+            fg->quality_successes=0;
+        } else if(++fg->quality_successes>=120) {
+            if(fg->quality<3)++fg->quality;
+            fg->quality_successes=0;
+        }
+    }
     const uint32_t i = fg->gpu_count++;
     fg->gpu_first_ms[i] = s.ready_ms[0];
     fg->gpu_pair_ms[i] = s.ready_ms[s.outputs-1];
@@ -817,7 +853,7 @@ static int verify_setup(gfg_gpu_fg *fg) {
                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
             return 0;
     const VkDeviceSize one = (VkDeviceSize)fg->extent.width * fg->extent.height * (fg->hdr10 ? 8u : 4u);
-    fg->verify_bytes = one * 4u;
+    fg->verify_bytes = one * 5u;
     VkBufferCreateInfo bi = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = fg->verify_bytes, .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
@@ -845,16 +881,16 @@ static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     if (fg->verify_pending) return;
     VkCommandBuffer cb = fg->verify_cb;
     if (!begin(fg, cb)) return;
-    VkImage imgs[4] = {fg->dst[0].image, fg->dst[1].image,
+    VkImage imgs[5] = {fg->dst[0].image, fg->dst[1].image, fg->dst[2].image,
                        fg->verify_hist[cur_slot ^ 1u], fg->verify_hist[cur_slot]};
-    VkImageMemoryBarrier acq[4], rel[2];
+    VkImageMemoryBarrier acq[5], rel[GFG_MAX_SYNTHETIC];
     const unsigned outputs = fg->multiplier - 1;
     unsigned barriers = 0;
     for (unsigned i = 0; i < outputs; ++i) {
         acq[barriers++] = acquire_external(fg, imgs[i], VK_ACCESS_TRANSFER_READ_BIT);
         rel[i] = release_external(fg, imgs[i], 0);
     }
-    for (int i = 2; i < 4; ++i)
+    for (int i = 3; i < 5; ++i)
         acq[barriers++] = image_barrier(imgs[i], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
             VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED);
@@ -865,8 +901,8 @@ static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     fg->CmdPipelineBarrier(cb, fg->same_device?VK_PIPELINE_STAGE_ALL_COMMANDS_BIT:VK_PIPELINE_STAGE_TRANSFER_BIT,
                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &waw, 0, NULL, barriers, acq);
     const VkDeviceSize one = (VkDeviceSize)fg->extent.width * fg->extent.height * (fg->hdr10 ? 8u : 4u);
-    for (int i = 0; i < 4; ++i) {
-        if (i == 1 && outputs == 1) continue;
+    for (unsigned i = 0; i < 5; ++i) {
+        if (i < 3 && i >= outputs) continue;
         VkBufferImageCopy region = {.bufferOffset = one * (VkDeviceSize)i,
             .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
             .imageExtent = {fg->extent.width, fg->extent.height, 1}};
@@ -878,7 +914,7 @@ static void verify_submit(gfg_gpu_fg *fg, uint64_t v, uint32_t cur_slot) {
     fg->CmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
                            1, &host, 0, NULL, 0, NULL);
     if (!ok(fg->EndCommandBuffer(cb))) return;
-    const uint64_t wait_value = v + outputs;
+    const uint64_t wait_value = v + GFG_MAX_SYNTHETIC;
     VkTimelineSemaphoreSubmitInfo tsi = {.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
         .waitSemaphoreValueCount = fg->same_device ? 0u : 1u, .pWaitSemaphoreValues = &wait_value};
     const VkPipelineStageFlags stage = fg->same_device ?
@@ -929,10 +965,10 @@ static void verify_collect(gfg_gpu_fg *fg, int final) {
     STAT_ADD(verify_host_reads, 1);
     const size_t px = (size_t)fg->extent.width * fg->extent.height;
     const size_t one=px*(fg->hdr10 ? 8u : 4u);
-    const uint8_t *g1 = map, *g2 = g1 + one, *rp = g2 + one, *rn = rp + one;
+    const uint8_t *g1 = map, *g2 = g1 + one, *rp = g1 + 3*one, *rn = rp + one;
     const int sb = fg->src_bgra;
     const int gb = fg->same_device && fg->src_bgra;
-    const int two_outputs = fg->multiplier == 3;
+    const int two_outputs = fg->multiplier >= 3;
     uint64_t d12 = two_outputs ? rgb_delta(g1, gb, g2, gb, px, fg->hdr10) : 0;
     uint64_t d1p = rgb_delta(g1, gb, rp, sb, px, fg->hdr10), d1n = rgb_delta(g1, gb, rn, sb, px, fg->hdr10);
     uint64_t d2p = two_outputs ? rgb_delta(g2, gb, rp, sb, px, fg->hdr10) : 0;
@@ -940,8 +976,18 @@ static void verify_collect(gfg_gpu_fg *fg, int final) {
     uint64_t dpn = rgb_delta(rp, sb, rn, sb, px, fg->hdr10);
     if(fg->hdr10) { d12/=257;d1p/=257;d1n/=257;d2p/=257;d2n/=257;dpn/=257; }
     int distinct = d1p && d1n && (two_outputs ? (d12 && d2p && d2n) : dpn);
+    if(fg->multiplier==4) {
+        const uint8_t *g3=g1+2*one;
+        distinct=distinct && rgb_delta(g3,gb,rp,sb,px,fg->hdr10) &&
+            rgb_delta(g3,gb,rn,sb,px,fg->hdr10) && rgb_delta(g3,gb,g2,gb,px,fg->hdr10);
+    }
     /* interpolation sanity: G1 nearer R(n-1), G2 nearer R(n) */
-    int ordered = two_outputs ? (d1p < d1n && d2n < d2p) : -1; /* midpoint: N/A */
+    uint64_t lastp=d2p,lastn=d2n;
+    if(fg->multiplier==4) {
+        lastp=rgb_delta(g1+2*one,gb,rp,sb,px,fg->hdr10);
+        lastn=rgb_delta(g1+2*one,gb,rn,sb,px,fg->hdr10);
+    }
+    int ordered = two_outputs ? (d1p < d1n && lastn < lastp) : -1; /* midpoint: N/A */
     fg->UnmapMemory(fg->device, fg->verify_memory);
     STAT_ADD(verify_checks, 1);
     if (distinct) STAT_ADD(verify_distinct, 1);
@@ -1128,7 +1174,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
 
     why = "te-context";
     te_context_desc cd;
-    te_context_desc_default(&cd, fg->extent.width, fg->extent.height, 2);
+    te_context_desc_default(&cd, fg->extent.width, fg->extent.height, GFG_MAX_SYNTHETIC);
     fg->display_timing=info->display_timing;
     if(fg->display_timing) {
         fg->refresh_cycle=(PFN_vkGetRefreshCycleDurationGOOGLE)info->gdpa(info->device,"vkGetRefreshCycleDurationGOOGLE");
@@ -1142,9 +1188,15 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         algorithm && !strcmp(algorithm,"lmc")?TE_ALGO_LMC:
         algorithm && !strcmp(algorithm,"gsf")?TE_ALGO_SHARED_FLOW:TE_ALGO_TILES;
     fg->shared_flow=cd.params.algorithm==TE_ALGO_SHARED_FLOW;
+    fg->buffered_owner=info->buffered_owner;
+    fg->buffer_depth=fg->buffered_owner?env_uint("GFG_NATIVE_BUFFER_DEPTH",1,0,2):0;
+    const char *quality=getenv("GFG_NATIVE_RECONSTRUCTION_QUALITY");
+    fg->adaptive_quality=quality && !strcmp(quality,"adaptive");
+    fg->quality=quality && !strcmp(quality,"ultra-lite")?1:quality && !strcmp(quality,"quality")?3:2;
     fg->multiplier=3;
     const char *multiplier=getenv("GFG_NATIVE_MODE");
-    if(multiplier && !strcmp(multiplier,"2"))fg->multiplier=2;
+    if(multiplier && (!strcmp(multiplier,"2") || !strcmp(multiplier,"4")))
+        fg->multiplier=(unsigned)(multiplier[0]-'0');
     static atomic_uint_fast64_t generations;
     fg->generation=atomic_fetch_add(&generations,1)+1;
     fg->status_dir=getenv("GFG_NATIVE_STATUS_DIR");
@@ -1171,7 +1223,8 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
      GPU composition and never transfers whole game frames to the CPU.
      The original GSF/projective and LMC algorithms stay unchanged. */
     cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?
-        (env_flag("GFG_NATIVE_FLOW_LITE") ? 5 :
+        (env_flag("GFG_NATIVE_FLOW_LITE2") ? 6 :
+         env_flag("GFG_NATIVE_FLOW_LITE") ? 5 :
          env_flag("GFG_NATIVE_GSF_ECO") ? 0 : 4):0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
     /* In-game LMC follows measured source intervals and the compositor's
@@ -1216,6 +1269,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     cd.export_fds = !fg->same_device;
     cd.application_timeline = fg->same_device ? fg->timeline : VK_NULL_HANDLE;
     cd.host_io = 0;
+    cd.flow_lite_batch=env_flag("GFG_NATIVE_FL2_BATCH");
     cd.source_bgra = fg->src_bgra;
     cd.source_format = fg->hdr10 ? info->format : VK_FORMAT_UNDEFINED;
     cd.output_fp16 = fg->hdr10;
@@ -1235,7 +1289,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     const VkFormat src_format = fg->src_bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
     if(fg->same_device){
         for(uint32_t s=0;s<2;++s) fg->src[s].image=te_source_image(fg->context,s);
-        for(uint32_t o=0;o<2;++o) fg->dst[o].image=te_output_image(fg->context,o);
+        for(uint32_t o=0;o<GFG_MAX_SYNTHETIC;++o) fg->dst[o].image=te_output_image(fg->context,o);
     } else {
     for (uint32_t s = 0; s < 2; ++s)
         if (!import_image(fg, &fg->src[s], src_format,
@@ -1243,7 +1297,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
                 te_export_source_fd(fg->context, s)))
             goto fail;
     /* TE-created (exported) destinations add TRANSFER_SRC; must match exactly */
-    for (uint32_t o = 0; o < 2; ++o)
+    for (uint32_t o = 0; o < GFG_MAX_SYNTHETIC; ++o)
         if (!import_image(fg, &fg->dst[o], VK_FORMAT_R8G8B8A8_UNORM,
                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -1264,7 +1318,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
     for (uint32_t r = 0; r < fg->ring_size; ++r) {
         ring_slot *rs = &fg->ring[r];
         if (!alloc_cb(fg, &rs->real_cb)) goto fail;
-        for (int k = 0; k < 2; ++k) {
+        for (int k = 0; k < GFG_MAX_SYNTHETIC; ++k) {
             if (!alloc_cb(fg, &rs->gen_cb[k])) goto fail;
             if (!ok(fg->CreateSemaphore(fg->device, &bsci, NULL, &rs->acquire_sem[k]))) goto fail;
         }
@@ -1288,10 +1342,10 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
      * queue order puts it before the first real copy. */
     if (!begin(fg, fg->init_cb)) goto fail;
     {
-        VkImage shared[4] = {fg->src[0].image, fg->src[1].image, fg->dst[0].image, fg->dst[1].image};
-        VkImageMemoryBarrier tr[7], rel[4];
+        VkImage shared[5] = {fg->src[0].image, fg->src[1].image, fg->dst[0].image, fg->dst[1].image, fg->dst[2].image};
+        VkImageMemoryBarrier tr[8], rel[5];
         uint32_t nt = 0;
-        for (int i = 0; !fg->same_device && i < 4; ++i) {
+        for (int i = 0; !fg->same_device && i < 5; ++i) {
             tr[nt++] = image_barrier(shared[i], 0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_GENERAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED);
             rel[i] = release_external(fg, shared[i], 0);
@@ -1308,7 +1362,7 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         cmd_barrier(fg, fg->init_cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, nt, tr);
         cmd_barrier(fg, fg->init_cb, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, fg->same_device?0u:4u, rel);
+                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, fg->same_device?0u:5u, rel);
     }
     if (!ok(fg->EndCommandBuffer(fg->init_cb))) goto fail;
     VkSubmitInfo isi = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1,
@@ -1475,7 +1529,7 @@ void gfg_gpu_fg_destroy(gfg_gpu_fg *fg) {
             for (uint32_t i = 0; i < fg->image_count; ++i)
                 if (fg->ready[i]) fg->DestroySemaphore(fg->device, fg->ready[i], NULL);
         for (uint32_t r = 0; r < RING_MAX; ++r)
-            for (int k = 0; k < 2; ++k)
+            for (int k = 0; k < GFG_MAX_SYNTHETIC; ++k)
                 if (fg->ring[r].acquire_sem[k])
                     fg->DestroySemaphore(fg->device, fg->ring[r].acquire_sem[k], NULL);
         if (fg->timeline) fg->DestroySemaphore(fg->device, fg->timeline, NULL);
@@ -1492,6 +1546,8 @@ void gfg_gpu_fg_destroy(gfg_gpu_fg *fg) {
         for (int i = 0; !fg->same_device && i < 2; ++i) {
             if (fg->src[i].image) fg->DestroyImage(fg->device, fg->src[i].image, NULL);
             if (fg->src[i].memory) fg->FreeMemory(fg->device, fg->src[i].memory, NULL);
+        }
+        for (int i = 0; !fg->same_device && i < GFG_MAX_SYNTHETIC; ++i) {
             if (fg->dst[i].image) fg->DestroyImage(fg->device, fg->dst[i].image, NULL);
             if (fg->dst[i].memory) fg->FreeMemory(fg->device, fg->dst[i].memory, NULL);
         }
@@ -1592,7 +1648,7 @@ static VkResult forward_real(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoK
         return VK_ERROR_OUT_OF_DATE_KHR;
     }
     const double t = now_us();
-    VkResult r = output_present(fg, queue, &real, next,2);
+    VkResult r = output_present(fg, queue, &real, next,GFG_REAL_OUTPUT);
     if (next_us) *next_us += now_us() - t;
     return r;
 }
@@ -1614,7 +1670,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         /* Retry observes recovery only within the original slot deadline. */
         const uint64_t ready_until=fg->adaptive_pairs && fg->adaptive.eligible?
               fg->adaptive.target_g1-fg->clock.period_ns/4:target;
-        tw_deadline(fg->timeline_observer,v,(unsigned)output_index,ready_until);
+        tw_deadline(fg->timeline_observer,fg->current_pair_base,(unsigned)output_index,ready_until);
         if(fg->cut_drop || fg->duplicate_drop)return 0;
         if(!(fg->adaptive_pairs && fg->adaptive.eligible ?
               now<ready_until :
@@ -1651,7 +1707,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
                 fg->deadline_drop=1;return 0;
             }
             /* Immutable targets: readiness validates, never retargets. */
-            if(adjusted_g1!=fg->clock.target_ns[0] || adjusted_real!=fg->clock.target_ns[2]) {
+            if(adjusted_g1!=fg->clock.target_ns[0] || adjusted_real!=fg->clock.target_ns[GFG_REAL_OUTPUT]) {
                 fg->slot_detail[k]="immutable-slot-mismatch";fg->deadline_drop=1;return 0;
             }
         }
@@ -1763,7 +1819,7 @@ static int present_synthetic(gfg_gpu_fg *fg, ring_slot *rs, int k, int output_in
         VkPresentIdKHR v1;
         VkPresentId2KHR v2;
     } pid = {0};
-    if (ids && ids->mode && ids->assign && (layer_id = ids->assign(ids->user, generated?k+1:3, 0)) != 0) {
+    if (ids && ids->mode && ids->assign && (layer_id = ids->assign(ids->user, generated?k+1:4, 0)) != 0) {
         if (ids->mode == 2) {
             pid.v2.sType = VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR;
             pid.v2.swapchainCount = 1;
@@ -1831,13 +1887,14 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     memset(fg->timing_worker,0,sizeof(fg->timing_worker));
     memset(fg->timing_diagnostic,0,sizeof(fg->timing_diagnostic));
     memset(fg->timing_probe,0,sizeof(fg->timing_probe));
-    fg->slot_drop[0]=fg->slot_drop[1]=DROP_HISTORY;
-    fg->slot_detail[0]=fg->slot_detail[1]="not-admitted";
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)fg->slot_drop[k]=DROP_HISTORY;
+    for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)fg->slot_detail[k]="not-admitted";
     memset(fg->readiness_wait_ns,0,sizeof(fg->readiness_wait_ns));
     memset(fg->google_ids,0,sizeof(fg->google_ids));
     fg->transport_submit_mask=0;
     if(!fg->source_ns)fg->source_ns=(uint64_t)(t0*1000.0);
-    fg->source_serial=fg->frame+1;
+    if(!fg->first_source_ns)fg->first_source_ns=fg->source_ns;
+    if(!fg->source_serial)fg->source_serial=fg->frame+1;
     const uint64_t source0=fg->previous_source_ns,serial0=fg->previous_serial;
     fg->previous_source_ns=fg->source_ns;fg->previous_serial=fg->source_serial;
     gsf_refresh_begin(&fg->refresh_observation,fg->pacing_active,fg->clock.period_ns,
@@ -1862,6 +1919,16 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     }
     /* Snapshot baseline before any optional pair-clock adjustment. The
      * original clock drives the next source pair, preventing drift. */
+    if(fg->buffered_owner) {
+        const uint64_t shift=fg->buffer_depth==2?fg->clock.interval_ns:0;
+        if(!fg->buffer_depth) {
+            fg->clock.mask=0;fg->clock.target_ns[GFG_REAL_OUTPUT]=fg->source_ns;
+        } else {
+            for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k)fg->clock.target_ns[k]=gsf_pc_add(fg->clock.target_ns[k],shift);
+            fg->clock.previous_real_ns=fg->buffered_previous_real;
+        }
+        fg->buffered_previous_real=fg->clock.target_ns[GFG_REAL_OUTPUT];
+    }
     const gfg_frame_clock baseline_clock=fg->clock;
     if(fg->adaptive_pairs && fg->clock.period_ns) {
         uint64_t prediction=fg->gpu_budget_ns[0]?fg->gpu_budget_ns[0]:8000000ull;
@@ -1869,14 +1936,14 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
             prediction=gsf_ap_add(prediction,fg->generation_budget.submit_delay_ns);
         const gsf_pair_plan plan=gsf_ap_begin(&fg->adaptive,(uint64_t)(now_us()*1000.0),
             fg->frame+1,fg->clock.grid_origin_ns,fg->clock.period_ns,
-            fg->clock.target_ns[0],fg->clock.target_ns[2],prediction,
+            fg->clock.target_ns[0],fg->clock.target_ns[GFG_REAL_OUTPUT],prediction,
             (fg->clock.mask&1u)!=0,fg->te_frames>0&&!fg->te_gap,
             atomic_load(&fg->output_pressure),fg->clock.discontinuity);
         fg->clock.mask&=~1u;
         if(plan.admit) {
             fg->clock.mask|=1u;
             fg->clock.target_ns[0]=plan.g1;
-            fg->clock.target_ns[2]=plan.real;
+            fg->clock.target_ns[GFG_REAL_OUTPUT]=plan.real;
         }
     }
     fg->output_deadline_us = t0 + (double)gfg_gpu_fg_source_period_ns(fg)/1000.0;
@@ -1892,7 +1959,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
      * A source with prior history is a candidate independently of masks. */
     if(fg->shadow_enabled) {
         shadow_prediction_ns=gsf_calib_monotonic();
-        shadow_pre_submit_b_ns=fg->clock.target_ns[2];
+        shadow_pre_submit_b_ns=fg->clock.target_ns[GFG_REAL_OUTPUT];
         shadow_pre_submit_g1_ns=fg->clock.target_ns[0];
         shadow_decision=gsf_shadow_predict(&fg->shadow,shadow_prediction_ns,
                                            fg->frame>0); /* native stream active, even if TE history is broken */
@@ -2008,6 +2075,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         goto timing;
     }
     const uint64_t v = fg->next_value;
+    fg->current_pair_base=v;
     double tp = now_us();
     VkResult r = submit_real(fg, rs, app, idx, v);
     fg->phase_us[0] += now_us() - tp;
@@ -2022,7 +2090,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         result = r;
         goto timing;
     }
-    fg->next_value += 3;
+    fg->next_value += GFG_OUTPUT_COUNT;
     /* From here ready[idx] is signalled: the real present below waits it. */
     const int have_pair = fg->te_frames > 0 && !fg->te_gap;
     compute_admission_ns=(uint64_t)(now_us()*1000.0);
@@ -2046,7 +2114,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
             }
             const uint64_t deadline=fg->clock.target_ns[k]>lead?fg->clock.target_ns[k]-lead:0;
             tw_register(fg->timeline_observer,v,fg->te_frames+1,j,
-                v+1+(uint64_t)j,s.signal_first+j,deadline,fg->probe_active);
+                s.signal_first+j,s.signal_first+j,deadline,fg->probe_active);
         }
     }
     tp = now_us();
@@ -2056,7 +2124,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     fg->phase_us[1] += now_us() - tp;
     if(tr==VK_SUCCESS && generate && s.count)
         gsf_calibration_maybe_sample(&fg->calibrated,fg->frame);
-    if(generate && s.count)tw_submitted(fg->timeline_observer,v,tr==VK_SUCCESS);
+    if(generate && s.count)for(unsigned j=0;j<s.count;++j)
+        if(j==0 || !s.defer_second || tr!=VK_SUCCESS)
+            tw_output_submitted(fg->timeline_observer,v,j,tr==VK_SUCCESS);
     if(fg->adaptive_pairs && generate && tr==VK_SUCCESS)adaptive_dispatched=1;
     gpu_sample(fg);
     int presented = 0;
@@ -2071,16 +2141,16 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         if(fg->diagnostic==2 || fg->diagnostic==3)fg->diagnostic_outputs+=s.count;
         deferred_g2=(unsigned)s.defer_second;
         dispatched_outputs=s.count;dispatched_mask=generate?compute_mask:0;
-        fg->last_te_value = v + 2;
+        fg->last_te_value = v + GFG_MAX_SYNTHETIC;
         fg->te_slot ^= 1u;
         fg->te_frames++;
         te_submit_sequence=fg->te_frames;
         if(generate && fg->telemetry) {
             unsigned out=0;
             for(unsigned k=0;k<fg->multiplier-1;++k)if(compute_mask&(1u<<k)) {
-                const double requested=fg->clock.period_ns && fg->clock.target_ns[2]>fg->clock.previous_real_ns?
+                const double requested=fg->clock.period_ns && fg->clock.target_ns[GFG_REAL_OUTPUT]>fg->clock.previous_real_ns?
                     (double)(fg->clock.target_ns[k]-fg->clock.previous_real_ns)/
-                    (double)(fg->clock.target_ns[2]-fg->clock.previous_real_ns):s.timestamps[out];
+                    (double)(fg->clock.target_ns[GFG_REAL_OUTPUT]-fg->clock.previous_real_ns):s.timestamps[out];
                 fprintf(fg->telemetry,
                     "{\"schema\":1,\"event\":\"slot_mapping\",\"pid\":%ld,\"generation\":%llu,"
                     "\"te_sequence\":%llu,\"source_A\":%llu,\"source_B\":%llu,"
@@ -2092,10 +2162,10 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                     (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)te_submit_sequence,
                     (unsigned long long)serial0,(unsigned long long)fg->source_serial,
                     (unsigned long long)source0,(unsigned long long)fg->source_ns,k,
-                    (unsigned long long)fg->clock.previous_real_ns,(unsigned long long)fg->clock.target_ns[2],
+                    (unsigned long long)fg->clock.previous_real_ns,(unsigned long long)fg->clock.target_ns[GFG_REAL_OUTPUT],
                     (unsigned long long)fg->clock.target_ns[k],requested,(double)s.timestamps[out],out,out,
                     (unsigned long long)s.wait_value,(unsigned long long)(s.signal_first+out),
-                    s.defer_second && out==1?"recorded_deferred":"submitted");
+                    s.defer_second && out>=1?"recorded_deferred":"submitted");
                 ++out;
             }
         }
@@ -2111,7 +2181,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                     fg->slot_detail[k]=fg->diagnostic==3?"diagnostic-matched-compute":"diagnostic-compute-only";fg->slot_drop[k]=DROP_BYPASS;
                     skip_outputs(fg,DROP_BYPASS,1);continue;
                 }
-                if(k==1 && canceled_second<DROP_COUNT) {
+                if(k>0 && canceled_second<DROP_COUNT) {
                     fg->slot_drop[k]=(int)canceled_second;
                     fg->slot_detail[k]=canceled_second==DROP_CUT?"G2-not-dispatched-cut":
                         canceled_second==DROP_DUPLICATE?"G2-not-dispatched-duplicate":
@@ -2126,25 +2196,29 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
                     fg->slot_detail[k]=reason==DROP_RATE?"gpu-budget":"expired-before-dispatch";
                     fg->slot_drop[k]=(int)reason;skip_outputs(fg,reason,1);continue;
                 }
-                int g = present_synthetic(fg, rs, (int)k, (int)generated_index++, v+2-s.count, idx, next, ids, app_chain.dynamic_mode, &next_us);
+                int g = present_synthetic(fg, rs, (int)k, (int)generated_index++, v+GFG_MAX_SYNTHETIC-s.count, idx, next, ids, app_chain.dynamic_mode, &next_us);
                 VkResult resumed=VK_SUCCESS;
-                if(s.defer_second && k==0) {
+                if(s.defer_second && generated_index==1) {
                     /* QueuePresent itself may append a driver synchronization
                      * submit. Resume G2 AFTER that call, not merely after the
                      * G1 copy, so lower WSI cannot put G1 behind G2 again. A
                      * skipped G1 still releases G2 to its own later deadline. */
                     const uint64_t now=(uint64_t)(now_us()*1000.0);
-                    const uint64_t target=gfg_frame_clock_target(&fg->clock,1)-
+                    unsigned next_slot=k+1;
+                    while(next_slot<GFG_MAX_SYNTHETIC && !(compute_mask&(1u<<next_slot)))++next_slot;
+                    const uint64_t target=gfg_frame_clock_target(&fg->clock,next_slot)-
                         (fg->display_timing==2?fg->clock.period_ns/4:0);
                     canceled_second=g<0?DROP_ERROR:fg->pressure_drop?DROP_BYPASS:fg->cut_drop?DROP_CUT:fg->duplicate_drop?DROP_DUPLICATE:
                         fg->clock.period_ns && now>=target?DROP_DEADLINE:DROP_COUNT;
                     resumed=canceled_second<DROP_COUNT?te_cancel_deferred_output(fg->context):te_resume_outputs(fg->context);
-                    if(canceled_second<DROP_COUNT){dispatched_outputs=1;dispatched_mask=1;}
+                    for(unsigned j=1;j<s.count;++j)
+                        tw_output_submitted(fg->timeline_observer,v,j,canceled_second==DROP_COUNT && resumed==VK_SUCCESS);
+                    if(canceled_second<DROP_COUNT){dispatched_outputs=1;dispatched_mask=1u<<k;}
                     if(resumed==VK_SUCCESS) {
                         if(canceled_second==DROP_COUNT)g2_submit_return_ns=(uint64_t)(now_us()*1000.0);
                     } else {
                         fg->disabled=1;STAT_ADD(errors,1);
-                        dispatched_outputs=1;dispatched_mask=1;
+                        dispatched_outputs=1;dispatched_mask=1u<<k;
                         fail_log(fg,"deferred G2 submit",resumed);
                     }
                 }
@@ -2184,7 +2258,7 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
     }
     if (frame && !(tr==VK_SUCCESS && generate)) {
         skip_outputs(fg,drop_reason,fg->multiplier-1);
-        fg->slot_drop[0]=fg->slot_drop[1]=(int)drop_reason;
+        for(unsigned k=0;k<GFG_MAX_SYNTHETIC;++k)fg->slot_drop[k]=(int)drop_reason;
         if(tr==VK_SUCCESS && have_pair && !compute_mask && fg->clock.mask)
             for(unsigned k=0;k<fg->multiplier-1;++k)if(fg->clock.mask&(1u<<k))
                 fg->slot_detail[k]=drop_reason==DROP_BYPASS?"source-backlog":
@@ -2249,17 +2323,17 @@ timing:
             d->would_probe,d->skip_streak,dispatched_outputs,fg->accepted_ns[0]!=0,
             (unsigned long long)shadow_pre_submit_g1_ns,
             (unsigned long long)shadow_pre_submit_b_ns,
-            (unsigned long long)fg->clock.target_ns[2],
-            (unsigned long long)fg->timing_target_at_call[2],
-            (unsigned long long)fg->timing_desired_sent[2],
-            fg->timing_attached[2],fg->timing_zero_reason[2],
-            fg->timing_pacing_active[2],fg->timing_display_mode[2],
-            (unsigned long long)fg->timing_period_ns[2],fg->timing_pace_real[2],
-            fg->timing_pressure[2],fg->timing_worker[2],
-            fg->timing_diagnostic[2],fg->timing_probe[2],
+            (unsigned long long)fg->clock.target_ns[GFG_REAL_OUTPUT],
+            (unsigned long long)fg->timing_target_at_call[GFG_REAL_OUTPUT],
+            (unsigned long long)fg->timing_desired_sent[GFG_REAL_OUTPUT],
+            fg->timing_attached[GFG_REAL_OUTPUT],fg->timing_zero_reason[GFG_REAL_OUTPUT],
+            fg->timing_pacing_active[GFG_REAL_OUTPUT],fg->timing_display_mode[GFG_REAL_OUTPUT],
+            (unsigned long long)fg->timing_period_ns[GFG_REAL_OUTPUT],fg->timing_pace_real[GFG_REAL_OUTPUT],
+            fg->timing_pressure[GFG_REAL_OUTPUT],fg->timing_worker[GFG_REAL_OUTPUT],
+            fg->timing_diagnostic[GFG_REAL_OUTPUT],fg->timing_probe[GFG_REAL_OUTPUT],
             (unsigned)(fg->display_timing!=0),(unsigned)(fg->display_timing!=0),
             (unsigned)(fg->display_timing==2),
-            fg->past_timing!=NULL,(unsigned long long)fg->accepted_ns[2]);
+            fg->past_timing!=NULL,(unsigned long long)fg->accepted_ns[GFG_REAL_OUTPUT]);
     }
     if(fg->pacing_active && fg->diagnostic==0) {
         const int ready_wsi=(fg->readiness_ns[0] && fg->accepted_ns[0]) ||
@@ -2300,7 +2374,7 @@ timing:
     }
     if(fg->probe_active)
         fprintf(stderr,"[gfg-native] visibility_probe frame=%llu synthetic_wsi=%d real_wsi=%d detail=%s immutable_deadline=1\n",
-            (unsigned long long)frame,fg->slot_drop[0]==-1,fg->accepted_ns[2]!=0,fg->slot_detail[0]);
+            (unsigned long long)frame,fg->slot_drop[0]==-1,fg->accepted_ns[GFG_REAL_OUTPUT]!=0,fg->slot_detail[0]);
     if(fg->telemetry) {
         if(queue_snapshot.captures)fprintf(fg->telemetry,
             "{\"schema\":1,\"event\":\"queue_observation\",\"pid\":%ld,\"generation\":%llu,"
@@ -2341,15 +2415,30 @@ timing:
             (unsigned long long)fg->gpu_budget_ns[1],(unsigned long long)fg->generation_budget.submit_delay_ns,
             fg->generation_budget.calibrated,deferred_g2,(unsigned long long)g2_submit_return_ns,
             (unsigned long long)te_submit_sequence,
-            (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[2],
+            (unsigned long long)fg->clock.target_ns[0],(unsigned long long)fg->clock.target_ns[1],(unsigned long long)fg->clock.target_ns[GFG_REAL_OUTPUT],
             (unsigned long long)fg->readiness_ns[0],(unsigned long long)fg->readiness_ns[1],
-            (unsigned long long)fg->accepted_ns[0],(unsigned long long)fg->accepted_ns[1],(unsigned long long)fg->accepted_ns[2],
-            (unsigned long long)fg->wsi_ns[0],(unsigned long long)fg->wsi_ns[1],(unsigned long long)fg->wsi_ns[2],
+            (unsigned long long)fg->accepted_ns[0],(unsigned long long)fg->accepted_ns[1],(unsigned long long)fg->accepted_ns[GFG_REAL_OUTPUT],
+            (unsigned long long)fg->wsi_ns[0],(unsigned long long)fg->wsi_ns[1],(unsigned long long)fg->wsi_ns[GFG_REAL_OUTPUT],
             (unsigned long long)fg->readiness_wait_ns[0],(unsigned long long)fg->readiness_wait_ns[1],
-            fg->google_ids[0],fg->google_ids[1],fg->google_ids[2],fg->slot_detail[0],fg->slot_detail[1],
+            fg->google_ids[0],fg->google_ids[1],fg->google_ids[GFG_REAL_OUTPUT],fg->slot_detail[0],fg->slot_detail[1],
             fg->phase_us[0]-phase_before[0],fg->phase_us[1]-phase_before[1],fg->phase_us[2]-phase_before[2],
             fg->phase_us[3]-phase_before[3],fg->phase_us[4]-phase_before[4],(unsigned long long)fg->te_frames,
             fg->slot_drop[0],fg->slot_drop[1],fg->cut_drop,fg->duplicate_drop);
+    }
+    fg->dispatched_total+=dispatched_outputs;
+    for(unsigned k=0;k<fg->multiplier-1;++k) {
+        fg->ready_total+=fg->readiness_ns[k]!=0;
+        if((dispatched_mask&(1u<<k)) && fg->slot_drop[k]!=-1)++fg->dropped_generated_total;
+        if(fg->telemetry)fprintf(fg->telemetry,
+            "{\"schema\":2,\"event\":\"synthetic_lifecycle\",\"generation\":%llu,\"pair\":%llu,"
+            "\"source_A\":%llu,\"source_B\":%llu,\"slot_id\":%u,\"planned\":%u,\"dispatched\":%u,"
+            "\"target_ns\":%llu,\"gpu_ready_observed_ns\":%llu,\"wsi_accepted_ns\":%llu,"
+            "\"drop_code\":%d,\"reason\":\"%s\",\"displayed\":null}\n",
+            (unsigned long long)fg->generation,(unsigned long long)fg->frame,
+            (unsigned long long)serial0,(unsigned long long)fg->source_serial,k,
+            !!(fg->clock.mask&(1u<<k)),!!(dispatched_mask&(1u<<k)),
+            (unsigned long long)fg->clock.target_ns[k],(unsigned long long)fg->readiness_ns[k],
+            (unsigned long long)fg->accepted_ns[k],fg->slot_drop[k],fg->slot_detail[k]);
     }
     if(fg->display_timing==2 && fg->past_timing && fg->telemetry) {
         VkPastPresentationTimingGOOGLE past[16];uint32_t n=0;
@@ -2363,11 +2452,19 @@ timing:
                 past[j].presentID,(unsigned long long)past[j].desiredPresentTime,(unsigned long long)past[j].actualPresentTime,
                 (unsigned long long)past[j].earliestPresentTime,(unsigned long long)past[j].presentMargin);
     }
-    fg->real_accepted+=fg->accepted_ns[2]!=0;
-    fg->generated_accepted+=(fg->slot_drop[0]==-1)+(fg->multiplier==3 && fg->slot_drop[1]==-1);
+    fg->real_accepted+=fg->accepted_ns[GFG_REAL_OUTPUT]!=0;
+    for(unsigned k=0;k<fg->multiplier-1;++k)fg->generated_accepted+=fg->slot_drop[k]==-1;
     uint64_t status_now=(uint64_t)(now_us()*1000.0);
     telemetry_flush(fg,status_now);
     if(fg->status_dir && status_now-fg->status_last_ns>=250000000ull) {
+        const uint64_t native_interval=fg->native_source_interval_ns?fg->native_source_interval_ns:fg->clock.interval_ns;
+        const double seconds=fg->status_last_ns?(double)(status_now-fg->status_last_ns)/1e9:0;
+        if(seconds>0) {
+            fg->status_generated_fps=(double)(fg->generated_total-fg->status_generated_before)/seconds;
+            fg->status_output_fps=(double)(fg->real_accepted+fg->generated_accepted-fg->status_output_before)/seconds;
+        }
+        fg->status_generated_before=fg->generated_total;
+        fg->status_output_before=fg->real_accepted+fg->generated_accepted;
         char path[4096],temp[4096];
         int n=snprintf(path,sizeof(path),"%s/%ld-%llu.json",fg->status_dir,(long)getpid(),(unsigned long long)fg->generation);
         int m=snprintf(temp,sizeof(temp),"%s/.%ld-%llu.tmp",fg->status_dir,(long)getpid(),(unsigned long long)fg->generation);
@@ -2381,14 +2478,20 @@ timing:
                 fprintf(status,"{\"schema\":1,\"engine\":\"gfg-native-gsf\",\"pid\":%ld,\"generation\":%llu,"
                     "\"process_start_ticks\":%llu,\"updated_unix_ms\":%llu,\"multiplier\":%u,\"reason\":\"%s\","
                     "\"source_fps\":%.3f,\"output_refresh_hz\":%.3f,\"refresh_origin\":\"%s\",\"real_wsi_accepted\":%llu,\"generated_wsi_accepted\":%llu,"
-                    "\"color_space\":%d,\"color_transfer\":\"%s\",\"physical_displayed_fps\":null}\n",
+                    "\"color_space\":%d,\"color_transfer\":\"%s\",\"physical_displayed_fps\":null,\"generated_fps\":%.3f,\"output_fps\":%.3f,\"effective_multiplier\":%.3f,\"generated_total\":%llu,\"ready_total\":%llu,\"dropped_synthetic\":%llu,\"gpu_generation_ms\":%.6f,\"buffer_depth\":%u,\"buffer_latency_ms\":%.3f,\"quality_profile\":%u,\"buffered_owner\":%d}\n",
                     (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)fg->process_start_ticks,
                     (unsigned long long)((uint64_t)real.tv_sec*1000ull+(uint64_t)real.tv_nsec/1000000ull),fg->multiplier,reason,
-                    fg->clock.interval_ns?1e9/(double)fg->clock.interval_ns:0.0,
+                    native_interval?1e9/(double)native_interval:0.0,
                     fg->clock.period_ns?1e9/(double)fg->clock.period_ns:0.0,
                     fg->refresh_observation.origin,
                     (unsigned long long)fg->real_accepted,(unsigned long long)fg->generated_accepted,
-                    (int)fg->color_space,fg->linear_pq?"pq-linear-nits":"coded");
+                    (int)fg->color_space,fg->linear_pq?"pq-linear-nits":"coded",
+                    fg->status_generated_fps,fg->status_output_fps,
+                    native_interval?fg->status_output_fps*(double)native_interval/1e9:0.0,
+                    (unsigned long long)fg->generated_total,(unsigned long long)fg->ready_total,
+                    (unsigned long long)fg->dropped_generated_total,
+                    fg->gpu_budget_ns[0]/1e6,fg->buffer_depth,
+                    (double)fg->buffer_depth*(double)fg->clock.interval_ns/1e6,fg->quality,fg->buffered_owner);
                 if(fclose(status)==0)rename(temp,path);else unlink(temp);
             }else if(fd>=0)close(fd);
         }
@@ -2404,4 +2507,8 @@ timing:
     }
     if(fg->adaptive_pairs) fg->clock=baseline_clock;
     return result;
+}
+
+void gfg_gpu_fg_set_native_period(gfg_gpu_fg *fg,uint64_t period_ns) {
+    if(fg)fg->native_source_interval_ns=period_ns;
 }
