@@ -6,6 +6,17 @@ Independent research and development of a Vulkan GPU frame-generation engine for
 
 [Game-generation blocker audit, 2026-10-19](docs/audit/20261019/GENERATION_BLOCKERS_RU.md): six hardware captures, scoped GPU deadline evidence, packed10 activation refusal, and a reproducible historical dispatch regression. Passing the audit tests does not qualify a Deck candidate.
 
+## GSF Next: separate 0.2.0 Alpha
+
+[GSF Next Decky plugin](decky-next/README.md) replaces the previous experimental
+runtime with an attributed open AFMF-Linux / FidelityFX Optical Flow fork, shared
+×2/×3/×4 synthesis and asynchronous presentation. It does not load Flow Lite or
+Lossless Scaling components. This is a new **unqualified Alpha**, not a stable
+upgrade or evidence of LSFG/MAKO-level game compatibility. See its
+[architecture](docs/gsf-next/ARCHITECTURE.md),
+[software results](docs/gsf-next/SOFTWARE_REPORT.md) and
+[Deck acceptance protocol](docs/gsf-next/DECK_PROTOCOL.ru.md).
+
 ## Components
 
 - [Native Vulkan layer and output experiments](engine/gfg-native/): real-WSI interception, GPU bridge, present scheduling, Vulkan loader integration and unit / lavapipe tests.

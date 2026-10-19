@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.1",
+  "source_commit": "@GSF_SOURCE_COMMIT@",
+  "upstream": "https://github.com/serialexperimentslainnnn/afmf-linux",
+  "upstream_commit": "bc56e5bd0e3a6c328aedef664d0d36363fb58b36",
+  "compiler": "@CMAKE_C_COMPILER_ID@ @CMAKE_C_COMPILER_VERSION@",
+  "profile": "@CMAKE_BUILD_TYPE@",
+  "physical_display_verified": false,
+  "steam_deck_qualified": false
+}
