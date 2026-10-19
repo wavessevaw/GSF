@@ -94,6 +94,29 @@ async def test(archive, output):
             assert joins[kind]['unmatched'] == joins[kind]['ambiguous'] == 0, joins
         assert metadata['GFG_NATIVE_LMC_TIER'] == '2'
         assert 'GFG_NATIVE_OUTPUT_HZ' not in metadata and 'GFG_NATIVE_GPU_BRIDGE_VERIFY' not in metadata
+        # Per-game multiplier must survive the extracted plugin's IPC and
+        # remain independent from the inherited Steam/Proton environment.
+        assert (await backend.set_multiplier(42, 3))['multiplier'] == 3
+        assert (await backend.get_status(42))['multiplier'] == 3
+        x3env = module.Plugin()
+        await x3env._main()
+        assert (await x3env.get_status(42))['multiplier'] == 3
+        # Do not assert OLED scanout. Verify the *second* real-Vulkan launch
+        # with x3 and both planned output slots by parsing its own telemetry.
+        run_three = subprocess.run(launcher+[str(app)], env=env, capture_output=True, text=True, timeout=100)
+        (output/'x3-launcher.log').write_text(run_three.stdout+run_three.stderr)
+        assert run_three.returncode == 0, (run_three.stdout+run_three.stderr)[-5000:]
+        run3 = backend.runtime.latest(42)
+        meta3 = json.loads((run3/'LAUNCH.json').read_text())['native_environment']
+        assert meta3['GFG_NATIVE_MODE'] == '3', meta3
+        events3 = [json.loads(x) for x in (run3/'frames.jsonl').read_text().splitlines()
+                   if x.lstrip().startswith('{')]
+        frames3 = [x for x in events3 if x.get('event') == 'pair']
+        assert frames3 and all(x['multiplier'] == 3 for x in frames3)
+        assert any((x['planned_mask'] & 3) == 3 for x in frames3), 'x3 never planned two synthetic slots'
+        assert any(x['dispatched_outputs'] == 2 for x in frames3), 'x3 GPU never dispatched two outputs'
+        assert all(x['physical_displayed'] is None for x in frames3)
+        assert (await backend.set_multiplier(42, 2))['multiplier'] == 2
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:
             assert any(n.endswith('/REPORT.json') for n in z.namelist())

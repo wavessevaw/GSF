@@ -3,5 +3,5 @@
   "author": "Nikita Goev / GSF contributors",
   "flags": [],
   "api_version": 1,
-  "publish": {"tags": ["vulkan", "framegen", "testing"], "description": "Experimental GPU LMC 2x in-game test with per-game launch options and local diagnostics."}
+  "publish": {"tags": ["vulkan", "framegen", "testing"], "description": "Experimental GPU LMC 2x/3x in-game test with per-game launch options and local diagnostics."}
 }

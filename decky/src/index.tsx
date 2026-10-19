@@ -4,8 +4,8 @@ import {useEffect, useRef, useState} from 'react';
 import {enableGame, disableGame} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
-type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number};
-type Status = {enabled: boolean; configured?: boolean; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
+type Live = {source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
+type Status = {enabled: boolean; configured?: boolean; multiplier?: number; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; report?: {result: string; exit_code?: number}};
 const rpc = {
   games: callable<[], Game[]>('get_games'),
   selection: callable<[], {appid: number}>('get_selection'),
@@ -16,7 +16,8 @@ const rpc = {
   forget: callable<[number, string], void>('finish_restore'),
   status: callable<[number], Status>('get_status'),
   export: callable<[number], {path: string}>('export_report'),
-  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode')
+  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
+  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier')
 };
 
 function Content() {
@@ -80,7 +81,7 @@ function Content() {
     if (actionLock.current) return;
     actionLock.current = true; setBusy(true);
     setAppid(id);
-    const text = 'Выбрана: '+game.name+'. Теперь нажмите «Включить 2×».';
+    const text = 'Выбрана: '+game.name+'. Выбери ×2 или ×3 перед запуском GSF.';
     setMessage(text);
     try {await rpc.select(id); toaster.toast({title: 'GSF · игра выбрана', body: game.name});}
     catch (e) {setMessage('Не удалось сохранить выбор: '+String(e));}
@@ -91,18 +92,29 @@ function Content() {
   const state = status?.state === 'generating' ? 'Генерация кадров подтверждена' :
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
-    status?.enabled ? '2× настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF · игровой тест 2×">
+    status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
+  return <PanelSection title="GSF · Adaptive ×2 / ×3 · 90 Гц">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
     {appid > 0 && <>
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
+      <PanelSectionRow><div style={{fontSize: 12}}>Генерация (изменение применяется после перезапуска игры):</div>
+        <Dropdown rgOptions={[
+          {data: 2, label: '×2 · один G1, 30→60 / 45→90 / 60→90'},
+          {data: 3, label: '×3 · до двух G1/G2, 30→90 / 60→90'}
+        ]} selectedOption={status?.multiplier || 2} disabled={busy || !status?.configured}
+          onChange={option => void act(async () => {
+            const value = typeof option === 'object' && option && 'data' in option ? Number(option.data) : Number(option);
+            await rpc.multiplier(appid, value);
+            return 'Множитель ×'+value+' сохранён для игры. Перезапустите её.';
+          }, 'Сохраняю режим генерации…')} />
+      </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
-          {data: 'normal', label: 'Обычный 2× + Shadow Admission 0.1.10'},
+          {data: 'normal', label: 'Обычный ×2/×3 + Shadow Admission 0.1.11'},
           {data: 'normal-no-shadow', label: 'Контроль: без Shadow Admission'},
-          {data: 'normal-adaptive-pairs', label: 'Эксперимент 0.1.8: адаптивная пара G1/B'},
+          {data: 'normal-adaptive-pairs', label: 'Эксперимент 0.1.8: адаптивная пара G1/B (только ×2)'},
           {data: 'normal-queue-observe', label: 'Диагностика: задания игры перед генерацией'},
           {data: 'normal-no-watch', label: 'Контроль: 2× без Timeline Watch'},
           {data: 'normal-no-latency-admission', label: 'Контроль: прежний допуск, калибровка включена'},
@@ -122,9 +134,11 @@ function Content() {
         const written = await enableGame(SteamClient.Apps, rpc, appid);
         setCommand(written);
         return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
-      }, 'Устанавливаю GSF и записываю команду запуска…')}>Включить 2×</ButtonItem></PanelSectionRow>
+      }, 'Устанавливаю GSF и записываю команду запуска…')}>Включить GSF ×{status?.multiplier || 2}</ButtonItem></PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Включить 2×» для настройки запуска.'}
         {live && <div>Источник: {live.source_fps.toFixed(1)} FPS<br/>
+          Целевой режим: ×{live.multiplier || status?.multiplier || 2}<br/>
+          Частота планировщика: {live.output_refresh_hz ? live.output_refresh_hz.toFixed(2) + ' Гц (' + (live.refresh_origin || 'unknown') + ')' : 'не определена'}<br/>
           Принято WSI: исходных {live.real_wsi_accepted}, сгенерированных {live.generated_wsi_accepted}</div>}
         {!live && status?.report && <div>Последний прогон: {status.report.result}</div>}
       </div></PanelSectionRow>
@@ -140,7 +154,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.10 LAB · Исправлено сохранение timing B от предыдущей пары. Shadow диагностирует ранние отказы GPU-budget, настоящий pacing/давление очереди и причину нулевого timing; пробы восстановления только виртуальные. 0.1.8 Adaptive по-прежнему экспериментален. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.11 LAB · Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. 0.1.8 Adaptive по-прежнему экспериментален. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 
