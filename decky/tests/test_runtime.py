@@ -174,6 +174,8 @@ class RuntimeTests(unittest.TestCase):
                 return {'directory': run/'explicit-wsi', 'disable_environment': {'DISABLE_GAMESCOPE_WSI': '1'}}
         with patch.object(launch, 'candidate_module', return_value=Base):
             env = launch.game_environment(self.home/'kit', self.home/'run', inherited)
+        self.assertEqual(env['GFG_NATIVE_COMPAT_BUFFER'], '1')
+        self.assertEqual(env['GFG_NATIVE_COST_ADAPTIVE'], '1')
         self.assertEqual(env['GFG_NATIVE_MODE'], '2')
         with patch.object(launch, 'candidate_module', return_value=Base):
             three = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal', 3)

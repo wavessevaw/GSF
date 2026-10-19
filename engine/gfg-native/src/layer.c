@@ -85,6 +85,7 @@ typedef struct native_swapchain {
     int copy_eligible; /* enabled transfer usage only; never means captured */
     VkPresentModeKHR present_mode;
     int force_fifo;
+    unsigned compat_buffer_depth;
     const char *path; /* "gpu", "cpu" or "none": which transport handled presents */
     double *present_us; /* GFG_NATIVE_TIMING=1: CPU time per app present */
     uint32_t present_samples;
@@ -1623,13 +1624,21 @@ owner_old_resolved:
             reason = "extended-usage-ready";
         }
     }
-    const uint32_t spare_images=gfg_real_wsi_extra_images(getenv("GFG_NATIVE_MODE"));
+    uint32_t spare_images=gfg_real_wsi_extra_images(getenv("GFG_NATIVE_MODE"));
+    unsigned compat_buffer_depth=0;
     if (candidate) {
         /* Reserve one held original plus one real WSI image per generated
          * output: +2 for 2x, +3 for 3x. No virtual app-facing swapchain. */
         if (!caps_queried && d->instance->surface_caps) {
             caps_queried = 1;
             caps_result = d->instance->surface_caps(d->physical, ci->surface, &caps);
+        }
+        if(d->async_output && d->display_timing==2 && native_env_is_1("GFG_NATIVE_COMPAT_BUFFER")) {
+            const char *depth=getenv("GFG_NATIVE_BUFFER_DEPTH");
+            const unsigned requested=depth && !strcmp(depth,"0")?0:depth && !strcmp(depth,"2")?2:1;
+            compat_buffer_depth=gfg_real_wsi_buffer_depth(ci->minImageCount,
+                caps_queried && caps_result==VK_SUCCESS?caps.maxImageCount:0,spare_images,requested);
+            spare_images+=compat_buffer_depth;
         }
         if (!gfg_real_wsi_can_extend(ci->minImageCount,
                 caps_queried && caps_result==VK_SUCCESS ? caps.maxImageCount : 0,
@@ -1658,6 +1667,14 @@ owner_old_resolved:
     }
     VkResult result = d->create_swapchain(device, candidate ? &extended : ci,
                                            alloc, out);
+    if(result!=VK_SUCCESS && result!=VK_ERROR_DEVICE_LOST && candidate && compat_buffer_depth) {
+        /* Extra retention is optional. If the driver rejects the larger pool,
+         * retry the already supported generation contract before ordinary WSI. */
+        extended.minImageCount-=compat_buffer_depth;
+        compat_buffer_depth=0;*out=VK_NULL_HANDLE;
+        result=d->create_swapchain(device,&extended,alloc,out);
+        fprintf(stderr,"[gfg-native] compat-buffer reduced=0 reason=buffer-pool-create-failed retry_result=%d\n",(int)result);
+    }
     if (result != VK_SUCCESS && candidate) {
         // Never prevent a game from creating its original swapchain.
         extended_result = result;
@@ -1694,6 +1711,7 @@ owner_old_resolved:
     sc->copy_eligible = candidate;
     sc->present_mode = candidate ? extended.presentMode : ci->presentMode;
     sc->force_fifo = sc->present_mode != ci->presentMode;
+    sc->compat_buffer_depth=candidate?compat_buffer_depth:0;
     sc->create_flags = ci->flags;
     {
         const char *timing = getenv("GFG_NATIVE_TIMING");
@@ -2099,7 +2117,7 @@ native_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
                         .swapchain = sc->handle, .extent = sc->extent, .format = sc->format, .color_space=sc->color_space,
                         .present_mode = sc->present_mode, .force_fifo=sc->force_fifo, .queue = queue,
                         .family = q->family, .semaphore_fd = d->semaphore_fd, .display_timing=d->display_timing, .calibrated_mode=d->calibrated_mode,
-                        .set_loader_data = d->set_loader_data,
+                        .set_loader_data = d->set_loader_data, .compat_buffer_depth=sc->compat_buffer_depth,
                         .queue_probe = d->queue_observer ? native_queue_probe : NULL};
                     sc->gpu = gfg_gpu_fg_create(&gi);
                     if (native_env_is_1("GFG_NATIVE_REAL_WSI_PROBE"))

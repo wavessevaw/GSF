@@ -19,6 +19,25 @@ typedef struct {
     int calibrated;
 } gsf_generation_budget;
 
+/* Effective quality can fall below the selected ceiling, never above it or
+ * change the user's multiplier. Include start latency as contention evidence;
+ * require a long cheap run and a low-water mark before restoring detail. */
+static inline unsigned gsf_generation_quality(unsigned current,unsigned ceiling,
+    uint64_t cost,uint64_t period,unsigned *cheap_streak) {
+    if(!period || !cheap_streak)return current;
+    if(cost>period/2) {
+        *cheap_streak=0;
+        return current>1?current-1:1;
+    }
+    if(cost<period/4) {
+        if(++*cheap_streak>=240) {
+            *cheap_streak=0;
+            return current<ceiling?current+1:ceiling;
+        }
+    } else *cheap_streak=0;
+    return current;
+}
+
 static inline void gsf_generation_budget_observe(gsf_generation_budget *b,
                                                 int valid,uint64_t delay_ns) {
     /* An invalid observation cannot erase the last trustworthy cost and

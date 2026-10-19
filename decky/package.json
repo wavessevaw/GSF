@@ -1,6 +1,6 @@
 {
   "name": "gsf-decky-test",
-  "version": "0.1.13-launchfix.1",
+  "version": "0.1.13-stability.1",
   "description": "GSF experimental in-game 2x frame generation test",
   "type": "module",
   "license": "GPL-3.0-or-later",

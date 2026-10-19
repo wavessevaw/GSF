@@ -357,12 +357,12 @@ calibration-clock: $(BUILD)/calibration-clock
 	$(BUILD)/calibration-clock tests/fixtures/software-submit-overlap-20261019.csv
 .PHONY: calibration-clock
 
-$(BUILD)/generation-budget: tests/generation_budget.c src/generation_budget.h
+$(BUILD)/generation-budget: tests/generation_budget.c src/generation_budget.h src/frame_clock.h
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ tests/generation_budget.c
 
 generation-budget: $(BUILD)/generation-budget
-	$(BUILD)/generation-budget tests/fixtures/deck-calibrated-slack-20261019.csv
+	$(BUILD)/generation-budget tests/fixtures/deck-calibrated-slack-20261019.csv tests/fixtures/ac-origins-0.1.13-buffer.csv
 .PHONY: generation-budget
 
 $(BUILD)/refresh-observation: tests/refresh_observation.c src/refresh_observation.h
@@ -426,4 +426,12 @@ pacing-owner-model: $(BUILD)/pacing-owner-model
 # Supported barrier-only contract, linked into the normal production layer.
 # This is distinct from loader-probe/lmc-owner-layer test builds.
 .PHONY: motion-intelligence-check
-motion-intelligence-check: frame-clock pacing-owner-model virtual-source virtual-wsi-facade virtual-layouts output-worker present-chain present-ids
+motion-intelligence-check: frame-clock pacing-owner-model virtual-source virtual-wsi-facade virtual-layouts output-worker present-chain present-ids generation-budget real-wsi-direct-policy
+
+$(BUILD)/real-wsi-direct-policy: tests/real_wsi_direct_policy.c src/swapchain_chain.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -o $@ $<
+
+real-wsi-direct-policy: $(BUILD)/real-wsi-direct-policy
+	$(BUILD)/real-wsi-direct-policy
+.PHONY: real-wsi-direct-policy

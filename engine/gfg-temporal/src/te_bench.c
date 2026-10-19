@@ -84,7 +84,7 @@ static void usage(void) {
     fprintf(stderr,
             "usage: te-bench --frames seq.npy [--start S] [--pairs N] [--step K] [--outputs N] [--crop WxH]\n"
             "                [--algo tiles|lmc|lmc-gpu|gsf|shared-flow|shared-flow-dense|shared-flow-affine|shared-flow-palette]\n"
-            "                [--tier 0..2] [--mode adaptive|full|light|reuse] [--tile 8|16|32] [--levels L] [--range R]\n"
+            "                [--tier 0..2] [--flow-quality 1..3] [--mode adaptive|full|light|reuse] [--tile 8|16|32] [--levels L] [--range R]\n"
             "                [--light-thr X] [--probe N] [--profile] [--out gen.npy] [--json stats.jsonl]\n"
             "                [--analysis DIR] [--device NAME] [--validation] [--no-download]\n");
 }
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     const char *frames_path = NULL, *out_path = NULL, *json_path = NULL, *analysis_dir = NULL, *device = NULL;
     size_t start = 0, pairs = 0, step = 3, cw = 0, ch = 0;
     int profile = 0, validation = 0, download = 1, tier = 0, uniform_phases = 0;
-    uint32_t outputs=0;int shared_dense=0,batch=0;
+    uint32_t outputs=0;int shared_dense=0,batch=0,flow_quality=2;
     te_params params;
     te_params_default(&params);
     for (int i = 1; i < argc; ++i) {
@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
         else if (ARG("--start")) start = strtoul(v, NULL, 10);
         else if (ARG("--outputs")) outputs=(uint32_t)strtoul(v,NULL,10);
         else if (ARG("--batch")) batch=atoi(v);
+        else if (ARG("--flow-quality")) {flow_quality=atoi(v);if(flow_quality<1 || flow_quality>3)return 2;}
         else if (ARG("--pairs")) pairs = strtoul(v, NULL, 10);
         else if (ARG("--step")) step = strtoul(v, NULL, 10);
         else if (ARG("--crop")) {
@@ -219,7 +220,7 @@ int main(int argc, char** argv) {
         for (size_t y = 0; y < H; ++y) memcpy(rgb + y * W * 3, frame + y * seq.width * 3, W * 3);
         uint32_t slot = (uint32_t)(k % 2);
         if (te_upload_rgb(ctx, slot, rgb) != VK_SUCCESS) { status = 4; break; }
-        te_submit s = {.slot = slot, .count = k ? outputs : 0, .download = download, .lmc_tier = tier};
+        te_submit s = {.slot = slot, .count = k ? outputs : 0, .download = download, .lmc_tier = tier, .flow_quality=(unsigned)flow_quality};
         for (size_t j = 1; j <= outputs; ++j) s.timestamps[j - 1] = (float)j / (float)(uniform_phases?outputs+1:step);
         double t0 = now_ms();
         if (te_submit_frame(ctx, &s) != VK_SUCCESS) { status = 4; break; }

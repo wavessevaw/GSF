@@ -173,6 +173,13 @@ async def test(archive, output):
         assert len(pairs4) == 24 and all(x['multiplier'] == 4 for x in pairs4)
         assert any(x['dispatched_outputs'] == 3 for x in pairs4), 'packaged x4 never dispatched G1/G2/G3'
         assert any(x.get('event') == 'synthetic_lifecycle' and x['slot_id'] == 2 and x['wsi_accepted_ns'] for x in events4), 'packaged G3 never accepted'
+        buffer4 = [x for x in events4 if x.get('event') == 'buffer_state']
+        assert len(buffer4) == 24
+        context4 = next(x for x in events4 if x.get('event') == 'bridge_context')
+        if context4['compositor_timing_mode'] != 2:
+            assert all(x['effective_depth'] == 0 for x in buffer4), 'unsupported timed WSI must keep ordinary output'
+        assert all(1 <= x['effective_quality'] <= x['quality_ceiling'] for x in buffer4)
+        assert meta4['GFG_NATIVE_COMPAT_BUFFER'] == meta4['GFG_NATIVE_COST_ADAPTIVE'] == '1'
         assert (await backend.set_multiplier(42, 2))['multiplier'] == 2
         exported = await backend.export_report(42)
         with zipfile.ZipFile(exported['path']) as z:

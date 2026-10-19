@@ -4,7 +4,7 @@ import {useEffect, useRef, useState} from 'react';
 import {enableGame, disableGame, copyCommand, withTimeout} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
-type Live = {generated_fps?: number; output_fps?: number; effective_multiplier?: number; generated_total?: number; dropped_synthetic?: number; gpu_generation_ms?: number; buffer_depth?: number; buffer_latency_ms?: number; buffered_owner?: number; source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
+type Live = {generated_fps?: number; output_fps?: number; effective_multiplier?: number; generated_total?: number; dropped_synthetic?: number; gpu_generation_ms?: number; buffer_depth?: number; buffer_requested?: number; buffer_latency_ms?: number; buffered_owner?: number; timed_buffer?: number; buffer_occupancy?: number; buffer_age_ms?: number; quality_profile?: number; quality_ceiling?: number; source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
 type Status = {enabled: boolean; configured?: boolean; manual_launch?: boolean; multiplier?: number; buffer_depth?: number; reconstruction_quality?: string; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
 function backend<Args extends unknown[], Result>(name: string) {
   const invoke = callable<Args, Result>(name);
@@ -106,7 +106,7 @@ function Content() {
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? (status.manual_launch ? 'Ручной профиль готов. Вставьте команду в параметры запуска Steam и перезапустите игру.' : 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру') : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF Motion Intelligence · 0.1.13 · Launch fix 1">
+  return <PanelSection title="GSF Motion Intelligence · 0.1.13 · Stability 1">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
@@ -146,14 +146,14 @@ function Content() {
             return value === 0 ? 'Генерация отключена для следующего запуска. Перезапустите игру.' : 'Множитель ×'+value+' сохранён для игры. Перезапустите её.';
           }, 'Сохраняю режим генерации…')} />
       </PanelSectionRow>
-      <PanelSectionRow><div style={{fontSize: 12}}>Frame Buffer · независимый Output Owner:</div>
+      <PanelSectionRow><div style={{fontSize: 12}}>Frame Buffer · очередь вывода:</div>
         <Dropdown rgOptions={[{data: 0, label: '0 · Low Latency'}, {data: 1, label: '1 · Balanced'}, {data: 2, label: '2 · Stable'}]}
           selectedOption={status?.buffer_depth ?? 1} disabled={busy || !status?.configured}
           onChange={option => void act(async () => {
             const depth = Number(typeof option === 'object' && option && 'data' in option ? option.data : option);
             await rpc.buffer(appid, depth); return 'Buffer '+depth+' сохранён. Перезапустите игру.';
           }, 'Сохраняю буфер…')} />
-        <div style={{fontSize: 11}}>Буфер действует при совместимом независимом выводе. Совместимость Game Mode пока не подтверждена. Buffer 0: без дополнительного периода сверх ожидания пары A/B; Buffer 1/2: ещё один/два периода.</div>
+        <div style={{fontSize: 11}}>Buffer 1/2 удерживает ещё один/два периода исходного кадра. Обычный WSI использует буфер при поддержке compositor timing; иначе — Buffer 0. При ограничении поверхности глубина уменьшается. Фактическая глубина — в диагностике. Совместимый Gamescope получает кадры заранее с временными метками.</div>
       </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Reconstruction Quality:</div>
         <Dropdown rgOptions={[{data: 'ultra-lite', label: 'Ultra Lite'}, {data: 'balanced', label: 'Balanced'}, {data: 'quality', label: 'Quality'}, {data: 'adaptive', label: 'Adaptive'}]}
@@ -162,6 +162,7 @@ function Content() {
             const quality = String(typeof option === 'object' && option && 'data' in option ? option.data : option);
             await rpc.quality(appid, quality); return 'Качество сохранено. Перезапустите игру.';
           }, 'Сохраняю качество…')} />
+        <div style={{fontSize: 11}}>Под нагрузкой стоимость автоматически снижается вплоть до Ultra Lite. Выбранный множитель сохраняется; восстановление деталей — после устойчивой работы.</div>
       </PanelSectionRow>
       {status?.multiplier === 4 && <PanelSectionRow><div style={{fontSize: 12}}>×4: 30 FPS запрашивают 120 FPS, 45 FPS — 180 FPS. При 90 Гц доступны максимум 90 слотов/с; строятся только кадры для свободных слотов. Физический показ требует измерений дисплея.</div></PanelSectionRow>}
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
@@ -195,7 +196,9 @@ function Content() {
           Generated: {live.generated_fps?.toFixed(1) ?? '—'} FPS; Output (WSI): {live.output_fps?.toFixed(1) ?? '—'} FPS<br/>
           Effective Multiplier: {live.effective_multiplier?.toFixed(2) ?? '—'}<br/>
           GPU Generation: {live.gpu_generation_ms?.toFixed(2) ?? '—'} ms; Dropped Synthetic: {live.dropped_synthetic ?? '—'}<br/>
-          Buffer: {live.buffer_depth ?? '—'}; latency estimate: {live.buffer_latency_ms?.toFixed(1) ?? '—'} ms; Owner: {live.buffered_owner ? 'active' : 'ordinary WSI'}<br/>
+          Buffer: {live.buffer_depth ?? '—'} (выбран {live.buffer_requested ?? status?.buffer_depth ?? '—'}); дополнительная задержка (план): {live.buffer_latency_ms?.toFixed(1) ?? '—'} ms<br/>
+          Вывод: {live.buffered_owner ? 'independent owner' : live.timed_buffer ? 'buffered WSI · timed' : (live.buffer_depth || 0)>0 ? 'buffered WSI · CPU pacing' : 'ordinary WSI'}; очередь: {live.buffer_occupancy ?? '—'}; возраст задания: {live.buffer_age_ms?.toFixed(1) ?? '—'} ms<br/>
+          Фактическое качество: {live.quality_profile === 1 ? 'Ultra Lite' : live.quality_profile === 2 ? 'Balanced' : live.quality_profile === 3 ? 'Quality' : '—'}<br/>
           Displayed: не измерено<br/>
           Целевой режим: ×{live.multiplier || status?.multiplier || 2}<br/>
           Частота планировщика: {live.output_refresh_hz ? live.output_refresh_hz.toFixed(2) + ' Гц (' + (live.refresh_origin || 'unknown') + ')' : 'не определена'}<br/>

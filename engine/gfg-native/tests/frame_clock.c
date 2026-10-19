@@ -84,6 +84,18 @@ static void hardware_trace(const char *path) {
            rows,old_compute,rejected,accepted);
 }
 static void extra_buffer_periods(void) {
+    // Buffered 45->90 must not alternate two/three extra display slots just
+    // because the source timestamp lands 100us either side of a boundary.
+    for(unsigned depth=1;depth<=2;++depth) {
+        const uint64_t p=ns/90;
+        gfg_frame_clock c={.period_ns=p};uint64_t last=0,previous=0;
+        for(unsigned i=0;i<500;++i) {
+            gfg_frame_clock_pair(&c,10*ns+(uint64_t)i*2*p+(i%2?100000:0),2);
+            gfg_frame_clock_buffer(&c,depth,&last);
+            if(i)assert(c.target_ns[GFG_REAL_OUTPUT]-previous==2*p && c.mask==1);
+            previous=c.target_ns[GFG_REAL_OUTPUT];
+        }
+    }
     for(unsigned depth=0;depth<=2;++depth)for(unsigned multiplier=2;multiplier<=4;++multiplier) {
         const uint64_t p=ns/90;
         gfg_frame_clock c={.period_ns=p};uint64_t previous=0;

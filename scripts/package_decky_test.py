@@ -61,6 +61,7 @@ def main():
             subprocess.run(['git', 'archive', '--format=tar.gz', 'HEAD', 'decky', 'engine/gfg-native',
                             'engine/gfg-temporal', 'scripts/package_decky_test.py',
                             'scripts/package_deck_candidate.py', 'scripts/mi_buffer_matrix.sh',
+                            'scripts/mi_compat_buffer_matrix.sh', 'scripts/mi_deck_report.py',
                             'scripts/mi_software_benchmark.py', 'scripts/mi_vulkan_matrix.sh',
                             '.github/workflows/gsf-motion-intelligence.yml', 'docs/motion-intelligence-0.1.13', 'LICENSE.md', 'NOTICE.md', 'COPYRIGHT.md'],
                            cwd=ROOT, stdout=source, check=True)

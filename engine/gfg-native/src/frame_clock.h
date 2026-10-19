@@ -89,7 +89,10 @@ static inline void gfg_frame_clock_pair(gfg_frame_clock *c,uint64_t source,unsig
 static inline void gfg_frame_clock_buffer(gfg_frame_clock *c,unsigned depth,uint64_t *last_real) {
     if(!c || !last_real || depth>2 || !c->period_ns)return;
     const uint64_t p=c->period_ns;
-    const uint64_t extra=(c->interval_ns*depth/p+(c->interval_ns*depth%p!=0))*p;
+    /* Round to the nearest slot: ceil turned +/-100us source jitter around
+     * 45->90 into alternating extra 2/3 slots and destroyed buffered cadence. */
+    const uint64_t duration=c->interval_ns*depth;
+    const uint64_t extra=(duration/p+(duration%p>=p/2))*p;
     for(unsigned k=0;k<GFG_OUTPUT_COUNT;++k)c->target_ns[k]+=extra;
     c->previous_real_ns=*last_real;
     if(*last_real && c->target_ns[GFG_REAL_OUTPUT]<=*last_real) {

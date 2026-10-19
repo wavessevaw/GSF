@@ -101,11 +101,27 @@ int main(void) {
     telemetry_flush(&fg,249000010);assert(!fstat(fileno(fg.telemetry),&st) && !st.st_size);
     telemetry_flush(&fg,250000010);assert(!fstat(fileno(fg.telemetry),&st) && st.st_size==13);
     fclose(fg.telemetry);fg.telemetry=NULL;
+    // A successful compositor timing contract accepts future buffered slots
+    // immediately. Sleeping until the previous B prevented pipelining.
+    mode=2;fg.display_timing=2;fg.pacing_active=1;fg.diagnostic=0;
+    fg.buffer_depth=2;fg.buffered_owner=0;fg.clock.overspeed=0;
+    fg.refresh_observation.last_success_ns=(uint64_t)(now_us()*1000.0);
+    fg.clock.source_ns=fg.refresh_observation.last_success_ns;
+    fg.clock.interval_ns=200000000;fg.clock.period_ns=10000000;
+    fg.clock.target_ns[0]=wanted=fg.clock.source_ns+400000000;
+    fg.clock.target_ns[GFG_REAL_OUTPUT]=fg.clock.source_ns+600000000;
+    fg.transport_submit_mask=1;fg.pace_real=1;
+    start=now_us();
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,0)==VK_SUCCESS);
+    wanted=fg.clock.target_ns[GFG_REAL_OUTPUT];
+    assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
+    assert(now_us()-start<100000.0); // both targets remain at least 400ms away
+    fg.buffer_depth=0;fg.refresh_observation.last_success_ns=0;
     /* App-owned namespace: preserve its entire chain; no injected GOOGLE IDs. */
     mode=1;fg.display_timing=1;fg.pacing_active=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
     mode=0;fg.display_timing=0;
     assert(output_present(&fg,VK_NULL_HANDLE,&app,recording_wsi,GFG_REAL_OUTPUT)==VK_SUCCESS);
-    assert(calls==13 && previous_id==11);
+    assert(calls==15 && previous_id==13);
     puts("presentation-timing: distinct desired G1/G2/G3/R times, immutable chains, namespace ownership and disabled-extension fallback PASS (no scanout)");
 }

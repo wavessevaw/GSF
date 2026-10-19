@@ -34,6 +34,8 @@ def main():
     if dirty: raise ValueError('refuse a dirty source build')
     (kit/'BUILD_INFO.json').write_text(json.dumps({'source_commit':commit, 'experimental':True,
         'architecture':'x86_64','virtual_wsi':False,'buffered_owner_available':'barrier-only-opt-in',
+        'compat_buffer_available':'same-device FIFO, private compositor timing and image headroom',
+        'cost_adaptive_quality':True,
         'multiframe':[2,3,4],'buffer_depths':[0,1,2],'version':'0.1.13 Experimental','physical_scanout_verified':False,
         'scope':'controlled Vulkan test application, not game qualification'},indent=2)+'\n')
     (kit/'README.txt').write_text('''GSF — автономный тестовый кандидат (экспериментальный).

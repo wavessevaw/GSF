@@ -14,6 +14,9 @@ static VkResult backend_result;
 static uint32_t observed_image;
 static unsigned gate_creates,gate_destroys,app_wait_submits;
 static atomic_int pressure;
+static unsigned buffer_depth;
+unsigned gfg_gpu_fg_buffer_depth(gfg_gpu_fg *fg) {(void)fg;return buffer_depth;}
+void gfg_gpu_fg_set_output_occupancy(gfg_gpu_fg *fg,unsigned n,uint64_t age) {(void)fg;(void)n;(void)age;}
 static uint64_t seen_ids[8];
 static int require_pressure;
 static VKAPI_ATTR VkResult VKAPI_CALL create_gate(VkDevice d,const VkSemaphoreCreateInfo *ci,
@@ -172,6 +175,35 @@ int main(void) {
     assert(gfg_output_sem_reusable(out,(VkSemaphore)(uintptr_t)7));
     gfg_output_destroy(out);
 
+    // Two deliberately retained real frames are buffer occupancy, not GPU
+    // overload. Only the third queued frame asserts pressure before Submit.
+    assert(mprotect(p,4096,PROT_READ|PROT_WRITE)==0);
+    buffer_depth=2;require_pressure=0;release_backend=0;entered=0;
+    out=gfg_output_create((gfg_gpu_fg *)(uintptr_t)1,VK_NULL_HANDLE,NULL,NULL,&wsi,
+                          VK_NULL_HANDLE,dispatch,5,NULL);assert(out);
+    p->index=0;p->present_id=50;
+    assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
+    pthread_mutex_lock(&backend_lock);
+    while(!entered)pthread_cond_wait(&backend_changed,&backend_lock);
+    pthread_mutex_unlock(&backend_lock);
+    p->index=1;p->present_id=51;
+    assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
+    p->index=2;p->present_id=52;
+    assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
+    assert(!atomic_load(&pressure));
+    require_pressure=1;p->index=4;p->present_id=53;
+    assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_SUCCESS && handled);
+    assert(atomic_load(&pressure));
+    pthread_mutex_lock(&out->lock);
+    out->jobs[out->head]->queued_ns=tick_ns()-100000000ull;
+    pthread_mutex_unlock(&out->lock);
+    require_pressure=0;
+    pthread_mutex_lock(&backend_lock);release_backend=1;
+    pthread_cond_broadcast(&backend_changed);pthread_mutex_unlock(&backend_lock);
+    assert(gfg_output_drain(out,0,1000000000,NULL)==VK_SUCCESS);
+    assert(out->stale==0 && out->completed==4 && out->peak_queued==3);
+    gfg_output_destroy(out);buffer_depth=0;
+
     assert(mprotect(p,4096,PROT_READ|PROT_WRITE)==0);
     backend_result=VK_ERROR_DEVICE_LOST;
     require_pressure=0;
@@ -181,9 +213,9 @@ int main(void) {
     assert(gfg_output_drain(out,0,1000000000,NULL)==VK_ERROR_DEVICE_LOST);
     assert(gfg_output_submit(out,&p->pi,0,&handled)==VK_ERROR_DEVICE_LOST && handled);
     assert(p->result==VK_ERROR_DEVICE_LOST);
-    assert(gfg_output_status(out)==VK_ERROR_DEVICE_LOST && app_wait_submits==4);
+    assert(gfg_output_status(out)==VK_ERROR_DEVICE_LOST && app_wait_submits==8);
     gfg_output_destroy(out); pthread_mutex_destroy(&wsi); munmap(p,4096);
-    assert(gate_creates==10 && gate_destroys==10);
+    assert(gate_creates==15 && gate_destroys==15);
     puts("GFG output worker: deep immutable metadata, bounded jobs, timed drain and deferred errors PASS");
     return 0;
 }

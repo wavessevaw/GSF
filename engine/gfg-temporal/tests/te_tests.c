@@ -85,6 +85,8 @@ static int g_lmc_tier;   /* LMC cost tier of every submit (te_submit.lmc_tier) *
 static int run_pair(te_context* ctx, uint32_t slot, const uint8_t* frame, uint32_t count, const float* ts) {
     if (te_upload_rgb(ctx, slot, frame) != VK_SUCCESS) return 0;
     te_submit s = {.slot = slot, .count = count, .download = 1, .lmc_tier = g_lmc_tier};
+    const char *quality=getenv("GFG_TEST_FLOW_QUALITY");
+    if(quality)s.flow_quality=(unsigned)atoi(quality);
     for (uint32_t i = 0; i < count; ++i) s.timestamps[i] = ts[i];
     return te_submit_frame(ctx, &s) == VK_SUCCESS && te_wait_idle(ctx) == VK_SUCCESS;
 }

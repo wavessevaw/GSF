@@ -788,7 +788,7 @@ static void lmc_record_analysis(te_context* ctx, te_slot* slot, const te_submit*
         lmc_fill(cb, &m->layers, 0, 4, 0);                    /* layer_count */
         lmc_fill(cb, &m->globals, 4, 4, 0);                   /* moving */
         if(m->shared_flow){lmc_fill(cb,&m->globals,0,4,0);lmc_fill(cb,&m->globals,88,12,0);}
-        if (ctx->frames > 0) {
+        if (ctx->frames > 0 && (s->discontinuity || s->hold || s->count)) {
             VkClearColorValue zero = {{0, 0, 0, 0}};
             VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
             vkCmdClearColorImage(cb, m->hud.img, VK_IMAGE_LAYOUT_GENERAL, &zero, 1, &range);
@@ -805,7 +805,8 @@ static void lmc_record_analysis(te_context* ctx, te_slot* slot, const te_submit*
     if(m->shared_flow){lmc_fill(cb,&m->globals,100,4,0);lmc_transfer_barrier(cb);}
     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->layout, 0, 1, &m->set0[par], 0, NULL);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->pipe[LMC_PREP]);
-    lmc_push_c(ctx, cb, 0.0f, 0, 0, 0, (generate?0:1)|(m->shared_flow?2:0));
+    const int continuous_history=ctx->frames>0 && !s->count && !s->discontinuity && !s->hold;
+    lmc_push_c(ctx, cb, 0.0f, 0, 0, 0, (generate || continuous_history?0:1)|(m->shared_flow?2:0));
     vkCmdDispatch(cb, groups(W, 8), groups(H, 8), 1);
     compute_barrier(cb);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, m->pipe[LMC_DOWN]);
@@ -845,7 +846,7 @@ static void lmc_record_analysis(te_context* ctx, te_slot* slot, const te_submit*
         if(m->flow_lite) {
             /* One low-resolution flow upsample replaces two fine-grid
                refinements and their repeated full-RGB patch evaluations. */
-            lmc_push_c(ctx,cb,0,m->flow_lite2 && m->quality!=1?2:3,0,5,64|(m->flow_lite2?128:0)|(m->quality==1?256:0));
+            lmc_push_c(ctx,cb,0,m->flow_lite2 && m->quality!=1?2:3,0,5,64|(m->flow_lite2?128:0)|(m->quality==1?256:0)|(m->quality==3?512:0));
             vkCmdDispatch(cb,groups(m->n1,64),1,1);
         } else {
             for(int g=0;g<2;++g) {

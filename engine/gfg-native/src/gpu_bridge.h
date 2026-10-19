@@ -28,6 +28,7 @@ typedef struct {
     VkPresentModeKHR present_mode;
     int force_fifo;
     int buffered_owner; /* independent source snapshots, Buffer 0/1/2 allowed */
+    unsigned compat_buffer_depth; /* extra real WSI images actually reserved, 0..2 */
     VkQueue queue;                    /* the app's present queue */
     uint32_t family;
     int display_timing;               /* GOOGLE extension enabled: 1 app namespace, 2 private */
@@ -82,6 +83,8 @@ void gfg_gpu_fg_set_output_thread(gfg_gpu_fg *fg, pthread_mutex_t *wsi);
  * fallback must never sleep on the application's Present thread. */
 void gfg_gpu_fg_set_output_pacing(gfg_gpu_fg *fg,int active);
 void gfg_gpu_fg_set_output_pressure(gfg_gpu_fg *fg,int active);
+unsigned gfg_gpu_fg_buffer_depth(gfg_gpu_fg *fg);
+void gfg_gpu_fg_set_output_occupancy(gfg_gpu_fg *fg,unsigned queued,uint64_t age_ns);
 /* Output worker only; timestamps were captured before mailbox backpressure. */
 void gfg_gpu_fg_set_native_period(gfg_gpu_fg *fg,uint64_t period_ns); /* output worker: producer cadence, before snapshot drops */
 void gfg_gpu_fg_set_source(gfg_gpu_fg *fg,uint64_t captured_ns,uint64_t admitted_ns,uint64_t serial);

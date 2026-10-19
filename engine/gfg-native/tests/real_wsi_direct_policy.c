@@ -13,6 +13,12 @@ int main(void) {
      * 3x the deferred original plus two intermediates. */
     assert(gfg_real_wsi_extra_images("2")==2u);
     assert(gfg_real_wsi_extra_images("3")==3u);
+    assert(gfg_real_wsi_extra_images("4")==4u);
+    assert(gfg_real_wsi_buffer_depth(4,0,3,2)==2);
+    assert(gfg_real_wsi_buffer_depth(4,8,3,2)==1);
+    assert(gfg_real_wsi_buffer_depth(4,7,3,2)==0);
+    assert(gfg_real_wsi_buffer_depth(4,6,3,2)==0);
+    assert(gfg_real_wsi_buffer_depth(UINT32_MAX,0,4,2)==0);
     assert(gfg_real_wsi_extra_images(NULL)==3u);
     assert(gfg_real_wsi_can_extend(2,0,2));
     assert(gfg_real_wsi_can_extend(2,5,3));

@@ -16,6 +16,25 @@ float patch_error(int grid,vec2 centre,vec2 v) {
     }
     return n>=4?e/float(n):1.0;
 }
+float lite_patch_error(vec2 centre,vec2 v) {
+    // Bounded four-tap confidence/refinement at a shared block, independent
+    // of output count. Ultra Lite uses cached half-resolution luma. Quality
+    // retains the original dense RGB patch and two search scales.
+    if((PC.flags&512)!=0)return patch_error(0,centre,v);
+    float e=0.0;int n=0;
+    for(int y=-2;y<=2;y+=4)for(int x=-2;x<=2;x+=4) {
+        vec2 p=centre+vec2(x,y),q=p-2.0*v;
+        if(!inside(p,P.size.xy)||!inside(q,P.size.xy))continue;
+        if((PC.flags&256)!=0)
+            e+=abs(luma_b(1,(p-0.5)*0.5)-luma_a(1,(q-0.5)*0.5));
+        else {
+            vec3 d=abs(half_rgb(1,(p-0.5)*0.5)-half_rgb(0,(q-0.5)*0.5));
+            e+=(d.r+d.g+d.b)/3.0;
+        }
+        ++n;
+    }
+    return n>=2?e/float(n):1.0;
+}
 vec2 reverse_raw(int grid,vec2 half_pos) {
     ivec2 nb=lblocks(1),b=clamp(ivec2(floor(half_pos/4.0)),ivec2(0),nb-1);
     int i=blk_offset(1)+b.y*nb.x+b.x;
@@ -69,18 +88,18 @@ void main() {
             // Pair-shared sparse RGB refinement on the 160x100 block grid,
             // not a full-resolution search and never repeated per output.
             vec2 centre=vec2(b*8)+3.5,v=flow.xy;
-            float e=patch_error(0,centre,v);
+            float e=lite_patch_error(centre,v);
             vec2 prior=temporal[i].xy;
-            float pe=patch_error(0,centre,prior);
+            float pe=lite_patch_error(centre,prior);
             if(pe+0.001<e){v=prior;e=pe;}
-            float ze=patch_error(0,centre,vec2(0));
+            float ze=lite_patch_error(centre,vec2(0));
             if(ze+0.001<e){v=vec2(0);e=ze;}
-            if((PC.flags&256)==0 && e>0.003) {
-                for(int scale=0;scale<2;++scale) {
+            if(e>0.003) {
+                for(int scale=0;scale<((PC.flags&512)!=0?2:1);++scale) {
                     vec2 base=v;float step_=scale==0?0.5:0.25;
-                    for(int k=0;k<9;++k)if(k!=4) {
+                    for(int k=0;k<9;++k)if(k!=4 && ((PC.flags&512)!=0 || (k&1)!=0)) {
                         vec2 candidate=base+vec2(k%3-1,k/3-1)*step_;
-                        float ce=patch_error(0,centre,candidate);
+                        float ce=lite_patch_error(centre,candidate);
                         if(ce+0.0001<e){v=candidate;e=ce;}
                     }
                 }
@@ -92,7 +111,10 @@ void main() {
         // Count only one vote per coarse block to keep atomics inexpensive.
         if((b.x&3)==0 && (b.y&3)==0) {
             if(dot(flow.xy,flow.xy)>0.25)atomicAdd(G.moving_votes,16u);
-            if(flow.z>((PC.flags&128)!=0?0.12:0.20))atomicAdd(G.orphans_a,16u);
+            // Cut votes retain original RGB evidence, once per 16 blocks.
+            // A luma-only Ultra Lite residual cannot detect chromatic cuts.
+            float cut_error=(PC.flags&128)!=0?patch_error(0,vec2(b*8)+3.5,flow.xy):flow.z;
+            if(cut_error>((PC.flags&128)!=0?0.12:0.20))atomicAdd(G.orphans_a,16u);
         }
         return;
     }

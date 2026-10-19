@@ -1,0 +1,199 @@
+{
+  "gpu": "llvmpipe (software Vulkan, not Steam Deck RDNA2)",
+  "extent": [
+    1280,
+    800
+  ],
+  "warmup": "first pair excluded; p95/p99 from small samples, not long-run evidence",
+  "source_fps_degradation": null,
+  "power_after_fix": null,
+  "physical_displayed_fps": null,
+  "cases": [
+    {
+      "case": "before-balanced",
+      "warm_pairs": 11,
+      "outputs_per_pair": 1,
+      "analysis_ms": {
+        "p50": 104.8658,
+        "p95": 197.9371,
+        "p99": 197.9371
+      },
+      "shared_refinement_ms": {
+        "p50": 48.1397,
+        "p95": 51.9113,
+        "p99": 51.9113
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 146.3246,
+        "p95": 237.6034,
+        "p99": 237.6034
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 146.3246,
+        "p95": 237.6034,
+        "p99": 237.6034
+      },
+      "render_per_synthetic_ms": {
+        "p50": 39.2161,
+        "p95": 73.0342,
+        "p99": 73.0342
+      },
+      "allocation_bytes": 54014900
+    },
+    {
+      "case": "after-q1",
+      "warm_pairs": 11,
+      "outputs_per_pair": 1,
+      "analysis_ms": {
+        "p50": 61.0882,
+        "p95": 66.5511,
+        "p99": 66.5511
+      },
+      "shared_refinement_ms": {
+        "p50": 12.2119,
+        "p95": 19.646,
+        "p99": 19.646
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 91.7051,
+        "p95": 98.4748,
+        "p99": 98.4748
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 91.7051,
+        "p95": 98.4748,
+        "p99": 98.4748
+      },
+      "render_per_synthetic_ms": {
+        "p50": 29.7634,
+        "p95": 35.891,
+        "p99": 35.891
+      },
+      "allocation_bytes": 54014900
+    },
+    {
+      "case": "after-q2",
+      "warm_pairs": 11,
+      "outputs_per_pair": 1,
+      "analysis_ms": {
+        "p50": 69.8589,
+        "p95": 81.3043,
+        "p99": 81.3043
+      },
+      "shared_refinement_ms": {
+        "p50": 14.6959,
+        "p95": 17.9695,
+        "p99": 17.9695
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 111.0789,
+        "p95": 119.9199,
+        "p99": 119.9199
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 111.0789,
+        "p95": 119.9199,
+        "p99": 119.9199
+      },
+      "render_per_synthetic_ms": {
+        "p50": 40.8123,
+        "p95": 49.228,
+        "p99": 49.228
+      },
+      "allocation_bytes": 54014900
+    },
+    {
+      "case": "after-q3",
+      "warm_pairs": 11,
+      "outputs_per_pair": 1,
+      "analysis_ms": {
+        "p50": 154.9571,
+        "p95": 214.5418,
+        "p99": 214.5418
+      },
+      "shared_refinement_ms": {
+        "p50": 77.2563,
+        "p95": 85.0398,
+        "p99": 85.0398
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 227.6052,
+        "p95": 282.4917,
+        "p99": 282.4917
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 227.6052,
+        "p95": 282.4917,
+        "p99": 282.4917
+      },
+      "render_per_synthetic_ms": {
+        "p50": 68.2377,
+        "p95": 80.2819,
+        "p99": 80.2819
+      },
+      "allocation_bytes": 54014900
+    },
+    {
+      "case": "after-outputs2",
+      "warm_pairs": 5,
+      "outputs_per_pair": 2,
+      "analysis_ms": {
+        "p50": 60.0591,
+        "p95": 65.8202,
+        "p99": 65.8202
+      },
+      "shared_refinement_ms": {
+        "p50": 9.1314,
+        "p95": 11.7722,
+        "p99": 11.7722
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 138.855,
+        "p95": 144.0147,
+        "p99": 144.0147
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 69.4275,
+        "p95": 72.0074,
+        "p99": 72.0074
+      },
+      "render_per_synthetic_ms": {
+        "p50": 37.1485,
+        "p95": 45.7401,
+        "p99": 45.7401
+      },
+      "allocation_bytes": 64254900
+    },
+    {
+      "case": "after-outputs3",
+      "warm_pairs": 5,
+      "outputs_per_pair": 3,
+      "analysis_ms": {
+        "p50": 79.6732,
+        "p95": 97.8137,
+        "p99": 97.8137
+      },
+      "shared_refinement_ms": {
+        "p50": 13.0816,
+        "p95": 17.1204,
+        "p99": 17.1204
+      },
+      "gpu_cost_per_pair_ms": {
+        "p50": 268.6581,
+        "p95": 282.8603,
+        "p99": 282.8603
+      },
+      "gpu_cost_per_synthetic_ms": {
+        "p50": 89.5527,
+        "p95": 94.2868,
+        "p99": 94.2868
+      },
+      "render_per_synthetic_ms": {
+        "p50": 62.3606,
+        "p95": 71.4191,
+        "p99": 71.4191
+      },
+      "allocation_bytes": 74494900
+    }
+  ]
+}
