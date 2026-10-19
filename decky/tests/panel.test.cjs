@@ -17,6 +17,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
   let current = '';
   let expected = '';
   let enabled = false;
+  let manualConfirmed = false;
   let multiplier = 2;
   let statusFails = true;
   const listeners = new Set();
@@ -36,7 +37,10 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
       return {options: expected};
     },
     async confirm_game(id, actual) {assert.equal(id, 42);assert.equal(actual, current);enabled = true;},
-    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok(value === 2 || value === 3); multiplier = value; return {multiplier: value};}
+    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok(value === 2 || value === 3); multiplier = value; return {multiplier: value};},
+    async prepare_manual_game(id) {assert.equal(id,42);return {options: 'python3 /home/deck/.local/share/gsf-test/launch.py --appid 42 -- %command%',warning:'preserve options'};},
+    async confirm_manual_game(id, value) {assert.equal(id,42);assert.match(value,/--appid 42/);manualConfirmed=true; return {enabled:true,steam_verified:false};},
+    async disable_manual_game() {return {enabled:false};}
   };
   const context = {
     console, setTimeout, clearTimeout, setInterval, clearInterval,
@@ -98,5 +102,14 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(multiplierSelect().props.selectedOption, 3, '3x persists across remount');
     assert.equal(tree.root.findByType('code').props.children, expected);
     assert.equal(writes.length, 1, 'remount must not write launch options');
+    const manualBtn = () => tree.root.findAllByType('gsf-ButtonItem').find(n => n.props.children === 'Не записалось? Получить команду вручную');
+    await act(async () => {manualBtn().props.onClick();});
+    await flush();
+    assert.match(JSON.stringify(tree.toJSON()), /--appid 42 -- %command%/);
+    const pastedBtn = () => tree.root.findAllByType('gsf-ButtonItem').find(n => n.props.children === 'Я вставил команду в Steam');
+    await act(async () => {pastedBtn().props.onClick();});
+    await flush();
+    assert.equal(manualConfirmed,true);
+    assert.equal(writes.length,1,'manual route must never silently modify Steam options');
   } finally {act(() => tree.unmount());}
 });

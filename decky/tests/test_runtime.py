@@ -71,6 +71,29 @@ class RuntimeTests(unittest.TestCase):
         self.runtime.set_diagnostic_mode(42, 'normal-no-watch')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-watch')
 
+    def test_manual_copy_and_explicit_confirm_without_steam_readback(self):
+        with patch.object(self.runtime, 'install', return_value={'build': 'mock'}):
+            # Manual path only prepares a string, not an active generator.
+            prepared = self.runtime.prepare_manual_game(42)
+            self.assertIn('--appid 42 -- %command%', prepared['options'])
+            self.assertFalse(self.runtime.status(42)['enabled'])
+            # An exact, pre-existing GSF wrapper can be re-used safely.
+            again = self.runtime.prepare_manual_game(42)
+            self.assertEqual(again['options'], prepared['options'])
+            with self.assertRaises(ValueError):
+                self.runtime.confirm_manual_game(42, 'tampered %command%')
+            # Simulate successfully installed payload; never lie about Steam readback.
+            kit = self.home/'installed-kit'
+            kit.mkdir()
+            atomic_json(self.runtime.root/'current.json', {'kit': str(kit)})
+            active = self.runtime.confirm_manual_game(42, prepared['options'])
+            self.assertFalse(active['steam_verified'])
+            self.assertTrue(self.runtime.status(42)['manual_unverified'])
+            self.assertTrue(self.runtime.status(42)['enabled'])
+            self.assertFalse(self.runtime.disable_manual_game(42)['enabled'])
+            self.assertFalse(self.runtime.status(42)['enabled'])
+            self.assertEqual(self.runtime.config()['games']['42']['expected'], prepared['options'])
+
     def test_selection_persists_without_installing_or_enabling(self):
         self.assertEqual(self.runtime.selection(), {'appid': 0})
         self.runtime.select(42)
