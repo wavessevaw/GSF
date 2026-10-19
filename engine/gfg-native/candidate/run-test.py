@@ -46,7 +46,7 @@ def counters(log):
     return {k:int(v) for k,v in re.findall(r'(\w+)=(\d+)', lines[0])}
 
 
-def check_active(log, lifecycle, kit, paced=False, frames=12):
+def check_active(log, lifecycle, kit, paced=False, frames=12, warmup_frames=0):
     c = counters(log)
     bridges = 3 if lifecycle else 1
     if lifecycle: frames = 36
@@ -58,7 +58,8 @@ def check_active(log, lifecycle, kit, paced=False, frames=12):
         # still require every pair, with zero skips.
         required.pop('synthetic')
         required.pop('skipped')
-        if c.get('synthetic', 0) < frames-4 or c.get('synthetic', 0) + c.get('skipped', 0) != frames-bridges:
+        minimum=frames-warmup_frames-2 if warmup_frames else frames-4
+        if c.get('synthetic', 0) < minimum or c.get('synthetic', 0) + c.get('skipped', 0) != frames-bridges:
             raise ValueError('Недостаточно фактически выведенных кадров в проверке такта')
     for k, value in required.items():
         if c.get(k) != value:
@@ -78,10 +79,10 @@ def check_active(log, lifecycle, kit, paced=False, frames=12):
     return c
 
 
-def check_cadence(path, minimum=5):
+def check_cadence(path, minimum=5, qualifying_after=0):
     pairs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     pairs = [p for p in pairs if p.get('event') == 'pair']
-    gaps, transitions = [], []
+    gaps, transitions, qualifying = [], [], []
     for pair in pairs:
         if pair['refresh_period_ns'] != 100_000_000:
             raise ValueError('LMC не включил заданный выходной такт 10 Гц')
@@ -93,13 +94,17 @@ def check_cadence(path, minimum=5):
                 raise ValueError(f'G1 и real отправлены с неверным интервалом: {gap/1e6:.3f} мс')
             if planned == 100_000_000:
                 gaps.append(gap/1e6)
+                if pair.get("source1_id",pair.get("pair",0))>qualifying_after:
+                    qualifying.append(gap/1e6)
             else:
                 # The first post-reset lattice can span three refresh slots.
                 # Record it, but never count it as an evenly spaced pair.
                 transitions.append(gap/1e6)
-    if len(gaps) < minimum:
+    if len(qualifying) < minimum:
         raise ValueError('Недостаточно равномерно разделённых пар G1/real')
     return {'scope':'WSI handoff, physical display unverified', 'pairs':len(gaps),
+            'qualifying_after_source':qualifying_after,'qualifying_pairs':len(qualifying),
+            'required_qualifying_pairs':minimum,
             'g1_to_real_ms_min':min(gaps), 'g1_to_real_ms_max':max(gaps),
             'nonuniform_transition_gaps_ms':transitions}
 
@@ -238,7 +243,8 @@ def main():
         for label, algo, lifecycle in cases:
             visual = label.endswith('-visual')
             paced = label in ('lmc-paced-2x', 'B-lmc-visual')
-            frames = 40 if visual else 12
+            warmup_frames=30 if label=="lmc-paced-2x" else 0
+            frames = 50 if warmup_frames else 40 if visual else 12
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
@@ -269,9 +275,9 @@ def main():
                 raise ValueError(label+': нет подтверждения завершения')
             if algo is None and 'GPU bridge active:' in log:
                 raise ValueError('Генератор неожиданно активен в baseline')
-            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT,paced=paced,frames=frames) if algo else None}
+            report['cases'][label] = {'status':'PASS', 'counters':check_active(log,lifecycle,KIT,paced=paced,frames=frames,warmup_frames=warmup_frames) if algo else None}
             if paced:
-                report['cases'][label]['cadence'] = check_cadence(run/(label+'.jsonl'), minimum=frames-4)
+                report['cases'][label]['cadence'] = check_cadence(run/(label+'.jsonl'), minimum=frames-warmup_frames-2 if warmup_frames else frames-4, qualifying_after=warmup_frames)
         report.update(status='PASS', stage='complete')
         code = 0
     except (Exception, KeyboardInterrupt) as error:

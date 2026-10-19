@@ -22,3 +22,10 @@ Long-stress PASS is structural: originals/resources/phase identity/validation an
 JSONL retention. Its RESULT separately reports NOT_MET when a synthetic CPU WSI
 call starts at least one full refresh after its immutable target. This prevents
 an error-free stress run being mislabeled as real-time pacing qualification.
+
+The portable paced startup case now runs50sources, keeps all native/drop counters,
+and requires18correctly spaced pairs in the final20sources after30warmup sources.
+This exceeds the2s learning-retry horizon, unlike the old12-source test. Every
+accepted pair, including warmup, still undergoes the SAME phase/cadence check.
+The archived pressure mismatch must still fail even if it occurred in warmup;
+a validator regression explicitly proves that. No deadline is loosened.
