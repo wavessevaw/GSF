@@ -375,9 +375,13 @@ static unsigned prepare_generation(const gfg_gpu_fg *fg,int have_pair,uint64_t v
                 affordable|=1u<<k;++output;
             }
         }
-        /* A bounded retry learns recovery after a slow sample/scene. It is
-         * one eligible output every two seconds, never an expired slot. */
-        if(!affordable && mask && gsf_generation_retry_due(fg->last_generation_dispatch_ns,now))
+        /* Normal recovery is one probe/2s; an isolated >50ms first
+         * GPU-time sample gets a 250ms remeasurement to reject cold shader
+         * outliers. Both paths still require an unexpired reserved slot. */
+        if(!affordable && mask &&
+           (gsf_generation_retry_due(fg->last_generation_dispatch_ns,now) ||
+            gsf_generation_cold_retry_due(fg->last_generation_dispatch_ns,
+                now,fg->gpu_count,fg->gpu_budget_ns[0])))
             affordable=mask&(~mask+1u);
         /* Sparse visibility probes test whether *real generated* pixels can
          * reach the game's WSI, without treating a GPU-cost estimate as a
