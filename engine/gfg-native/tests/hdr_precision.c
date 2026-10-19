@@ -3,6 +3,7 @@
  * levels catch an accidental rgba8 intermediate; no native runtime readback.
  */
 #include "te_engine.h"
+#include "wrapped_physical_dispatch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -71,7 +72,10 @@ int main(void) {
         .queueFamilyIndex=family,.queueCount=1,.pQueuePriorities=&priority};
     VkDeviceCreateInfo dci={.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,.queueCreateInfoCount=1,.pQueueCreateInfos=&qci};
     VkDevice d;OK(vkCreateDevice(p,&dci,NULL,&d));VkQueue q;vkGetDeviceQueue(d,family,0,&q);
-    te_device *engine;OK(te_device_borrow(instance,vkGetInstanceProcAddr,p,d,vkGetDeviceProcAddr,NULL,q,family,&engine));
+    VkPhysicalDevice borrowed=p;PFN_vkGetInstanceProcAddr borrowed_gipa=vkGetInstanceProcAddr;
+    const int wrapped=gsf_test_wrap_physical(p,&borrowed,&borrowed_gipa);
+    te_device *engine;OK(te_device_borrow(instance,borrowed_gipa,borrowed,d,vkGetDeviceProcAddr,NULL,q,family,&engine));
+    if(wrapped)fprintf(stderr,"WRAPPED_PHYSICAL_BORROW_SETUP complete\n");
     VkBufferCreateInfo bci={.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,.size=N*4*3,
         .usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,.sharingMode=VK_SHARING_MODE_EXCLUSIVE};
     VkBuffer buffer;OK(vkCreateBuffer(d,&bci,NULL,&buffer));VkMemoryRequirements req;vkGetBufferMemoryRequirements(d,buffer,&req);
@@ -157,6 +161,7 @@ int main(void) {
     fprintf(stderr,"HDR precision: format=%d outputs=%u %s PASS\n",(int)format,outputs,linear?"linear-light PQ reconstruction":"all 1024 packed levels preserved exactly");
     te_context_destroy(ctx);vkDestroyImage(d,target,NULL);vkFreeMemory(d,target_memory,NULL);
     }
+    gsf_test_wrapped_result(wrapped,1);
     te_device_destroy(engine);vkDestroyCommandPool(d,pool,NULL);vkUnmapMemory(d,memory);vkDestroyBuffer(d,buffer,NULL);vkFreeMemory(d,memory,NULL);
     vkDestroyDevice(d,NULL);
     PFN_vkDestroyDebugUtilsMessengerEXT destroy=(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance,"vkDestroyDebugUtilsMessengerEXT");

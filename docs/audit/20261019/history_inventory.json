@@ -1,0 +1,456 @@
+{
+  "scope": "AUDIT_INVENTORY_NOT_FULL_CONTENT_REVIEW_OF_EVERY_BRANCH",
+  "gsf_main": "e14f169f0afd9893f2c7b3070b31c62e625f3766",
+  "diagnostics_dependency": "cea037f13e3b2aca093149808a5e6b85789725aa",
+  "gsf_prs": [
+    {
+      "number": 1,
+      "title": "Migrate GSF native Vulkan engine, GPU LMC and research from GFG Extreme",
+      "url": "https://github.com/wavessevaw/GSF/pull/1",
+      "state": null
+    },
+    {
+      "number": 2,
+      "title": "legal: formalize GSF GPL-3.0-or-later, copyright provenance and release identity",
+      "url": "https://github.com/wavessevaw/GSF/pull/2",
+      "state": null
+    },
+    {
+      "number": 3,
+      "title": "research(GSF): new Gamescope VK_EXT_present_timing and physical frame evidence",
+      "url": "https://github.com/wavessevaw/GSF/pull/3",
+      "state": null
+    },
+    {
+      "number": 4,
+      "title": "test(GSF): restore inherited strict Native FG3 async LMC GPU validation",
+      "url": "https://github.com/wavessevaw/GSF/pull/4",
+      "state": null
+    },
+    {
+      "number": 5,
+      "title": "research(GSF): deep Mesa RADV, shader pipeline and Vulkan WSI audit",
+      "url": "https://github.com/wavessevaw/GSF/pull/5",
+      "state": null
+    },
+    {
+      "number": 6,
+      "title": "diagnostics(GSF): time every Temporal/LMC Vulkan pipeline before first output",
+      "url": "https://github.com/wavessevaw/GSF/pull/6",
+      "state": null
+    },
+    {
+      "number": 7,
+      "title": "research(GSF): review Qwen MV/depth proposal against existing GPU LMC",
+      "url": "https://github.com/wavessevaw/GSF/pull/7",
+      "state": null
+    },
+    {
+      "number": 8,
+      "title": "docs: correct Motion Intelligence research attribution to Qwen",
+      "url": "https://github.com/wavessevaw/GSF/pull/8",
+      "state": null
+    },
+    {
+      "number": 9,
+      "title": "research(GSF): verify Qwen disocclusion idea against real LMC vector conventions",
+      "url": "https://github.com/wavessevaw/GSF/pull/9",
+      "state": null
+    },
+    {
+      "number": 10,
+      "title": "research(GSF): review Qwen six-question roadmap, correct 3× latency bound and output-owner gap",
+      "url": "https://github.com/wavessevaw/GSF/pull/10",
+      "state": null
+    },
+    {
+      "number": 12,
+      "title": "ci(GSF): continuously test Vulkan Output Owner on main instead of old experiment branches",
+      "url": "https://github.com/wavessevaw/GSF/pull/12",
+      "state": null
+    },
+    {
+      "number": 13,
+      "title": "ci(GSF): autonomous Mesa Vulkan/X11 lab with nightly safety evidence",
+      "url": "https://github.com/wavessevaw/GSF/pull/13",
+      "state": null
+    },
+    {
+      "number": 15,
+      "title": "ci(GSF): nightly actual GPU LMC 12+22 strict pixel proof on Mesa",
+      "url": "https://github.com/wavessevaw/GSF/pull/15",
+      "state": null
+    },
+    {
+      "number": 16,
+      "title": "fix(GSF): fail closed before virtual VkSwapchain under outer validation",
+      "url": "https://github.com/wavessevaw/GSF/pull/16",
+      "state": null
+    },
+    {
+      "number": 17,
+      "title": "fix(native): safely preserve optional present timing arrays in async output",
+      "url": "https://github.com/wavessevaw/GSF/pull/17",
+      "state": null
+    },
+    {
+      "number": 18,
+      "title": "perf(temporal): remove unused tile pipeline compilation from LMC startup",
+      "url": "https://github.com/wavessevaw/GSF/pull/18",
+      "state": null
+    },
+    {
+      "number": 19,
+      "title": "test(candidate): one-launch Deck kit verifies 2x GPU pixels and live swapchain recovery",
+      "url": "https://github.com/wavessevaw/GSF/pull/19",
+      "state": null
+    },
+    {
+      "number": 20,
+      "title": "fix(candidate): wait for managed resize and verify paced GPU LMC handoffs",
+      "url": "https://github.com/wavessevaw/GSF/pull/20",
+      "state": null
+    },
+    {
+      "number": 21,
+      "title": "feat(candidate): automate native Steam Game Mode testing",
+      "url": "https://github.com/wavessevaw/GSF/pull/21",
+      "state": null
+    },
+    {
+      "number": 22,
+      "title": "fix(candidate): place GSF before implicit Gamescope WSI",
+      "url": "https://github.com/wavessevaw/GSF/pull/22",
+      "state": null
+    },
+    {
+      "number": 25,
+      "title": "fix(wsi): avoid legacy Gamescope feedback history corruption",
+      "url": "https://github.com/wavessevaw/GSF/pull/25",
+      "state": null
+    },
+    {
+      "number": 26,
+      "title": "feat(decky): offline GSF in-game 2× test plugin",
+      "url": "https://github.com/wavessevaw/GSF/pull/26",
+      "state": null
+    },
+    {
+      "number": 27,
+      "title": "fix(decky): persistent game selection and explicit launch-command confirmation (0.1.1)",
+      "url": "https://github.com/wavessevaw/GSF/pull/27",
+      "state": null
+    },
+    {
+      "number": 28,
+      "title": "fix(dxvk): mutable-format swapchain support and visible gate refusal (Decky 0.1.2)",
+      "url": "https://github.com/wavessevaw/GSF/pull/28",
+      "state": null
+    },
+    {
+      "number": 29,
+      "title": "Reject expired GPU generation before dispatch and replay AC Origins timing",
+      "url": "https://github.com/wavessevaw/GSF/pull/29",
+      "state": null
+    },
+    {
+      "number": 30,
+      "title": "fix(pacing): protect source cadence from generation backlog and GPU budget overruns (Decky 0.1.3)",
+      "url": "https://github.com/wavessevaw/GSF/pull/30",
+      "state": null
+    },
+    {
+      "number": 31,
+      "title": "GSF Decky Test 0.1.4: bounded real-WSI LMC visibility probes",
+      "url": "https://github.com/wavessevaw/GSF/pull/31",
+      "state": null
+    },
+    {
+      "number": 32,
+      "title": "GSF 0.1.5 Diagnostic: track late LMC timeline completions without changing generation",
+      "url": "https://github.com/wavessevaw/GSF/pull/32",
+      "state": null
+    },
+    {
+      "number": 33,
+      "title": "GSF 0.1.6 Diagnostic: calibrated GPU timestamps and submit latency",
+      "url": "https://github.com/wavessevaw/GSF/pull/33",
+      "state": null
+    },
+    {
+      "number": 34,
+      "title": "fix(diagnostics): keep GPU timings with their submitted frame and swapchain",
+      "url": "https://github.com/wavessevaw/GSF/pull/34",
+      "state": null
+    },
+    {
+      "number": 35,
+      "title": "docs(research): recover MAKO/LSFG and FOE evidence omitted from migration",
+      "url": "https://github.com/wavessevaw/GSF/pull/35",
+      "state": null
+    },
+    {
+      "number": 36,
+      "title": "GSF 0.1.7: budget calibrated GPU-start delay and limit futile recovery probes",
+      "url": "https://github.com/wavessevaw/GSF/pull/36",
+      "state": null
+    },
+    {
+      "number": 37,
+      "title": "test: isolate application render readiness and verify recovery with headroom",
+      "url": "https://github.com/wavessevaw/GSF/pull/37",
+      "state": null
+    },
+    {
+      "number": 38,
+      "title": "fix: preserve asynchronous GPU timing and expose submit/refresh provenance",
+      "url": "https://github.com/wavessevaw/GSF/pull/38",
+      "state": null
+    },
+    {
+      "number": 39,
+      "title": "research: inspect supplied Lossless Scaling 3.2.2 package",
+      "url": "https://github.com/wavessevaw/GSF/pull/39",
+      "state": null
+    }
+  ],
+  "gfg_related_prs": [
+    {
+      "number": 158,
+      "title": "research(GSF): assess afmf-linux direct WSI and Steam Deck RDNA2 qualification",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/158",
+      "state": null
+    },
+    {
+      "number": 156,
+      "title": "Add LSFG-VK 2.0 external Generator Backend with full per-game controls",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/156",
+      "state": null
+    },
+    {
+      "number": 155,
+      "title": "Experiment: qualify direct real WSI GPU frame insertion (LSFG reference, no virtual swapchain)",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/155",
+      "state": null
+    },
+    {
+      "number": 154,
+      "title": "experiment(GSF output): transactional offscreen Vulkan source image pool",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/154",
+      "state": null
+    },
+    {
+      "number": 153,
+      "title": "experiment(GSF): one-owner output order contract and CI proof (no hardware claims)",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/153",
+      "state": null
+    },
+    {
+      "number": 152,
+      "title": "research(GSF FOE): isolated real/synthetic ownership queue and Vulkan proxy swapchain architecture",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/152",
+      "state": null
+    },
+    {
+      "number": 151,
+      "title": "fix(GSF): do not use Vulkan loader global trampolines with borrowed physical devices",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/151",
+      "state": null
+    },
+    {
+      "number": 150,
+      "title": "experiment(GSF LAB.4): complete Decky build with native bounded buffered pacing",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/150",
+      "state": null
+    },
+    {
+      "number": 149,
+      "title": "experiment(GSF): buffer real+synthetic WSI output by bounded refresh ticks for late GPU recovery",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/149",
+      "state": null
+    },
+    {
+      "number": 148,
+      "title": "experiment(GSF LAB.3): Game Mode packed10 crash isolation without claiming x2",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/148",
+      "state": null
+    },
+    {
+      "number": 147,
+      "title": "fix(GSF): stop Game Mode crash on Gamescope packed-10 swapchains (fail-open)",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/147",
+      "state": null
+    },
+    {
+      "number": 145,
+      "title": "fix(GSF): 90Hz slot scheduling, Steam placeholder guard and isolated Vulkan loader",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/145",
+      "state": null
+    },
+    {
+      "number": 146,
+      "title": "experiment(GSF LAB.2): rebuilt 90Hz scheduler + SteamOS loader safety in full 2.1.6 ZIP",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/146",
+      "state": null
+    },
+    {
+      "number": 144,
+      "title": "experiment(GSF): complete 2.1.6 Decky ZIP + opt-in native x2/x3 without replacing stable payload",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/144",
+      "state": null
+    },
+    {
+      "number": 133,
+      "title": "Native FG: GPU-resident TE8 transport, 3× (fixes review B1/B2/B3; B4 instrumentation opt-in)",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/133",
+      "state": null
+    },
+    {
+      "number": 143,
+      "title": "release: GFG Extreme 2.1.6 integrated A/B, Boost, Fusion and CPU/GPU stabilization",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/143",
+      "state": null
+    },
+    {
+      "number": 142,
+      "title": "fix(Frame OS): causal A/B proof, independent Rest power samples, Boost TDP honesty",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/142",
+      "state": null
+    },
+    {
+      "number": 141,
+      "title": "fix(CPU/GPU Split): causal power arbitration, real-frame safety, efficiency proof",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/141",
+      "state": null
+    },
+    {
+      "number": 140,
+      "title": "fix(Frame Fusion): restore native renderer scope through actual TOML and live transitions",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/140",
+      "state": null
+    },
+    {
+      "number": 139,
+      "title": "release: GFG Extreme 2.1.5 Governor emergency quality recovery",
+      "url": "https://github.com/wavessevaw/GFG-Extreme/pull/139",
+      "state": null
+    }
+  ],
+  "gfg_branch_names": [
+    "advice/znatoki-chgk-2026-10-07",
+    "archive/post-v131-battery-experiments-20261008",
+    "audit/autopilot-first-run-20261010",
+    "audit/gfg-extreme-2026-10-07",
+    "audit/gfg-performance-capabilities",
+    "audit/1.2.2-runtime-stability",
+    "audit/2.1.3-governor-code-review",
+    "autopilot/a3-experiment-20261010",
+    "autopilot/a4-one-path-20261010",
+    "autopilot/a4-power-apply-20261010",
+    "autopilot/a5-memory-20261010",
+    "autopilot/c1-observation-20261010",
+    "autopilot/c2-coordinator-20261010",
+    "autopilot/c2-flow-reservation-20261010",
+    "autopilot/c2-optimizer-20261010",
+    "autopilot/c2-power-trial-20261010",
+    "autopilot/c2-restore-barrier-20261010",
+    "autopilot/flow-context-ack-20261010",
+    "autopilot/flow-saved-ack-20261010",
+    "autopilot/merge-ready-20261010",
+    "autopilot/review-fixes-20261010",
+    "autopilot/session-evidence-hardening-20261010",
+    "claude/busy-bardeen-rmv05o",
+    "claude/gfg-shell",
+    "claude/native-gpu-bridge",
+    "claude/project-thread-6gu9up",
+    "claude/project-thread-eovvht",
+    "claude/project-thread-ta00hm",
+    "claude/project-thread-ubfvgv",
+    "claude/project-thread-vdqh4v",
+    "codex/fg3-gpu",
+    "codex/fg3-integration",
+    "codex/frame-fusion-native-2.2.0",
+    "codex/native-fg-research",
+    "codex/temporal-90-te8",
+    "design/extreme-foundation-1.6",
+    "develop/extreme-features",
+    "develop/extreme-runtime",
+    "diagnostics/autopilot-2.0.0-20261011-230354",
+    "docs/autopilot-deep-dive-2-0-0",
+    "docs/autopilot-readme-2-0-0",
+    "experiment/gsf-full-2.1.6-lab1",
+    "experiment/gsf-full-2.1.6-lab2-scheduler-fix",
+    "experiment/gsf-full-2.1.6-lab3-gamescope-guard",
+    "experiment/gsf-full-2.1.6-lab4-buffered-output",
+    "experiment/gsf-offscreen-source-pool-20261017",
+    "experiment/gsf-output-owner-contract-20261017",
+    "experiment/gsf-real-wsi-direct-owner-20261017",
+    "experiment/lsfg-vk-dll-dir-20261017",
+    "feat/gfg-native-independent-backend",
+    "feature/autopilot-2.0.0",
+    "feature/frame-fusion-core",
+    "feature/gfg-steamos-shell-20261013",
+    "feature/hud-power-theme",
+    "feature/lsfg-vk-2-backend-20261018",
+    "fix/all-modes-multipliers-2.1.1-20261013",
+    "fix/autopilot-2.0.1-diagnostics",
+    "fix/balanced-60fps-nonbinding-guard-20261008",
+    "fix/battery-savings-effort-v143",
+    "fix/cpu-gpu-split-stability-efficiency-proof",
+    "fix/extreme-ceiling-handoff",
+    "fix/extreme-device-power-1.6.10",
+    "fix/fg-capacity-restore-retry",
+    "fix/field-log-2.0.3",
+    "fix/frame-fusion-diagnostics-2.1.1",
+    "fix/frame-fusion-live-scope-reconciliation",
+    "fix/gfg-open-1.6.9-recovery",
+    "fix/gfg-open-1.6.10-gpu-flow-diagnostics",
+    "fix/gsf-borrowed-physical-dispatch-20261017",
+    "fix/gsf-buffered-pacing-resume-20261017",
+    "fix/gsf-gamescope-packed10-crash-guard-20261017",
+    "fix/gsf-steamos-cadence-layer-loader-20261017",
+    "fix/hud-2hz",
+    "fix/hud-refresh-1.2.2",
+    "fix/mode-objectives-2.0.2",
+    "fix/open-motion-smoothness-test",
+    "fix/playtime-playability-first-20261008",
+    "fix/refresh-stuck-60-all-modes-v144",
+    "fix/release-1.2.1-review",
+    "fix/release-v143-version-metadata",
+    "fix/v131-act-refresh-stability",
+    "fix/v131-game-memory-reliability",
+    "fix/v131-transient-fg-capacity-recovery",
+    "fix/1.6.2-ppt-scale-identity",
+    "fix/1.6.3-power-restore",
+    "fix/1.6.4-audit-provenance",
+    "fix/2.1.3-governor-resume-loading-hud",
+    "fix/2.1.4-governor-90fps-target",
+    "fix/2.1.4-governor-emergency-quality-recovery",
+    "fix/2.1.6-frame-os-ab-boost-provenance",
+    "governor-v0.0.1-beta",
+    "handoff/gfg-open-field-logs-20261009",
+    "main",
+    "old-tdp",
+    "release/stable-1.6.6",
+    "release/stable-1.6.7",
+    "release/stable-1.6.8-efficiency",
+    "release/stable-1.6.8",
+    "release/stable-1.6.9",
+    "release/1.7.0-pre-alpha",
+    "release/2.1.5-governor-emergency-recovery",
+    "release/2.1.6-integrated-stabilization",
+    "research/gfg-frame-os-2026-10-07",
+    "research/gsf-afmf-linux-feasibility-20261018",
+    "research/gsf-frame-output-owner-v0-20261017",
+    "review/frame-os-act-safety-2026-10-08",
+    "rollback/stable-v131-20261008",
+    "stable/autopilot-fusion-burst-210-20261012",
+    "ux/hud-metric-clarity"
+  ],
+  "pinned_upstream": {
+    "dxvk": "2cb40186c43d617b5bd349a3756721aa4bd24b6d",
+    "vkd3d_proton": "0bb64c56c8f0dcc11ecc0f6c56e00e4f7bd8d506",
+    "gamescope": "74a06ff517ed9fc1307227406bd53ae847be3a91",
+    "scope": "Source comparisons only; installed Deck component revisions not asserted"
+  }
+}

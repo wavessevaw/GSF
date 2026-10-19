@@ -3,6 +3,7 @@
  * Pixel readback is confined to this test, never the GPU transport runtime.
  */
 #include "te_engine.h"
+#include "wrapped_physical_dispatch.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +65,10 @@ int main(void) {
     VkDevice device;OK(vkCreateDevice(physical,&dci,NULL,&device));
     VkQueue queue;vkGetDeviceQueue(device,family,0,&queue);
     te_device *engine=NULL;
-    OK(te_device_borrow(instance,vkGetInstanceProcAddr,physical,device,vkGetDeviceProcAddr,NULL,queue,family,&engine));
+    VkPhysicalDevice borrowed=physical;PFN_vkGetInstanceProcAddr borrowed_gipa=vkGetInstanceProcAddr;
+    const int wrapped=gsf_test_wrap_physical(physical,&borrowed,&borrowed_gipa);
+    OK(te_device_borrow(instance,borrowed_gipa,borrowed,device,vkGetDeviceProcAddr,NULL,queue,family,&engine));
+    if(wrapped)fprintf(stderr,"WRAPPED_PHYSICAL_BORROW_SETUP complete\n");
     te_context_desc desc;
     te_context_desc_default(&desc,96,64,2);
     desc.host_io=1;desc.output_bgra=1;
@@ -135,7 +139,7 @@ int main(void) {
     dci.pNext=&enabled;OK(vkCreateDevice(physical,&dci,NULL,&device));
     vkGetDeviceQueue(device,family,0,&queue);
     real_submit=(PFN_vkQueueSubmit)vkGetDeviceProcAddr(device,"vkQueueSubmit");
-    OK(te_device_borrow(instance,vkGetInstanceProcAddr,physical,device,test_dispatch,NULL,queue,family,&engine));
+    OK(te_device_borrow(instance,borrowed_gipa,borrowed,device,test_dispatch,NULL,queue,family,&engine));
     VkSemaphoreTypeCreateInfo type={.sType=VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
         .semaphoreType=VK_SEMAPHORE_TYPE_TIMELINE,.initialValue=0};
     VkSemaphoreCreateInfo sci={.sType=VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,.pNext=&type};
@@ -214,6 +218,7 @@ int main(void) {
     te_context_destroy(context);te_device_destroy(engine);
     uint64_t value=0;OK(vkGetSemaphoreCounterValue(device,timeline,&value));REQUIRE(value==final_value);
     vkDestroySemaphore(device,timeline,NULL);vkDestroyDevice(device,NULL);vkDestroyInstance(instance,NULL);
+    gsf_test_wrapped_result(wrapped,0);
     puts("borrowed GPU: exact 1/3,2/3 pixels, BGRA packing, no optional features, device lifetime PASS");
     return 0;
 }

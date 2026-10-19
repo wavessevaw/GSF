@@ -176,7 +176,7 @@ $(BUILD)/gpu-wsi-observer: tests/wsi_gpu_observer.c tests/gpu_observer.h src/gpu
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -DVK_USE_PLATFORM_XCB_KHR -DGFG_NATIVE_TEST_SMALL -DGFG_NATIVE_TEST_GPU_OBSERVER -I$(VULKAN_HEADERS) -Isrc -I../gfg-temporal/src -o $@ tests/wsi_gpu_observer.c src/gpu_bridge.c $(TE_LIB) -lvulkan -lxcb -ldl -lpthread -lm
 
-$(BUILD)/borrowed-device: tests/borrowed_device.c $(TE_LIB)
+$(BUILD)/borrowed-device: tests/borrowed_device.c tests/wrapped_physical_dispatch.h $(TE_LIB)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -I../gfg-temporal/src -o $@ $< $(TE_LIB) -lvulkan -ldl -lpthread -lm
 
@@ -309,7 +309,7 @@ abi: $(BUILD)/libVkLayer_gfg_native.so
 clean:
 	rm -rf $(BUILD)
 
-$(BUILD)/hdr-precision: tests/hdr_precision.c $(TE_LIB)
+$(BUILD)/hdr-precision: tests/hdr_precision.c tests/wrapped_physical_dispatch.h $(TE_LIB)
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -I$(VULKAN_HEADERS) -I../gfg-temporal/src -o $@ $< $(TE_LIB) -lvulkan -ldl -lpthread -lm
 

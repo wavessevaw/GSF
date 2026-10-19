@@ -1,0 +1,36 @@
+{
+  "scope": "LOCAL_AUDIT_VALIDATION_NOT_DECK_QUALIFICATION",
+  "vulkan_headers": "v1.4.365",
+  "driver": "Mesa lavapipe 25.2.8",
+  "lp_num_threads": 2,
+  "positive_validation_errors": 0,
+  "physical_display_tested": false,
+  "packed10_formats": {
+    "64": "1024 levels preserved exactly; two outputs",
+    "58": "BLIT_DST unsupported; explicitly skipped"
+  },
+  "checks": [
+    "3 Python audit tests",
+    "7 recovery classification tests",
+    "frame-clock recorded + variable-rate contracts",
+    "calibration-clock real overlap fixture",
+    "queue-observation lifetime",
+    "queue-serialization Submit/Submit2/KHR/sparse/present/idle",
+    "refresh-observation real60/fallback/provenance",
+    "ordinary borrowed-device and hdr-precision with validation",
+    "opaque physical borrowed-device and hdr-precision with validation",
+    "opaque physical borrowed-device and hdr-precision without validation",
+    "historical bad-dispatch negative control aborts with and without validation"
+  ],
+  "evidence_sha256": {
+    "game_evidence.json": "d68a6b120a3e0d22e41df2cbf0f39b4fa23111bdc628ca3eadde9aa2747c867c",
+    "wrapped-physical-no-validation/RESULT.json": "fda07c3348ce9965690ab24b7d8b02a10cfc5acc3d51d77dacc92e99347513ef",
+    "wrapped-physical-no-validation/borrowed-device.log": "b5ddfa6f1438133c1978395755a532bb0288471e79d3c09841ef0fd7cae38af3",
+    "wrapped-physical-no-validation/hdr-precision.log": "3989f60230b18f70f3c2e88b9e42974a0e240caeda0b2d6809469e1099e9aff4",
+    "wrapped-physical-no-validation/historical-bad-dispatch.log": "795d3eda2f26f4fb4262c7dd4c3ea709b9b5abba4c9c8bc1e9c5ed258297f128",
+    "wrapped-physical-validation/RESULT.json": "fda07c3348ce9965690ab24b7d8b02a10cfc5acc3d51d77dacc92e99347513ef",
+    "wrapped-physical-validation/borrowed-device.log": "b5ddfa6f1438133c1978395755a532bb0288471e79d3c09841ef0fd7cae38af3",
+    "wrapped-physical-validation/hdr-precision.log": "3989f60230b18f70f3c2e88b9e42974a0e240caeda0b2d6809469e1099e9aff4",
+    "wrapped-physical-validation/historical-bad-dispatch.log": "795d3eda2f26f4fb4262c7dd4c3ea709b9b5abba4c9c8bc1e9c5ed258297f128"
+  }
+}
