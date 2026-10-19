@@ -1829,6 +1829,9 @@ VkResult gfg_gpu_fg_present(gfg_gpu_fg *fg, VkQueue queue, const VkPresentInfoKH
         (!fg->generation_budget.calibrated ||
          (gfg_frame_clock_compute_mask(&fg->clock,(uint64_t)(t0*1000.0),
             fg->display_timing==2?fg->clock.period_ns/4:0)&1u));
+    /* The adaptive path owns its own bounded reacquisition, and must not
+     * display a probe G1 without the paired native-B timing contract. */
+    if(fg->adaptive_pairs)fg->probe_active=0;
     const uint32_t idx = app->pImageIndices[0];
     VkResult result;
     gfg_present_chain app_chain;
