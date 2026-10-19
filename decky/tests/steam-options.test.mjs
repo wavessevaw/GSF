@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readOptions, enableGame, disableGame} from '../src/steam-options.mjs';
+import {readOptions, enableGame, disableGame, copyCommand, withTimeout} from '../src/steam-options.mjs';
 
 function fixture(options = 'ORIGINAL=1 %command% --old') {
   let current = options;
@@ -60,4 +60,40 @@ test('Steam API: backend failure leaves profile disabled', async () => {
   f.rpc.confirm = async () => {throw Error('backend failure');};
   await assert.rejects(enableGame(f.apps, f.rpc, 42), /backend failure/);
   assert.equal(f.disabled, true);assert.equal(f.subscriptions.size, 0);
+});
+
+test('missing Steam API fails with manual launch instructions', async () => {
+  await assert.rejects(enableGame(undefined, {}, 42), /Ручной запуск/);
+});
+
+test('unresponsive Decky RPC has a bounded wait', async () => {
+  await assert.rejects(withTimeout(new Promise(() => {}), 5), /нет ответа от Decky/);
+});
+
+test('Steam subscription cleanup failure never strands a launch operation', async () => {
+  let notify;
+  const apps = {RegisterForAppDetails(_id, callback) {notify = callback;
+    return {unregister() {throw Error('stale Steam subscription');}};}};
+  const result = readOptions(apps, 42, undefined, 50);
+  notify({strLaunchOptions: 'old options'});
+  assert.equal(await withTimeout(result, 100), 'old options');
+  await assert.rejects(readOptions(apps, 42, undefined, 5), /Ручной запуск/);
+});
+
+test('clipboard reports success only after a write, falls back when CEF denies clipboard', async () => {
+  let copied;
+  await copyCommand('exact command', {async writeText(text) {copied = text;}});
+  assert.equal(copied, 'exact command');
+  let removed = false;
+  let focused = false;
+  const field = {style: {}, select() {}, remove() {removed = true;}};
+  const doc = {activeElement: {focus() {focused = true;}}, createElement() {return field;},
+    body: {appendChild() {}}, execCommand(op) {assert.equal(op, 'copy');return true;}};
+  await copyCommand('fallback command', {async writeText() {throw Error('denied');}}, doc);
+  assert.equal(field.value, 'fallback command');
+  assert.equal(removed, true);
+  assert.equal(focused, true);
+  doc.execCommand = () => false;
+  await assert.rejects(copyCommand('text', undefined, doc), /не разрешил/);
+  await assert.rejects(copyCommand('text', undefined, undefined), /недоступен/);
 });

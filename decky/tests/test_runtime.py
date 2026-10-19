@@ -73,6 +73,47 @@ class RuntimeTests(unittest.TestCase):
         self.runtime.set_diagnostic_mode(42, 'normal-no-watch')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-watch')
 
+    def test_manual_profile_arms_without_steam_and_never_restores_unknown_options(self):
+        with patch.object(self.runtime, 'install', return_value={'build': 'mock'}):
+            prepared = self.runtime.prepare_manual(42)
+        self.assertIn('--appid 42 -- %command%', prepared['options'])
+        status = Runtime(self.home, PLUGIN).status(42)
+        self.assertTrue(status['enabled'])
+        self.assertTrue(status['configured'])
+        self.assertTrue(status['manual_launch'])
+        self.assertEqual(status['state'], 'waiting')
+        self.runtime.set_multiplier(42, 4)
+        self.runtime.set_buffer_depth(42, 2)
+        self.assertEqual(self.runtime.status(42)['multiplier'], 4)
+        restore = self.runtime.disable(42, prepared['options'])
+        self.assertFalse(restore['restore'])
+        self.assertEqual(restore['options'], prepared['options'])
+        self.assertFalse(self.runtime.status(42)['enabled'])
+
+    def test_manual_profile_keeps_known_backup_and_quality_settings(self):
+        original = 'MANGOHUD=1 %command% --old'
+        with patch.object(self.runtime, 'install', return_value={'build': 'mock'}):
+            prepared = self.runtime.prepare(42, original)
+            self.runtime.confirm(42, prepared['options'])
+            self.runtime.set_multiplier(42, 3)
+            manual = self.runtime.prepare_manual(42)
+        self.assertEqual(manual['options'], prepared['options'])
+        self.assertEqual(self.runtime.config()['games']['42']['original'], original)
+        self.assertEqual(self.runtime.status(42)['multiplier'], 3)
+        restore = self.runtime.disable(42, '')
+        self.assertFalse(restore['restore'])
+        self.assertEqual(self.runtime.config()['games']['42']['original'], original)
+
+    def test_manual_profile_can_switch_to_verified_automatic_activation(self):
+        with patch.object(self.runtime, 'install', return_value={'build': 'mock'}):
+            self.runtime.prepare_manual(42)
+            self.runtime.set_multiplier(42, 4)
+            prepared = self.runtime.prepare(42, 'USER=1 %command%')
+        self.runtime.confirm(42, prepared['options'])
+        self.assertFalse(self.runtime.status(42)['manual_launch'])
+        self.assertEqual(self.runtime.status(42)['multiplier'], 4)
+        self.assertEqual(self.runtime.disable(42, prepared['options'])['options'], 'USER=1 %command%')
+
     def test_selection_persists_without_installing_or_enabling(self):
         self.assertEqual(self.runtime.selection(), {'appid': 0})
         self.runtime.select(42)

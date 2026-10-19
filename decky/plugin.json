@@ -9,6 +9,6 @@
       "framegen",
       "testing"
     ],
-    "description": "GSF Motion Intelligence 0.1.13 Experimental: Vulkan x2/x3/x4, shared low-res motion and reconstruction; hardware qualification pending."
+    "description": "GSF Motion Intelligence 0.1.13 Launch fix 1: manual launch setup and clipboard fallback; experimental Vulkan x2/x3/x4, hardware qualification pending."
   }
 }

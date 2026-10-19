@@ -1,25 +1,30 @@
 import {ButtonItem, Dropdown, PanelSection, PanelSectionRow, staticClasses} from '@decky/ui';
 import {callable, definePlugin, toaster} from '@decky/api';
 import {useEffect, useRef, useState} from 'react';
-import {enableGame, disableGame} from './steam-options.mjs';
+import {enableGame, disableGame, copyCommand, withTimeout} from './steam-options.mjs';
 
 type Game = {appid: number; name: string};
 type Live = {generated_fps?: number; output_fps?: number; effective_multiplier?: number; generated_total?: number; dropped_synthetic?: number; gpu_generation_ms?: number; buffer_depth?: number; buffer_latency_ms?: number; buffered_owner?: number; source_fps: number; generated_wsi_accepted: number; real_wsi_accepted: number; multiplier?: number; output_refresh_hz?: number; refresh_origin?: string};
-type Status = {enabled: boolean; configured?: boolean; multiplier?: number; buffer_depth?: number; reconstruction_quality?: string; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
+type Status = {enabled: boolean; configured?: boolean; manual_launch?: boolean; multiplier?: number; buffer_depth?: number; reconstruction_quality?: string; diagnostic_mode?: string; state: string; live: Live[]; gate_rejection?: string; launch_options?: string; packaged_source_commit?: string; active_build_source_commit?: string; build_matches?: boolean; report?: {result: string; exit_code?: number}};
+function backend<Args extends unknown[], Result>(name: string) {
+  const invoke = callable<Args, Result>(name);
+  return (...args: Args) => withTimeout(invoke(...args));
+}
 const rpc = {
-  games: callable<[], Game[]>('get_games'),
-  selection: callable<[], {appid: number}>('get_selection'),
-  select: callable<[number], {appid: number}>('select_game'),
-  prepare: callable<[number, string], {options: string}>('prepare_game'),
-  confirm: callable<[number, string], unknown>('confirm_game'),
-  disable: callable<[number, string], {options: string; restore: boolean; message?: string}>('disable_game'),
-  forget: callable<[number, string], void>('finish_restore'),
-  status: callable<[number], Status>('get_status'),
-  export: callable<[number], {path: string}>('export_report'),
-  diagnostic: callable<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
-  multiplier: callable<[number, number], {multiplier: number}>('set_multiplier'),
-  buffer: callable<[number, number], {buffer_depth: number}>('set_buffer_depth'),
-  quality: callable<[number, string], {reconstruction_quality: string}>('set_reconstruction_quality')
+  games: backend<[], Game[]>('get_games'),
+  selection: backend<[], {appid: number}>('get_selection'),
+  select: backend<[number], {appid: number}>('select_game'),
+  prepare: backend<[number, string], {options: string}>('prepare_game'),
+  manual: backend<[number], {options: string}>('prepare_manual_game'),
+  confirm: backend<[number, string], unknown>('confirm_game'),
+  disable: backend<[number, string], {options: string; restore: boolean; message?: string}>('disable_game'),
+  forget: backend<[number, string], void>('finish_restore'),
+  status: backend<[number], Status>('get_status'),
+  export: backend<[number], {path: string}>('export_report'),
+  diagnostic: backend<[number, string], {diagnostic_mode: string}>('set_diagnostic_mode'),
+  multiplier: backend<[number, number], {multiplier: number}>('set_multiplier'),
+  buffer: backend<[number, number], {buffer_depth: number}>('set_buffer_depth'),
+  quality: backend<[number, string], {reconstruction_quality: string}>('set_reconstruction_quality')
 };
 
 function Content() {
@@ -62,6 +67,7 @@ function Content() {
     if (actionLock.current) return;
     actionLock.current = true;
     setBusy(true); setMessage(progress);
+    try {toaster.toast({title: 'GSF Test', body: progress});} catch { /* Panel feedback remains visible. */ }
     const id = appid;
     try {
       const text = await fn();
@@ -72,7 +78,11 @@ function Content() {
         // an apparent failure or keep the activation button disabled forever.
         try {setStatus(await rpc.status(id));} catch { /* poll will retry */ }
       }
-    } catch (e) {setMessage(String(e));}
+    } catch (e) {
+      const text = String(e);
+      setMessage(text);
+      try {toaster.toast({title: 'GSF · ошибка', body: text});} catch { /* Panel feedback remains visible. */ }
+    }
     finally {actionLock.current = false; setBusy(false);}
   };
   const choose = async (option: unknown) => {
@@ -91,16 +101,38 @@ function Content() {
   };
   const game = games.find(g => g.appid === appid);
   const live = status?.live?.[0];
+  const launchCommand = command || (status?.enabled ? status.launch_options : '') || '';
   const state = status?.state === 'generating' ? 'Генерация кадров подтверждена' :
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
-    status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF Motion Intelligence · 0.1.13">
+    status?.enabled ? (status.manual_launch ? 'Ручной профиль готов. Вставьте команду в параметры запуска Steam и перезапустите игру.' : 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру') : 'GSF отключён для следующего запуска';
+  return <PanelSection title="GSF Motion Intelligence · 0.1.13 · Launch fix 1">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
+    {message && <PanelSectionRow><div role="status" style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
     {appid > 0 && <>
       <PanelSectionRow><div style={{fontSize: 14}}>Выбрана игра: <strong>{game?.name || appid}</strong></div></PanelSectionRow>
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+        const prepared = await rpc.manual(appid);
+        if (selected.current === appid) setCommand(prepared.options);
+        return 'Ручной профиль готов. Скопируйте команду ниже в Steam → Свойства игры → Параметры запуска. Затем перезапустите игру.';
+      }, 'Готовлю ручной запуск GSF…')}>Ручной запуск · показать команду</ButtonItem></PanelSectionRow>
+      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.multiplier === 0} onClick={() => void act(async () => {
+        const apps = typeof SteamClient === 'undefined' ? undefined : SteamClient.Apps;
+        const written = await enableGame(apps, rpc, appid);
+        if (selected.current === appid) setCommand(written);
+        return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
+      }, 'Жду Steam (до 6 секунд на ответ)…')}>Включить GSF ×{status?.multiplier || 2} автоматически</ButtonItem></PanelSectionRow>
+      {launchCommand && <>
+        <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
+          Команда запуска GSF:<br/><code style={{userSelect: 'text'}}>{launchCommand}</code>
+          <div>Если уже есть параметры запуска, сохраните их: вставьте префикс GSF перед единственным %command%. Уберите другой генератор кадров.</div>
+        </div></PanelSectionRow>
+        <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+          await copyCommand(launchCommand); return 'Команда скопирована. Вставьте её в параметры запуска выбранной игры.';
+        }, 'Копирую команду…')}>Скопировать команду запуска</ButtonItem></PanelSectionRow>
+      </>}
       <PanelSectionRow><div style={{fontSize: 12}}>Генерация (изменение применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
           {data: 0, label: 'Off · без генерации'},
@@ -158,12 +190,7 @@ function Content() {
       <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere'}}>Источник пакета: <span style={{fontFamily: 'monospace'}}>{status?.packaged_source_commit?.slice(0, 12) || 'неизвестен'}</span>; активный: <span style={{fontFamily: 'monospace'}}>{status?.active_build_source_commit?.slice(0, 12) || 'неизвестен'}</span>.
         {status && !status.build_matches && <strong> ОШИБКА: установленный GPU слой не соответствует пакету. Генерация заблокирована до переустановки.</strong>}
       </div></PanelSectionRow>
-      <PanelSectionRow><ButtonItem layout="below" disabled={busy || status?.multiplier === 0 || status?.build_matches === false} onClick={() => void act(async () => {
-        const written = await enableGame(SteamClient.Apps, rpc, appid);
-        setCommand(written);
-        return 'Steam подтвердил команду GSF. Перезапустите выбранную игру.';
-      }, 'Устанавливаю GSF и записываю команду запуска…')}>Включить GSF ×{status?.multiplier || 2}</ButtonItem></PanelSectionRow>
-      <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Включить 2×» для настройки запуска.'}
+      <PanelSectionRow><div style={{fontSize: 13}}>{status ? state : 'Выбор сохранён. Нажмите «Ручной запуск» или включите GSF автоматически.'}
         {live && <div>Источник: {live.source_fps.toFixed(1)} FPS<br/>
           Generated: {live.generated_fps?.toFixed(1) ?? '—'} FPS; Output (WSI): {live.output_fps?.toFixed(1) ?? '—'} FPS<br/>
           Effective Multiplier: {live.effective_multiplier?.toFixed(2) ?? '—'}<br/>
@@ -175,18 +202,15 @@ function Content() {
           Принято WSI: исходных {live.real_wsi_accepted}, сгенерированных {live.generated_wsi_accepted}</div>}
         {!live && status?.report && <div>Последний прогон: {status.report.result}</div>}
       </div></PanelSectionRow>
-      {(command || (status?.enabled && status.launch_options)) && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
-        Команда запуска GSF:<br/><code>{command || status?.launch_options}</code>
-      </div></PanelSectionRow>}
       <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
         setCommand('');
+        if (status?.manual_launch) return (await rpc.disable(appid, '')).message || 'GSF отключён. Уберите команду запуска вручную.';
         return await disableGame(SteamClient.Apps, rpc, appid) || 'Прежний запуск восстановлен. Перезапустите игру для отключения GSF.';
       }, 'Восстанавливаю прежние параметры запуска…')}>Восстановить запуск без GSF</ButtonItem></PanelSectionRow>
       <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
         return 'Отчёт сохранён: '+(await rpc.export(appid)).path;
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
-    {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
     <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>EXPERIMENTAL · ×2/×3/×4 используют общий анализ движения пары и реконструкцию в половинном разрешении. Частота игры не фиксируется. WSI Accepted не равен Displayed: физический scanout и 10/15 Вт на Steam Deck ещё не измерены. Независимый буферизованный вывод ограничен поддерживаемым WSI-контрактом; обычный вывод остаётся резервным путём.</div></PanelSectionRow>
   </PanelSection>;
 }

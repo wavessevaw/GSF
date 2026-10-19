@@ -181,20 +181,38 @@ class Runtime:
         saved = cfg['games'].get(appid)
         if saved and original == saved['expected']:
             return {'options': saved['expected'], 'original': saved['original'], **info}
-        if saved and saved.get('configured'):
+        if saved and saved.get('configured') and not saved.get('manual_launch'):
             raise ValueError('Параметры запуска изменены после GSF. Сначала восстановите/отключите прежний профиль.')
         expected = launch_options(self.root, appid, original)
-        cfg['games'][appid] = {'original': original, 'expected': expected, 'enabled': False,
-                               'configured': False, 'multiplier': 2, 'updated': time.time()}
+        cfg['games'][appid] = {**(saved or {}), 'original': original, 'expected': expected, 'enabled': False,
+                               'configured': False, 'manual_launch': False,
+                               'multiplier': saved.get('multiplier', 2) if saved else 2, 'updated': time.time()}
         atomic_json(self.root/'config.json', cfg)
         return {'options': expected, 'original': original, **info}
+
+    def prepare_manual(self, appid):
+        """Arm a profile without claiming Steam accepted launch options.
+
+        Unknown Steam options have no backup and must never be restored as empty.
+        The user opts in by invoking the displayed launcher from Steam.
+        """
+        appid = app_id(appid)
+        info = self.install()
+        cfg = self.config()
+        saved = cfg['games'].get(appid)
+        if not saved:
+            saved = {'original': None, 'expected': launch_options(self.root, appid, ''), 'multiplier': 2}
+            cfg['games'][appid] = saved
+        saved.update(enabled=True, configured=True, manual_launch=True, updated=time.time())
+        atomic_json(self.root/'config.json', cfg)
+        return {'options': saved['expected'], 'manual_launch': True, **info}
 
     def confirm(self, appid, actual):
         cfg = self.config()
         saved = cfg['games'][app_id(appid)]
         if actual != saved['expected']:
             raise ValueError('Steam не подтвердил параметры запуска: GSF не включён')
-        saved.update(enabled=True, configured=True)
+        saved.update(enabled=True, configured=True, manual_launch=False)
         atomic_json(self.root/'config.json', cfg)
         return {'enabled': True, 'restart_required': True}
 
@@ -205,6 +223,9 @@ class Runtime:
             return {'options': actual, 'restore': False}
         saved['enabled'] = False
         atomic_json(self.root/'config.json', cfg)
+        if saved.get('original') is None or (saved.get('manual_launch') and actual != saved['expected']):
+            return {'options': actual, 'restore': False,
+                    'message': 'GSF отключён. Уберите команду GSF из параметров запуска вручную; прежние параметры Steam не изменены.'}
         if actual != saved['expected']:
             return {'options': actual, 'restore': False, 'message': 'GSF отключён. Изменённые вами параметры запуска сохранены.'}
         return {'options': saved['original'], 'restore': True}
@@ -313,6 +334,7 @@ class Runtime:
         return {'packaged_source_commit': packaged_sha,
                 'active_build_source_commit': active_sha, 'build_matches': matches,'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
+                'manual_launch': saved.get('manual_launch', False),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'multiplier': saved.get('multiplier', 2),
                 'buffer_depth': saved.get('buffer_depth', 1),

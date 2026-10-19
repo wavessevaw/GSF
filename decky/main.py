@@ -35,6 +35,10 @@ class Plugin:
         async with self.lock:
             return await asyncio.to_thread(self.runtime.prepare, appid, options)
 
+    async def prepare_manual_game(self, appid: int):
+        async with self.lock:
+            return await asyncio.to_thread(self.runtime.prepare_manual, appid)
+
     async def confirm_game(self, appid: int, actual: str):
         async with self.lock:
             return await asyncio.to_thread(self.runtime.confirm, appid, actual)

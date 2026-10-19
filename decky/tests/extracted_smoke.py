@@ -43,6 +43,13 @@ async def test(archive, output):
         assert startup_status['build_matches'] is True, startup_status
         assert startup_status['packaged_source_commit'] == startup_status['active_build_source_commit']
         assert (installed_root/'launch.py').is_file(), 'startup did not repair installed launcher'
+        manual = await backend.prepare_manual_game(43)
+        manual_status = await backend.get_status(43)
+        assert manual_status['enabled'] and manual_status['configured'] and manual_status['manual_launch']
+        assert '--appid 43 -- %command%' in manual['options']
+        disabled = await backend.disable_game(43, manual['options'])
+        assert not disabled['restore'], 'manual setup must not overwrite unknown Steam options'
+        assert not (await backend.get_status(43))['enabled']
         prepared = await backend.prepare_game(42, 'MANGOHUD=0 %command% --original')
         await backend.confirm_game(42, prepared['options'])
         current = json.loads((backend.runtime.root/'current.json').read_text())
@@ -149,6 +156,10 @@ async def test(archive, output):
         assert (await backend.set_buffer_depth(42, 2))['buffer_depth'] == 2
         assert (await backend.set_reconstruction_quality(42, 'balanced'))['reconstruction_quality'] == 'balanced'
         four_env = dict(env, GFG_TEST_FRAMES='24')
+        # The same Vulkan launcher must work after independent manual setup,
+        # with no Steam Apps RPC or readback involved in arming the profile.
+        await backend.prepare_manual_game(42)
+        assert (await backend.get_status(42))['manual_launch'] is True
         run_four = subprocess.run(launcher+[str(app)], env=four_env, capture_output=True, text=True, timeout=100)
         (output/'x4-launcher.log').write_text(run_four.stdout+run_four.stderr)
         assert run_four.returncode == 0, run_four.stdout+run_four.stderr
