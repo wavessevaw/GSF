@@ -93,7 +93,7 @@ function Content() {
     status?.state === 'bridge' ? 'GPU слой подключён; ждём генерацию' :
     status?.state === 'blocked' ? 'Генерация не включилась: '+status.gate_rejection :
     status?.enabled ? 'GSF ×'+(status?.multiplier || 2)+' настроен. Запустите или перезапустите игру' : 'GSF отключён для следующего запуска';
-  return <PanelSection title="GSF · ECO45 ×2 / ×3 · 90 Гц">
+  return <PanelSection title="GSF · Flow Lite ×2 / ×3 · 90 Гц">
     <PanelSectionRow><Dropdown rgOptions={games.map(g => ({data: g.appid, label: g.name}))}
       selectedOption={appid} disabled={busy} strDefaultLabel="Выберите установленную игру"
       onChange={o => void choose(o)} /></PanelSectionRow>
@@ -112,7 +112,8 @@ function Content() {
       </PanelSectionRow>
       <PanelSectionRow><div style={{fontSize: 12}}>Диагностика (применяется после перезапуска игры):</div>
         <Dropdown rgOptions={[
-          {data: 'normal', label: 'ECO45: компактный GSF (меньше GPU вычислений)'},
+          {data: 'normal', label: 'Flow Lite: быстрый оптический поток (1/8, 1/16)'},
+          {data: 'normal-eco45', label: 'Контроль: прежний ECO45 / Shared Flow'},
           {data: 'normal-lmc-gpu', label: 'Контроль: прежний тяжёлый GPU LMC'},
           {data: 'normal-no-shadow', label: 'Контроль: без Shadow Admission'},
           {data: 'normal-adaptive-pairs', label: 'Восстановление с фиксированными слотами (×2)'},
@@ -158,7 +159,7 @@ function Content() {
       }, 'Сохраняю отчёт…')}>Сохранить отчёт</ButtonItem></PanelSectionRow>
     </>}
     {message && <PanelSectionRow><div style={{fontSize: 13, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>ECO45 LAB · По умолчанию компактная GPU интерполяция с меньшим числом вычислительных проходов. Режим «Контроль: прежний тяжёлый GPU LMC» доступен для сравнения энергии и качества. Целевой режим ×2 при 45 FPS / 90 Гц пока не подтверждён на Steam Deck. Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>FLOW LITE LAB · Эксперимент: грубый optical flow на 1/8 и 1/16, один дешёвый проход реконструкции. Артефакты при движении возможны, 10 Вт не доказаны. Режим «Контроль: прежний тяжёлый GPU LMC» доступен для сравнения энергии и качества. Целевой режим ×2 при 45 FPS / 90 Гц пока не подтверждён на Steam Deck. Выбираемый для игры ×2 или ×3, распределение по свободным слотам фактически наблюдаемой сетки вывода. При 60→90 не создаём ненужные кадры. Тестировать при 90 Гц в игре и SteamOS. Реальный OLED scanout не доказан. Shadow read-only. Фаза рассчитана по слоту. Просроченный G1 отменяется. Прототип отдельного вывода в этот пакет не включён. Допуск по полному измеренному времени готовности GPU, ограниченные повторные попытки. Это ещё не стабильные 2×. Экспериментальный GPU LMC · Vulkan / DXVK / VKD3D, x64. Для отдельного теста отключите GFG/LSFG. Исходный FPS не фиксируется. Счётчики WSI не доказывают физический показ каждого кадра.</div></PanelSectionRow>
   </PanelSection>;
 }
 
