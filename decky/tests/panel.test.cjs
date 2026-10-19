@@ -17,6 +17,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
   let current = '';
   let expected = '';
   let enabled = false;
+  let multiplier = 2;
   let statusFails = true;
   const listeners = new Set();
   const toasts = [];
@@ -27,14 +28,15 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     async select_game(id) {selected = id;return {appid: id};},
     async get_status() {
       if (statusFails) throw Error('status temporarily unavailable');
-      return {enabled, state: 'waiting', live: [], launch_options: expected};
+      return {enabled, configured: enabled, multiplier, state: 'waiting', live: [], launch_options: expected};
     },
     async prepare_game(id, previous) {
       assert.equal(id, 42);assert.equal(previous, '');
       expected = 'python3 /home/deck/.local/share/gsf-test/launch.py --appid 42 -- %command%';
       return {options: expected};
     },
-    async confirm_game(id, actual) {assert.equal(id, 42);assert.equal(actual, current);enabled = true;}
+    async confirm_game(id, actual) {assert.equal(id, 42);assert.equal(actual, current);enabled = true;},
+    async set_multiplier(id, value) {assert.equal(id, 42);assert.ok(value === 2 || value === 3); multiplier = value; return {multiplier: value};}
   };
   const context = {
     console, setTimeout, clearTimeout, setInterval, clearInterval,
@@ -70,7 +72,8 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(selected, 42);
     assert.match(JSON.stringify(tree.toJSON()), /Test Game/);
     assert.equal(toasts[0].title, 'GSF · игра выбрана');
-    const enable = () => tree.root.findAllByType('gsf-ButtonItem').find(n => n.props.children === 'Включить 2×');
+    const enable = () => tree.root.findAllByType('gsf-ButtonItem').find(n => String(n.props.children).includes('Включить GSF ×'));
+    const multiplierSelect = () => tree.root.findAllByType('gsf-Dropdown').find(n => n.props.rgOptions?.some(o => o.data === 3 && String(o.label).startsWith('×3')));
     assert.equal(enable().props.disabled, false, 'status RPC must not gate activation');
     statusFails = false;
     await act(async () => {enable().props.onClick();});
@@ -78,6 +81,12 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     assert.equal(enabled, true);
     assert.equal(writes.length, 1);
     assert.equal(writes[0][0], 42);
+    assert.ok(multiplierSelect(), 'actual x2/x3 selector mounted');
+    assert.equal(multiplierSelect().props.disabled, false);
+    await act(async () => {multiplierSelect().props.onChange({data: 3, label: '×3'});});
+    await flush();
+    assert.equal(multiplier, 3, 'per-game API persists 3x');
+    assert.equal(multiplierSelect().props.selectedOption, 3);
     assert.match(tree.root.findByType('code').props.children, /--appid 42 -- %command%/);
     assert.match(JSON.stringify(tree.toJSON()), /Steam подтвердил/);
     assert.equal(listeners.size, 0);
@@ -85,6 +94,7 @@ test('shipped panel: choose, immediate feedback, enable despite status failure, 
     await act(async () => {tree = Renderer.create(context.plugin().content);});
     await flush();
     assert.equal(dropdown().props.selectedOption, 42, 'selection survives QAM remount');
+    assert.equal(multiplierSelect().props.selectedOption, 3, '3x persists across remount');
     assert.equal(tree.root.findByType('code').props.children, expected);
     assert.equal(writes.length, 1, 'remount must not write launch options');
   } finally {act(() => tree.unmount());}
