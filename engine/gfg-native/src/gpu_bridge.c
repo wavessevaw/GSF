@@ -1162,7 +1162,12 @@ gfg_gpu_fg *gfg_gpu_fg_create(const gfg_gpu_fg_create_info *info) {
         }
         if(!fg->telemetry)fprintf(stderr,"[gfg-native] telemetry unavailable errno=%d\n",errno);
     }
-    cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?4:0;
+    /* ECO45: opt-in compact shared-flow path eliminates GPU global-model
+     solver, orphan and per-pixel field passes. It retains full-resolution
+     GPU composition and never transfers whole game frames to the CPU.
+     The original GSF/projective and LMC algorithms stay unchanged. */
+    cd.shared_flow_dense=cd.params.algorithm==TE_ALGO_SHARED_FLOW?
+        (env_flag("GFG_NATIVE_GSF_ECO") ? 0 : 4):0;
     if(cd.params.algorithm==TE_ALGO_SHARED_FLOW)fg->clock.period_ns=1000000000ull/90;
     /* In-game LMC follows measured source intervals and the compositor's
      * refresh query. This fallback seeds the clock; unlike OUTPUT_HZ it does
