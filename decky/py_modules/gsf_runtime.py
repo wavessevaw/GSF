@@ -184,7 +184,7 @@ class Runtime:
             raise ValueError('Параметры запуска изменены после GSF. Сначала восстановите/отключите прежний профиль.')
         expected = launch_options(self.root, appid, original)
         cfg['games'][appid] = {'original': original, 'expected': expected, 'enabled': False,
-                               'configured': False, 'updated': time.time()}
+                               'configured': False, 'multiplier': 2, 'updated': time.time()}
         atomic_json(self.root/'config.json', cfg)
         return {'options': expected, 'original': original, **info}
 
@@ -223,9 +223,25 @@ class Runtime:
         entry = cfg['games'].get(aid)
         if not entry:
             raise ValueError('Сначала настройте выбранную игру')
+        if mode == 'normal-adaptive-pairs' and entry.get('multiplier', 2) == 3:
+            raise ValueError('Адаптивная пара доступна только для ×2')
         entry['diagnostic_mode'] = mode
         atomic_json(self.root/'config.json', cfg)
         return {'diagnostic_mode': mode, 'restart_required': True}
+
+    def set_multiplier(self, appid, multiplier):
+        if type(multiplier) is not int or multiplier not in (2, 3):
+            raise ValueError('Множитель генерации должен быть ×2 или ×3')
+        aid = app_id(appid)
+        cfg = self.config()
+        entry = cfg['games'].get(aid)
+        if not entry:
+            raise ValueError('Сначала настройте выбранную игру')
+        if multiplier == 3 and entry.get('diagnostic_mode') == 'normal-adaptive-pairs':
+            raise ValueError('Адаптивная пара доступна только для ×2. Сначала выберите обычный режим.')
+        entry['multiplier'] = multiplier
+        atomic_json(self.root/'config.json', cfg)
+        return {'multiplier': multiplier, 'restart_required': True}
 
     def disable_all(self):
         cfg = self.config()
@@ -270,6 +286,7 @@ class Runtime:
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
+                'multiplier': saved.get('multiplier', 2),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',
                 'gate_rejection': blocked,
                 'live': records, 'report': load_json(run/'REPORT.json') if run else None,

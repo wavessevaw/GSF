@@ -54,6 +54,16 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(Runtime(self.home, PLUGIN).status(42)['diagnostic_mode'], 'matched-compute')
         self.runtime.set_diagnostic_mode(42, 'normal-no-shadow')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-shadow')
+        self.runtime.set_multiplier(42, 3)
+        self.assertEqual(self.runtime.status(42)['multiplier'], 3)
+        self.assertEqual(Runtime(self.home, PLUGIN).status(42)['multiplier'], 3)
+        with self.assertRaises(ValueError):
+            self.runtime.set_diagnostic_mode(42, 'normal-adaptive-pairs')
+        with self.assertRaises(ValueError):
+            self.runtime.set_multiplier(42, 4)
+        with self.assertRaises(ValueError):
+            self.runtime.set_multiplier(42, True)
+        self.runtime.set_multiplier(42, 2)
         self.runtime.set_diagnostic_mode(42, 'normal-adaptive-pairs')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-adaptive-pairs')
         self.runtime.set_diagnostic_mode(42, 'normal-queue-observe')
@@ -122,6 +132,14 @@ class RuntimeTests(unittest.TestCase):
         with patch.object(launch, 'candidate_module', return_value=Base):
             env = launch.game_environment(self.home/'kit', self.home/'run', inherited)
         self.assertEqual(env['GFG_NATIVE_MODE'], '2')
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            three = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal', 3)
+        self.assertEqual(three['GFG_NATIVE_MODE'], '3')
+        self.assertEqual(three['GFG_NATIVE_PACING'], '1')
+        self.assertNotIn('GFG_NATIVE_OUTPUT_HZ', three)
+        with patch.object(launch, 'candidate_module', return_value=Base):
+            with self.assertRaises(ValueError):
+                launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-adaptive-pairs', 3)
         self.assertEqual(env['GFG_NATIVE_SHADOW_ADMISSION'], '1')
         with patch.object(launch, 'candidate_module', return_value=Base):
             no_shadow = launch.game_environment(self.home/'kit', self.home/'run', inherited, 'normal-no-shadow')

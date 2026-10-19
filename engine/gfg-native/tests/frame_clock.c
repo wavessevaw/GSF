@@ -100,9 +100,21 @@ int main(int argc,char **argv) {
     assert(x2_60>=290 && x2_60<=310);
     /* 30->90 x3: two synthetic slots per real. 60->90 x3 is limited. */
     assert(replay(30,3,600)>=1180);
+    /* On an output-limited 90Hz lattice, x3 must NOT blindly output 2 frames
+     * after a 60FPS source. It can only fill the one free slot per 2 real. */
+    const unsigned y2_60=replay(60,2,600);
+    const unsigned y3_60=replay(60,3,600);
+    assert(y2_60>=290 && y2_60<=310);
+    assert(y3_60>=290 && y3_60<=310);
+    /* 75 native FPS leaves ~15 slots/s. Both modes fill, not overproduce. */
+    const unsigned y2_75=replay(75,2,600);
+    const unsigned y3_75=replay(75,3,600);
+    assert(y2_75>=105 && y2_75<=135);
+    assert(y3_75>=105 && y3_75<=135);
     const unsigned x3_60=replay(60,3,600);
     assert(x3_60>=290 && x3_60<=310);
     assert(replay(90,2,600)==0);
+    assert(replay(90,3,600)==0);
     assert(replay(120,2,600)==0);
     /* Changing source and display refresh may re-anchor but cannot build
      * unbounded handoff delay or silently claim generated scanout. */

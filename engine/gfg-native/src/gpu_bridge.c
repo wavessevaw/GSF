@@ -2320,11 +2320,13 @@ timing:
                     fg->accepted_ns[0]||fg->accepted_ns[1]?"WSI-accepted":fg->deadline_drop?"deadline-miss":"history-or-display-budget";
                 fprintf(status,"{\"schema\":1,\"engine\":\"gfg-native-gsf\",\"pid\":%ld,\"generation\":%llu,"
                     "\"process_start_ticks\":%llu,\"updated_unix_ms\":%llu,\"multiplier\":%u,\"reason\":\"%s\","
-                    "\"source_fps\":%.3f,\"real_wsi_accepted\":%llu,\"generated_wsi_accepted\":%llu,"
+                    "\"source_fps\":%.3f,\"output_refresh_hz\":%.3f,\"refresh_origin\":\"%s\",\"real_wsi_accepted\":%llu,\"generated_wsi_accepted\":%llu,"
                     "\"color_space\":%d,\"color_transfer\":\"%s\",\"physical_displayed_fps\":null}\n",
                     (long)getpid(),(unsigned long long)fg->generation,(unsigned long long)fg->process_start_ticks,
                     (unsigned long long)((uint64_t)real.tv_sec*1000ull+(uint64_t)real.tv_nsec/1000000ull),fg->multiplier,reason,
                     fg->clock.interval_ns?1e9/(double)fg->clock.interval_ns:0.0,
+                    fg->clock.period_ns?1e9/(double)fg->clock.period_ns:0.0,
+                    fg->refresh_observation.origin,
                     (unsigned long long)fg->real_accepted,(unsigned long long)fg->generated_accepted,
                     (int)fg->color_space,fg->linear_pq?"pq-linear-nits":"coded");
                 if(fclose(status)==0)rename(temp,path);else unlink(temp);

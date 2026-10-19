@@ -1,4 +1,12 @@
-# GSF 0.1.10 LAB: Native B pace fix and pre-bypass shadow diagnostics
+## x2 / x3 frame-generation mode (GSF 0.1.11)
+
+Select multiplier per game in Decky. x2 = at most one interpolated output per source pair; x3 = at most two. The underlying frame clock already schedules only free display slots: at 90 Hz, x2 45→90, x3 30→90, either mode 60→90 can admit a single G1 on alternating pairs. Switching game base FPS does not require changing multiplier, although switching the multiplier itself requires restarting the game. The game and SteamOS display should both be set to 90 Hz for the requested target.
+
+**Safety:** GSF does NOT force the refresh to 90 Hz if Gamescope reports 60 Hz. `output_refresh_hz` and `refresh_origin` in live telemetry distinguish a verified WSI refresh query from the configured 90-Hz fallback. Source FPS is never capped by the plugin. Never generate beyond available slots, never delay real frames for synthetic content, and never promise physical scanout from WSI counters.
+
+This package adds x3 Game Mode instrumentation and end-to-end lavapipe smoke in addition to the existing x2 path. Exact x3 quality/cadence on Steam Deck OLED is **not yet verified**.
+
+# GSF 0.1.11 LAB: Adaptive output-slot scheduling with per-game 2x / 3x
 
 0.1.10 changes only the lifetime of the current-pair native-B pacing flag: it is reset on entry to every real pair so an early gpu-budget bypass cannot inherit the previous pair's successful G1 target. No other admission or timing policy changes. Shadow telemetry is on by default for normal and adaptive 2x; select the control mode without Shadow to measure its overhead. Restart after choosing a mode.
 
