@@ -59,7 +59,8 @@ snapshot describes the first one, not an invented aggregate queue position.
 
 Positive counts support coexistence of not-yet-confirmed application work with
 TE submission; they do not prove that work blocked TE. Zero on one logical
-queue cannot exclude cross-queue dependencies, shared hardware scheduling,+present synchronization, or driver work. Vulkan logical queues need not map to
+queue cannot exclude cross-queue dependencies, shared hardware scheduling,
+present synchronization, or driver work. Vulkan logical queues need not map to
 distinct hardware queues. Fence observations are host observations, not GPU end
 timestamps. Calibrating the TE start timestamp does not supply the missing GPU
 end timestamp of the last game command, so their exact GPU time gap remains

@@ -873,7 +873,7 @@ static VkResult native_ids_translate(native_present_ids *ids, uint64_t app_id, u
 /* Fence lifetimes share queue_lock ONLY in this opt-in observer. Never hold
  * this lock across an added GPU wait, nor add fences to application work. */
 static _Thread_local gsf_queue_snapshot *native_queue_probe_scope;
-#ifdef GFG_NATIVE_WITH_TE
+#if defined(GFG_NATIVE_WITH_TE) || defined(GFG_NATIVE_TEST_QUEUE_OBSERVE)
 static void native_queue_probe(VkQueue queue,gsf_queue_snapshot *snapshot) {
     (void)queue;native_queue_probe_scope=snapshot;
 }
@@ -903,7 +903,7 @@ NATIVE_SUBMIT_WRAPPER(native_QueueSubmit,submit,VkSubmitInfo,1)
 NATIVE_SUBMIT_WRAPPER(native_QueueSubmit2,submit2,VkSubmitInfo2,1)
 NATIVE_SUBMIT_WRAPPER(native_QueueSubmit2KHR,submit2_khr,VkSubmitInfo2,1)
 NATIVE_SUBMIT_WRAPPER(native_QueueBindSparse,bind_sparse,VkBindSparseInfo,1)
-#ifdef GFG_NATIVE_WITH_TE
+#if defined(GFG_NATIVE_WITH_TE) || defined(GFG_NATIVE_TEST_QUEUE_OBSERVE)
 NATIVE_SUBMIT_WRAPPER(native_worker_QueueSubmit,submit,VkSubmitInfo,0)
 NATIVE_SUBMIT_WRAPPER(native_worker_QueueSubmit2,submit2,VkSubmitInfo2,0)
 NATIVE_SUBMIT_WRAPPER(native_worker_QueueSubmit2KHR,submit2_khr,VkSubmitInfo2,0)
@@ -965,7 +965,7 @@ static VkResult native_serialized_present(VkQueue queue, const VkPresentInfoKHR 
 /* The bridge's own WSI must reach the next layer directly. Re-entering the
  * application acquire wrapper would compete with its own output priority and
  * recursively lock the swapchain. Only queue host entrypoints are wrapped. */
-#ifdef GFG_NATIVE_WITH_TE
+#if defined(GFG_NATIVE_WITH_TE) || defined(GFG_NATIVE_TEST_QUEUE_OBSERVE)
 static VKAPI_ATTR VkResult VKAPI_CALL native_worker_QueueWaitIdle(VkQueue q) {
     native_device *d=find_device(dispatch_key(q));
     if(!d || !d->queue_idle)return VK_ERROR_INITIALIZATION_FAILED;
@@ -978,8 +978,8 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL native_worker_gdpa(VkDevice devi
     if (!d || !name) return NULL;
     if (!strcmp(name,"vkQueueWaitIdle")) return (PFN_vkVoidFunction)native_worker_QueueWaitIdle;
     if (!strcmp(name,"vkQueueSubmit")) return (PFN_vkVoidFunction)native_worker_QueueSubmit;
-    if (!strcmp(name,"vkQueueSubmit2")) return d->submit2 ? (PFN_vkVoidFunction)native_QueueSubmit2 : NULL;
-    if (!strcmp(name,"vkQueueSubmit2KHR")) return d->submit2_khr ? (PFN_vkVoidFunction)native_QueueSubmit2KHR : NULL;
+    if (!strcmp(name,"vkQueueSubmit2")) return d->submit2 ? (PFN_vkVoidFunction)native_worker_QueueSubmit2 : NULL;
+    if (!strcmp(name,"vkQueueSubmit2KHR")) return d->submit2_khr ? (PFN_vkVoidFunction)native_worker_QueueSubmit2KHR : NULL;
     return d->gdpa(device,name);
 }
 #endif

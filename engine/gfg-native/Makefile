@@ -208,7 +208,7 @@ $(BUILD)/output-worker: tests/output_worker.c src/output_worker.c src/output_wor
 output-worker: $(BUILD)/output-worker
 	$(BUILD)/output-worker
 
-$(BUILD)/queue-serialization: tests/queue_serialization.c src/layer.c
+$(BUILD)/queue-serialization: tests/queue_serialization.c src/layer.c src/queue_observation.h
 	mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -Wno-unused-function -I$(VULKAN_HEADERS) -o $@ tests/queue_serialization.c -lpthread
 

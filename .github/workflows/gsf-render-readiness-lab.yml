@@ -36,7 +36,7 @@ jobs:
           make -C engine/gfg-native ENABLE_TE=1 BUILD=build-readiness VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" layer build-readiness/wsi-gpu-smoke
       - name: Queue observation lifetime and recovery classification contracts
         run: |
-          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" queue-observation
+          make -C engine/gfg-native VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" queue-observation queue-serialization
           python3 -m unittest discover -s engine/gfg-native/tests -p test_recovery_report.py
       - name: Actual delayed application rendering, admission A/B and recovery
         run: |
