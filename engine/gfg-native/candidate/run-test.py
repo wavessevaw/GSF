@@ -248,6 +248,7 @@ def main():
             report['stage'] = label
             print('Проверка: '+label, flush=True)
             env = child_env(KIT, algo is not None, validation, args.order)
+            env['GFG_TEST_FRAMES'] = str(frames)
             if label=='lmc-mutable-2x':
                 env['GFG_TEST_MUTABLE_SWAPCHAIN']='1'
                 env['GFG_TEST_PROTON_CHAIN']='1'
