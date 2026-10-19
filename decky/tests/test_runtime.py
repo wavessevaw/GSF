@@ -61,6 +61,25 @@ class RuntimeTests(unittest.TestCase):
         self.runtime.set_diagnostic_mode(42, 'normal-no-watch')
         self.assertEqual(self.runtime.status(42)['diagnostic_mode'], 'normal-no-watch')
 
+    def test_rollback_installs_without_steam_details_and_preserves_launch_options(self):
+        import shutil
+        with patch.object(self.runtime, 'install', return_value={'build': '0'*40, 'launcher': str(self.runtime.root/'launch.py')}):
+            prepared = self.runtime.prepare(42, '')
+            self.runtime.root.mkdir(parents=True, exist_ok=True)
+            (self.runtime.root/'launch.py').write_text('# installed')
+            atomic_json(self.runtime.root/'current.json', {'build': '0'*40})
+            before = self.runtime.config()['games']['42']['expected']
+            repaired = self.runtime.restore_known_good(42)
+        self.assertEqual(repaired['build'], '0'*40)
+        self.assertEqual(self.runtime.config()['games']['42']['expected'], before)
+        self.assertFalse(self.runtime.config()['games']['42']['enabled'])
+        self.assertEqual(self.runtime.config()['games']['42']['diagnostic_mode'], 'normal')
+        with self.assertRaises(ValueError):
+            self.runtime.rearm_existing(42, 'WRONG %command%')
+        # Confirming without an active matching verified package must fail.
+        with self.assertRaises(ValueError):
+            self.runtime.rearm_existing(42, before)
+
     def test_selection_persists_without_installing_or_enabling(self):
         self.assertEqual(self.runtime.selection(), {'appid': 0})
         self.runtime.select(42)

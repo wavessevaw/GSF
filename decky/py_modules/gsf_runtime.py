@@ -227,6 +227,43 @@ class Runtime:
         atomic_json(self.root/'config.json', cfg)
         return {'diagnostic_mode': mode, 'restart_required': True}
 
+    def restore_known_good(self, appid):
+        """Restore the exact 0.1.10 GPU engine and launcher without touching Steam settings."""
+        aid = app_id(appid)
+        installed = self.install()  # re-verify payload, refresh launcher and current.json even if old profile
+        cfg = self.config()
+        game = cfg['games'].get(aid)
+        if game:
+            game['diagnostic_mode'] = 'normal'
+            game['multiplier'] = 2
+            atomic_json(self.root/'config.json', cfg)
+        active = load_json(self.root/'current.json', {})
+        if active.get('build') != installed['build'] or not (self.root/'launch.py').is_file():
+            raise ValueError('Движок 0.1.10 не установлен: активная версия не совпала с пакетом')
+        return {'build': installed['build'], 'launcher': installed['launcher'],
+                'enabled': bool(game and game.get('enabled')),
+                'has_launch_options': bool(game and game.get('expected'))}
+
+    def rearm_existing(self, appid, expected):
+        """Explicit user confirmation that the existing wrapper is present in Steam."""
+        aid = app_id(appid)
+        cfg = self.config()
+        game = cfg['games'].get(aid)
+        if not game or not game.get('expected') or game['expected'] != expected:
+            raise ValueError('Нет сохранённой команды: сначала настройте запуск игры')
+        if not expected.count('%command%') == 1 or str(self.root/'launch.py') not in expected:
+            raise ValueError('Неправильная команда запуска GSF')
+        packaged = load_json(self.plugin/'payload'/'BUILD_INFO.json', {})
+        active = load_json(self.root/'current.json', {})
+        if not packaged.get('source_commit') or active.get('build') != packaged['source_commit']:
+            raise ValueError('Сначала восстановите движок 0.1.10')
+        if not (self.root/'launch.py').is_file():
+            raise ValueError('Файл запуска GSF отсутствует')
+        game.update(enabled=True, configured=True, diagnostic_mode='normal',
+                    multiplier=2, manual_unverified=True)
+        atomic_json(self.root/'config.json', cfg)
+        return {'enabled': True, 'steam_verified': False, 'restart_required': True}
+
     def disable_all(self):
         cfg = self.config()
         for saved in cfg['games'].values():
@@ -267,7 +304,13 @@ class Runtime:
         records = live_records(run) if run else []
         active = [r for r in records if r.get('generated_wsi_accepted', 0) > 0]
         blocked = gate_rejection(run) if run else None
+        packaged = load_json(self.plugin/'payload'/'BUILD_INFO.json', {})
+        active = load_json(self.root/'current.json', {})
+        package_sha, active_sha = packaged.get('source_commit'), active.get('build')
         return {'enabled': saved.get('enabled', False), 'configured': saved.get('configured', False),
+                'manual_unverified': saved.get('manual_unverified', False),
+                'package_build': package_sha, 'active_build': active_sha,
+                'active_matches_package': bool(package_sha and package_sha == active_sha and (self.root/'launch.py').is_file()),
                 'launch_options': saved.get('expected', ''),
                 'diagnostic_mode': saved.get('diagnostic_mode', 'normal'),
                 'state': 'generating' if active else 'bridge' if records else 'blocked' if blocked else 'waiting',

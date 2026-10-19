@@ -1,3 +1,13 @@
+# GSF known-working GPU engine rollback (0.1.10.1 package)
+
+This rollback deliberately restores the exact **0.1.10 native frame-generation algorithm and sources**, with no x3 or new 0.1.12 pacing logic. Only the Decky installer and its status/activation diagnostics change.
+
+## Restoring after 0.1.12
+
+Install the offline ZIP as a Decky plugin. In its panel select the existing game and click **Восстановить движок GSF 0.1.10**. This action verifies payload checksums, updates `~/.local/share/gsf-test/current.json` and `launch.py` and resets this game's experimental diagnostics to normal ×2, **without** touching Steam launch options or removing saved user settings. Compare the displayed packaged and active SHA. If your Launch Options already have the saved GSF command but Steam AppDetails cannot confirm it, the explicit **Команда уже в Steam: включить ×2 вручную** button marks a manual/unverified profile. Do not click it unless the command is actually present in the game's Steam properties. Restart the game afterward. Do not conflate plugin version, active engine SHA and runtime code of a game already running.
+
+> Original 0.1.10 game logs show partial G1 WSI acceptance at 30FPS/60Hz with a 20W power configuration. This is **not** proven OLED scanout or stable ×2; 15W/90Hz could still lack GPU headroom. For a true A/B, hold scene, refresh, source cap, and TDP constant. No 90Hz or TDP is forced by the plugin.
+
 # GSF 0.1.10 LAB: Native B pace fix and pre-bypass shadow diagnostics
 
 0.1.10 changes only the lifetime of the current-pair native-B pacing flag: it is reset on entry to every real pair so an early gpu-budget bypass cannot inherit the previous pair's successful G1 target. No other admission or timing policy changes. Shadow telemetry is on by default for normal and adaptive 2x; select the control mode without Shadow to measure its overhead. Restart after choosing a mode.
