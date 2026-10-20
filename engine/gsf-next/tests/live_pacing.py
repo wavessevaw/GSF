@@ -23,7 +23,7 @@ def run(build, out, name, patch, frames=24):
                AFMF_MIN_FPS='0',AFMF_GOVERNOR='0',AFMF_EXTRA_IMAGES='3',AFMF_PERFORMANCE_MODE='performance',
                AFMF_SEARCH_MODE='standard',AFMF_ACQUIRE_TIMEOUT_US='16000',
                GSF_NEXT_REFRESH_HZ='90',GSF_NEXT_MULTIPLIER='3',GSF_NEXT_DIAGNOSTICS='1',
-               GSF_NEXT_STATUS_DIR=str(directory),GSF_NEXT_PRESENT_REPORT=str(directory/'present'),
+               GSF_NEXT_STATUS_DIR=str(directory),GSF_NEXT_REAL_PRIORITY_PACING='0',GSF_NEXT_PRESENT_REPORT=str(directory/'present'),
                GSF_NEXT_GPU_REPORT=str(directory/'gpu'))
     if name in ('live','live-diag'):
         path=directory/'control';path.write_text('GSF_NEXT_CONTROL_V1\n1 1 2 90 2 2 3 0 1\n')
@@ -36,7 +36,10 @@ def run(build, out, name, patch, frames=24):
     assert 'VUID-' not in result.stdout and 'validation:' not in result.stdout,(name,result.stdout[-5000:])
     totals=re.findall(r'GSF_NEXT_SUMMARY real=(\d+) built=(\d+) accepted_real=(\d+) accepted_synthetic=(\d+)',result.stdout)
     assert sum(int(r[2]) for r in totals)==frames,(name,totals)
-    assert all(r[1]==r[3] for r in totals),(name,'lost constructed output',totals)
+    if name=='deadline-priority':
+        assert all(int(r[1])>=int(r[3]) for r in totals),(name,'constructed/accepted inverted',totals)
+    else:
+        assert all(r[1]==r[3] for r in totals),(name,'lost constructed output',totals)
     if name=='live-diag':
         assert 'GPU timing detail changed: compact' in result.stdout,'compact timing never applied'
         assert 'GPU timing detail changed: detailed' in result.stdout,'detailed timing never restored'
@@ -47,7 +50,8 @@ def run(build, out, name, patch, frames=24):
         records.extend(json.loads(line) for line in path.read_text().splitlines())
     records.sort(key=lambda r:r['submit_ns'])
     assert len(records)==sum(int(r[2])+int(r[3]) for r in totals),(name,'trace missing API calls')
-    assert any(not r['real'] for r in records),(name,'no synthetic')
+    if name!='deadline-priority':
+        assert any(not r['real'] for r in records),(name,'no synthetic')
     for before,after in zip(records,records[1:]):
         if after['enabled']:
             tick=(1_000_000_000+after['refresh_hz']-1)//after['refresh_hz']
@@ -64,6 +68,12 @@ def run(build, out, name, patch, frames=24):
         assert [r['t'] for r in pair]==sorted(set(r['t'] for r in pair)),(name,'phase order',pair)
         if pair[0]['enabled']:
             assert len(pair)<=pair[0]['multiplier'],(name,'extra output',pair)
+    if name=='deadline-priority':
+        snapshots=[json.loads(path.read_text()) for path in directory.glob('*.json')]
+        skipped=max((int(s.get('expired_synthetic',0))+int(s.get('superseded_synthetic',0))
+                     for s in snapshots),default=0)
+        assert skipped>0,(name,'no expired frames under injected late readiness',snapshots)
+        assert len([r for r in records if r['real']])==frames,(name,'lost real frames')
     if name=='live':
         revisions={r['revision'] for r in records}
         assert revisions==set(range(1,9)),('missing applied revisions',revisions)
@@ -87,6 +97,8 @@ def main():
     args=parser.parse_args();build=args.build.resolve();out=(args.out or build/'Testing/live-pacing').resolve()
     summaries=[run(build,out,'cap90-x3',{}),
                run(build,out,'late90-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_TEST_READY_DELAY_MS='45')),
+               run(build,out,'deadline-priority',dict(GSF_NEXT_MULTIPLIER='4',
+                   GSF_NEXT_REAL_PRIORITY_PACING='1',GSF_NEXT_TEST_READY_DELAY_MS='45')),
                run(build,out,'live',dict(GSF_TEST_LIVE='1'),56),
                run(build,out,'live-diag',dict(GSF_TEST_LIVE='1',GSF_TEST_LIVE_DIAGNOSTICS='1',GSF_TEST_SYNC_VALIDATION='1'),56)]
     (out/'RESULTS.json').write_text(json.dumps(summaries,indent=2)+'\n')

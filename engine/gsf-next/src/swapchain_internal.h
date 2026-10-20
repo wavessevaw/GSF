@@ -129,6 +129,7 @@ struct afmf_swapchain {
     double output_copy_gpu_ms;
     double output_acquire_ms,output_copy_wait_ms;
     uint64_t dropped_synthetic,budget_skipped_synthetic;
+    uint64_t expired_synthetic,superseded_synthetic;
     VkImage *images;
     VkSemaphore *sem_generated; /* per image: signals "the generated frame in image k is ready" */
     VkSemaphore *sem_real;      /* per image: signals "the layer is done reading image k" */

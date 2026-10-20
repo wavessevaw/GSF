@@ -206,9 +206,9 @@ void afmf_sc_status_write(struct afmf_swapchain *sc)
     (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,",
         (unsigned long long)cfg->revision,cfg->multiplier,cfg->enabled?"true":"false",cfg->refresh_hz,
         cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight);
-    (void)fprintf(out,"\"recreate_pending\":%s,\"late_pairs\":%llu,\"last_present_gap_ms\":%.3f,\"paced_presents\":%llu,\"dropped_synthetic\":%llu,\"budget_skipped_synthetic\":%llu,\"pairs_without_slot\":%llu,\"output_ring_bytes\":%llu,\"output_acquire_ms\":%.3f,\"output_copy_wait_ms\":%.3f,\"output_copy_gpu_ms\":%.3f,\"displayed\":null}\n",
+    (void)fprintf(out,"\"recreate_pending\":%s,\"late_pairs\":%llu,\"last_present_gap_ms\":%.3f,\"paced_presents\":%llu,\"dropped_synthetic\":%llu,\"expired_synthetic\":%llu,\"superseded_synthetic\":%llu,\"budget_skipped_synthetic\":%llu,\"pairs_without_slot\":%llu,\"output_ring_bytes\":%llu,\"output_acquire_ms\":%.3f,\"output_copy_wait_ms\":%.3f,\"output_copy_gpu_ms\":%.3f,\"displayed\":null}\n",
         sc->recreate_requested?"true":"false",(unsigned long long)sc->late_pairs,
-        (double)sc->last_present_gap_ns/1e6,(unsigned long long)sc->paced_presents,(unsigned long long)sc->dropped_synthetic,(unsigned long long)sc->budget_skipped_synthetic,(unsigned long long)sc->skipped_no_slot,(unsigned long long)sc->output_bytes,
+        (double)sc->last_present_gap_ns/1e6,(unsigned long long)sc->paced_presents,(unsigned long long)sc->dropped_synthetic,(unsigned long long)sc->expired_synthetic,(unsigned long long)sc->superseded_synthetic,(unsigned long long)sc->budget_skipped_synthetic,(unsigned long long)sc->skipped_no_slot,(unsigned long long)sc->output_bytes,
         sc->output_acquire_ms,sc->output_copy_wait_ms,sc->output_copy_gpu_ms);
     if (fclose(out) == 0) (void)rename(temporary,path);
 }

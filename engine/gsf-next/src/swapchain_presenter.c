@@ -3,6 +3,7 @@
  * the application's thread; both presents run here instead. */
 
 #include "swapchain_internal.h"
+#include "presentation_deadline.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -191,14 +192,39 @@ void *afmf_sc_presenter_main(void *arg)
             if(late) {
                 pthread_mutex_lock(&sc->job_lock);sc->late_pairs++;pthread_mutex_unlock(&sc->job_lock);
             }
-            /* A late pair has no reason to replay empty historical display slots.
-             * Compact its AVAILABLE outputs onto consecutive future ticks; the
-             * old whole-pair shift preserved holes and fed its slowdown back
-             * into the measured source period, especially at high multipliers. */
+            /* Deadline rescue is opt-in until the source/real GPU semaphore
+             * dependency is removed. A trace replay showed that enabling it
+             * with the Alpha 4 buffer would suppress nearly all FG. */
+            const char *priority_env=getenv("GSF_NEXT_REAL_PRIORITY_PACING");
+            bool priority=job.config.enabled && job.config.pacing &&
+                          priority_env && priority_env[0]=='1' && priority_env[1]==0;
             uint64_t first_due=late ? earliest : first_slot+shift;
             uint64_t tick=gsf_refresh_period(job.config.refresh_hz);
+            uint64_t real_due=job.real_slot+shift;
             uint32_t shown=0;
             for(uint32_t n=0;n<job.output_count;n++) {
+                uint64_t desired=priority ? job.output_slots[n]+shift :
+                    (late ? first_due+(uint64_t)shown*tick : job.output_slots[n]+shift);
+                if(priority) {
+                    uint64_t now=monotonic_ns();
+                    pthread_mutex_lock(&sc->job_lock);
+                    bool newer_real=sc->job_count>1;
+                    pthread_mutex_unlock(&sc->job_lock);
+                    enum gsf_synthetic_deadline drop=gsf_synthetic_deadline_check(
+                        sc->plan_epoch_ns,desired,real_due,now,
+                        sc->last_target_ns,sc->last_output_ns,tick,
+                        job.config.refresh_hz,newer_real);
+                    if(drop!=GSF_SYNTHETIC_ON_TIME) {
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->dropped_synthetic+=job.output_count-n;
+                        if(drop==GSF_SYNTHETIC_SUPERSEDED)
+                            sc->superseded_synthetic+=job.output_count-n;
+                        else
+                            sc->expired_synthetic+=job.output_count-n;
+                        pthread_mutex_unlock(&sc->job_lock);
+                        break;
+                    }
+                }
                 uint32_t image=0;
                 VkResult result=afmf_sc_output_copy(dev,sc,&job,n,&image);
                 if(result==VK_NOT_READY) {
@@ -209,13 +235,14 @@ void *afmf_sc_presenter_main(void *arg)
                     pthread_mutex_lock(&sc->job_lock);sc->dropped_synthetic+=job.output_count-n;pthread_mutex_unlock(&sc->job_lock);
                     first=result;break;
                 }
-                uint64_t desired=late ? first_due+(uint64_t)shown*tick : job.output_slots[n]+shift;
+                /* Once WSI has acquired an image, it must be presented or safely
+                 * retired. Never abandon it after a late GPU copy. */
                 result=present_one(dev,sc,image,sc->sem_generated[image],&job,false,desired,job.phases[n]);
                 shown++;
                 if(result<0 || first==VK_SUCCESS) first=result;
             }
             second=present_one(dev,sc,job.real_image,sc->sem_real[job.real_image],&job,true,
-                late ? first_due+(uint64_t)shown*tick : job.real_slot+shift,1.0f);
+                priority ? real_due : (late ? first_due+(uint64_t)shown*tick : real_due),1.0f);
         } else {
             second=gpu;
             pthread_mutex_lock(&sc->job_lock);sc->worker_failed=true;pthread_mutex_unlock(&sc->job_lock);

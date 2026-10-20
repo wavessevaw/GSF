@@ -26,7 +26,7 @@ jobs:
       - name: Native compile, SPIR-V validation and display-slot planning
         run: |
           VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" sh scripts/build_gsf_next.sh
-          ctest --test-dir engine/gsf-next/build --output-on-failure -R 'output_plan|present_wait_contract|live_config|renderer_choice'
+          ctest --test-dir engine/gsf-next/build --output-on-failure -R 'output_plan|presentation_deadline|present_wait_contract|live_config|renderer_choice'
       - name: Actual Vulkan WSI and synthetic pixel checks
         run: |
           python3 engine/gsf-next/tests/matrix.py --build engine/gsf-next/build --out artifacts/gsf-next-matrix

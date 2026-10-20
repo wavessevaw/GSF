@@ -50,6 +50,18 @@ class RuntimeTests(unittest.TestCase):
             self.assertNotIn('GFG_NATIVE_FORCE_FIFO',env);self.assertNotIn('AFMF_DUMP_DIR',env)
             self.assertNotIn('GSF_NEXT_TEST_FAIL_SUBMIT',env);self.assertEqual(env['DISABLE_MAKO'],'1')
         self.assertEqual(inherited['GFG_NATIVE_FORCE_FIFO'],'1')
+    def test_priority_pacing_opt_in_is_isolated_and_validated(self):
+        inherited={'GSF_NEXT_REAL_PRIORITY_PACING':'1','KEEP':'yes'}
+        baseline=environment(Path('/kit'),Path('/run'),inherited,{})
+        self.assertEqual(baseline['GSF_NEXT_REAL_PRIORITY_PACING'],'0')
+        self.assertEqual(baseline['KEEP'],'yes')
+        candidate=environment(Path('/kit'),Path('/run'),inherited,
+                              {'real_priority_pacing':True})
+        self.assertEqual(candidate['GSF_NEXT_REAL_PRIORITY_PACING'],'1')
+        for invalid in ('1',1,None):
+            with self.assertRaises(ValueError):
+                validate({'real_priority_pacing':invalid})
+
     def test_other_generator_rejected(self):
         for layer in ('VK_LAYER_MAKO_render','VK_LAYER_LSFG','VK_LAYER_GFG_native','VK_LAYER_AFMF'):
             with self.assertRaises(ValueError):environment(Path('/kit'),Path('/run'),{'VK_INSTANCE_LAYERS':layer},{})

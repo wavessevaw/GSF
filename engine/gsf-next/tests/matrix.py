@@ -86,6 +86,7 @@ def main():
                    AFMF_MIN_FPS='0',AFMF_GOVERNOR='0',AFMF_EXTRA_IMAGES='5',
                    AFMF_PERFORMANCE_MODE='performance',AFMF_SEARCH_MODE='standard',
                    AFMF_ACQUIRE_TIMEOUT_US='16000',GSF_NEXT_REFRESH_HZ='360',
+                   GSF_NEXT_REAL_PRIORITY_PACING='0',
                    GSF_NEXT_STATUS_DIR=str(directory))
         if pixels is not None: env['AFMF_DUMP_DIR']=str(directory)
         env['GSF_NEXT_GPU_REPORT']=str(directory/'gpu.jsonl')
