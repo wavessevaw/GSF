@@ -66,6 +66,8 @@ struct afmf_present_job {
     struct timespec arrival;
     VkFence done;             /* generation completion: distinct from real ingest */
     VkFence ingest_done;      /* private snapshot complete; game WSI image returned to PRESENT_SRC */
+    uint64_t ingest_ready_ns; /* observed real-input fence: not screen scanout */
+    uint64_t synthetic_ready_ns; /* observed optical-flow fence: optional */
     bool early_real;          /* two GPU submits: real is safe before optional reconstruction */
     bool have_present_id;
     uint64_t present_id;
