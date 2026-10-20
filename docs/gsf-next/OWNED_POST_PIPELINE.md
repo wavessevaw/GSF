@@ -302,15 +302,13 @@ runtime unchanged. When active:
 
 1. Enable Vulkan timestamp collection, never infer GPU cost from wall
    clock or a multiply-derived "Output FPS".
-2. Admit at most **one** synthetic output per eligible real pair, so
+2. Admit initially **one** synthetic output per eligible real pair, with measured ×3 promotion only when affordable, so
    economy-first load reduction takes priority over nominal x3/x4.
 3. After first admission, await the **completed GPU sample associated
    with a positive synthetic count** before issuing another probe.
    Unavailable timestamps fail closed, preventing runaway probes.
 4. If that completed pair exceeded budget, skip seven source-pair
-   opportunities before another single synthetic probe. Two consecutive
-   affordable samples allow continuous x2-level probing; an over-budget
-   sample resets this. Original source presentation is never gated.
+   opportunities before another single synthetic probe. Two consecutive affordable ×2 samples permit a cautious ×3 probe only when the measured cost has sufficient headroom. A completed affordable two-output sample confirms ×3; over-budget work resets it. Original source presentation is never gated.
 5. No deeper queuing, fabricated rate, or unbounded catch-up frames.
 
 This is a deliberately conservative **P0 experiment**, and NOT proof
@@ -318,3 +316,42 @@ of a physical x2 frame rate or a complete Alpha+Owner game runtime.
 It requires hardware A/B evidence to set or automate any default
 budget: game native FPS retained, timestamped pair cost, actual WSI
 presents/drops, and latency at p95/p99.
+
+## ×2/×3 priority: compact owner lanes + measured promotion (2026-10-20)
+
+Per developer priority, the **experimental one-layer Alpha owner bridge**
+now accepts only multiplier ×2 or ×3. Normal game-facing GSF Next layer
+remains unchanged and its old ×4 tests are retained as historical coverage.
+
+- **×2:** `slots` physical synthetic targets: exactly one per work slot.
+- **×3:** `2*slots` physical targets: exactly two per slot, with an
+  Alpha batched pass processing both temporal phases in one full-resolution
+  dispatch where the device supports the batch pipeline. The descriptor
+  set still has three storage bindings for the existing shader ABI, but
+  the unused third binding aliases the second real target and the shader
+  never writes it for `count=2`.
+- The private owner sets an internal `owner_target_stride`; normal WSI
+  Alpha image indexing and three-output ×4 batching are unchanged.
+- The batch recorder validates `count <= stride`, preventing an
+  accidental ×4 work request from overwriting a neighbouring work slot.
+- These savings apply to the owner's **output image allocation** only,
+  not to all GPU memory. At two slots, six full-size synthetic textures
+  become two at ×2 or four at ×3; the separate input snapshot/history
+  and scene-change buffers remain allocated.
+- `GSF_NEXT_GPU_BUDGET_US` is still **opt-in and disabled by default**.
+  Its timestamp-based guard now probes single-output ×2 first. It only
+  attempts two-output ×3 after two affordable x2 measurements and a
+  conservative x2-cost extrapolation fitting the budget; observed
+  affordable x3 timestamps confirm continued admission. Any measured
+  overrun triggers a seven-source-opportunity cooldown and demotes
+  immediately. No new optional GPU work is queued without receiving a
+  completed positive-output timestamp from the last admitted probe.
+- The Vulkan descriptor regression inspects both parity sets and all
+  two-slot bindings to confirm no third image allocation, plus recorder
+  validation denies a 3-output request in a 2-lane owner.
+
+**Not yet achieved:** the Vulkan producer runtime still needs its real
+single-layer native Output Owner swapchain transport wired end-to-end to
+actual compositor WSI. A green shader or descriptor test is not a Deck
+OLED FPS measurement. The strict historic ×4 output-pacing experiment
+remains RED, independently from the x2/x3 work.
