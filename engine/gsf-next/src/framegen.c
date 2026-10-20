@@ -47,7 +47,7 @@ void afmf_framegen_set_family(struct afmf_device *dev, struct afmf_framegen *fg,
 }
 
 uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg) { return fg ? fg->slots : 0u; }
-uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg) { return fg ? fg->source_count : 0u; }
+uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg) { return fg ? fg->owner_registered_sources : 0u; }
 uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg) { return fg ? fg->target_count : 0u; }
 
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
@@ -181,6 +181,7 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
         (fg->automatic || fg->requested==GSF_RENDER_BATCH);
     fg->renderer=fg->requested==GSF_RENDER_BATCH && fg->batch ? GSF_RENDER_BATCH :
         fg->requested==GSF_RENDER_DIRECT && fg->direct ? GSF_RENDER_DIRECT : GSF_RENDER_COPY;
+    fg->owner_registered_sources = have_images ? image_count : 0u;
     fg->source_count = fg->ingest_direct ? image_count : 0;
     fg->target_count = fg->direct ? target_count : 0;
 

@@ -44,7 +44,9 @@ bool afmf_framegen_ingest_direct(const struct afmf_framegen *fg);
 
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg);
 
-/* Read-only resource bounds for external, privately owned snapshots. */
+/* Read-only resource bounds for external, privately owned snapshots.
+ * owner_sources returns ALL registered images, including copy-only ingest
+ * where source_count for direct descriptors is correctly zero. */
 uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg);
 uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg);
 uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg);

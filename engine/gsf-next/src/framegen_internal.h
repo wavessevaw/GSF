@@ -149,7 +149,8 @@ struct afmf_framegen {
     VkDescriptorSet *batch_sets; /* [parity * (target_count/3) + work_slot] */
     enum variant direct_variant;
     uint32_t target_count;        /* private output images */
-    uint32_t source_count;        /* game swapchain images, independent of target_count */
+    uint32_t source_count;        /* direct-ingest descriptor count, 0 in copy mode */
+    uint32_t owner_registered_sources; /* all private snapshots even with copy ingest */
     VkImageView *target_views;
     VkDescriptorSet *direct_sets; /* [parity * target_count + image] */
     /* Direct ingest: one pass reads the swapchain image (sampled view per image) and writes the
