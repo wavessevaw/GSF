@@ -148,6 +148,7 @@ add_library(afmf-linux SHARED
     src/framegen_record.c
     src/framegen_record_frame.c
     src/owner_alpha_record.c
+    src/owner_alpha_transport.c
     src/framegen_resources.c
     src/layer.c
     src/layer_device.c
@@ -224,6 +225,14 @@ target_include_directories(gsf_owner_alpha_record PRIVATE src)
 target_link_libraries(gsf_owner_alpha_record PRIVATE Vulkan::Headers)
 target_compile_options(gsf_owner_alpha_record PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
 add_test(NAME owner_alpha_record COMMAND gsf_owner_alpha_record)
+
+# End-to-end owner/Alpha producer token lifecycle: GPU capture and synthetic
+# stage readiness must be independent, with bounded target retirement.
+add_executable(gsf_owner_alpha_transport tests/owner_alpha_transport.c src/owner_alpha_transport.c)
+target_include_directories(gsf_owner_alpha_transport PRIVATE src)
+target_link_libraries(gsf_owner_alpha_transport PRIVATE Vulkan::Headers)
+target_compile_options(gsf_owner_alpha_transport PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_transport COMMAND gsf_owner_alpha_transport)
 
 add_executable(gsf_queue_depth tests/queue_depth.c)
 target_include_directories(gsf_queue_depth PRIVATE src)
