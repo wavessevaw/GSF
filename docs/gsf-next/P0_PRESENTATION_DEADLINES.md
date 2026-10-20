@@ -21,8 +21,21 @@ synthetic output. More warps-per-second does not make output intervals uniform.
 - Existing half-tick minimum API spacing and full-tick target separation remain.
 - Dropped synth counts include intentional deadline skips; dedicated
   `expired_synthetic` and `superseded_synthetic` split them from WSI starvation.
-- Set `GSF_NEXT_REAL_PRIORITY_PACING=0` for the unchanged Alpha 5 scheduling
-  baseline. Default in this experimental branch is enabled.
+- The original timing policy remains the default. Explicitly set
+  `GSF_NEXT_REAL_PRIORITY_PACING=1` to enable the strict deadline rescue.
+  This opt-in is for controlled diagnostics, **not** a ready-to-ship fix.
+
+## Measured feasibility warning
+
+A retrospective deadline check of the supplied Alpha 4 trace, ignoring future
+scheduling and resource feedback, finds only ~346/7497 (4.6%) eligible synth
+slots in the first stream and ~20/2655 (0.8%) in the second stream at the
+existing roughly two-tick delay. This is an *upper-bound feasibility probe*,
+not a simulated end-to-end run. Enabling strict deadlines alone would likely
+remove almost all generated frames. A fixed five-to-seven-tick delay admits
+more historical slots in a counterfactual model, but extra buffering can starve
+the bounded producer queue, reduce source FPS, and increase input latency.
+Do not enable it automatically or declare success from that counterfactual.
 
 ## Limit
 The real B signal currently follows the shared optical-flow GPU submission.
