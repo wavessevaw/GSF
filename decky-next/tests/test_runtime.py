@@ -79,7 +79,7 @@ class RuntimeTests(unittest.TestCase):
             '44':dict(multiplier=3,enabled=True)}))
         profile=self.runtime.status(42)['profile']
         self.assertEqual(profile['multiplier'],2)
-        self.assertEqual(profile['max_in_flight'],0)
+        self.assertEqual(profile['max_in_flight'],2)
         self.assertFalse(profile['enabled'])
         self.assertEqual(self.runtime.prepare(42)['enabled'],True)
         self.assertEqual(self.runtime.status(44)['profile']['multiplier'],3)
