@@ -452,9 +452,12 @@ static inline VkResult gfg_test_live_output(void *user,
     gfg_test_loader_runtime *r=user;
     if(!r||!r->started||!ticket||image!=ticket%r->history.count)
         return VK_ERROR_INITIALIZATION_FAILED;
+    const int detailed_timing=getenv("GFG_NATIVE_TEST_POST_STAGE_TIMING")!=NULL;
+    const uint64_t started=detailed_timing?gfg_pacer_monotonic_ns():0;
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
     if(r->temporal_instance){VkResult feed=gfg_test_lmc_feed(r,image);if(feed!=VK_SUCCESS)return feed;}
 #endif
+    const uint64_t analyzed=detailed_timing?gfg_pacer_monotonic_ns():0;
     /* The initial A cannot be paced against A/B intermediates until B
      * exists. Holding it one source interval allows A -> A/B1 -> ... -> B
      * to occupy evenly spaced OUTPUT ticks. Never block the game API here. */
@@ -470,11 +473,24 @@ static inline VkResult gfg_test_live_output(void *user,
         const unsigned outputs=1;
 #endif
         for(unsigned out=1;out<=outputs;++out) {
+            const uint64_t verify_started=detailed_timing?gfg_pacer_monotonic_ns():0;
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
             if(r->temporal){VkResult verified=gfg_test_lmc_verify(r,out-1,ticket,image);if(verified!=VK_SUCCESS)return verified;}
 #endif
+            const uint64_t verified_at=detailed_timing?gfg_pacer_monotonic_ns():0;
             VkResult result=gfg_test_live_emit(r,image,r->last_history_image,(int)out);
             if(result!=VK_SUCCESS)return result;
+            if(detailed_timing) {
+                const uint64_t completed=gfg_pacer_monotonic_ns();
+                fprintf(stderr,"GSF_POST_STAGE pair=%llu output=%u feed_submit_ms=%.3f"
+                    " gpu_verify_wall_ms=%.3f output_copy_pace_wsi_ms=%.3f"
+                    " post_source_ms=%.3f physical_scanout=UNVERIFIED\n",
+                    (unsigned long long)ticket,out,
+                    (double)(analyzed-started)/1e6,
+                    (double)(verified_at-verify_started)/1e6,
+                    (double)(completed-verified_at)/1e6,
+                    (double)(completed-started)/1e6);
+            }
         }
         /* No fixed 35ms diagnostic exposure. The actual worker pacer
          * spaces BOTH A/B and B output by the same target interval. */
@@ -486,6 +502,10 @@ static inline VkResult gfg_test_live_output(void *user,
     }
     VkResult result=gfg_test_live_emit(r,image,0,0);
     if(result!=VK_SUCCESS)return result;
+    if(detailed_timing)fprintf(stderr,
+        "GSF_POST_STAGE pair=%llu real_end_ms=%.3f source_retirement_after_output=1\n",
+        (unsigned long long)ticket,
+        (double)(gfg_pacer_monotonic_ns()-started)/1e6);
     r->last_history_image=image;
     r->have_previous=1;
     return VK_SUCCESS;

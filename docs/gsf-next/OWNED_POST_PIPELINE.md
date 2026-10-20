@@ -127,3 +127,22 @@ once B arrives instead of falsely claiming it was visible at first capture.
 The same 35ms max-gap gate remains; no validation limit was relaxed.
 This is an isolated lab pacing experiment; it is not yet a production output
 scheduler or OLED measurement.
+
+## Second strict x4 cadence failure and stage attribution
+
+The prime-first-A experiment did not satisfy the unchanged 35ms X11
+output gap gate: observed max 45.291ms and mean 18.390ms at simulated
+22.5Hz source / 90Hz output. All 21 GPU LMC intermediates were distinct,
+so rendering correctness alone does **not** establish timely throughput.
+The old worker still releases the game source only AFTER all output calls;
+the next source capture and pair generation are consequently serialized
+behind the preceding output. This is a critical blocker, not an issue
+to silence by increasing FIFO depth or inflating timing allowances.
+
+Added opt-in per-pair stage telemetry under
+`GFG_NATIVE_TEST_POST_STAGE_TIMING=1`: GPU verify/readback wall-time,
+output-copy/pace/WSI wall-time, and total time since snapshot worker
+callback. These measurements are software-CI timings, not Deck metrics.
+The strict output gap threshold remains unchanged and may fail until
+source image release and the independent output-owner queue actually
+operate concurrently.
