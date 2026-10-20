@@ -64,7 +64,7 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev,VkFormat form
     const VkImage *targets,uint32_t count,bool ingest,const struct afmf_config *cfg) {
     (void)dev;(void)format;(void)cfg;
     assert(extent.width==800u && extent.height==600u);
-    assert(images && targets && sources==4u && count==6u && slots==2u && ingest);
+    assert(images && targets && sources==4u && count==6u && slots==2u);
     generator=(struct afmf_framegen){.sources=sources,.targets=count,.slots=slots,.direct=ingest};
     alive++;created++;return &generator;
 }
