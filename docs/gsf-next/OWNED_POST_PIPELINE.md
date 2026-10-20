@@ -218,3 +218,49 @@ The previous mandatory native output-owner CI includes a deliberately
 **failing** strict 22.5→90 x4 LMC pacing experiment. It is historical
 research and does not measure Alpha. Preserve its red status explicitly
 rather than claiming full PR green.
+
+
+## Alpha native Output Owner lifetime API, P1 staging (2026-10-20)
+
+`engine/gsf-next/src/owner_alpha_transport.{h,c}` provides a bounded,
+non-WSI, testable interface for the *actual* Alpha FidelityFX producer.
+The native Output Owner's offscreen GPU snapshot is one physical image,
+but it has independent logical owners:
+
+- **Game app VkImage**: native copy worker releases to the game's virtual
+  Acquire as soon as the snapshot-copy GPU fence signals. This does not
+  mean the output image has been shown.
+- **Output Owner REAL pin**: holds the private snapshot until the original
+  frame's downstream output-copy GPU fence completes. It must also
+  retain downstream WSI image ownership until actual compositor release.
+- **Alpha ingest pin**: holds a **separate reference to that same private
+  snapshot** until the dedicated Alpha ingest fence signals. The Alpha
+  callback `release_source` MUST release only Alpha's pin, **not** the
+  snapshot allocation while the owner's real pin remains. Never release
+  the app's render semaphore twice.
+- **Alpha generated target pins**: the independent reconstruction fence
+  proves OF/warps complete; ready synthetic targets are offered to
+  Output Owner only when before an immutable absolute deadline.
+  `gsf_alpha_owner_output_done(...,output_copy_done)` now checks the
+  actual owner output-copy VkFence nonblocking (timeout zero) and rejects
+  premature reuse. WSI present return alone is insufficient.
+- **Late or absent synthetic**: optional output is dropped rather than
+  acquiring WSI after its deadline. Original delivery is a separate
+  mandatory owner obligation and cannot depend on a successful warp.
+
+The `owner_alpha_transport` tests model 12,000 frames, delayed ingest
+vs reconstruction, deadlines, output-copy fence, bounded work slots,
+stale completions and partial GPU submit failure quarantine. No actual
+scanout is claimed by these mocked fence tests.
+
+### Still missing from production
+
+The native detached real-WSI worker and Alpha recorder/lifecycle are
+not yet instantiated **inside the same Vulkan layer/device dispatch**.
+The integration must register the owner's snapshot `VkImage` views with
+`afmf_framegen_create`, allocate and track the Alpha output ring and
+join the two separate fence streams to the owner's presenter. It must
+honor Vulkan loader data, dynamic rendering layouts, device features,
+queue external sync, present extension chains, and safe restoration.
+The separate CI suites prove contracts, NOT a working combined Game Mode
+frame generation installation. The draft PR must not be shipped.
