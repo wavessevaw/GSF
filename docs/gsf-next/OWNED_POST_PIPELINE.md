@@ -180,3 +180,41 @@ queue or real Gamescope surface**. Integration requires one Vulkan-layer
 dispatcher and owner-private resources registered as source and output
 images with real GPU lifetime fences. No new Deck candidate or claimed
 ×2/×3/×4 performance until completed and measured on hardware.
+
+
+## Real Vulkan owner separation checkpoint (2026-10-20)
+
+The native **Output Owner transport**, with Alpha generation disabled,
+now has an opt-in, loader-installed Vulkan path
+`GFG_NATIVE_TEST_DETACHED_OWNER=1`:
+
+- Game renders into the virtual app swapchain, `vkQueuePresentKHR`
+  submits a GPU snapshot copy, consuming application render waits once.
+- A capture worker observes the COPY fence, transfers the private GPU
+  snapshot token into an eight-image independently pinned ring, and
+  retires the virtual app image. No downstream WSI acquire/present is
+  performed in the capture callback.
+- A second worker acquires/presents on the *sole* real downstream
+  swapchain, later retires the output GPU fence, and frees the snapshot.
+- A real Vulkan/X11 test deliberately adds 40 ms **after snapshot
+  handoff**, verifying that source GPU-copy retirement occurs earlier
+  than WSI output, that all eight originals arrive, and that no
+  snapshot is left pinned. It does not claim physical OLED timing.
+
+The detached test rejects LMC and test A/B composite. Its purpose is
+to establish the transport, *not* synthetic generation.
+
+The Alpha producer at
+`engine/gsf-next/src/owner_alpha_record.{h,c}` separately compiles
+and passes command-recorder tests; it records the actual FidelityFX
+Optical Flow into owner-private targets. The work still remaining is a
+**single Vulkan layer runtime** that registers the detached private
+snapshots as Alpha inputs, puts the Alpha ingest/reconstruction GPU
+commands on the same correctly synchronized queue, and hands the
+resulting target images to this WSI worker. Do not start two unrelated
+layers as a substitute for this integration.
+
+The previous mandatory native output-owner CI includes a deliberately
+**failing** strict 22.5→90 x4 LMC pacing experiment. It is historical
+research and does not measure Alpha. Preserve its red status explicitly
+rather than claiming full PR green.
