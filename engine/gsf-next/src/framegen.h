@@ -6,6 +6,7 @@
  * detector out) followed by the layer's own interpolation shader. One instance per swapchain; the
  * pipelines are shared per device and built on first use. */
 
+struct afmf_config;
 struct afmf_framegen;
 
 /* Whether the interpolated frame can be written straight into a swapchain image of this format
@@ -21,7 +22,7 @@ bool afmf_framegen_can_write_direct(const struct afmf_device *dev, VkFormat swap
 struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swapchain_format,
                                            VkExtent2D extent, uint32_t slots,
                                            const VkImage *images, uint32_t image_count,
-                                           bool direct_output, bool direct_ingest);
+                                           bool direct_output, bool direct_ingest, const struct afmf_config *config);
 
 /* True when the interpolator writes the target itself: the caller hands it in GENERAL layout. */
 bool afmf_framegen_direct(const struct afmf_framegen *fg);
@@ -87,3 +88,5 @@ void afmf_framegen_pipelines_destroy(struct afmf_device *dev);
 /* Most recently retired pair, GPU timestamps only; -1 when unavailable. */
 double afmf_framegen_gpu_ms(const struct afmf_framegen *fg);
 void afmf_framegen_gpu_stages(const struct afmf_framegen *fg, double *motion, double warps[3]);
+
+void afmf_framegen_set_diagnostics(struct afmf_framegen *fg,bool enabled);

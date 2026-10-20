@@ -7,9 +7,9 @@ All 12 integration cases passed; the display-slot planner independently checks t
 
 | Mode | Retired pairs with outputs | Pair p50 / p95 / p99, ms | Shared analysis p50, ms | G1 / G2 / G3 p50, ms | Built / WSI accepted |
 | --- | ---: | --- | ---: | --- | --- |
-| x2 | 13 | 29.629 / 247.906 / 495.502 | 19.495 | 9.360 / — / — | 13 / 13 |
-| x3 | 15 | 44.119 / 56.778 / 59.501 | 19.986 | 10.430 / 11.007 / — | 30 / 30 |
-| x4 | 15 | 52.376 / 128.720 / 133.214 | 21.565 | 10.679 / 9.617 / 9.717 | 45 / 45 |
+| x2 | 13 | 35.936 / 413.699 / 860.446 | 25.898 | 11.205 / — / — | 13 / 13 |
+| x3 | 15 | 36.397 / 68.298 / 68.729 | 18.493 | 9.011 / 8.656 / — | 30 / 30 |
+| x4 | 15 | 56.474 / 101.355 / 111.139 | 21.288 | 12.163 / 9.625 / 9.616 | 45 / 45 |
 
 44 generated GPU images passed temporal-position, unique-pixel-hash and temporal-order checks. The upstream centroid tolerance stays ±2 pixels; moving-block flow and HUD checks are retained. Empty display reservations are valid, so the harness checks actual reserved warm pairs instead of assuming that a particular source ordinal always generated an output.
 

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from next_runtime import Runtime, app_id, atomic, environment, read, verify
+from next_runtime import Runtime, app_id, atomic, control, environment, read, verify
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     inherited=os.environ.copy()
     try: profile=read(root/'config.json',{}).get('games',{}).get(aid,{})
     except (OSError,ValueError,TypeError): profile={}
-    if not profile.get('enabled') or profile.get('multiplier',2)==0:
+    if not profile.get('armed', profile.get('enabled',False)):
         os.execvpe(command[0],command,inherited)
     runtime=Runtime(Path.home(),root)
     runtime.root=root
@@ -38,7 +38,9 @@ def main():
         current=read(root/'current.json')
         kit=Path(current['kit'])
         report['build']=verify(kit)
-        env=environment(kit,run,inherited,profile)
+        control_path=root/'controls'/aid
+        control(control_path,profile)
+        env=environment(kit,run,inherited,profile,control_path)
         report['profile']=profile
         report['result']='NO_GENERATION_EVIDENCE'
     except (OSError,ValueError,KeyError,TypeError) as error:
@@ -54,6 +56,17 @@ def main():
         sampler=GpuSampler(run/'amdgpu.jsonl')
         sampler.start()
     except (ImportError,OSError): pass
+    observed={}
+    def evidence():
+        for path in (run/'status').glob('*.json'):
+            try:
+                row=read(path)
+                previous=observed.get(path.name,{})
+                observed[path.name]={k:max(row.get(k,0),previous.get(k,0)) for k in ('generated','accepted_real','accepted_synthetic')}
+            except (OSError,ValueError,TypeError): pass
+        if observed:
+            report['counters']={k:sum(row.get(k,0) for row in observed.values()) for k in ('generated','accepted_real','accepted_synthetic')}
+            if report['counters']['accepted_synthetic']>0: report['result']='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED'
     try:
         with (run/'game.log').open('ab',buffering=0) as output:
             child=subprocess.Popen(command,env=env,stdout=output,stderr=subprocess.STDOUT)
@@ -62,6 +75,7 @@ def main():
                 if (run/'game.log').stat().st_size>16*1024*1024:
                     with (run/'game.log').open('r+b') as log: log.truncate(0)
                     report['log_truncated']=True
+                evidence()
                 time.sleep(.5)
         code=child.returncode
         report.update(stage='finished',exit_code=code)
@@ -69,6 +83,7 @@ def main():
         code=127
         report.update(stage='failed',error=str(error),exit_code=code)
     finally:
+        evidence()
         if sampler: sampler.stop()
         atomic(run/'REPORT.json',report)
     return code if code>=0 else 128-code

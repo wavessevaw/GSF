@@ -9,6 +9,28 @@
 
 #include "headless.h"
 
+/* Drive the same atomic control contract as Decky while the process is running.
+ * One revision per seven frames; the test driver checks acknowledgements. */
+static bool live_control(uint32_t frame)
+{
+    if(!env_is_1("GSF_TEST_LIVE") || frame%7u!=0 || frame>49u) return true;
+    const char *path=getenv("GSF_NEXT_CONTROL");if(path==NULL) return false;
+    unsigned stage=frame/7u;
+    static const unsigned multipliers[]={2,3,4,0,2,4,3,4};
+    unsigned quality=stage==4u?1u:2u;
+    unsigned queue=stage==5u?1u:2u;
+    unsigned images=stage>=6u?5u:3u,mode=stage>=6u?1u:0u;
+    unsigned hz=stage==7u?60u:90u;
+    char temporary[4096];int n=snprintf(temporary,sizeof temporary,"%s.tmp",path);
+    if(n<0 || (size_t)n>=sizeof temporary) return false;
+    FILE *out=fopen(temporary,"w");if(out==NULL) return false;
+    int written=fprintf(out,"GSF_NEXT_CONTROL_V1\n%u %u %u %u %u %u %u %u 1\n",
+        stage+1u,stage==3u?0u:1u,multipliers[stage],hz,quality,queue,images,mode);
+    if(fclose(out)!=0 || written<0 || rename(temporary,path)!=0) return false;
+    (void)fprintf(stderr,"live control revision %u at source frame %u\n",stage+1u,frame);
+    return true;
+}
+
 static bool run(struct ctx *ctx)
 {
     bool with_validation = instance_layer_available(VALIDATION_LAYER_NAME);
@@ -44,6 +66,7 @@ static bool run(struct ctx *ctx)
     struct timespec start, end;
     (void)clock_gettime(CLOCK_MONOTONIC, &start);
     for (uint32_t i = 0; i < frames; i++) {
+        if(!live_control(i)) return false;
         if (recreate != 0 && i != 0 && i % recreate == 0) {
             size_index = (size_index + 1) % (uint32_t)(sizeof sizes / sizeof sizes[0]);
             destroy_swapchain(ctx);

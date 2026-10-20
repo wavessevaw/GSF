@@ -33,13 +33,20 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     uint32_t j = 0;
     uint64_t b_ns = (uint64_t)job->arrival.tv_sec * 1000000000ull + (uint64_t)job->arrival.tv_nsec;
     if (sc->plan_epoch_ns == 0) sc->plan_epoch_ns = b_ns;
-    const struct afmf_config *cfg = afmf_config_get();
+    afmf_sc_live_update(dev,sc,b_ns);
+    const struct afmf_config *cfg=&sc->config;
+    job->config=*cfg;
+    job->source_a=sc->source_a_ns;job->source_b=b_ns;
     struct gsf_output_plan plan = gsf_output_plan(sc->source_a_ns, b_ns, sc->plan_epoch_ns,
                                                  cfg->refresh_hz, cfg->multiplier);
-    job->source_period_ns = b_ns > sc->source_a_ns ? b_ns - sc->source_a_ns : 0;
+    job->real_slot=plan.real_slot;
+    job->source_period_ns = sc->source_a_ns && b_ns > sc->source_a_ns ? b_ns - sc->source_a_ns : 0;
     sc->source_a_ns = b_ns;
     pthread_mutex_lock(&sc->job_lock);
-    bool allowed = afmf_sc_governor_allows(sc, sc->last_delay_ms, job->ordinal);
+    bool allowed = cfg->enabled && !sc->recreate_requested && afmf_sc_governor_allows(sc, sc->last_delay_ms, job->ordinal);
+    uint64_t tick=gsf_refresh_period(cfg->refresh_hz);
+    job->buffer_delay_ns=sc->frame_ms_ema>0 ? (uint64_t)(sc->frame_ms_ema*1e6) : 2*tick;
+    if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
     bool have_history = sc->have_history;
     if (!have_history)
         sc->skipped_no_history++;
@@ -49,6 +56,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
             if (!afmf_sc_spare_take(dev, sc, &j)) break;
             job->output_images[job->output_count] = j;
             job->phases[job->output_count] = plan.phases[n];
+            job->output_slots[job->output_count] = plan.slots[n];
             job->output_count++;
         }
         generate = job->output_count > 0;
@@ -93,14 +101,15 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     (void)clock_gettime(CLOCK_MONOTONIC, &t_submit);
 
     pthread_mutex_lock(&sc->job_lock);
-    sc->last_gpu_ms = afmf_framegen_gpu_ms(sc->fg);
+    sc->last_gpu_ms = cfg->enabled ? afmf_framegen_gpu_ms(sc->fg) : 0;
     afmf_framegen_gpu_stages(sc->fg, &sc->last_motion_ms, sc->last_warp_ms);
+    if(!cfg->enabled) { sc->last_motion_ms=0;memset(sc->last_warp_ms,0,sizeof sc->last_warp_ms); }
     sc->fence_ms += elapsed_ms(&t_start, &t_fence);
     sc->acquire_ms += elapsed_ms(&t_fence, &t_acquire);
     sc->record_ms += elapsed_ms(&t_acquire, &t_record);
     sc->submit_ms += elapsed_ms(&t_record, &t_submit);
     if (res == VK_SUCCESS) {
-        sc->have_history = true;
+        sc->have_history = cfg->enabled;
         if (generate)
             sc->generated += job->output_count;
     }
@@ -117,7 +126,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     if (generate && sc->fg != NULL && afmf_framegen_dump_recorded(sc->fg)) {
         (void)f->wait_for_fences(dev->handle, 1, &slot->fence, VK_TRUE, UINT64_MAX);
         afmf_framegen_dump_write(dev, sc->fg);
-        (void)clock_gettime(CLOCK_MONOTONIC, &job->arrival); /* the pacing and the governor start after the stall */
+        /* Source arrival is immutable even when debug readbacks stall the worker. */
     }
 
     return VK_SUCCESS;
@@ -156,8 +165,12 @@ void *afmf_sc_worker_main(void *arg)
             };
             pthread_mutex_lock(&dev->async_lock);
             VkResult passed = getenv("GSF_NEXT_TEST_FAIL_SUBMIT") ? VK_ERROR_DEVICE_LOST :
-                dev->fns.queue_submit(dev->async_queue, 1, &pass, VK_NULL_HANDLE);
+                dev->fns.queue_submit(dev->async_queue, 1, &pass, sc->slots[work.slot].fence);
             pthread_mutex_unlock(&dev->async_lock);
+            if(passed==VK_SUCCESS) {
+                sc->slots[work.slot].pending=true;
+                work.present.done=sc->slots[work.slot].fence;
+            }
             work.present.output_count = 0;
             pthread_mutex_lock(&sc->job_lock);
             if (sc->deferred_result >= 0)

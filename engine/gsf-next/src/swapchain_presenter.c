@@ -1,20 +1,50 @@
-/* The presentation thread: the generated frame at once, the real one after the pacing hold,
- * then the next spare. Under Proton each vkQueuePresentKHR measured 170-400 us of host time on
+/* The presentation thread: GPU-ready intermediates followed by the real endpoint,
+ * on a bounded monotonic cadence; late sequences shift together. Under Proton each vkQueuePresentKHR measured 170-400 us of host time on
  * the application's thread; both presents run here instead. */
 
 #include "swapchain_internal.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
-static void timespec_add_ns(struct timespec *t, uint64_t ns)
+static uint64_t monotonic_ns(void)
 {
-    t->tv_nsec += (long)(ns % 1000000000ull);
-    t->tv_sec += (time_t)(ns / 1000000000ull) + t->tv_nsec / 1000000000L;
-    t->tv_nsec %= 1000000000L;
+    struct timespec now;(void)clock_gettime(CLOCK_MONOTONIC,&now);
+    return (uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
+}
+
+static void pace_until(uint64_t deadline)
+{
+    struct timespec until={.tv_sec=(time_t)(deadline/1000000000ull),.tv_nsec=(long)(deadline%1000000000ull)};
+    while(clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&until,NULL)==EINTR) ;
+}
+
+/* Optional local evidence: actual accepted API call intervals, NOT scanout. */
+static void trace_present(struct afmf_swapchain *sc,const struct afmf_present_job *job,
+                          bool real,float phase,uint64_t target,uint64_t start,VkResult result)
+{
+    const char *base=getenv("GSF_NEXT_PRESENT_REPORT");
+    if(base==NULL || !job->config.diagnostics) return;
+    char path[4096];
+    int n=snprintf(path,sizeof path,"%s.%ld.%llu.jsonl",base,(long)getpid(),(unsigned long long)sc->plan_epoch_ns);
+    if(n<0 || (size_t)n>=sizeof path) return;
+    struct stat st;
+    if(stat(path,&st)==0 && st.st_size>16*1024*1024) {
+        char backup[4100];(void)snprintf(backup,sizeof backup,"%s.1",path);(void)rename(path,backup);
+    }
+    FILE *out=fopen(path,"a");if(out==NULL) return;
+    (void)fprintf(out,"{\"source_b\":%llu,\"source_a\":%llu,\"ordinal\":%llu,\"real\":%s,\"t\":%.6f,\"target_ns\":%llu,\"submit_ns\":%llu,\"ready_observed_ns\":%llu,\"result\":%d,\"refresh_hz\":%u,\"revision\":%llu,\"multiplier\":%u,\"enabled\":%s,\"quality\":%d,\"queue_limit\":%u}\n",
+        (unsigned long long)job->source_b,(unsigned long long)job->source_a,(unsigned long long)job->ordinal,
+        real?"true":"false",(double)phase,(unsigned long long)target,(unsigned long long)start,
+        (unsigned long long)job->ready_ns,(int)result,job->config.refresh_hz,(unsigned long long)job->config.revision,job->config.multiplier,job->config.enabled?"true":"false",
+        (int)job->config.performance,job->config.max_in_flight);
+    (void)fclose(out);
 }
 
 /* One present from the layer's queue, with the parts of the application's chain that were kept.
  * The present id only goes on the real frame: ids must increase, and the companion has none. */
 static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, uint32_t image,
-                            VkSemaphore wait, const struct afmf_present_job *job, bool real)
+                            VkSemaphore wait, const struct afmf_present_job *job, bool real,uint64_t desired,float phase)
 {
     VkPresentIdKHR id = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR,
@@ -79,10 +109,18 @@ static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, 
         *tail = &timings;
 #endif
 
+    uint64_t target=desired;
+    bool paced=job->config.enabled && job->config.pacing;
+    uint64_t hold_start=monotonic_ns();
+    if(paced) {
+        target=gsf_output_deadline(desired,sc->last_output_ns,job->config.refresh_hz);
+        pace_until(target);
+    }
     struct timespec t0, t1;
     (void)clock_gettime(CLOCK_MONOTONIC, &t0);
     wsi_take(sc);
     pthread_mutex_lock(sc->present_lock);
+    uint64_t submitted=monotonic_ns();
     VkResult res = dev->fns.queue_present(sc->present_queue, &present);
     pthread_mutex_unlock(sc->present_lock);
     wsi_give(sc);
@@ -91,6 +129,7 @@ static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, 
     /* Thread-side counters live under job_lock (never dev->lock: vkDeviceWaitIdle drains the
      * thread while holding dev->lock). */
     pthread_mutex_lock(&sc->job_lock);
+    sc->hold_ms+=(double)(submitted-hold_start)/1e6;
     if (real)
         sc->present_real_ms += elapsed_ms(&t0, &t1);
     else
@@ -98,13 +137,17 @@ static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, 
     pthread_mutex_unlock(&sc->job_lock);
     pthread_mutex_lock(&sc->job_lock);
     if (res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) {
+        sc->last_present_gap_ns=sc->last_output_ns ? submitted-sc->last_output_ns : 0;
+        sc->last_output_ns=submitted;
+        if(paced) sc->paced_presents++;
         if (real) {
-            sc->accepted_real++;
+            sc->accepted_real++;sc->presented_config=job->config;
             if(job->have_present_id) sc->last_submitted_present_id=job->present_id;
             pthread_cond_broadcast(&sc->job_cond);
         } else sc->accepted_synthetic++;
     }
     pthread_mutex_unlock(&sc->job_lock);
+    trace_present(sc,job,real,phase,target,submitted,res);
     return res;
 }
 
@@ -120,46 +163,48 @@ void *afmf_sc_presenter_main(void *arg)
         if (sc->job_count == 0)
             break; /* stopping, and drained */
         struct afmf_present_job job = sc->jobs[sc->job_head];
-        bool draining = sc->presenter_stop;
-
-        VkResult first = VK_SUCCESS;
+        VkResult first=VK_SUCCESS,second=VK_SUCCESS;
         pthread_mutex_unlock(&sc->job_lock);
-        struct timespec ready;
-        if (job.output_count) {
-            /* Readiness wait belongs to the presenter, never to the game's present hook.
-             * Timeout removes pacing holds; already-submitted work still owns its images. */
-            uint64_t budget = job.source_period_ns < 50000000ull ? job.source_period_ns : 50000000ull;
-            VkResult gpu = dev->fns.wait_for_fences(dev->handle, 1, &job.done, VK_TRUE, budget);
-            (void)clock_gettime(CLOCK_MONOTONIC, &ready);
-            double delay_ms = elapsed_ms(&job.arrival, &ready);
-            pthread_mutex_lock(&sc->job_lock);
-            sc->gpu_delay_ms += delay_ms;
-            sc->last_delay_ms = delay_ms;
-            pthread_mutex_unlock(&sc->job_lock);
-            bool pace = gpu == VK_SUCCESS && !draining && afmf_config_get()->pacing;
-            struct timespec until = ready;
-            /* A full source period is the hard limit on extra pacing. */
-            struct timespec limit = job.arrival;
-            timespec_add_ns(&limit, job.source_period_ns);
-            for (uint32_t n = 0; n < job.output_count; n++) {
-                uint32_t image = job.output_images[n];
-                VkResult result = present_one(dev, sc, image, sc->sem_generated[image], &job, false);
-                if (result < 0 || first == VK_SUCCESS) first = result;
-                float next = n + 1 < job.output_count ? job.phases[n + 1] : 1.0f;
-                uint64_t gap = (uint64_t)((double)(next - job.phases[n]) * (double)job.source_period_ns);
-                timespec_add_ns(&until, gap);
-                if (until.tv_sec > limit.tv_sec ||
-                    (until.tv_sec == limit.tv_sec && until.tv_nsec > limit.tv_nsec)) until = limit;
-                if (pace) {
-                    pthread_mutex_lock(&sc->job_lock);
-                    while (!sc->presenter_stop &&
-                           pthread_cond_timedwait(&sc->job_cond, &sc->job_lock, &until) != ETIMEDOUT) ;
-                    pthread_mutex_unlock(&sc->job_lock);
-                }
-            }
+        /* Never enqueue a WSI wait before observing ready. The bounded queue
+         * owns every resource until this fence retires, including during stop. */
+        VkResult gpu;
+        do { gpu=dev->fns.wait_for_fences(dev->handle,1,&job.done,VK_TRUE,5000000ull); }
+        while(gpu==VK_TIMEOUT);
+        job.ready_ns=monotonic_ns();
+        const char *test_delay=getenv("GSF_NEXT_TEST_READY_DELAY_MS");
+        if(test_delay!=NULL) {
+            long delay=strtol(test_delay,NULL,10);
+            if(delay>0 && delay<250) { pace_until(job.ready_ns+(uint64_t)delay*1000000ull);job.ready_ns=monotonic_ns(); }
         }
-        VkResult second = present_one(dev, sc, job.real_image,
-                                      sc->sem_real[job.real_image], &job, true);
+        pthread_mutex_lock(&sc->job_lock);
+        double delay_ms=(double)(job.ready_ns-(uint64_t)job.arrival.tv_sec*1000000000ull-(uint64_t)job.arrival.tv_nsec)/1e6;
+        sc->gpu_delay_ms+=delay_ms;sc->last_delay_ms=delay_ms;
+        if(gpu==VK_SUCCESS) sc->ready_synthetic+=job.output_count;
+        pthread_mutex_unlock(&sc->job_lock);
+        if(gpu==VK_SUCCESS) {
+            uint64_t first_slot=job.output_count ? job.output_slots[0] : job.real_slot;
+            uint64_t shift=job.config.enabled ? job.buffer_delay_ns : 0;
+            uint64_t earliest=job.ready_ns;
+            if(job.config.enabled && job.config.pacing)
+                earliest=gsf_output_deadline(earliest,sc->last_output_ns,job.config.refresh_hz);
+            if(first_slot+shift<earliest) {
+                shift=earliest-first_slot;
+                pthread_mutex_lock(&sc->job_lock);sc->late_pairs++;pthread_mutex_unlock(&sc->job_lock);
+            }
+            /* Rebase the whole sequence on lateness, retaining every spacing.
+             * There is no arrival+period clamp that can collapse G1/G2/G3/B. */
+            for(uint32_t n=0;n<job.output_count;n++) {
+                uint32_t image=job.output_images[n];
+                VkResult result=present_one(dev,sc,image,sc->sem_generated[image],&job,false,
+                    job.output_slots[n]+shift,job.phases[n]);
+                if(result<0 || first==VK_SUCCESS) first=result;
+            }
+            second=present_one(dev,sc,job.real_image,sc->sem_real[job.real_image],&job,true,
+                job.real_slot+shift,1.0f);
+        } else {
+            second=gpu;
+            pthread_mutex_lock(&sc->job_lock);sc->worker_failed=true;pthread_mutex_unlock(&sc->job_lock);
+        }
 
         /* Line up the next companion's image while the application renders. */
         struct timespec r0, r1;

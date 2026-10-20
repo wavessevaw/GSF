@@ -188,7 +188,11 @@ bool afmf_sc_spare_take(struct afmf_device *dev, struct afmf_swapchain *sc, uint
 void afmf_sc_status_write(struct afmf_swapchain *sc)
 {
     const char *dir = getenv("GSF_NEXT_STATUS_DIR");
-    if (dir == NULL || (sc->accepted_real % 30 != 0 && sc->accepted_real != 1)) return;
+    struct timespec now;
+    (void)clock_gettime(CLOCK_MONOTONIC,&now);
+    uint64_t now_ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
+    if(dir==NULL || (sc->last_status_ns && now_ns-sc->last_status_ns<250000000ull)) return;
+    sc->last_status_ns=now_ns;
     char path[4096], temporary[4096];
     int n = snprintf(path, sizeof path, "%s/%ld-%p.json", dir, (long)getpid(), (void *)sc->handle);
     if (n < 0 || (size_t)n >= sizeof path) return;
@@ -196,19 +200,20 @@ void afmf_sc_status_write(struct afmf_swapchain *sc)
     if (n < 0 || (size_t)n >= sizeof temporary) return;
     FILE *out = fopen(temporary, "w");
     if (out == NULL) return;
-    struct timespec now;
-    (void)clock_gettime(CLOCK_MONOTONIC, &now);
-    double source_fps = sc->frame_ms_ema > 0 ? 1000.0/sc->frame_ms_ema : 0.0;
-    (void)fprintf(out,
-        "{\"schema\":1,\"pid\":%ld,\"monotonic_ns\":%" PRIu64 ","
-        "\"source_fps\":%.3f,\"generated\":%" PRIu64 ",\"accepted_real\":%" PRIu64 ","
-        "\"accepted_synthetic\":%" PRIu64 ",\"queue_depth\":%u,\"queue_delay_ms\":%.3f,"
-        "\"selected_multiplier\":%u,\"refresh_hz\":%u,\"gpu_pair_ms\":%.3f,"
-        "\"motion_ms\":%.3f,\"warp_ms\":[%.3f,%.3f,%.3f],\"displayed\":null}\n",
-        (long)getpid(), (uint64_t)((uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec),
-        source_fps, sc->generated, sc->accepted_real, sc->accepted_synthetic,
-        sc->in_flight, sc->last_delay_ms, afmf_config_get()->multiplier,
-        afmf_config_get()->refresh_hz, sc->last_gpu_ms, sc->last_motion_ms,
-        sc->last_warp_ms[0], sc->last_warp_ms[1], sc->last_warp_ms[2]);
+    double source_fps=sc->frame_ms_ema>0 ? 1000.0/sc->frame_ms_ema : 0;
+    const struct afmf_config *cfg=&sc->presented_config;
+    (void)fprintf(out,"{\"schema\":2,\"retired\":%s,\"pid\":%ld,\"monotonic_ns\":%llu,\"source_fps\":%.3f,",
+        sc->status_retired?"true":"false",(long)getpid(),(unsigned long long)now_ns,source_fps);
+    (void)fprintf(out,"\"generated\":%llu,\"ready_synthetic\":%llu,\"accepted_real\":%llu,\"accepted_synthetic\":%llu,",
+        (unsigned long long)sc->generated,(unsigned long long)sc->ready_synthetic,
+        (unsigned long long)sc->accepted_real,(unsigned long long)sc->accepted_synthetic);
+    (void)fprintf(out,"\"queue_depth\":%u,\"queue_delay_ms\":%.3f,\"gpu_pair_ms\":%.3f,\"motion_ms\":%.3f,\"warp_ms\":[%.3f,%.3f,%.3f],",
+        sc->in_flight,sc->last_delay_ms,sc->last_gpu_ms,sc->last_motion_ms,sc->last_warp_ms[0],sc->last_warp_ms[1],sc->last_warp_ms[2]);
+    (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,",
+        (unsigned long long)cfg->revision,cfg->multiplier,cfg->enabled?"true":"false",cfg->refresh_hz,
+        cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight);
+    (void)fprintf(out,"\"recreate_pending\":%s,\"late_pairs\":%llu,\"last_present_gap_ms\":%.3f,\"paced_presents\":%llu,\"displayed\":null}\n",
+        sc->recreate_requested?"true":"false",(unsigned long long)sc->late_pairs,
+        (double)sc->last_present_gap_ns/1e6,(unsigned long long)sc->paced_presents);
     if (fclose(out) == 0) (void)rename(temporary,path);
 }

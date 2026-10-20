@@ -64,8 +64,23 @@ class RuntimeTests(unittest.TestCase):
         child='import json,os; print(json.dumps({"layer":os.environ.get("VK_INSTANCE_LAYERS"),"probe":os.environ.get("PROBE")}))'
         env=os.environ.copy();env.update(HOME=str(self.home),PROBE='retained');env.pop('VK_INSTANCE_LAYERS',None)
         return subprocess.run([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,capture_output=True,text=True,timeout=10)
-    def test_disabled_launcher_strict_passthrough(self):
-        result=self.invoke(False);self.assertEqual(result.returncode,0);self.assertEqual(json.loads(result.stdout),dict(layer=None,probe='retained'))
+    def test_armed_off_launcher_keeps_layer_for_live_enable(self):
+        result=self.invoke(False);self.assertEqual(result.returncode,0)
+        log=(self.runtime.latest(1)/'game.log').read_text()
+        self.assertEqual(json.loads(log),dict(layer='VK_LAYER_GSF_next',probe='retained'))
+    def test_uninstalled_launcher_strict_passthrough(self):
+        self.runtime.prepare(1);self.runtime.disable_all()
+        child='import os; print(os.environ.get("VK_INSTANCE_LAYERS","none"))'
+        env=os.environ.copy();env.update(HOME=str(self.home));env.pop('VK_INSTANCE_LAYERS',None)
+        result=subprocess.run([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.stdout.strip(),'none');self.assertEqual(result.returncode,0)
+    def test_live_control_revision_and_fields(self):
+        first=self.runtime.prepare(42);self.assertFalse(first['restart_required'])
+        second=self.runtime.configure(42,dict(multiplier=4,quality='quality',extra_images=5))
+        self.assertGreater(second['revision'],first['revision']);self.assertEqual(second['apply'],'swapchain')
+        fields=(self.runtime.root/'controls/42').read_text().split()
+        self.assertEqual(fields[0],'GSF_NEXT_CONTROL_V1')
+        self.assertEqual(list(map(int,fields[1:])),[second['revision'],1,4,90,1,2,5,0,0])
     def test_corrupt_runtime_launches_game_once_without_layer(self):
         result=self.invoke(True,True);self.assertEqual(result.returncode,0)
         report=read(self.runtime.latest(1)/'REPORT.json');self.assertEqual(report['result'],'REAL_ONLY_PREFLIGHT_FAILURE')
@@ -79,5 +94,27 @@ class RuntimeTests(unittest.TestCase):
         atomic(run/'status/1.json',{**base,'monotonic_ns':t,'accepted_real':60,'accepted_synthetic':120,'generated':120})
         s=self.runtime.status(1)['live'][0];self.assertEqual(s['output_fps'],90);self.assertEqual(s['generated_fps'],60);self.assertNotIn('displayed_fps',s)
         self.assertEqual(self.runtime.status(1)['live'][0]['output_fps'],90)
+
+    def test_live_ack_and_retired_context_filter(self):
+        import time
+        p=self.runtime.prepare(1);run=self.runtime.results/'game-1-123';(run/'status').mkdir(parents=True)
+        atomic(run/'REPORT.json',dict(stage='running'))
+        row=dict(monotonic_ns=time.monotonic_ns(),accepted_real=30,accepted_synthetic=30,generated=30,source_fps=30,control_revision=p['revision']-1)
+        atomic(run/'status/1.json',row)
+        self.assertTrue(self.runtime.status(1)['live'][0]['settings_pending'])
+        atomic(run/'status/1.json',{**row,'control_revision':p['revision']})
+        self.assertFalse(self.runtime.status(1)['live'][0]['settings_pending'])
+        atomic(run/'status/2.json',{**row,'retired':True,'accepted_synthetic':9999})
+        self.assertEqual(len(self.runtime.status(1)['live']),1)
+    def test_finished_report_keeps_real_wsi_evidence(self):
+        self.runtime.prepare(1)
+        child='import json,os,pathlib; p=pathlib.Path(os.environ["GSF_NEXT_STATUS_DIR"])/"1.json"; p.write_text(json.dumps(dict(generated=5,accepted_real=6,accepted_synthetic=5,retired=True)))'
+        env=os.environ.copy();env.update(HOME=str(self.home));env.pop('VK_INSTANCE_LAYERS',None)
+        result=subprocess.run([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0)
+        report=read(self.runtime.latest(1)/'REPORT.json')
+        self.assertEqual(report['result'],'WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED')
+        self.assertEqual(report['counters']['accepted_synthetic'],5)
+        self.assertIsNone(report['displayed'])
 
 if __name__=='__main__': unittest.main()

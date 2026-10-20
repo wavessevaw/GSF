@@ -63,6 +63,9 @@ def main():
                 import re
                 totals=re.findall(r'GSF_NEXT_SUMMARY real=(\d+) built=(\d+) accepted_real=(\d+) accepted_synthetic=(\d+)',log)
                 assert totals and int(totals[-1][1])>0 and int(totals[-1][2])==16 and totals[-1][1]==totals[-1][3],totals
+                report=json.loads((run/'REPORT.json').read_text())
+                assert report['result']=='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED',report
+                assert report['counters']['accepted_real']==16,report
                 print('extracted launcher Vulkan ×'+str(mult)+': PASS',flush=True)
     print('extracted ZIP: checksums, offline install, actual backend, profiles and off launch PASS')
 

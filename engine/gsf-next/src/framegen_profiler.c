@@ -57,7 +57,7 @@ void afmf_framegen_profiler_collect(struct afmf_device *dev, struct afmf_framege
         } else if (stages[i] != STAGE_OUTPUT) fg->last_motion_ms += ns/1e6;
     }
     const char *path = getenv("GSF_NEXT_GPU_REPORT");
-    if (path != NULL) {
+    if (path != NULL && fg->diagnostics) {
         char filename[4096], backup[4096];
         int length=snprintf(filename,sizeof filename,"%s.%ld.%llu.jsonl",path,(long)getpid(),(unsigned long long)fg->context_id);
         FILE *out=NULL;

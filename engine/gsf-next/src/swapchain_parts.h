@@ -48,3 +48,5 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
                                    uint32_t family, const VkPresentInfoKHR *info, uint64_t ordinal);
 
 void afmf_sc_status_write(struct afmf_swapchain *sc);
+
+void afmf_sc_live_update(struct afmf_device *dev,struct afmf_swapchain *sc,uint64_t now);

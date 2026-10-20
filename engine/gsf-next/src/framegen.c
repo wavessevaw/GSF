@@ -142,12 +142,13 @@ static const char *blocker_for(struct afmf_device *dev, struct afmf_framegen *fg
 struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swapchain_format,
                                            VkExtent2D extent, uint32_t slots,
                                            const VkImage *images, uint32_t image_count,
-                                           bool direct_output, bool direct_ingest)
+                                           bool direct_output, bool direct_ingest, const struct afmf_config *cfg)
 {
     struct afmf_framegen *fg = calloc(1, sizeof *fg);
     if (fg == NULL)
         return NULL;
     fg->context_id = atomic_fetch_add_explicit(&g_context_id,1,memory_order_relaxed)+1;
+    fg->diagnostics=cfg->diagnostics;
     fg->extent = extent;
     fg->slots = slots;
     fg->swapchain_format = swapchain_format;
@@ -161,7 +162,6 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
 
     /* Performance mode: the block search, 85 % of the cost, runs on a half-size frame; blocks
      * become 16 pixels on screen. Auto picks it from 1440p up, where the search dominates. */
-    const struct afmf_config *cfg = afmf_config_get();
     bool half = cfg->performance == AFMF_PERFORMANCE_FAST ||
                 (cfg->performance == AFMF_PERFORMANCE_AUTO &&
                  (uint64_t)extent.width * extent.height >= 2560u * 1440u);
@@ -227,3 +227,6 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
               fg->ingest_direct ? ", direct ingest" : "", fg->direct ? ", direct output" : "");
     return fg;
 }
+
+void afmf_framegen_set_diagnostics(struct afmf_framegen *fg,bool enabled)
+{ if(fg!=NULL) fg->diagnostics=enabled; }

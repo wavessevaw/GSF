@@ -169,6 +169,7 @@ struct afmf_framegen {
     struct secondary *secondaries;
 
     bool initialized; /* layouts transitioned and detector cleared in a command buffer */
+    bool diagnostics;
     uint64_t context_id;
     uint32_t frame_index;
 
