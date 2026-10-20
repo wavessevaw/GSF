@@ -64,10 +64,10 @@ def main():
             try:
                 row=read(path)
                 previous=observed.get(path.name,{})
-                observed[path.name]={k:max(row.get(k,0),previous.get(k,0)) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic')}
+                observed[path.name]={k:max(row.get(k,0),previous.get(k,0)) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic','expired_synthetic','superseded_synthetic')}
             except (OSError,ValueError,TypeError): pass
         if observed:
-            report['counters']={k:sum(row.get(k,0) for row in observed.values()) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic')}
+            report['counters']={k:sum(row.get(k,0) for row in observed.values()) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic','expired_synthetic','superseded_synthetic')}
             if report['counters']['accepted_synthetic']>0: report['result']='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED'
     try:
         with (run/'game.log').open('ab',buffering=0) as output:
