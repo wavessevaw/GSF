@@ -555,6 +555,76 @@ static inline VkResult gfg_test_live_output(void *user,
     r->have_previous=1;
     return VK_SUCCESS;
 }
+/* Test-only copy-fence handoff. The callback *never* waits on downstream WSI.
+ * It transfers a copied, immutable GPU snapshot to the independent output
+ * thread, after which the capture worker retires the virtual game VkImage.
+ * No LMC/temporal producer is involved. */
+static inline VkResult gfg_test_detached_handoff(void *user,uint32_t app,uint64_t ticket) {
+    gfg_test_loader_runtime *r=user;
+    const unsigned k=(unsigned)(ticket%GFG_SNAPSHOT_MAX_IMAGES);
+    pthread_mutex_lock(&r->owner_lock);
+    VkResult result=VK_SUCCESS;
+    if(r->stamp_for_ticket[k]!=ticket || r->app_for_ticket[k]!=app ||
+       r->owner_count>=r->owner_snapshots.capacity) {
+        result=VK_ERROR_INITIALIZATION_FAILED;
+    } else {
+        const unsigned snap=r->snap_for_ticket[k];
+        if(!gfg_snapshot_copy_ready(&r->owner_snapshots,snap,ticket,
+                                     gfg_pacer_monotonic_ns()))
+            result=VK_ERROR_INITIALIZATION_FAILED;
+        else {
+            const unsigned tail=(r->owner_head+r->owner_count)%
+                                 r->owner_snapshots.capacity;
+            r->owner_queue[tail].index=snap;
+            r->owner_queue[tail].ticket=ticket;
+            ++r->owner_count;
+            pthread_cond_broadcast(&r->owner_cond);
+        }
+    }
+    pthread_mutex_unlock(&r->owner_lock);
+    return result;
+}
+/* Sole real downstream WSI presenter. App-facing source image has already
+ * become reusable once copy fence retired. The pinned private image
+ * cannot be recycled until its output copy GPU fence is complete. */
+static inline void *gfg_test_detached_output_worker(void *arg) {
+    gfg_test_loader_runtime *r=arg;
+    pthread_mutex_lock(&r->owner_lock);
+    for(;;) {
+        while(!r->owner_count && !r->owner_stop)
+            pthread_cond_wait(&r->owner_cond,&r->owner_lock);
+        if(!r->owner_count)break;
+        const unsigned idx=r->owner_queue[r->owner_head].index;
+        const uint64_t ticket=r->owner_queue[r->owner_head].ticket;
+        r->owner_head=(r->owner_head+1u)%r->owner_snapshots.capacity;
+        --r->owner_count;
+        pthread_mutex_unlock(&r->owner_lock);
+        if(r->owner_delay_ms) {
+            const struct timespec ts={(time_t)(r->owner_delay_ms/1000u),
+                     (long)(r->owner_delay_ms%1000u)*1000000L};
+            nanosleep(&ts,NULL); /* fault injection, owner worker only */
+        }
+        pthread_mutex_lock(&r->proxy->app.mutex);
+        const uint64_t retired=r->proxy->app.copy_retirements;
+        pthread_mutex_unlock(&r->proxy->app.mutex);
+        if(retired>r->owner_completed)++r->early_source_releases;
+        VkResult result=gfg_test_live_output(r,idx,ticket);
+        if(result==VK_SUCCESS)
+            result=vkWaitForFences(r->device,1,&r->output_fence,VK_TRUE,UINT64_MAX);
+        pthread_mutex_lock(&r->owner_lock);
+        if(result==VK_SUCCESS && !gfg_snapshot_real_retired(
+               &r->owner_snapshots,idx,ticket))
+            result=VK_ERROR_INITIALIZATION_FAILED;
+        if(result==VK_SUCCESS)++r->owner_completed;
+        else {r->owner_failure=result;r->owner_stop=1;}
+        pthread_cond_broadcast(&r->owner_cond);
+        if(result!=VK_SUCCESS)break;
+    }
+    pthread_cond_broadcast(&r->owner_cond);
+    pthread_mutex_unlock(&r->owner_lock);
+    return NULL;
+}
+
 /* Called after gfg_output_proxy_create, when both source and private output
  * swapchains exist. Test-only and intentionally supports only one graphics
  * + presentation queue family. */
@@ -566,6 +636,37 @@ static inline VkResult gfg_test_live_init(gfg_test_loader_runtime *r,
         return VK_ERROR_INITIALIZATION_FAILED;
     r->device=device;r->queue=queue;r->family=family;r->proxy=proxy;
     r->memory_ops=memory_ops;
+    r->detached=getenv("GFG_NATIVE_TEST_DETACHED_OWNER")!=NULL;
+    if(r->detached) {
+        /* Only exercise SOURCE+OUTPUT contract here. Alpha FG supplies the
+         * eventual synthetic images; native LMC is explicitly forbidden. */
+        if(getenv("GFG_NATIVE_TEST_OUTPUT_INTERLEAVE") ||
+           getenv("GFG_NATIVE_TEST_LMC_OUTPUT_OWNER"))
+            return VK_ERROR_FEATURE_NOT_PRESENT;
+        const char *text=getenv("GFG_NATIVE_TEST_OUTPUT_DELAY_MS");
+        if(text) {
+            char *end=NULL;
+            unsigned long ms=strtoul(text,&end,10);
+            if(end==text || !end || *end || ms>1000u)
+                return VK_ERROR_INITIALIZATION_FAILED;
+            r->owner_delay_ms=(uint32_t)ms;
+        }
+        if(!gfg_snapshot_ring_init(&r->owner_snapshots,GFG_SNAPSHOT_MAX_IMAGES))
+            return VK_ERROR_INITIALIZATION_FAILED;
+        if(pthread_mutex_init(&r->owner_lock,NULL)!=0)
+            return VK_ERROR_INITIALIZATION_FAILED;
+        if(pthread_mutex_init(&r->host_queue_lock,NULL)!=0) {
+            pthread_mutex_destroy(&r->owner_lock);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        if(pthread_cond_init(&r->owner_cond,NULL)!=0) {
+            pthread_mutex_destroy(&r->host_queue_lock);
+            pthread_mutex_destroy(&r->owner_lock);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        r->owner_failure=VK_SUCCESS;
+        r->owner_lock_ok=1;
+    }
     r->interleave=getenv("GFG_NATIVE_TEST_OUTPUT_INTERLEAVE")!=NULL;
     r->hold_initial_real=getenv("GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST")!=NULL;
     if(r->hold_initial_real && !r->interleave)return VK_ERROR_FEATURE_NOT_PRESENT;
@@ -576,6 +677,7 @@ static inline VkResult gfg_test_live_init(gfg_test_loader_runtime *r,
                         (proxy->source.extent.width&1u)))
         return VK_ERROR_FEATURE_NOT_PRESENT;
     VkSwapchainCreateInfoKHR history_ci=*original;
+    if(r->detached)history_ci.minImageCount=GFG_SNAPSHOT_MAX_IMAGES;
     history_ci.imageUsage|=VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                            VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     VkResult result=gfg_offscreen_pool_create(&r->history,device,
@@ -616,10 +718,19 @@ static inline VkResult gfg_test_live_init(gfg_test_loader_runtime *r,
     if(result!=VK_SUCCESS)return result;
     /* All resources above established before worker can call output. */
     r->started=1;
+    if(r->detached) {
+        if(pthread_create(&r->owner_thread,NULL,gfg_test_detached_output_worker,r)!=0) {
+            r->started=0;return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        r->owner_thread_ok=1;
+    }
     result=gfg_async_capture_init(&r->capture,&proxy->app,device,queue,
         family,gfg_test_live_record,r);
     if(result!=VK_SUCCESS){r->started=0;return result;}
-    r->capture.complete=gfg_test_live_output;
+    if(r->detached) {
+        r->capture.handoff=gfg_test_detached_handoff;
+        r->capture.queue_submit_lock=&r->host_queue_lock;
+    } else r->capture.complete=gfg_test_live_output;
     return VK_SUCCESS;
 }
 static inline void gfg_test_live_destroy(gfg_test_loader_runtime *r) {
@@ -627,6 +738,23 @@ static inline void gfg_test_live_destroy(gfg_test_loader_runtime *r) {
     /* Worker first; in-flight capture and output WSI jobs must be retired
      * before either command pool or GPU-owned source/history images die. */
     gfg_async_capture_cleanup(&r->capture);
+    if(r->owner_thread_ok) {
+        pthread_mutex_lock(&r->owner_lock);
+        r->owner_stop=1;
+        pthread_cond_broadcast(&r->owner_cond);
+        pthread_mutex_unlock(&r->owner_lock);
+        pthread_join(r->owner_thread,NULL);
+        r->owner_thread_ok=0;
+        fprintf(stderr,"GSF_DETACHED_OWNER handoff=%llu source_retired=%llu"
+            " output_retired=%llu early_source_release=%llu live=%u"
+            " status=%d\n",
+            (unsigned long long)r->owner_snapshots.source_retired,
+            (unsigned long long)r->proxy->app.copy_retirements,
+            (unsigned long long)r->owner_completed,
+            (unsigned long long)r->early_source_releases,
+            gfg_snapshot_live(&r->owner_snapshots),
+            (int)r->owner_failure);
+    }
     if(r->interleave && r->output_pacer.emitted) {
         const uint64_t gaps=r->output_pacer.emitted-1u;
         fprintf(stderr,
@@ -661,6 +789,12 @@ static inline void gfg_test_live_destroy(gfg_test_loader_runtime *r) {
         if(r->ready[i])vkDestroySemaphore(r->device,r->ready[i],NULL);
     if(r->acquired)vkDestroySemaphore(r->device,r->acquired,NULL);
     gfg_offscreen_pool_destroy(&r->history,r->device,&r->memory_ops);
+    if(r->owner_lock_ok) {
+        pthread_cond_destroy(&r->owner_cond);
+        pthread_mutex_destroy(&r->host_queue_lock);
+        pthread_mutex_destroy(&r->owner_lock);
+        r->owner_lock_ok=0;
+    }
     r->device=VK_NULL_HANDLE;r->started=0;
 }
 #endif
