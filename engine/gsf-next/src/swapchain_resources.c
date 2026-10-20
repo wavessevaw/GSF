@@ -31,6 +31,8 @@ VkResult afmf_sc_gen_init(struct afmf_device *dev, struct afmf_swapchain *sc)
             res = dev->fns.create_semaphore(dev->handle, &semaphore, NULL, &sc->sem_app[i]);
         if (res == VK_SUCCESS)
             res = dev->fns.create_fence(dev->handle, &fence, NULL, &sc->slots[i].fence);
+        if (res == VK_SUCCESS)
+            res = dev->fns.create_fence(dev->handle, &fence, NULL, &sc->slots[i].ingest_fence);
         if (res != VK_SUCCESS)
             return res;
     }
@@ -86,6 +88,10 @@ bool afmf_sc_ensure_pool(struct afmf_device *dev, struct afmf_swapchain *sc, uin
         /* Allocated below the loader's trampoline: stamp the dispatch pointer ourselves. */
         if (dev->set_loader_data(dev->handle, sc->slots[i].cmd) != VK_SUCCESS)
             return false;
+        if (dev->fns.allocate_command_buffers(dev->handle, &alloc, &sc->slots[i].ingest_cmd) != VK_SUCCESS)
+            return false;
+        if (dev->set_loader_data(dev->handle, sc->slots[i].ingest_cmd) != VK_SUCCESS)
+            return false;
     }
     if(!afmf_sc_output_pool(dev,sc,family)) return false;
     if (sc->fg != NULL)
@@ -115,6 +121,10 @@ void afmf_sc_gen_teardown(struct afmf_device *dev, struct afmf_swapchain *sc)
                 (void)f->wait_for_fences(dev->handle, 1, &slot->fence, VK_TRUE, UINT64_MAX);
             if (slot->fence != VK_NULL_HANDLE)
                 f->destroy_fence(dev->handle, slot->fence, NULL);
+            if (slot->ingest_pending)
+                (void)f->wait_for_fences(dev->handle,1,&slot->ingest_fence,VK_TRUE,UINT64_MAX);
+            if (slot->ingest_fence != VK_NULL_HANDLE)
+                f->destroy_fence(dev->handle, slot->ingest_fence, NULL);
         }
     }
     if (sc->spare_fence != VK_NULL_HANDLE) {
