@@ -61,9 +61,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
      * for a greater chance of on-time synthetic output. */
     uint32_t effective_queue=gsf_queue_effective(cfg->max_in_flight,
                               cfg->refresh_hz,cfg->multiplier,sc->output_capacity);
-    uint64_t planned_ticks=(uint64_t)effective_queue+1u;
-    if(lag_ticks<planned_ticks) lag_ticks=planned_ticks;
-    if(lag_ticks>9u) lag_ticks=9u;
+    lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
     /* Backpressure already spent future output slots. Do not turn the slower
