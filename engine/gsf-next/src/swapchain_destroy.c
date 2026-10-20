@@ -68,6 +68,19 @@ void afmf_swapchain_drain_all(struct afmf_device *dev)
     pthread_mutex_unlock(&dev->lock);
 }
 
+/* A returned application Present is already logically queued. QueueWaitIdle
+ * must include its layer-owned handoffs, not just commands which happened to
+ * reach the driver before the asynchronous workers ran. Never take a queue
+ * mutex while draining: the workers/presenter need it to finish. */
+void afmf_swapchain_drain_queue(struct afmf_device *dev,VkQueue queue)
+{
+    pthread_mutex_lock(&dev->lock);
+    for(struct afmf_swapchain *sc=dev->swapchains;sc!=NULL;sc=sc->next)
+        if(sc->present_queue==queue || (sc->async && dev->async_queue==queue))
+            afmf_sc_presenter_drain(sc);
+    pthread_mutex_unlock(&dev->lock);
+}
+
 void afmf_swapchain_forget_all(struct afmf_device *dev)
 {
     pthread_mutex_lock(&dev->lock);

@@ -93,6 +93,7 @@ VKAPI_ATTR VkResult VKAPI_CALL afmf_QueueWaitIdle(VkQueue queue)
     struct afmf_device *dev = afmf_device_find(dispatch_key(queue));
     if (dev == NULL)
         return VK_ERROR_DEVICE_LOST;
+    afmf_swapchain_drain_queue(dev,queue);
     pthread_mutex_t *mutex=afmf_device_queue_mutex(dev,queue);
     pthread_mutex_lock(mutex);
     VkResult res = dev->fns.queue_wait_idle(queue);

@@ -108,3 +108,16 @@ hardware protocol. No MAKO/LSFG runtime or licensed components are used.
 Budget pressure measures only time inside the full-queue condition wait. Mutex
 acquisition or host descheduling without a full queue is not counted as output
 backpressure, preserving complete ×3/×4 requests when the queue has capacity.
+
+
+QueueWaitIdle now drains already-returned Present requests owned by the layer
+before locking and idling the relevant downstream queue. Previously it could
+return while asynchronous generation/presentation remained queued; consequently
+the ostensibly serial pixel harness accidentally exercised source backpressure
+and correctly failed its three-output requirement. The fix restores the Vulkan
+queue-idle contract instead of reducing that pixel/phase requirement. The
+pipelined source case deliberately waits only for its own render fence, so it
+continues exercising overlap and admission. Applications serializing every
+source behind queue idle or physical present completion can still incur added
+interpolation latency; an independent virtual-source completion contract would
+be needed to remove that restriction.
