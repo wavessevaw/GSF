@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <errno.h>
 
 struct afmf_framegen {
     uint32_t slots,sources,targets;
@@ -17,12 +18,18 @@ static uint32_t begin_count,end_count,prepare_count,ingest_count,reconstruct_cou
 static VkImage snapshot;
 static uint32_t invalid_source_writes;
 static int expected_direct;
+static pthread_mutex_t *checked_queue_lock;
 static void clear(void) {
     begin_count=end_count=prepare_count=ingest_count=reconstruct_count=finish_count=barriers=0;
     invalid_source_writes=0;
 }
 static VkResult VKAPI_PTR cmd_begin(VkCommandBuffer cb,const VkCommandBufferBeginInfo *info) {
     assert(cb && info && info->sType==VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
+    if(checked_queue_lock) {
+        /* Recording cannot hold the shared game VkQueue mutex. */
+        assert(pthread_mutex_trylock(checked_queue_lock)==0);
+        pthread_mutex_unlock(checked_queue_lock);
+    }
     begin_count++;return VK_SUCCESS;
 }
 static VkResult VKAPI_PTR cmd_end(VkCommandBuffer cb) {
@@ -79,6 +86,8 @@ static VkResult VKAPI_PTR test_submit(VkQueue queue,uint32_t count,
     assert(queue && count==1 && info && fence);
     assert(info->commandBufferCount==1 && info->waitSemaphoreCount==0);
     assert(info->signalSemaphoreCount==0);
+    if(checked_queue_lock)
+        assert(pthread_mutex_trylock(checked_queue_lock)==EBUSY);
     ++submit_calls;
     return submit_calls==2?submit_second_failure:VK_SUCCESS;
 }
@@ -150,6 +159,26 @@ int main(void) {
         in,out,(VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa1,
         &ok,&state)==VK_ERROR_INITIALIZATION_FAILED);
     assert(submit_calls==0 && !state.ingest_submitted);
+    pthread_mutex_t queue_lock=PTHREAD_MUTEX_INITIALIZER;
+    checked_queue_lock=&queue_lock;
+    clear();submit_calls=0;submit_second_failure=VK_SUCCESS;
+    assert(gsf_owner_alpha_submit_serialized(&d,&f,
+        (VkQueue)(uintptr_t)0x9999,in,out,
+        (VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa2,
+        &ok,&state,&queue_lock)==VK_SUCCESS);
+    assert(submit_calls==2 && state.ingest_submitted && state.reconstruct_submitted);
+    /* A partial submit failure still unlocks the queue for the application. */
+    clear();submit_calls=0;submit_second_failure=VK_ERROR_DEVICE_LOST;
+    assert(gsf_owner_alpha_submit_serialized(&d,&f,
+        (VkQueue)(uintptr_t)0x9999,in,out,
+        (VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa2,
+        &ok,&state,&queue_lock)==VK_ERROR_DEVICE_LOST);
+    assert(pthread_mutex_trylock(&queue_lock)==0);
+    pthread_mutex_unlock(&queue_lock);
+    checked_queue_lock=NULL;
+    pthread_mutex_destroy(&queue_lock);
+    puts("GSF_ALPHA_QUEUE_LOCK recording_unlocked=1"
+         " two_gpu_submits_serialized=1 partial_failure_unlock=1 PASS");
     puts("GSF_ALPHA_OWNER_GPU_SUBMITS two_fences=1"
          " no_game_semaphore_replay=1 partial_failure_handled=1 PASS");
     puts("GSF_ALPHA_OUTPUT_OWNER contract=PASS synthetic=0..3 alpha_only=1"
