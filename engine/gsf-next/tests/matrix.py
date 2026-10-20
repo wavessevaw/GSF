@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import statistics
 import subprocess
 import tempfile
 
@@ -123,6 +124,7 @@ def main():
             assert totals,(name,'no retirement counters')
             assert sum(int(t[2]) for t in totals)==16, (name,totals)
             assert all(t[1]==t[3] for t in totals),(name,'submitted output lost before WSI acceptance',totals)
+        cost_samples=[]
         if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure') and env.get('AFMF_PROFILE')!='0':
             timed=0;routes=set()
             for file in directory.glob('gpu.jsonl*'):
@@ -142,7 +144,10 @@ def main():
                     if name=='auto-compact': assert record['timestamp_count']==3
                     if name.startswith('copy-'): assert not record['direct_output']
                     if name.startswith('batch-') and count>1: assert record['batch_ms']>0 and sum(record['warp_ms'])==0
-                    if count>0: routes.add(record['renderer'])
+                    if count>0:
+                        routes.add(record['renderer'])
+                        cost_samples.append((record['pair_ms'],record['motion_ms'],
+                                             record['reconstruction_ms'], count))
                     timed+=1
             assert timed>0,(name,'no GPU timestamp evidence')
             if name.startswith('auto-'):
@@ -171,9 +176,18 @@ def main():
                         k=(y*w+x)*3
                         assert data[k:k+3]==expected,(file,x,y,'HUD colour or coverage changed')
                 checked+=1
-        summaries.append(dict(case=name,exit_code=result.returncode,pixel_checks=checked))
+        metrics=dict(case=name,exit_code=result.returncode,pixel_checks=checked,
+                     synthetic_gpu_samples=len(cost_samples))
+        if cost_samples:
+            metrics.update(pair_p50_ms=round(statistics.median(s[0] for s in cost_samples),3),
+                           motion_p50_ms=round(statistics.median(s[1] for s in cost_samples),3),
+                           reconstruct_p50_ms=round(statistics.median(s[2] for s in cost_samples),3))
+        summaries.append(metrics)
         (out/'RESULTS.json').write_text(json.dumps(summaries,indent=2)+'\n')
-        print(name+': PASS'+(' ('+str(checked)+' GPU output images)' if checked else ''),flush=True)
+        note=(' pair_p50='+str(metrics['pair_p50_ms'])+'ms'
+              +' reconstruct_p50='+str(metrics['reconstruct_p50_ms'])+'ms'
+              if cost_samples else '')
+        print(name+': PASS'+(' ('+str(checked)+' GPU output images)' if checked else '')+note,flush=True)
     print('Vulkan X11 matrix: PASS. Software GPU; physical display and Deck performance UNVERIFIED.')
 
 if __name__=='__main__': main()
