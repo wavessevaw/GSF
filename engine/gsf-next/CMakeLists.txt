@@ -241,8 +241,9 @@ add_test(NAME owner_alpha_transport COMMAND gsf_owner_alpha_transport)
 # Compact x3 batch has two real output images; descriptor binding 6 aliases
 # binding 5 but is never written while batch shader push.count==2.
 add_executable(gsf_owner_x3_batch_descriptors
-    tests/owner_x3_batch_descriptors.c src/framegen_descriptors.c)
-target_include_directories(gsf_owner_x3_batch_descriptors PRIVATE src)
+    tests/owner_x3_batch_descriptors.c src/framegen_descriptors.c
+    "${AFMF_SPIRV_HEADER}")
+target_include_directories(gsf_owner_x3_batch_descriptors PRIVATE src "${AFMF_SPV_DIR}")
 target_link_libraries(gsf_owner_x3_batch_descriptors PRIVATE Vulkan::Headers)
 target_compile_options(gsf_owner_x3_batch_descriptors PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
 add_test(NAME owner_x3_batch_descriptors COMMAND gsf_owner_x3_batch_descriptors)
