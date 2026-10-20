@@ -34,10 +34,12 @@ static void trace_present(struct afmf_swapchain *sc,const struct afmf_present_jo
         char backup[4100];(void)snprintf(backup,sizeof backup,"%s.1",path);(void)rename(path,backup);
     }
     FILE *out=fopen(path,"a");if(out==NULL) return;
-    (void)fprintf(out,"{\"source_b\":%llu,\"source_a\":%llu,\"ordinal\":%llu,\"real\":%s,\"t\":%.6f,\"target_ns\":%llu,\"submit_ns\":%llu,\"ready_observed_ns\":%llu,\"result\":%d,\"refresh_hz\":%u,\"revision\":%llu,\"multiplier\":%u,\"enabled\":%s,\"quality\":%d,\"queue_limit\":%u}\n",
+    (void)fprintf(out,"{\"source_b\":%llu,\"source_a\":%llu,\"ordinal\":%llu,\"real\":%s,\"t\":%.6f,\"target_ns\":%llu,\"submit_ns\":%llu,\"ready_observed_ns\":%llu,\"ingest_ready_ns\":%llu,\"synthetic_ready_ns\":%llu,\"early_real\":%s,\"result\":%d,\"refresh_hz\":%u,\"revision\":%llu,\"multiplier\":%u,\"enabled\":%s,\"quality\":%d,\"queue_limit\":%u}\n",
         (unsigned long long)job->source_b,(unsigned long long)job->source_a,(unsigned long long)job->ordinal,
         real?"true":"false",(double)phase,(unsigned long long)target,(unsigned long long)start,
-        (unsigned long long)job->ready_ns,(int)result,job->config.refresh_hz,(unsigned long long)job->config.revision,job->config.multiplier,job->config.enabled?"true":"false",
+        (unsigned long long)job->ready_ns,(unsigned long long)job->ingest_ready_ns,
+        (unsigned long long)job->synthetic_ready_ns,job->early_real?"true":"false",
+        (int)result,job->config.refresh_hz,(unsigned long long)job->config.revision,job->config.multiplier,job->config.enabled?"true":"false",
         (int)job->config.performance,job->config.max_in_flight);
     (void)fclose(out);
 }
@@ -174,7 +176,12 @@ void *afmf_sc_presenter_main(void *arg)
             do { ingest=dev->fns.wait_for_fences(dev->handle,1,&job.ingest_done,
                                                 VK_TRUE,5000000ull); }
             while(ingest==VK_TIMEOUT);
-            job.ready_ns=monotonic_ns(); /* real ingestion, not generation-ready */
+            job.ingest_ready_ns=monotonic_ns();
+            job.ready_ns=job.ingest_ready_ns; /* real ingestion, not generation-ready */
+            pthread_mutex_lock(&sc->job_lock);
+            sc->gpu_delay_ms+=(double)(job.ingest_ready_ns-job.source_b)/1e6;
+            sc->last_delay_ms=(double)(job.ingest_ready_ns-job.source_b)/1e6;
+            pthread_mutex_unlock(&sc->job_lock);
             if(ingest!=VK_SUCCESS) {
                 second=ingest;
                 pthread_mutex_lock(&sc->job_lock);
@@ -208,7 +215,8 @@ void *afmf_sc_presenter_main(void *arg)
                     /* If the synthetic GPU work isn't ready by the slot,
                      * discard the OPTIONAL image. Never block B behind it. */
                     if(now<desired) pace_until(desired);
-                    VkResult gpu=dev->fns.wait_for_fences(dev->handle,1,&job.done,VK_TRUE,0);
+                    VkResult gpu=getenv("GSF_NEXT_TEST_FORCE_SYNTH_LATE") ? VK_NOT_READY :
+                        dev->fns.wait_for_fences(dev->handle,1,&job.done,VK_TRUE,0);
                     if(gpu!=VK_SUCCESS) {
                         pthread_mutex_lock(&sc->job_lock);
                         sc->dropped_synthetic+=job.output_count-n;
@@ -218,7 +226,8 @@ void *afmf_sc_presenter_main(void *arg)
                     }
                     if(!synth_ready) {
                         synth_ready=true;
-                        job.ready_ns=monotonic_ns();
+                        job.synthetic_ready_ns=monotonic_ns();
+                        job.ready_ns=job.synthetic_ready_ns;
                         pthread_mutex_lock(&sc->job_lock);
                         sc->ready_synthetic+=job.output_count;
                         pthread_mutex_unlock(&sc->job_lock);
@@ -246,7 +255,7 @@ void *afmf_sc_presenter_main(void *arg)
                 }
                 (void)shown;
                 /* Real WSI signal is stage-1 complete, never stage-2. */
-                job.ready_ns=monotonic_ns();
+                job.ready_ns=job.ingest_ready_ns;
                 second=present_one(dev,sc,job.real_image,sc->sem_real[job.real_image],
                                    &job,true,real_due,1.0f);
             }
