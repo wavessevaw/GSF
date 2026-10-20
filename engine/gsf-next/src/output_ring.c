@@ -11,11 +11,11 @@ VkResult afmf_sc_output_init(struct afmf_device *dev,struct afmf_swapchain *sc)
     VkMemoryRequirements reqs[GSF_NEXT_RING_IMAGES];
     VkDeviceSize offsets[GSF_NEXT_RING_IMAGES],bytes=0;
     uint32_t types=UINT32_MAX,count=sc->output_capacity*GSF_NEXT_MAX_OUTPUTS;
-    const char *copy=getenv("GSF_NEXT_OUTPUT_COPY"); /* A/B measurement and compatibility override */
+    enum gsf_renderer requested=gsf_renderer_requested();
     sc->output_format=afmf_framegen_output_format(sc->format);
     if(sc->output_format==VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
     sc->output_storage=afmf_framegen_can_write_direct(dev,sc->output_format) &&
-                       !(copy!=NULL && strcmp(copy,"1")==0);
+                       requested!=GSF_RENDER_COPY;
     for(uint32_t k=0;k<count;k++) {
         VkImageCreateInfo info={.sType=VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,.imageType=VK_IMAGE_TYPE_2D,
             .format=sc->output_format,.extent={sc->extent.width,sc->extent.height,1},.mipLevels=1,.arrayLayers=1,
@@ -46,6 +46,8 @@ VkResult afmf_sc_output_init(struct afmf_device *dev,struct afmf_swapchain *sc)
     res=f->create_fence(dev->handle,&fence,NULL,&sc->copy_fence);
     if(res!=VK_SUCCESS) return res;
     sc->output_copy_gpu_ms=-1;
+    const char *detail=getenv("GSF_NEXT_PROFILE_DETAIL");
+    sc->copy_timing_allowed=!(detail!=NULL && strcmp(detail,"0")==0);
     if(sc->config.profile && dev->queue_families[dev->async_family].timestampValidBits>0) {
         VkQueryPoolCreateInfo queries={.sType=VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,.queryType=VK_QUERY_TYPE_TIMESTAMP,.queryCount=2};
         (void)f->create_query_pool(dev->handle,&queries,NULL,&sc->copy_queries);
@@ -96,8 +98,9 @@ VkResult afmf_sc_output_copy(struct afmf_device *dev,struct afmf_swapchain *sc,
     double acquire_ms=elapsed_ms(&start,&end);
     const struct afmf_device_fns *f=&dev->fns;
     VkCommandBufferBeginInfo begin={.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+    bool time_copy=sc->copy_queries!=VK_NULL_HANDLE && sc->copy_timing_allowed && job->config.diagnostics;
     VkResult res=f->begin_command_buffer(sc->copy_cmd,&begin);if(res!=VK_SUCCESS) return res;
-    if(sc->copy_queries!=VK_NULL_HANDLE) {
+    if(time_copy) {
         f->cmd_reset_query_pool(sc->copy_cmd,sc->copy_queries,0,2);
         f->cmd_write_timestamp(sc->copy_cmd,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,sc->copy_queries,0);
     }
@@ -113,7 +116,7 @@ VkResult afmf_sc_output_copy(struct afmf_device *dev,struct afmf_swapchain *sc,
     barrier.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;barrier.dstAccessMask=0;
     barrier.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;barrier.newLayout=VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     f->cmd_pipeline_barrier(sc->copy_cmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,0,0,NULL,0,NULL,1,&barrier);
-    if(sc->copy_queries!=VK_NULL_HANDLE) f->cmd_write_timestamp(sc->copy_cmd,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,sc->copy_queries,1);
+    if(time_copy) f->cmd_write_timestamp(sc->copy_cmd,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,sc->copy_queries,1);
     res=f->end_command_buffer(sc->copy_cmd);if(res!=VK_SUCCESS) return res;
     res=f->reset_fences(dev->handle,1,&sc->copy_fence);if(res!=VK_SUCCESS) return res;
     VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&sc->copy_cmd,
@@ -124,7 +127,7 @@ VkResult afmf_sc_output_copy(struct afmf_device *dev,struct afmf_swapchain *sc,
     if(res!=VK_SUCCESS) return res;
     do {res=f->wait_for_fences(dev->handle,1,&sc->copy_fence,VK_TRUE,5000000ull);} while(res==VK_TIMEOUT);
     double gpu_ms=-1;
-    if(res==VK_SUCCESS && sc->copy_queries!=VK_NULL_HANDLE) {
+    if(res==VK_SUCCESS && time_copy) {
         uint64_t ticks[2];
         if(f->get_query_pool_results(dev->handle,sc->copy_queries,0,2,sizeof ticks,ticks,sizeof ticks[0],VK_QUERY_RESULT_64_BIT)==VK_SUCCESS) {
             uint32_t valid=dev->queue_families[dev->async_family].timestampValidBits;

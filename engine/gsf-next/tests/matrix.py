@@ -43,9 +43,9 @@ def main():
     args=ap.parse_args();build=args.build.resolve()
     out=(args.out or build/'Testing/gsf-next').resolve();out.mkdir(parents=True,exist_ok=True)
     cases=[
-      ('x2',dict(GSF_NEXT_MULTIPLIER='2'),1),
-      ('x3',dict(GSF_NEXT_MULTIPLIER='3'),2),
-      ('x4',dict(GSF_NEXT_MULTIPLIER='4'),3),
+      ('x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_RENDERER='direct'),1),
+      ('x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_RENDERER='direct'),2),
+      ('x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_RENDERER='direct'),3),
       ('copy-x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_OUTPUT_COPY='1'),1),
       ('copy-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_OUTPUT_COPY='1'),2),
       ('copy-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_OUTPUT_COPY='1'),3),
@@ -53,10 +53,15 @@ def main():
       ('batch-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1'),3),
       ('batch-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
       ('batch-validation-first',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',GSF_TEST_VALIDATION_FIRST='1'),3),
-      ('direct-no-profile',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('direct-no-profile',dict(GSF_NEXT_RENDERER='direct',GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('batch-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('unorm-ingest',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),3),
       ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
+      ('auto-x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),1),
+      ('auto-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),2),
+      ('auto-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('auto-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_RENDERER='auto',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('auto-compact',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_RENDERER='auto',GSF_NEXT_PROFILE_DETAIL='0',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('queue1',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='1'),3),
       ('queue3-validation-first',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_MAX_IN_FLIGHT='3',GSF_TEST_VALIDATION_FIRST='1'),2),
       ('pan',dict(AFMF_TEST_PAN='1'),0),
@@ -103,7 +108,7 @@ def main():
             assert sum(int(t[2]) for t in totals)==16, (name,totals)
             assert all(t[1]==t[3] for t in totals),(name,'submitted output lost before WSI acceptance',totals)
         if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure') and env.get('AFMF_PROFILE')!='0':
-            timed=0
+            timed=0;routes=set()
             for file in directory.glob('gpu.jsonl*'):
                 seen=set()
                 for line in file.read_text().splitlines():
@@ -116,11 +121,21 @@ def main():
                     assert all(0<t<1 for t in record['phases'])
                     assert record['motion_ms']>=0 and all(v>=0 for v in record['warp_ms'])
                     assert record['motion_ms']+sum(record['warp_ms'])+record.get('batch_ms',0)+record.get('scratch_copy_ms',0)<=record['pair_ms']+.01
-                    if name in ('x2','x3','x4'): assert record['direct_output']
+                    if name in ('x2','x3','x4') and count>0: assert record['direct_output']
+                    assert abs(record['motion_ms']+record['reconstruction_ms']-record['pair_ms'])<.001
+                    if name=='auto-compact': assert record['timestamp_count']==3
                     if name.startswith('copy-'): assert not record['direct_output']
                     if name.startswith('batch-') and count>1: assert record['batch_ms']>0 and sum(record['warp_ms'])==0
+                    if count>0: routes.add(record['renderer'])
                     timed+=1
             assert timed>0,(name,'no GPU timestamp evidence')
+            if name.startswith('auto-'):
+                expected={'copy','direct'} if name=='auto-x2' else {'copy','direct','batch'}
+                assert routes==expected,(name,'candidate paths not actually executed',routes)
+        if name=='auto-compact':
+            snapshots=[json.loads(p.read_text()) for p in directory.glob('*.json') if p.name!='RESULTS.json']
+            snapshots=[r for r in snapshots if 'output_copy_gpu_ms' in r]
+            assert snapshots and all(r['output_copy_gpu_ms']<0 for r in snapshots),(name,'presenter profiling still enabled')
         if env.get('AFMF_PROFILE')=='0':
             assert not list(directory.glob('gpu.jsonl*')) and 'GPU time per frame' not in log,(name,'profiling was not disabled')
         checked=check_outputs(directory,pixels) if pixels else 0

@@ -141,7 +141,7 @@ VkResult afmf_framegen_resources_create(struct afmf_device *dev, struct afmf_fra
         if (res != VK_SUCCESS)
             return res;
     }
-    if (!fg->direct) {
+    if (!fg->direct || fg->requested==GSF_RENDER_AUTO || fg->requested==GSF_RENDER_COPY) {
         res = image_create(dev, &fg->output, fg->out_format, fg->extent,
                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
         if (res != VK_SUCCESS)

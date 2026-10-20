@@ -125,6 +125,7 @@ struct afmf_swapchain {
     VkCommandBuffer copy_cmd;
     VkFence copy_fence;
     VkQueryPool copy_queries;
+    bool copy_timing_allowed;
     double output_copy_gpu_ms;
     double output_acquire_ms,output_copy_wait_ms;
     uint64_t dropped_synthetic,budget_skipped_synthetic;
@@ -179,6 +180,8 @@ struct afmf_swapchain {
     double present_ms, present_real_ms, refill_ms, hold_ms;
     double gpu_delay_ms; /* generated frame ready this long after the present call (GPU contention) */
     double last_gpu_ms, last_motion_ms, last_warp_ms[3];
+    enum gsf_renderer last_renderer;
+    double reconstruction_ms;
     double last_delay_ms; /* the latest such delay, what the governor reads */
     /* Governor (hook side, under dev->lock with the cadence): current step and the streaks that
      * move it. */

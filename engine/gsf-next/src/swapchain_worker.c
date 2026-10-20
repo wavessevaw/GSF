@@ -113,6 +113,8 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
 
     pthread_mutex_lock(&sc->job_lock);
     sc->last_gpu_ms = cfg->enabled ? afmf_framegen_gpu_ms(sc->fg) : 0;
+    sc->last_renderer=afmf_framegen_gpu_renderer(sc->fg);
+    sc->reconstruction_ms=afmf_framegen_reconstruction_ms(sc->fg);
     afmf_framegen_gpu_stages(sc->fg, &sc->last_motion_ms, sc->last_warp_ms);
     if(!cfg->enabled) { sc->last_motion_ms=0;memset(sc->last_warp_ms,0,sizeof sc->last_warp_ms); }
     sc->fence_ms += elapsed_ms(&t_start, &t_fence);

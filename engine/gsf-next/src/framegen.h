@@ -1,6 +1,7 @@
 #pragma once
 
 #include "layer.h"
+#include "renderer_choice.h"
 
 /* Frame generation proper: FidelityFX Optical Flow (colour in, 8x8 block motion + scene change
  * detector out) followed by the layer's own interpolation shader. One instance per swapchain; the
@@ -28,6 +29,9 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
 /* True when the interpolator writes the target itself: the caller hands it in GENERAL layout. */
 bool afmf_framegen_direct(const struct afmf_framegen *fg);
 bool afmf_framegen_batched(const struct afmf_framegen *fg);
+/* Called after the slot fence, before choosing output layouts. No GPU waits added. */
+void afmf_framegen_prepare(struct afmf_device *dev,struct afmf_framegen *fg,uint32_t slot,uint32_t outputs);
+void afmf_framegen_finish(struct afmf_device *dev,struct afmf_framegen *fg,VkCommandBuffer cmd,uint32_t slot);
 
 /* Whether the frame can be read straight from a swapchain image of this format into the colour
  * ring and the luma in one pass (the image then needs SAMPLED usage): the swapchain's format is
@@ -88,6 +92,8 @@ void afmf_framegen_pipelines_destroy(struct afmf_device *dev);
 
 /* Most recently retired pair, GPU timestamps only; -1 when unavailable. */
 double afmf_framegen_gpu_ms(const struct afmf_framegen *fg);
+enum gsf_renderer afmf_framegen_gpu_renderer(const struct afmf_framegen *fg);
+double afmf_framegen_reconstruction_ms(const struct afmf_framegen *fg);
 void afmf_framegen_gpu_stages(const struct afmf_framegen *fg, double *motion, double warps[3]);
 
 void afmf_framegen_set_diagnostics(struct afmf_framegen *fg,bool enabled);

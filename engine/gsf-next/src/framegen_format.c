@@ -88,12 +88,12 @@ bool afmf_framegen_can_write_direct(const struct afmf_device *dev, VkFormat swap
 
 bool afmf_framegen_direct(const struct afmf_framegen *fg)
 {
-    return fg->direct;
+    return fg->renderer!=GSF_RENDER_COPY;
 }
 
 bool afmf_framegen_batched(const struct afmf_framegen *fg)
 {
-    return fg->batch;
+    return fg->renderer==GSF_RENDER_BATCH;
 }
 
 /* The ingest variant that reads a swapchain image of this format as is and stores the ring, or

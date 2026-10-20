@@ -138,7 +138,7 @@ void afmf_framegen_record_interpolate(struct afmf_device *dev, struct afmf_frame
     dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_INTERPOLATE], VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                 (uint32_t)sizeof push, &push);
     afmf_dispatch_pass(dev, cmd, pl->interpolate[variant], pl->layouts[PASS_INTERPOLATE], set, NULL, 0,
-                  (out_w + 7) / 8, (out_h + 7) / 8, 1, !fg->direct);
+                  (out_w + 7) / 8, (out_h + 7) / 8, 1, !afmf_framegen_direct(fg));
     afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INTERPOLATE);
 }
 

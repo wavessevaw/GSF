@@ -46,6 +46,7 @@ VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc
     if (sc->fg != NULL) {
         /* The target is written by a copy (TRANSFER_DST) or, with direct output, by the
          * interpolator's stores (GENERAL). */
+        afmf_framegen_prepare(dev,sc->fg,slot,count);
         bool direct = afmf_framegen_direct(sc->fg);
         bool ingest = afmf_framegen_ingest_direct(sc->fg);
         const VkPipelineStageFlags compute = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
@@ -80,6 +81,7 @@ VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc
                           write,VK_ACCESS_TRANSFER_READ_BIT,completed,transfer);
         image_barrier(dev, cmd, sc->images[i], read, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, read_access, 0,
                       reader, bottom);
+        afmf_framegen_finish(dev,sc->fg,cmd,slot);
         return dev->fns.end_command_buffer(cmd);
     }
 

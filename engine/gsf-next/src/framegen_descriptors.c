@@ -158,14 +158,15 @@ static void sets_write(struct afmf_device *dev, struct afmf_framegen *fg, uint32
         writer_end(&w);
     }
 
-    for (uint32_t j = 0; j < (fg->direct ? fg->target_count : 1u); j++) {
-        writer_begin(&w, dev, fg->direct ? fg->direct_sets[p * fg->target_count + j]
+    for (uint32_t j = 0; j < (fg->direct ? fg->target_count : 0u)+(fg->output.image!=VK_NULL_HANDLE ? 1u : 0u); j++) {
+        bool target=fg->direct && j<fg->target_count;
+        writer_begin(&w, dev, target ? fg->direct_sets[p * fg->target_count + j]
                                          : fg->sets[p][SET_INTERPOLATE]);
         writer_image(&w, 0, COMBINED, fg->color[q].view, fg->sampler);
         writer_image(&w, 1, COMBINED, fg->color[p].view, fg->sampler);
         writer_image(&w, 2, SAMPLED, fg->flow_out.view, VK_NULL_HANDLE);
         writer_image(&w, 3, STORAGE, fg->scd_output.view, VK_NULL_HANDLE);
-        writer_image(&w, 4, STORAGE, fg->direct ? fg->target_views[j] : fg->output.view,
+        writer_image(&w, 4, STORAGE, target ? fg->target_views[j] : fg->output.view,
                      VK_NULL_HANDLE);
         writer_end(&w);
     }

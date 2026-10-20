@@ -1,4 +1,4 @@
-# GSF Next 0.2.0-alpha.5
+# GSF Next 0.2.0-alpha.6
 
 Отдельный экспериментальный Decky-плагин на открытом AFMF-Linux / AMD FidelityFX
 Optical Flow. Не использует старый движок Flow Lite и компоненты Lossless Scaling.
@@ -57,7 +57,8 @@ Alpha 4 отделяет GPU-буфер synthetic от изображений sw
 ожидании очереди. Это защита исходной частоты игры; невозможность выполнить
 множитель остаётся видна в диагностике. Подробности и ограничения:
 `docs/ALPHA4_OUTPUT.md`. Alpha 5 removes the scratch-to-output copy and includes
-a measured, opt-in batched reconstruction experiment; see `docs/ALPHA5_EFFICIENCY.md`.
+a measured, opt-in batched reconstruction experiment. Alpha 6 selects the route from runtime GPU costs
+and reduces ordinary profiling to three timestamps; see `docs/MEASURED_RUNTIME.md`.
 
 В панели на лету меняются ×2/×3/×4/Off, частота, качество, предел очереди и
 диагностика. Качество пересоздаёт GPU-контекст на безопасной границе; один кадр

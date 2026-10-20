@@ -164,8 +164,8 @@ static VkResult pipelines_create(struct afmf_device *dev)
         if (res != VK_SUCCESS)
             return res;
     }
-    const char *batch = getenv("GSF_NEXT_WARP_BATCH");
-    if (batch != NULL && strcmp(batch,"1") == 0) {
+    enum gsf_renderer requested=gsf_renderer_requested();
+    if (requested==GSF_RENDER_BATCH || (requested==GSF_RENDER_AUTO && afmf_config_get()->profile)) {
         for (uint32_t v = 0; v < VARIANT_COUNT; v++) {
             if (v == VARIANT_NOFORMAT && !dev->storage_write_without_format) continue;
             VkResult res = create_compute_pipeline(dev, batch_variants[v].spirv,

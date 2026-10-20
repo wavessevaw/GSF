@@ -1,0 +1,196 @@
+{
+  "method": {
+    "method": "serial interleaved modes; first 16 frames excluded; full requested output counts only",
+    "frames": 80,
+    "repeats": 1,
+    "threads": "2",
+    "builds": {
+      "candidate": {
+        "library_sha256": "e0b93112cb40b8f8ea102a23ada514c22a81708cbf8d88268706e5c89e487562",
+        "provenance": null
+      },
+      "baseline": {
+        "library_sha256": "11c076047986ebfba60f379fd1e72ab8e8229b0be362aec61a8664a8e8e3e97f",
+        "provenance": {
+          "schema": 1,
+          "version": "0.2.0-alpha.5",
+          "source_commit": "ee61c4213b58570d5b99c1f1bbb73a3a4a8d2d0d",
+          "upstream": "https://github.com/serialexperimentslainnnn/afmf-linux",
+          "upstream_commit": "bc56e5bd0e3a6c328aedef664d0d36363fb58b36",
+          "compiler": "GNU 11.4.0",
+          "profile": "Release",
+          "physical_display_verified": false,
+          "steam_deck_qualified": false
+        }
+      }
+    },
+    "displayed": null,
+    "power_w": null
+  },
+  "accepted_comparison_640": [
+    {
+      "extent": "640x480",
+      "multiplier": 4,
+      "mode": "baseline",
+      "pairs": 64,
+      "coverage": [
+        {
+          "warm_pairs": 64,
+          "full_pairs": 64,
+          "excluded_incomplete": 0
+        }
+      ],
+      "run_pair_medians_ms": [
+        47.422954000000004
+      ],
+      "pair_ms": {
+        "p50": 47.422954,
+        "p95": 93.852419,
+        "p99": 115.709548
+      },
+      "motion_ms": {
+        "p50": 19.356842,
+        "p95": 39.158253,
+        "p99": 44.731602
+      },
+      "reconstruction_ms": {
+        "p50": 27.696996,
+        "p95": 54.967503,
+        "p99": 70.842026
+      },
+      "scratch_copy_ms": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      },
+      "steady_pair_ms": {
+        "p50": 47.305386,
+        "p95": 54.032745,
+        "p99": 55.836664
+      },
+      "renderer_counts": {
+        "copy": 0,
+        "direct": 0,
+        "batch": 0
+      },
+      "steady_renderer_counts": {
+        "copy": 0,
+        "direct": 0,
+        "batch": 0
+      },
+      "displayed": null,
+      "power_w": null
+    },
+    {
+      "extent": "640x480",
+      "multiplier": 4,
+      "mode": "auto",
+      "pairs": 64,
+      "coverage": [
+        {
+          "warm_pairs": 64,
+          "full_pairs": 64,
+          "excluded_incomplete": 0
+        }
+      ],
+      "run_pair_medians_ms": [
+        41.54678
+      ],
+      "pair_ms": {
+        "p50": 41.54678,
+        "p95": 67.400538,
+        "p99": 70.581237
+      },
+      "motion_ms": {
+        "p50": 18.249198,
+        "p95": 27.463078,
+        "p99": 29.540565
+      },
+      "reconstruction_ms": {
+        "p50": 21.843336,
+        "p95": 39.705236,
+        "p99": 42.413964
+      },
+      "scratch_copy_ms": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      },
+      "steady_pair_ms": {
+        "p50": 36.599662,
+        "p95": 44.368269,
+        "p99": 50.430396
+      },
+      "renderer_counts": {
+        "copy": 8,
+        "direct": 8,
+        "batch": 48
+      },
+      "steady_renderer_counts": {
+        "copy": 0,
+        "direct": 0,
+        "batch": 32
+      },
+      "displayed": null,
+      "power_w": null
+    }
+  ],
+  "failed_runs_1280": [
+    {
+      "case": "1280x800 baseline Alpha 5",
+      "result": "FAILED minimum full-pair sample requirement",
+      "warm_pairs": 64,
+      "full_pairs": 36,
+      "required_full_pairs": 40,
+      "full_pair_p50_ms": 191.33964500000002,
+      "output_counts": {
+        "3": 36,
+        "0": 28
+      },
+      "source_gap_guard_ms": 250
+    },
+    {
+      "case": "1280x800 automatic",
+      "result": "FAILED minimum full-pair sample requirement",
+      "warm_pairs": 64,
+      "full_pairs": 27,
+      "required_full_pairs": 40,
+      "max_pair_ms": 3309.747073,
+      "max_reconstruction_ms": 3250.528508,
+      "steady_settled_observations": 4,
+      "steady_route_counts": {
+        "direct": 6,
+        "copy": 8,
+        "batch": 6
+      }
+    }
+  ],
+  "standalone_failed_method": {
+    "method": "serial interleaved modes; first 16 frames excluded; full requested output counts only",
+    "frames": 80,
+    "repeats": 1,
+    "threads": "2",
+    "builds": {
+      "candidate": {
+        "library_sha256": "e0b93112cb40b8f8ea102a23ada514c22a81708cbf8d88268706e5c89e487562",
+        "provenance": null
+      }
+    },
+    "displayed": null,
+    "power_w": null
+  },
+  "calibrations": [
+    {
+      "run": "640x480-x4-auto-0",
+      "initial_scores_ms": {
+        "copy": 39.517696375,
+        "direct": 37.096516750000006,
+        "batch": 27.538804875000004
+      },
+      "steady_routes": {
+        "batch": 32
+      },
+      "settled_observations": 32
+    }
+  ]
+}

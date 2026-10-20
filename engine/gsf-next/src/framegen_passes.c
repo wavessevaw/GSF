@@ -5,7 +5,7 @@
 
 const char *const stage_names[STAGE_COUNT] = {
     "ingest", "prepare luma", "pyramid + scd histogram", "search (all levels)",
-    "filter (all levels)", "scale (all levels)", "interpolate", "output copy", "batched interpolate",
+    "filter (all levels)", "scale (all levels)", "interpolate", "output copy", "shared analysis", "output completion", "batched interpolate",
 };
 
 static const VkDescriptorType bindings_prepare[] = {SAMPLED, STORAGE, UBO};
