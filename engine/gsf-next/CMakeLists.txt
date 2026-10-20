@@ -147,6 +147,7 @@ add_library(afmf-linux SHARED
     src/framegen_profiler.c
     src/framegen_record.c
     src/framegen_record_frame.c
+    src/owner_alpha_record.c
     src/framegen_resources.c
     src/layer.c
     src/layer_device.c
@@ -215,6 +216,14 @@ target_compile_definitions(afmf_headless PRIVATE VK_USE_PLATFORM_XCB_KHR)
 target_compile_definitions(afmf_headless PRIVATE _POSIX_C_SOURCE=200809L)
 target_compile_options(afmf_headless PRIVATE ${AFMF_WARNINGS})
 
+
+# Alpha generator / Output Owner private-GPU recording ABI unit contract.
+# This unit mocks Vulkan command dispatch; it does NOT prove physical scanout.
+add_executable(gsf_owner_alpha_record tests/owner_alpha_record.c src/owner_alpha_record.c)
+target_include_directories(gsf_owner_alpha_record PRIVATE src)
+target_link_libraries(gsf_owner_alpha_record PRIVATE Vulkan::Headers)
+target_compile_options(gsf_owner_alpha_record PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_record COMMAND gsf_owner_alpha_record)
 
 add_executable(gsf_queue_depth tests/queue_depth.c)
 target_include_directories(gsf_queue_depth PRIVATE src)

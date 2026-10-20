@@ -44,6 +44,11 @@ bool afmf_framegen_ingest_direct(const struct afmf_framegen *fg);
 
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg);
 
+/* Read-only resource bounds for external, privately owned snapshots. */
+uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg);
+
 /* The queue family afmf_framegen_record's command buffers belong to, once the caller knows it:
  * the fixed part of a frame is then recorded once per (slot, parity, companion) into secondary
  * command buffers of that family and only executed from then on. Without this call (or when it

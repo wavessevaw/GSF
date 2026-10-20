@@ -146,3 +146,37 @@ callback. These measurements are software-CI timings, not Deck metrics.
 The strict output gap threshold remains unchanged and may fail until
 source image release and the independent output-owner queue actually
 operate concurrently.
+
+## Final generator ownership: Alpha only (user correction, 2026-10-20)
+
+Final synthesis must be the GSF Next Alpha generator: FidelityFX Optical
+Flow + the shaders in engine/gsf-next/shaders/afmf_interpolate.comp.
+Output Owner supplies only the virtual game swapchain, private GPU snapshot
+storage, bounded lifetime/age controls and the SINGLE downstream WSI owner.
+
+**GPU recording bridge, implemented now:** engine/gsf-next/src/owner_alpha_record.h
+and owner_alpha_record.c record two distinct GPU command buffers against
+owner-supplied PRIVATE VkImages. The first copies/samples the immutable
+Output Owner snapshot into Alpha colour/luma history; the second invokes
+the existing Alpha optical-flow reconstruction for 0..3 output phases
+and leaves private targets in TRANSFER_SRC_OPTIMAL for owner WSI copy.
+Alpha neither acquires nor presents downstream swapchain images.
+The snapshot is never transitioned to PRESENT_SRC or written by Alpha.
+The Output Owner must submit on the same compatible queue, synchronize
+source reuse after the ingest fence, and retire generated resources
+after presentation.
+
+For zero admitted synthetics the second command still updates Alpha
+history and scene-change state. Invalid layouts, phase order, descriptor
+indices and capacities are rejected before any GPU recording.
+
+The previous native-LMC ×4 software lab remains historical evidence
+about transport only and is NOT part of this final architecture. Do not
+link LMC / Flow Lite 2 into the new generator/output owner runtime.
+
+Current bridge is compiled into Alpha and has deterministic command-level
+unit coverage. **It is not yet wired to the native Output Owner Vulkan
+queue or real Gamescope surface**. Integration requires one Vulkan-layer
+dispatcher and owner-private resources registered as source and output
+images with real GPU lifetime fences. No new Deck candidate or claimed
+×2/×3/×4 performance until completed and measured on hardware.

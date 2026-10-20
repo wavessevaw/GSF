@@ -46,6 +46,10 @@ void afmf_framegen_set_family(struct afmf_device *dev, struct afmf_framegen *fg,
     free(cmds);
 }
 
+uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg) { return fg ? fg->slots : 0u; }
+uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg) { return fg ? fg->source_count : 0u; }
+uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg) { return fg ? fg->target_count : 0u; }
+
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
 {
     if (fg == NULL)
