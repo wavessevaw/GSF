@@ -72,6 +72,9 @@ static VkFence ingest(unsigned slot) {
 static VkFence reconstruct(unsigned slot) {
     return (VkFence)(uintptr_t)(slot*2u+2u);
 }
+static VkFence output_fence(unsigned slot) {
+    return (VkFence)(uintptr_t)(slot+5u);
+}
 static VkCommandBuffer command(unsigned slot,unsigned i) {
     return (VkCommandBuffer)(uintptr_t)(slot*2u+i+1u);
 }
@@ -98,6 +101,7 @@ int main(void) {
         const uint64_t deadline=t0+10000000ull;
         ready_flags[(uintptr_t)ingest(slot)-1]=false;
         ready_flags[(uintptr_t)reconstruct(slot)-1]=false;
+        ready_flags[(uintptr_t)output_fence(slot)-1]=false;
         assert(gsf_alpha_owner_enqueue(&tr,frame,deadline,slot,
             command(slot,0),command(slot,1),ingest(slot),
             reconstruct(slot),&p)==VK_SUCCESS);
@@ -109,7 +113,7 @@ int main(void) {
         assert(gsf_alpha_owner_poll(&tr,t0+2000000ull)==VK_SUCCESS);
         assert(released==previous+1); /* app/source snapshot freed early */
         assert(gsf_alpha_owner_live(&tr)==1);
-        assert(!gsf_alpha_owner_output_done(&tr,slot,frame)); /* recon not ready */
+        assert(!gsf_alpha_owner_output_done(&tr,slot,frame,output_fence(slot))); /* recon not ready */
         ready_flags[(uintptr_t)reconstruct(slot)-1]=true;
         if(frame%5u==0) {
             /* Artificially late optional output is discarded BEFORE WSI. */
@@ -117,9 +121,11 @@ int main(void) {
         } else {
             assert(gsf_alpha_owner_poll(&tr,t0+3000000ull)==VK_SUCCESS);
             if(count) {
-                assert(!gsf_alpha_owner_output_done(&tr,slot,frame+1));
-                assert(gsf_alpha_owner_output_done(&tr,slot,frame));
-                assert(!gsf_alpha_owner_output_done(&tr,slot,frame));
+                assert(!gsf_alpha_owner_output_done(&tr,slot,frame+1,output_fence(slot)));
+                assert(!gsf_alpha_owner_output_done(&tr,slot,frame,output_fence(slot)));
+                ready_flags[(uintptr_t)output_fence(slot)-1]=true;
+                assert(gsf_alpha_owner_output_done(&tr,slot,frame,output_fence(slot)));
+                assert(!gsf_alpha_owner_output_done(&tr,slot,frame,output_fence(slot)));
             }
         }
         assert(gsf_alpha_owner_live(&tr)==0u);
@@ -135,6 +141,7 @@ int main(void) {
     const uint64_t frame=12001u,t0=500000000000ull;
     struct gsf_owner_alpha_pair p=job(0u,2u);
     ready_flags[0]=ready_flags[1]=false;
+    ready_flags[(uintptr_t)output_fence(0)-1]=false;
     assert(gsf_alpha_owner_enqueue(&tr,frame,t0+30000000ull,0,
         command(0,0),command(0,1),ingest(0),reconstruct(0),&p)==VK_SUCCESS);
     assert(gsf_alpha_owner_enqueue(&tr,frame+1u,t0+40000000ull,0,
@@ -144,7 +151,9 @@ int main(void) {
     ready_flags[1]=true;
     assert(gsf_alpha_owner_poll(&tr,t0+4000000ull)==VK_SUCCESS);
     assert(gsf_alpha_owner_live(&tr)==1);
-    assert(gsf_alpha_owner_output_done(&tr,0,frame));
+    assert(!gsf_alpha_owner_output_done(&tr,0,frame,output_fence(0)));
+    ready_flags[(uintptr_t)output_fence(0)-1]=true;
+    assert(gsf_alpha_owner_output_done(&tr,0,frame,output_fence(0)));
     assert(gsf_alpha_owner_live(&tr)==0);
 
     /* Partial submit error must never free or recycle unretired GPU work. */
@@ -162,7 +171,8 @@ int main(void) {
     puts("GSF_ALPHA_OWNER_TRANSPORT 12000_frames=PASS"
          " real_source_released_before_synth=1"
          " bounded_slots=1 late_synth_culled=1"
-         " no_early_reuse=1 partial_gpu_failure_quarantined=1"
+         " no_early_reuse=1 output_copy_fence_required=1"
+         " partial_gpu_failure_quarantined=1"
          " wsi_calls=0 physical_fps=UNVERIFIED");
     return 0;
 }

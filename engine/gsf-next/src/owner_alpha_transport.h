@@ -83,8 +83,10 @@ VkResult gsf_alpha_owner_enqueue(struct gsf_alpha_owner_transport *t,
  * On-time ready frames remain pinned until explicit output_done. */
 VkResult gsf_alpha_owner_poll(struct gsf_alpha_owner_transport *t,uint64_t now_ns);
 
-/* Caller guarantees its separate WSI output copy/reconstruction consumers
- * have completely finished GPU reads of these generated images. */
+/* Must pass the real GPU COPY fence from generated target -> compositor
+ * WSI image. Nonblocking probe refuses slot reuse until that fence signals;
+ * vkQueuePresentKHR returning is NOT evidence of GPU retirement. Passing a
+ * synthetic "ready" flag is insufficient and prohibited. */
 bool gsf_alpha_owner_output_done(struct gsf_alpha_owner_transport *t,
-    uint32_t slot,uint64_t frame_id);
+    uint32_t slot,uint64_t frame_id,VkFence output_copy_done);
 uint32_t gsf_alpha_owner_live(const struct gsf_alpha_owner_transport *t);

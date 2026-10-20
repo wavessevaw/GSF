@@ -118,15 +118,22 @@ VkResult gsf_alpha_owner_poll(struct gsf_alpha_owner_transport *t,uint64_t now_n
 }
 
 bool gsf_alpha_owner_output_done(struct gsf_alpha_owner_transport *t,
-    uint32_t slot,uint64_t frame_id)
+    uint32_t slot,uint64_t frame_id,VkFence output_copy_done)
 {
-    if(!t||slot>=t->capacity||!frame_id)return false;
+    if(!t||slot>=t->capacity||!frame_id||!output_copy_done)return false;
     struct gsf_alpha_owner_record *s=&t->active[slot];
     if(s->frame_id!=frame_id||!s->output_handed_off||
        s->output_retired||!s->source_released)return false;
+    bool ready=false;
+    const VkResult result=fence_ready(t,output_copy_done,&ready);
+    if(result!=VK_SUCCESS) {
+        t->fault=result;++t->gpu_errors;return false;
+    }
+    if(!ready)return false;
     s->output_retired=true;
     ++t->retired;
-    /* The output owner promises GPU completion, not merely QueuePresent. */
+    /* GPU copy completed; the owner separately manages downstream WSI
+     * acquired-image lifetime and compositor retirement. */
     *s=(struct gsf_alpha_owner_record){0};
     return true;
 }
