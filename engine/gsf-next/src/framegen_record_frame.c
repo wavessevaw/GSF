@@ -154,7 +154,7 @@ static void afmf_framegen_record_parts(struct afmf_device *dev, struct afmf_fram
             .transfer_function = (int32_t)fg->transfer_function,
             .min_luminance = fg->min_luminance,
             .max_luminance = fg->max_luminance,
-            .luma_half = fg->flow_scale > 1 ? 1 : 0,
+            .luma_half = (int32_t)fg->flow_scale,
         };
         uint32_t ingest_w = fg->flow_scale > 1 ? w : fg->extent.width;
         uint32_t ingest_h = fg->flow_scale > 1 ? h : fg->extent.height;
