@@ -57,6 +57,7 @@ layout(push_constant) uniform Params {
     float max_motion;    // |v| above which the flow is not trusted, in output pixels
     float flow_scale;    // output pixels per flow-resolution pixel (1 or 2)
     float hud_threshold; // a pixel equal in both frames within this, on a moving block, is HUD: kept as is (0 = off)
+    int warp_sampling;   // 0 = bilinear 4 vector fetches, 1 = nearest 1 fetch; cheap, edge artifacts
     float phase; // temporal position in [0,1] between previous and current
 #if AFMF_BATCHED
     float phase2;
@@ -78,6 +79,14 @@ vec2 flow_at(vec2 y)
     ivec2 b0 = ivec2(floor(b));
     vec2 f = b - vec2(b0);
     ivec2 last = textureSize(u_flow, 0) - 1;
+    if (p.warp_sampling != 0) {
+        // Budget-first reconstruction: nearest block saves THREE integer
+        // flow reads and bilinear interpolation per full-resolution pixel.
+        // This is an intentional coarse-motion trade-off, not a substitute
+        // for the FidelityFX Optical Flow generator itself.
+        ivec2 nearest = clamp(ivec2(floor(b + vec2(0.5))), ivec2(0), last);
+        return vec2(texelFetch(u_flow, nearest, 0).xy) * p.flow_scale;
+    }
     ivec2 b1 = min(b0 + 1, last);
     b0 = max(b0, ivec2(0));
     vec2 v00 = vec2(texelFetch(u_flow, ivec2(b0.x, b0.y), 0).xy);

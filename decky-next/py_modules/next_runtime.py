@@ -49,7 +49,7 @@ def validate(settings):
     for key, values in limits.items():
         if type(p[key]) is not int or p[key] not in values:
             raise ValueError('Неверное значение: '+key)
-    if p['quality'] not in ('performance', 'quality') or p['present_mode'] not in ('auto', 'keep'):
+    if p['quality'] not in ('performance', 'quality', 'economy') or p['present_mode'] not in ('auto', 'keep'):
         raise ValueError('Неверный профиль качества/вывода')
     if type(p['diagnostics']) is not bool: raise ValueError('Неверный режим диагностики')
     if type(p['real_priority_pacing']) is not bool: raise ValueError('Неверный экспериментальный режим презентации')
@@ -76,7 +76,7 @@ def control(path, profile):
     p = validate(profile)
     text = ('GSF_NEXT_CONTROL_V1\n%d %d %d %d %d %d %d %d %d\n' % (
         p.get('revision', 0), p['enabled'], p['multiplier'], p['refresh_hz'],
-        2 if p['quality']=='performance' else 1, p['max_in_flight'],
+        {'quality':1,'performance':2,'economy':3}[p['quality']], p['max_in_flight'],
         p['extra_images'], p['present_mode']=='keep', p['diagnostics']))
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

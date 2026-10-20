@@ -423,6 +423,22 @@ pacing-owner-model: $(BUILD)/pacing-owner-model
 	$(BUILD)/pacing-owner-model
 .PHONY: pacing-owner-model
 
+$(BUILD)/post-deadline-budget: tests/post_deadline_budget.c src/post_deadline_budget.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ tests/post_deadline_budget.c
+
+post-deadline-budget: $(BUILD)/post-deadline-budget
+	$(BUILD)/post-deadline-budget
+.PHONY: post-deadline-budget
+
+$(BUILD)/owned-snapshot-ring: tests/owned_snapshot_ring.c src/owned_snapshot_ring.h
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -o $@ tests/owned_snapshot_ring.c
+
+owned-snapshot-ring: $(BUILD)/owned-snapshot-ring
+	$(BUILD)/owned-snapshot-ring
+.PHONY: owned-snapshot-ring
+
 # Supported barrier-only contract, linked into the normal production layer.
 # This is distinct from loader-probe/lmc-owner-layer test builds.
 .PHONY: motion-intelligence-check

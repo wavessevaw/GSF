@@ -147,6 +147,9 @@ add_library(afmf-linux SHARED
     src/framegen_profiler.c
     src/framegen_record.c
     src/framegen_record_frame.c
+    src/owner_alpha_record.c
+    src/owner_alpha_transport.c
+    src/owner_alpha_runtime.c
     src/framegen_resources.c
     src/layer.c
     src/layer_device.c
@@ -215,6 +218,46 @@ target_compile_definitions(afmf_headless PRIVATE VK_USE_PLATFORM_XCB_KHR)
 target_compile_definitions(afmf_headless PRIVATE _POSIX_C_SOURCE=200809L)
 target_compile_options(afmf_headless PRIVATE ${AFMF_WARNINGS})
 
+
+# Alpha generator / Output Owner private-GPU recording ABI unit contract.
+# This unit mocks Vulkan command dispatch; it does NOT prove physical scanout.
+add_executable(gsf_owner_alpha_record tests/owner_alpha_record.c src/owner_alpha_record.c)
+target_include_directories(gsf_owner_alpha_record PRIVATE src)
+target_link_libraries(gsf_owner_alpha_record PRIVATE Vulkan::Headers)
+target_compile_options(gsf_owner_alpha_record PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_record COMMAND gsf_owner_alpha_record)
+
+# End-to-end owner/Alpha producer token lifecycle: GPU capture and synthetic
+# stage readiness must be independent, with bounded target retirement.
+add_executable(gsf_owner_alpha_transport tests/owner_alpha_transport.c src/owner_alpha_transport.c)
+target_include_directories(gsf_owner_alpha_transport PRIVATE src)
+target_link_libraries(gsf_owner_alpha_transport PRIVATE Vulkan::Headers)
+target_compile_options(gsf_owner_alpha_transport PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_transport COMMAND gsf_owner_alpha_transport)
+
+# Native Output Owner's private VkImage handles are registered with the
+# actual Alpha generator under one device dispatch; mock tests assert the
+# live allocation/slot wiring and no WSI / foreign engine dependency.
+# Compact x3 batch has two real output images; descriptor binding 6 aliases
+# binding 5 but is never written while batch shader push.count==2.
+add_executable(gsf_owner_x3_batch_descriptors
+    tests/owner_x3_batch_descriptors.c src/framegen_descriptors.c
+    "${AFMF_SPIRV_HEADER}")
+target_include_directories(gsf_owner_x3_batch_descriptors PRIVATE src "${AFMF_SPV_DIR}")
+target_link_libraries(gsf_owner_x3_batch_descriptors PRIVATE Vulkan::Headers)
+target_compile_options(gsf_owner_x3_batch_descriptors PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_x3_batch_descriptors COMMAND gsf_owner_x3_batch_descriptors)
+
+add_executable(gsf_owner_alpha_runtime tests/owner_alpha_runtime.c src/owner_alpha_runtime.c)
+target_include_directories(gsf_owner_alpha_runtime PRIVATE src)
+target_link_libraries(gsf_owner_alpha_runtime PRIVATE Vulkan::Headers Threads::Threads)
+target_compile_options(gsf_owner_alpha_runtime PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_runtime COMMAND gsf_owner_alpha_runtime)
+
+add_executable(gsf_gpu_cost_guard tests/gpu_cost_guard.c)
+target_include_directories(gsf_gpu_cost_guard PRIVATE src)
+target_compile_options(gsf_gpu_cost_guard PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME gpu_cost_guard COMMAND gsf_gpu_cost_guard)
 
 add_executable(gsf_queue_depth tests/queue_depth.c)
 target_include_directories(gsf_queue_depth PRIVATE src)

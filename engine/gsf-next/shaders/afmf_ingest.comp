@@ -36,7 +36,7 @@ layout(push_constant) uniform Params {
     int transfer_function; // FidelityFX backbuffer transfer function: 0 SDR as is, 2 scRGB
     float min_luminance;   // scRGB only, nits
     float max_luminance;
-    int luma_half;         // 1: the luma is half the frame, one texel per 2x2 block
+    int luma_half;         // source-to-luma scale: 1 (full), 2 or 4 (economy)
 } p;
 
 // ffx_opticalflow_prepare_luma.h: LuminanceToPerceivedLuminance.
@@ -64,7 +64,7 @@ void main()
 {
     ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 
-    if (p.luma_half == 0) {
+    if (p.luma_half <= 1) {
         if (id.x >= p.size.x || id.y >= p.size.y)
             return;
         vec4 c = texelFetch(u_src, id, 0);
@@ -73,18 +73,19 @@ void main()
         return;
     }
 
-    /* Performance mode: the colour ring stays at frame size for the interpolator, the luma comes
-     * out at half. One invocation owns a 2x2 block, so the frame is still read once, and the
-     * luma texel is taken from the block's average, as the downscale-then-luma path it replaces
-     * did with a linear filter. */
-    ivec2 luma_size = (p.size + 1) / 2;
+    /* Every native-resolution source texel is copied ONCE into colour,
+     * while one quarter/half-resolution luma is stored per 4x4 / 2x2 tile.
+     * This keeps direct ingest one-pass in budget mode, unlike a second
+     * full-source copy plus downsample. GPU cost must be measured. */
+    int tile = clamp(p.luma_half, 2, 4);
+    ivec2 luma_size = (p.size + tile - 1) / tile;
     if (id.x >= luma_size.x || id.y >= luma_size.y)
         return;
-    ivec2 base = id * 2;
+    ivec2 base = id * tile;
     vec4 sum = vec4(0.0);
     float taken = 0.0;
-    for (int dy = 0; dy < 2; dy++) {
-        for (int dx = 0; dx < 2; dx++) {
+    for (int dy = 0; dy < tile; dy++) {
+        for (int dx = 0; dx < tile; dx++) {
             ivec2 pix = base + ivec2(dx, dy);
             if (pix.x >= p.size.x || pix.y >= p.size.y)
                 continue;

@@ -246,11 +246,15 @@ int main(void) {
     unsigned char seen[GFG_OFFSCREEN_MAX_IMAGES]={0};
     const int interleave=getenv("GFG_NATIVE_TEST_OUTPUT_INTERLEAVE")!=NULL;
     const int lmc_owner=getenv("GFG_NATIVE_TEST_LMC_OUTPUT_OWNER")!=NULL;
-    const unsigned lmc_multiplier=getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
-    const unsigned middle_count=lmc_owner && !getenv("GFG_NATIVE_TEST_LMC_MASK2")?lmc_multiplier-1u:1u;
+    const unsigned lmc_multiplier=getenv("GFG_NATIVE_TEST_LMC_X4")?4u:
+                                  getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
+    const unsigned middle_count=getenv("GFG_NATIVE_TEST_POST_EXPECT_REAL_ONLY")?0u:
+        lmc_owner && !getenv("GFG_NATIVE_TEST_LMC_MASK2")?lmc_multiplier-1u:1u;
     const int paced_30_60=getenv("GFG_NATIVE_TEST_PACED_30_60")!=NULL;
     const int paced_45_90=getenv("GFG_NATIVE_TEST_PACED_45_90")!=NULL;
-    const int paced_source=paced_30_60||paced_45_90;
+    const int paced_225_90=getenv("GFG_NATIVE_TEST_PACED_225_90")!=NULL;
+    const int hold_first=getenv("GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST")!=NULL;
+    const int paced_source=paced_30_60||paced_45_90||paced_225_90;
     /* Gamescope WSI may present directly without populating X11 backing
      * pixels. Do not treat XCB GetImage black as a Vulkan output failure.
      * Crucially, do NOT label GPU-submit-only evidence as visible pixels. */
@@ -260,10 +264,15 @@ int main(void) {
     REQUIRE(!gpu_only || lmc_owner);
     const int sustained=getenv("GFG_NATIVE_TEST_SUSTAINED")!=NULL;
     const uint32_t frame_count=getenv("GFG_NATIVE_TEST_LMC_VERIFY_DUPLICATE")?2u:sustained?120u:8u;
-    const uint32_t source_hz=paced_45_90?45u:30u;
-    const uint32_t output_hz=paced_45_90?90u:60u;
+    const uint32_t source_hz=paced_225_90?22u:paced_45_90?45u:30u;
+    const uint32_t output_hz=paced_45_90||paced_225_90?90u:60u;
+    /* 22.5 FPS is exactly a 4-tick interval at the 90-Hz output clock. */
+    const uint64_t source_period_ns=paced_225_90?4000000000ull/90u:
+                                   1000000000ull/source_hz;
     REQUIRE(!paced_source || interleave);
-    REQUIRE(!(paced_30_60 && paced_45_90));
+    REQUIRE((int)paced_30_60+(int)paced_45_90+(int)paced_225_90<=1);
+    REQUIRE(!paced_225_90 || (lmc_owner && lmc_multiplier==4u));
+    REQUIRE(!hold_first || (lmc_owner && interleave && observe_pixels));
     REQUIRE(!sustained || paced_source);
     uint32_t visible=0, intermediate_visible=0, output_visible=0;
     int last_level=-1;
@@ -277,7 +286,7 @@ int main(void) {
             /* Input app and independent Output Engine run separate
              * monotonic clocks at either 30/60 or 45/90 Hz. */
             const uint64_t due=source_start+
-                 (uint64_t)(frame-1u)*1000000000ull/source_hz;
+                 (uint64_t)(frame-1u)*source_period_ns;
             const struct timespec deadline=gfg_pacer_to_time(due);
             int err=0;
             do {err=clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,
@@ -363,6 +372,23 @@ int main(void) {
          * right pixel from B. A mere duplicate present cannot pass. */
         if(interleave && frame>1 && observe_pixels) {
             REQUIRE(last_level>=0 && last_level!=expected);
+            if(hold_first && frame==2) {
+                /* A was not displayed at its capture. The first owner
+                 * output is A only AFTER B arrived, leaving real A,
+                 * optional AB intermediates and B on one cadence grid. */
+                uint64_t first_latency=0;
+                REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,
+                    extent.height,last_level,last_level,1500000000ull,&first_latency));
+                ++visible;
+                ++output_visible;
+                if(paced_source) {
+                    x11_last_ns=gfg_pacer_monotonic_ns();
+                    REQUIRE(x11_last_ns);
+                }
+                fprintf(stderr,"GSF_POST_OWNER_PRIME first_A_visible_after_B=1"
+                    " source_causality_preserved=1 latency_us=%llu\n",
+                    (unsigned long long)(first_latency/1000u));
+            }
             for(unsigned middle=0;middle<middle_count;++middle) {
             const int blended=(last_level*(int)(lmc_multiplier-1-middle)+
                 expected*(int)(middle+1)+(int)lmc_multiplier/2)/(int)lmc_multiplier;
@@ -394,13 +420,15 @@ int main(void) {
             }
         }
         uint64_t latency=0;
-        if(observe_pixels) {
+        if(observe_pixels && !(hold_first && frame==1)) {
             REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,extent.height,
                     expected,expected,lmc_owner && frame<=3?20000000000ull:1500000000ull,&latency));
         }
+        if(!(hold_first && frame==1)) {
         ++visible;
         ++output_visible;
-        if(paced_source && observe_pixels) {
+        }
+        if(paced_source && observe_pixels && !(hold_first && frame==1)) {
             const uint64_t observed=gfg_pacer_monotonic_ns();
             REQUIRE(observed);
             if(x11_last_ns && output_visible>=3) {
@@ -420,6 +448,9 @@ int main(void) {
             fprintf(stderr,
                 "GSF_GAMESCOPE_APP original_submit=%u vk_present_accepted=1 x11_pixels=UNOBSERVABLE oled_scanout=UNVERIFIED\n",
                 frame);
+        else if(hold_first && frame==1)
+            fprintf(stderr,"GSF_LOADER_LIVE_APP frame=1 virtual_present=1"
+                           " first_real_pending=1 x11_visible=0\n");
         else
             fprintf(stderr,"GSF_LOADER_LIVE_APP frame=%u virtual_present=1 x11_visible=1 latency_us=%llu\\n",
                 frame,(unsigned long long)(latency/1000));
@@ -442,7 +473,7 @@ int main(void) {
         fprintf(stderr,"GSF_LOADER_SPLIT_APP output_visible=%u original=%u intermediate=%u x11_distinct_pixels=1 PASS\n",
             output_visible,visible,intermediate_visible);
     if(paced_source) {
-        REQUIRE(x11_interval_count==2u*frame_count-3u);
+        REQUIRE(x11_interval_count==middle_count*(frame_count-1u)+frame_count-2u);
         const uint64_t mean_us=x11_interval_total_ns/x11_interval_count/1000u;
         const uint64_t min_us=x11_interval_min_ns/1000u;
         const uint64_t max_us=x11_interval_max_ns/1000u;
@@ -453,7 +484,7 @@ int main(void) {
         /* Software Xvfb, not physical 60Hz scanout. Use broad acceptance
          * for CI scheduling noise, but disallow the old 35ms intermediate
          * exposure and implausible zero-spacing duplicate Presents. */
-        if(paced_45_90) {
+        if(paced_45_90 || paced_225_90) {
             REQUIRE(mean_us>=5500 && mean_us<=20000);
             REQUIRE(min_us>=3000 && max_us<=35000);
         } else {
@@ -463,6 +494,9 @@ int main(void) {
         fprintf(stderr,"GSF_PACED_%u_TO_%u_X11 paced_source=%u originals=%u intermediate=%u visible=%u app_to_worker_distinct_frames=1 PASS\n",
                 source_hz,output_hz,frame_count,visible,intermediate_visible,
                 output_visible);
+        if(paced_225_90)
+            fprintf(stderr,"GSF_PACED_22P5_TO_90_X11 source_period_ns=%llu multiplier=4 originals=%u intermediate=%u visible=%u PASS\n",
+                (unsigned long long)source_period_ns,visible,intermediate_visible,output_visible);
     }
     }
     TRY(vkDeviceWaitIdle(device));

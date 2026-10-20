@@ -125,9 +125,9 @@ struct secondary {
 struct afmf_framegen {
     VkExtent2D extent;
     VkExtent2D of_extent;   /* what the optical flow sees: extent, or half of it in performance mode */
-    uint32_t flow_scale;    /* extent / of_extent: 1 or 2 */
+    uint32_t flow_scale;    /* extent / of_extent: 1, 2 or economy 4 */
     uint32_t levels;        /* pyramid levels the search walks now: 5..max_levels */
-    uint32_t max_levels;    /* what the configuration asked for: 5 or 7 (AFMF_LEVELS) */
+    uint32_t max_levels;    /* economy 3, otherwise 5 or 7 (AFMF_LEVELS) */
     struct image color_half; /* of_extent-sized downscale of the new frame; unused when scale is 1 */
     enum half_variant half;
     VkFormat color_format; /* UNORM sibling of the swapchain format: same bytes, no sRGB decode */
@@ -146,10 +146,12 @@ struct afmf_framegen {
     uint32_t *query_epoch;
     bool *query_tunable;
     bool batch; /* opt-in until RDNA2 measurements justify the extra register pressure */
-    VkDescriptorSet *batch_sets; /* [parity * (target_count/3) + work_slot] */
+    uint32_t batch_stride; /* legacy 3 targets per slot; private owner x3 uses 2 */
+    VkDescriptorSet *batch_sets; /* [parity * (target_count/batch_stride) + work_slot] */
     enum variant direct_variant;
     uint32_t target_count;        /* private output images */
-    uint32_t source_count;        /* game swapchain images, independent of target_count */
+    uint32_t source_count;        /* direct-ingest descriptor count, 0 in copy mode */
+    uint32_t owner_registered_sources; /* all private snapshots even with copy ingest */
     VkImageView *target_views;
     VkDescriptorSet *direct_sets; /* [parity * target_count + image] */
     /* Direct ingest: one pass reads the swapchain image (sampled view per image) and writes the
@@ -200,6 +202,8 @@ struct afmf_framegen {
     uint32_t *query_outputs;
     float *query_phases;
     double last_gpu_ms;
+    uint64_t completed_cost_sample; /* sequence of actually retired GPU timestamp samples */
+    uint32_t completed_cost_outputs; /* synthetic count paired with the sample */
     double last_motion_ms;
     double last_batch_ms;
     double last_warp_ms[3];

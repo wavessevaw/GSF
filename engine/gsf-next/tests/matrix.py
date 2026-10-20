@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import statistics
 import subprocess
 import tempfile
 
@@ -56,6 +57,19 @@ def main():
       ('direct-no-profile',dict(GSF_NEXT_RENDERER='direct',GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('batch-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('unorm-ingest',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),3),
+      # Economy is not inferred from nominal ×2/×4. Require real GPU
+      # shader pass, distinct output pixels, golden motion and validation.
+      ('economy-x2',dict(GSF_NEXT_MULTIPLIER='2',AFMF_PERFORMANCE_MODE='economy'),1),
+      ('economy-x4',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PERFORMANCE_MODE='economy'),3),
+      ('economy-fast-warp-x2',dict(GSF_NEXT_MULTIPLIER='2',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1'),1),
+      ('economy-fast-warp-x4',dict(GSF_NEXT_MULTIPLIER='4',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1'),3),
+      ('economy-fast-warp-batch',dict(GSF_NEXT_MULTIPLIER='4',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1',
+          GSF_NEXT_WARP_BATCH='1'),3),
+      ('economy-unorm-ingest',dict(GSF_NEXT_MULTIPLIER='2',
+          AFMF_PERFORMANCE_MODE='economy',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),1),
       ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
       ('auto-x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),1),
       ('auto-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),2),
@@ -110,6 +124,7 @@ def main():
             assert totals,(name,'no retirement counters')
             assert sum(int(t[2]) for t in totals)==16, (name,totals)
             assert all(t[1]==t[3] for t in totals),(name,'submitted output lost before WSI acceptance',totals)
+        cost_samples=[]
         if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure') and env.get('AFMF_PROFILE')!='0':
             timed=0;routes=set()
             for file in directory.glob('gpu.jsonl*'):
@@ -129,7 +144,10 @@ def main():
                     if name=='auto-compact': assert record['timestamp_count']==3
                     if name.startswith('copy-'): assert not record['direct_output']
                     if name.startswith('batch-') and count>1: assert record['batch_ms']>0 and sum(record['warp_ms'])==0
-                    if count>0: routes.add(record['renderer'])
+                    if count>0:
+                        routes.add(record['renderer'])
+                        cost_samples.append((record['pair_ms'],record['motion_ms'],
+                                             record['reconstruction_ms'], count))
                     timed+=1
             assert timed>0,(name,'no GPU timestamp evidence')
             if name.startswith('auto-'):
@@ -158,9 +176,18 @@ def main():
                         k=(y*w+x)*3
                         assert data[k:k+3]==expected,(file,x,y,'HUD colour or coverage changed')
                 checked+=1
-        summaries.append(dict(case=name,exit_code=result.returncode,pixel_checks=checked))
+        metrics=dict(case=name,exit_code=result.returncode,pixel_checks=checked,
+                     synthetic_gpu_samples=len(cost_samples))
+        if cost_samples:
+            metrics.update(pair_p50_ms=round(statistics.median(s[0] for s in cost_samples),3),
+                           motion_p50_ms=round(statistics.median(s[1] for s in cost_samples),3),
+                           reconstruct_p50_ms=round(statistics.median(s[2] for s in cost_samples),3))
+        summaries.append(metrics)
         (out/'RESULTS.json').write_text(json.dumps(summaries,indent=2)+'\n')
-        print(name+': PASS'+(' ('+str(checked)+' GPU output images)' if checked else ''),flush=True)
+        note=(' pair_p50='+str(metrics['pair_p50_ms'])+'ms'
+              +' reconstruct_p50='+str(metrics['reconstruct_p50_ms'])+'ms'
+              if cost_samples else '')
+        print(name+': PASS'+(' ('+str(checked)+' GPU output images)' if checked else '')+note,flush=True)
     print('Vulkan X11 matrix: PASS. Software GPU; physical display and Deck performance UNVERIFIED.')
 
 if __name__=='__main__': main()

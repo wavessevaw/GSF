@@ -5,6 +5,7 @@
 
 #include "swapchain.h"
 #include "output_plan.h"
+#include "gpu_cost_guard.h"
 #include "live_config.h"
 
 #include "config.h"
@@ -137,6 +138,7 @@ struct afmf_swapchain {
     double output_copy_gpu_ms;
     double output_acquire_ms,output_copy_wait_ms;
     uint64_t dropped_synthetic,budget_skipped_synthetic;
+    struct gsf_gpu_cost_guard gpu_cost; /* bounded opt-in, no frame buffering */
     uint64_t expired_synthetic,superseded_synthetic;
     VkImage *images;
     VkSemaphore *sem_generated; /* per image: signals "the generated frame in image k is ready" */

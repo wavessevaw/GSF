@@ -46,6 +46,13 @@ void afmf_framegen_set_family(struct afmf_device *dev, struct afmf_framegen *fg,
     free(cmds);
 }
 
+uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg) { return fg ? fg->slots : 0u; }
+uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg) { return fg ? fg->owner_registered_sources : 0u; }
+uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg) { return fg ? fg->target_count : 0u; }
+uint32_t afmf_framegen_owner_output_stride(const struct afmf_framegen *fg) {
+    return fg ? fg->batch_stride : 0u;
+}
+
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
 {
     if (fg == NULL)
@@ -160,6 +167,23 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
     const char *detail=getenv("GSF_NEXT_PROFILE_DETAIL");
     fg->detailed=cfg->diagnostics && !(detail!=NULL && strcmp(detail,"0")==0);
     fg->requested=gsf_renderer_requested();
+    /* Only the independent private owner may request 2-lane batching.
+     * The existing game-facing swapchain remains on legacy 3-lane indices.
+     * Default owner x3 is one batched reconstruction per pair, not two
+     * full-resolution interpolation dispatches. */
+    const bool owner_x2=cfg->owner_target_stride==1u &&
+                          slots>0u && target_count==slots;
+    const bool owner_x3=cfg->owner_target_stride==2u &&
+                          slots>0u && target_count==slots*2u;
+    fg->batch_stride=owner_x3 ? 2u : 3u;
+    if(fg->requested==GSF_RENDER_AUTO) {
+        /* Native Output Owner owns unaliased storage output textures.
+         * Direct x2 eliminates a full-frame scratch write+copy; batched x3
+         * reuses one full-resolution pass for the two temporal phases.
+         * If storage format is unavailable, existing copy fallback remains. */
+        if(owner_x2)fg->requested=GSF_RENDER_DIRECT;
+        else if(owner_x3)fg->requested=GSF_RENDER_BATCH;
+    }
     fg->last_renderer=GSF_RENDER_AUTO;
     fg->extent = extent;
     fg->slots = slots;
@@ -173,29 +197,36 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
     fg->ingest_variant = afmf_framegen_ingest_variant_for(dev, swapchain_format);
     fg->ingest_direct = have_images && direct_ingest && fg->ingest_variant != VARIANT_COUNT;
     fg->automatic=fg->direct && fg->requested==GSF_RENDER_AUTO && cfg->profile;
-    fg->batch=fg->direct && target_count%3u==0 &&
+    fg->batch=fg->direct && target_count%fg->batch_stride==0u &&
         (fg->automatic || fg->requested==GSF_RENDER_BATCH);
     fg->renderer=fg->requested==GSF_RENDER_BATCH && fg->batch ? GSF_RENDER_BATCH :
         fg->requested==GSF_RENDER_DIRECT && fg->direct ? GSF_RENDER_DIRECT : GSF_RENDER_COPY;
+    fg->owner_registered_sources = have_images ? image_count : 0u;
     fg->source_count = fg->ingest_direct ? image_count : 0;
     fg->target_count = fg->direct ? target_count : 0;
 
     /* Performance mode: the block search, 85 % of the cost, runs on a half-size frame; blocks
      * become 16 pixels on screen. Auto picks it from 1440p up, where the search dominates. */
-    bool half = cfg->performance == AFMF_PERFORMANCE_FAST ||
-                (cfg->performance == AFMF_PERFORMANCE_AUTO &&
-                 (uint64_t)extent.width * extent.height >= 2560u * 1440u);
-    if (extent.width / 2 < AFMF_MIN_EXTENT || extent.height / 2 < AFMF_MIN_EXTENT)
-        half = false; /* too small for the pyramid at half size: full resolution instead */
-    fg->flow_scale = half ? 2u : 1u;
+    const bool economy=cfg->performance==AFMF_PERFORMANCE_ECONOMY;
+    bool half = economy || cfg->performance==AFMF_PERFORMANCE_FAST ||
+                (cfg->performance==AFMF_PERFORMANCE_AUTO &&
+                 (uint64_t)extent.width*extent.height>=2560u*1440u);
+    if(extent.width/2u<AFMF_MIN_EXTENT || extent.height/2u<AFMF_MIN_EXTENT)
+        half=false;
+    /* Budget-first: 1280x800 -> 320x200 optical flow (vs 640x400).
+     * Full-resolution colour history and interpolation are preserved. */
+    fg->flow_scale=economy && extent.width/4u>=AFMF_MIN_EXTENT &&
+                   extent.height/4u>=AFMF_MIN_EXTENT ? 4u : half?2u:1u;
     fg->of_extent.width = (extent.width + fg->flow_scale - 1) / fg->flow_scale;
     fg->of_extent.height = (extent.height + fg->flow_scale - 1) / fg->flow_scale;
     fg->half = swapchain_format == VK_FORMAT_R16G16B16A16_SFLOAT ? HALF_RGBA16F : HALF_RGBA8;
     /* At reduced flow resolution five levels already cover +-128 flow pixels (+-256 on screen): the
      * two coarsest levels are drains, not accuracy. `high` still forces all seven. */
-    fg->levels = cfg->search_mode == AFMF_SEARCH_STANDARD ? 5u : 7u;
-    if (fg->flow_scale > 1 && cfg->search_mode != AFMF_SEARCH_HIGH && fg->levels > 5)
-        fg->levels = 5;
+    fg->levels=economy?3u:
+        cfg->search_mode==AFMF_SEARCH_STANDARD?5u:7u;
+    if(!economy && fg->flow_scale>1u &&
+       cfg->search_mode!=AFMF_SEARCH_HIGH && fg->levels>5u)
+        fg->levels=5u;
     if (fg->levels > AFMF_LEVELS)
         fg->levels = AFMF_LEVELS;
     fg->max_levels = fg->levels;

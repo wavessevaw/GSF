@@ -54,16 +54,13 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     /* The lag belongs to the same grid. Rounding a jittery fractional-period
      * lag upward at EACH present otherwise randomly inserts an entire tick. */
     uint64_t lag_ticks=(job->buffer_delay_ns+tick/2)/tick;
-    /* A deeper bounded queue must be paired with additional playout horizon.
-     * The old two-refresh buffer made synthetic output ready after its due
-     * slot. New auto queue scales with Hz and multiplier, with one further
-     * display tick reserved for jitter. This explicitly trades input latency
-     * for a greater chance of on-time synthetic output. */
+    /* Deck evidence invalidated proportional Auto queue growth. Only
+     * manually selected diagnostic depths 4..8 retain extended hold. */
     uint32_t effective_queue=gsf_queue_effective(cfg->max_in_flight,
                               cfg->refresh_hz,cfg->multiplier,sc->output_capacity);
-    /* Preserve the prior latency behavior for legacy profiles selecting 1..3;
-     * adaptive or explicitly deep queues opt in to the larger playout hold. */
-    if(cfg->max_in_flight==0u || cfg->max_in_flight>3u)
+    /* Auto and manual 1..3 use the old hold; manual 4..8 explicitly opts
+     * into additional latency for controlled comparisons only. */
+    if(cfg->max_in_flight>3u)
         lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
@@ -72,6 +69,23 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
      * observed source period into an order for MORE synthetic work. Return those
      * slots to real-frame progress before recording any GPU reconstruction. */
     uint32_t admitted=gsf_budget_outputs(plan.count,job->source_blocked_ns,cfg->refresh_hz);
+    if(cfg->gpu_budget_us && sc->fg) {
+        uint64_t sample_id=0;
+        uint32_t observed_outputs=0;
+        double observed_gpu_ms=0.0;
+        if(afmf_framegen_cost_sample(sc->fg,&sample_id,
+                                     &observed_outputs,&observed_gpu_ms) &&
+           observed_gpu_ms>0.0 && observed_gpu_ms<100000.0) {
+            /* Observed GPU work from a completed pair only. No CPU scheduling
+             * time or benchmark-derived "output FPS" enters the admission. */
+            uint32_t actual_us=(uint32_t)(observed_gpu_ms*1000.0+0.5);
+            gsf_gpu_cost_observe(&sc->gpu_cost,sample_id,observed_outputs,
+                                  actual_us,cfg->gpu_budget_us);
+        }
+        uint32_t cost_admit=gsf_gpu_cost_admit(&sc->gpu_cost,admitted,
+                                               cfg->gpu_budget_us);
+        if(cost_admit<admitted)admitted=cost_admit;
+    }
     if(admitted<plan.count) {
         uint32_t skip=plan.count-admitted;
         sc->budget_skipped_synthetic+=skip;

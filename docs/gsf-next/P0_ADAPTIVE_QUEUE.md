@@ -1,65 +1,57 @@
-# GSF Next P0: adaptive output queue and bounded playout reserve
+# Queue-depth research: failed proportional Auto hypothesis
 
-This is an experimental part of #58 / PR #59, not a performance-qualified release.
+**Status: rollback/containment after Steam Deck feedback, 2026-10-20.**
+Original proportional Auto in PR #59 has **not** passed real-device acceptance.
+The user found an intermediate queue depth that temporarily stabilised output;
+further increases made stability worse, while ×2 never sustained a true 2×
+output uplift and ×3/×4 delivered no corresponding gain.
 
-## Design
+## What is actually deployed on this experimental branch
 
-The previous **Предел очереди** stopped at three jobs. It now offers
-`Авто` (`max_in_flight=0`) or manual `1..8`. For newly configured
-games the default is Auto; existing profiles retain their selected depth.
+The Decky profile retains `max_in_flight=0`, now presented as
+**Защитный режим · 2 кадра**. It requests a constant **2 jobs**, regardless
+of Hz or multiplier; it is not a feedback-driven optimum finder.
 
-Auto requests
-`min(8, max(2, ceil(display_hz * multiplier / 90) + 1))`.
-The extra one job absorbs normal scheduling variation above the theoretical
-90 Hz minimum. For example:
+Manual 1..8 remains only to reproduce and diagnose the observed response
+curve. Manual 4..8 may add explicit playout hold `effective_queue+1`
+display ticks up to 9 ticks / 100ms. Auto and manual 1..3 preserve the
+previous hold policy. Actual queue is always limited by swapchain image
+count and allocated GPU ring capacity. The private output ring may still
+allocate 3..8 slots × 3 synthetic images (with a ~256 MiB estimate), but
+**ring capacity is not permission to queue a frame**.
 
-| Display | Multiplier | Requested Auto | Playout reserve |
-| --- | --- | --- | --- |
-| 90 Hz | ×2 | 3 | >=4 refresh ticks (~44 ms) |
-| 90 Hz | ×3 | 4 | >=5 refresh ticks (~56 ms) |
-| 90 Hz | ×4 | 5 | >=6 refresh ticks (~67 ms) |
-| 120 Hz | ×4 | 7 | >=8 refresh ticks (~67 ms) |
-| 240 Hz | ×4 | 8 (cap) | >=9 refresh ticks (~38 ms) |
+The old Auto policy `min(8,max(2,ceil(hz*multiplier/90)+1))` is
+discontinued, not optimized. Its old 90 Hz ×2/×3/×4 depths of 3/4/5
+and 120 Hz ×4 depth of 7 were unsupported extrapolations. Extra queued
+images cannot repair a GPU producer that processes fewer output
+frames per second than the compositor consumes.
 
-These are target scheduling holds, **not** measured image latency or proof
-of physical scanout. The actual delay is also influenced by the game's
-source-to-GPU queue, compositor, WSI and submitted work. Effective depth is
-`min(requested, swapchain_image_count, available_private_ring_slots)`.
-Expose `queue_effective`, `queue_capacity` and `queue_depth` separately.
-If the application offers only 6 WSI images, an 8-job request uses 6;
-**never** wrap the GPU ring before previous work is retired.
+## Root-cause target
 
-The private ring grows from 3 to at most 8 slots / 24 synthetic GPU images,
-but is softly capped around 256 MiB by a format/extent estimate, with its
-historical 3-slot minimum preserved. Actual Vulkan allocations may exceed
-the estimate and remain subject to device memory availability. Extra WSI
-images remain separately configurable (+3/+5); they must not be silently
-raised beyond surface caps. Output/fence retirement still uses the same
-ownership rules. With Auto or manual depth 4..8, playout grows to at least
-one more refresh tick than the effective queue depth and is bounded at
-9 ticks / 100 ms. Existing profiles set to manual 1..3 retain the old
-hold behavior for a controlled comparison.
+A single game WSI swapchain still couples generation, output and real image
+lifetime. The generator waits for GPU reconstruction before releasing the
+real source in the ordinary path; higher queues therefore trade more
+latency and game-image backpressure for an apparent short-term gain.
+The experimental early-ingest option removes one fence dependency but
+still shares queue service and WSI output ownership.
 
-## Tradeoff and non-claims
+New architecture: [single-owner post-game output transport](OWNED_POST_PIPELINE.md).
+Reuse the prior Vulkan virtual source / output owner prototypes from
+`engine/gfg-native` and qualify with actual games and Gamescope before
+enabling. No output multiplier can exceed the *physical* refresh ceiling.
 
-The explicit latency trade is intentional. Deeper buffering does not fix
-compute contention, missed refresh deadlines or uneven physical Gamescope
-scanout by itself. It can reduce source game FPS through backpressure and
-increase input latency, even when API Present gaps look improved. Comparing
-visible scanout, real FPS and source-to-real present p95/p99 is mandatory.
+## Tests and measurement
 
-The early-ingest separation from PR #59 stays off unless explicitly
-enabled for controlled tests. Real WSI ownership and all submitted jobs
-must be preserved under max queue, resize/recreate and failure teardown.
+- `gsf_queue_depth` verifies Auto stays at 2 over 40..240 Hz and ×2..×4
+  and manual caps/clamps work; mandatory CI now executes it.
+- Decky profile/transport covers setting 0..8; Vulkan matrix tests manual
+  depth 8 and the conservative Auto at 144 Hz.
+- Real Steam Deck A/B must measure game-source FPS relative to Off,
+  accepted **real and unique synthetic** WSI frames, output interval
+  p50/p95/p99, source stall time and slope of queue age during a long run.
+  Existing CI on Lavapipe cannot claim actual 90 Hz or panel scanout.
 
-## Tests
-
-- `gsf_queue_depth` deterministic monotonic scaling and resource clamps.
-- C live-control accepts Auto/8 and rejects >8 or malformed values.
-- Decky profile transport/selection covers Auto/8.
-- Vulkan matrix exercises queue 8 and Auto at 144 Hz alongside original
-  pixel golden and order tests.
-- Steam Deck: hold constant game, scene, TDP, refresh and multiplier;
-  compare 2/3/Auto/6/8, record source FPS, WSI intervals, p95/p99,
-  presented synthetic acceptance and latency. Do not ship if native FPS
-  collapses or the extra output is primarily discarded by WSI.
+**Acceptance:** stop publishing new 'pacing fixes' based only on enlarging
+queues. Do not claim 2×/3× until a new output transport demonstrates sustained
+real-device throughput and temporal uniqueness. Full standalone/Gamescope
+interoperability and the private output owner are pending.

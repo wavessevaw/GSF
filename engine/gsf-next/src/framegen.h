@@ -44,6 +44,14 @@ bool afmf_framegen_ingest_direct(const struct afmf_framegen *fg);
 
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg);
 
+/* Read-only resource bounds for external, privately owned snapshots.
+ * owner_sources returns ALL registered images, including copy-only ingest
+ * where source_count for direct descriptors is correctly zero. */
+uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_output_stride(const struct afmf_framegen *fg);
+
 /* The queue family afmf_framegen_record's command buffers belong to, once the caller knows it:
  * the fixed part of a frame is then recorded once per (slot, parity, companion) into secondary
  * command buffers of that family and only executed from then on. Without this call (or when it
@@ -103,6 +111,10 @@ void afmf_framegen_pipelines_destroy(struct afmf_device *dev);
 
 /* Most recently retired pair, GPU timestamps only; -1 when unavailable. */
 double afmf_framegen_gpu_ms(const struct afmf_framegen *fg);
+/* Last actually retired Vulkan GPU timestamps with associated synthetic count.
+ * Never substitute output FPS from a throughput benchmark for this metric. */
+bool afmf_framegen_cost_sample(const struct afmf_framegen *fg,
+                               uint64_t *sequence,uint32_t *outputs,double *gpu_ms);
 enum gsf_renderer afmf_framegen_gpu_renderer(const struct afmf_framegen *fg);
 double afmf_framegen_reconstruction_ms(const struct afmf_framegen *fg);
 void afmf_framegen_gpu_stages(const struct afmf_framegen *fg, double *motion, double warps[3]);

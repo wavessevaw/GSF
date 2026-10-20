@@ -94,6 +94,14 @@ class RuntimeTests(unittest.TestCase):
         env=os.environ.copy();env.update(HOME=str(self.home));env.pop('VK_INSTANCE_LAYERS',None)
         result=subprocess.run([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.stdout.strip(),'none');self.assertEqual(result.returncode,0)
+    def test_economy_gpu_profile_transmits_to_launcher_and_live_control(self):
+        profile=self.runtime.configure(42,dict(enabled=True,multiplier=2,quality='economy'))
+        assert profile['quality']=='economy'
+        env=environment(self.plugin, self.runtime.root/'run',dict(HOME=str(self.home)),profile)
+        self.assertEqual(env['AFMF_PERFORMANCE_MODE'],'economy')
+        self.assertEqual((self.runtime.root/'controls/42').read_text().split()[5],'3')
+        self.assertEqual(self.runtime.status(42)['profile']['quality'],'economy')
+
     def test_live_control_revision_and_fields(self):
         first=self.runtime.prepare(42);self.assertFalse(first['restart_required'])
         second=self.runtime.configure(42,dict(multiplier=4,quality='quality',extra_images=5))

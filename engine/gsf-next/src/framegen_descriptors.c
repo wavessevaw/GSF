@@ -55,10 +55,10 @@ static VkResult sets_allocate(struct afmf_device *dev, struct afmf_framegen *fg,
         }
     }
     if (fg->batch) {
-        uint32_t triples = fg->target_count/3u;
-        fg->batch_sets = calloc(2u*triples, sizeof *fg->batch_sets);
+        uint32_t groups = fg->target_count/fg->batch_stride;
+        fg->batch_sets = calloc(2u*groups, sizeof *fg->batch_sets);
         if (fg->batch_sets == NULL) return VK_ERROR_OUT_OF_HOST_MEMORY;
-        for (uint32_t k = 0; k < 2u*triples; k++) {
+        for (uint32_t k = 0; k < 2u*groups; k++) {
             VkDescriptorSetAllocateInfo alloc = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = fg->pool, .descriptorSetCount = 1,
@@ -171,14 +171,20 @@ static void sets_write(struct afmf_device *dev, struct afmf_framegen *fg, uint32
         writer_end(&w);
     }
 
-    for (uint32_t j = 0; fg->batch && j < fg->target_count/3u; j++) {
-        writer_begin(&w, dev, fg->batch_sets[p*(fg->target_count/3u)+j]);
+    for (uint32_t j = 0; fg->batch && j < fg->target_count/fg->batch_stride; j++) {
+        writer_begin(&w, dev, fg->batch_sets[p*(fg->target_count/fg->batch_stride)+j]);
         writer_image(&w, 0, COMBINED, fg->color[q].view, fg->sampler);
         writer_image(&w, 1, COMBINED, fg->color[p].view, fg->sampler);
         writer_image(&w, 2, SAMPLED, fg->flow_out.view, VK_NULL_HANDLE);
         writer_image(&w, 3, STORAGE, fg->scd_output.view, VK_NULL_HANDLE);
-        for (uint32_t k = 0; k < 3; k++)
-            writer_image(&w, 4+k, STORAGE, fg->target_views[j*3+k], VK_NULL_HANDLE);
+        for (uint32_t k = 0; k < 3; k++) {
+            /* x3 requires only two real output textures. Binding 6 is
+             * defined but never written when shader push.count == 2.
+             * Alias it to the second target, no third full-res allocation. */
+            const uint32_t lane=k<fg->batch_stride?k:fg->batch_stride-1u;
+            writer_image(&w, 4+k, STORAGE,
+                         fg->target_views[j*fg->batch_stride+lane], VK_NULL_HANDLE);
+        }
         writer_end(&w);
     }
     if (fg->flow_scale > 1 && !fg->ingest_direct) {
@@ -203,7 +209,7 @@ VkResult afmf_framegen_descriptor_sets_create(struct afmf_device *dev, struct af
 
     uint32_t direct_sets = fg->direct ? 2u * fg->target_count : 0u; /* one interpolate set each */
     uint32_t ingest_sets = fg->ingest_direct ? 2u * fg->source_count : 0u;
-    uint32_t batch_sets = fg->batch ? 2u*(fg->target_count/3u) : 0u;
+    uint32_t batch_sets = fg->batch ? 2u*(fg->target_count/fg->batch_stride) : 0u;
     VkDescriptorPoolSize sizes[] = {
         {SAMPLED, 2 * 42 + direct_sets + ingest_sets + batch_sets},
         {STORAGE, 2 * 49 + 2 * direct_sets + 2 * ingest_sets + 4 * batch_sets},

@@ -16,6 +16,7 @@ on:
       - fix/gsf-borrowed-physical-dispatch-20261017
       - experiment/gsf-output-owner-contract-20261017
       - experiment/gsf-offscreen-source-pool-20261017
+      - experiment/gsf-next-early-real-ingest
     paths:
       - 'engine/gfg-native/src/**'
       - 'engine/gfg-native/tests/**'
@@ -27,11 +28,18 @@ permissions:
 jobs:
   output-owner:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Native output-owner proof at O2 with warnings as errors
         run: make -C engine/gfg-native output-owner
+      - name: Separate game image release from pinned output GPU snapshots
+        run: |
+          make -C engine/gfg-native owned-snapshot-ring
+          cc -std=c11 -g -O1 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all engine/gfg-native/tests/owned_snapshot_ring.c -o /tmp/gsf-owned-snapshot-ubsan
+          /tmp/gsf-owned-snapshot-ubsan
+      - name: Post-output age admission never enlarges a congested frame queue
+        run: make -C engine/gfg-native post-deadline-budget
       - name: Virtual source image ownership under O2 and warnings-as-errors
         run: make -C engine/gfg-native virtual-source
       - name: Virtual source state machine undefined behavior sanitizer
@@ -47,7 +55,7 @@ jobs:
       - name: Install software Vulkan WSI test dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb
+          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb glslang-tools spirv-tools
       - name: Transactional offscreen Vulkan source images with simulated GPU allocation failures
         run: make -C engine/gfg-native offscreen-source-pool
       - name: Source VkImage/VkDeviceMemory allocation sanitizer
@@ -156,6 +164,64 @@ jobs:
             cat "$log"; exit 1
           fi
           echo 'Loader installed app virtual Acquire->render->Present->private output->X11 pixels PASS (not FG or OLED)'
+
+      - name: "Detached owner Vulkan WSI: release real game source before delayed output"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+          GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_DETACHED_OWNER=1 \
+          GFG_NATIVE_TEST_OUTPUT_DELAY_MS=40 \
+          VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+          VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+          xvfb-run -a -s '-screen 0 1024x768x24' \
+          engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_LIVE_APP frame=8 virtual_present=1 x11_visible=1' "$log"
+          grep -E 'GSF_DETACHED_OWNER handoff=8 source_retired=8 output_retired=8 early_source_release=[1-9][0-9]* live=0 status=0' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then cat "$log"; exit 1; fi
+          echo 'Detached Output Owner source retirement precedes downstream output; native transport only, Alpha not yet bound'
+
+      - name: "Isolated virtual-game post-owner GPU LMC x4: 8 real plus 21 unique synthetic X11 images"
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-temporal -j2 lib
+          make -C engine/gfg-native ENABLE_TE=1 VULKAN_HEADERS="$RUNNER_TEMP/vkh/include"             build/lmc-owner-layer/libVkLayer_gfg_native.so
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1             GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1             GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1             VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d"             VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation             VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json             xvfb-run -a -s '-screen 0 1024x768x24'             engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_SPLIT_APP output_visible=29 original=8 intermediate=21 x11_distinct_pixels=1 PASS' "$log"
+          test "$(grep -c 'GSF_LMC_GPU_VERIFY PASS' "$log")" -eq 21
+          test "$(grep -c 'GSF_LMC_OWNER_PIXEL' "$log")" -eq 21
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=29 originals=8 intermediate=21' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'TEST ONLY: virtual app -> GPU LMC x4 -> single real X11 WSI, unique pixels; physical Deck 90Hz unverified'
+
+      - name: "Controlled virtual-game 22.5Hz source to 90Hz output x4 via software Vulkan/X11"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1 GFG_NATIVE_TEST_PACED_225_90=1 GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST=1 GFG_NATIVE_TEST_POST_STAGE_TIMING=1 VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d" VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_POST_OWNER_PRIME first_A_visible_after_B=1' "$log"
+          grep 'GSF_PACED_22P5_TO_90_X11 source_period_ns=44444444 multiplier=4 originals=8 intermediate=21 visible=29 PASS' "$log"
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=29 originals=8 intermediate=21' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Software X11 pacing 22.5->90 x4 verified, NOT physical OLED 90Hz'
+
+      - name: "Deadline pressure: GPU post-owner drops outdated x4 intermediates but retains 8 real"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1 GFG_NATIVE_TEST_POST_MAX_AGE_MS=1 GFG_NATIVE_TEST_POST_EXPECT_REAL_ONLY=1 VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d" VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_SPLIT_APP output_visible=8 original=8 intermediate=0 x11_distinct_pixels=1 PASS' "$log"
+          grep 'GSF_POST_OWNER_ADMISSION max_real_age_ms=1.0 skipped_pairs=7 originals=8 intermediates=0 real_preserved=1' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'Real-only deadline fallback under forced 1ms synthetic budget PASS; not a GPU performance claim'
 
       - name: Loader-installed 8 originals PLUS 7 distinct A-B GPU frames verified AFTER X11 composition
         run: |

@@ -91,6 +91,8 @@ static void init(void)
      * a game is most likely to be saturating the GPU already; full resolution below it. */
     long performance = AFMF_PERFORMANCE_AUTO;
     long profile = 0;
+    long gpu_budget_us=0; /* off by default; diagnostic opt-in only */
+    long fast_warp=0; /* explicit opt-in: nearest block vector and no HUD read */
     long async = 1;
     /* Pacing holds the real frame back by half a frame time so the generated one lands halfway,
      * as the driver-level implementation does (its documented 4-5 ms of added latency at 120 fps). */
@@ -131,7 +133,8 @@ static void init(void)
                                              {"blend", AFMF_RESPONSE_BLENDED_FRAMES}};
     static const struct choice performance_modes[] = {{"auto", AFMF_PERFORMANCE_AUTO},
                                                      {"quality", AFMF_PERFORMANCE_QUALITY},
-                                                     {"performance", AFMF_PERFORMANCE_FAST}};
+                                                     {"performance", AFMF_PERFORMANCE_FAST},
+                                                     {"economy", AFMF_PERFORMANCE_ECONOMY}};
     static const struct choice present_modes[] = {{"auto", AFMF_PRESENT_AUTO},
                                                  {"keep", AFMF_PRESENT_KEEP}};
 
@@ -142,9 +145,11 @@ static void init(void)
     ok = read_choice("AFMF_SEARCH_MODE", search_modes, 3, &search_mode) && ok;
     ok = read_choice("AFMF_FAST_MOTION_RESPONSE", responses, 2, &fast_motion) && ok;
     ok = read_bounded("AFMF_PROFILE", 0, 1, &profile) && ok;
+    ok = read_bounded("GSF_NEXT_GPU_BUDGET_US",0,10000,&gpu_budget_us) && ok;
+    ok = read_bounded("GSF_NEXT_FAST_WARP",0,1,&fast_warp) && ok;
     ok = read_bounded("AFMF_ASYNC", 0, 1, &async) && ok;
     ok = read_bounded("AFMF_PACING", 0, 1, &pacing) && ok;
-    ok = read_choice("AFMF_PERFORMANCE_MODE", performance_modes, 3, &performance) && ok;
+    ok = read_choice("AFMF_PERFORMANCE_MODE", performance_modes, 4, &performance) && ok;
     ok = read_choice("AFMF_PRESENT_MODE", present_modes, 2, &present_mode) && ok;
     ok = read_bounded("AFMF_GOVERNOR", 0, 1, &governor) && ok;
     ok = read_bounded("AFMF_MIN_FPS", 0, 240, &min_fps) && ok;
@@ -165,7 +170,11 @@ static void init(void)
      * (Wine does them) may move. Kept for the life of the process. */
     const char *dump_dir = getenv("AFMF_DUMP_DIR");
     g_config.dump_dir = dump_dir != NULL && *dump_dir != '\0' ? strdup(dump_dir) : NULL;
-    g_config.profile = profile != 0 || log_level >= AFMF_LOG_DEBUG;
+    g_config.gpu_budget_us=(uint32_t)gpu_budget_us;
+    g_config.cheap_warp=fast_warp!=0;
+    /* The guard never guesses GPU cost from CPU wall-time. Enable actual
+     * timestamp collection when the user explicitly opts into a budget. */
+    g_config.profile = profile != 0 || log_level >= AFMF_LOG_DEBUG || gpu_budget_us!=0;
     g_config.async = async != 0;
     g_config.pacing = pacing != 0;
     g_config.passive = gamescope != 0 && process_is_gamescope();

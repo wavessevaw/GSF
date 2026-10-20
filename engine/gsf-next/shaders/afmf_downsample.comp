@@ -1,4 +1,4 @@
-// afmf-linux: 2x2 box downsample of the new frame for half-resolution optical flow.
+// afmf-linux: budget-first 2x/4x colour reduction for optical flow.
 //
 // Sampling with a linear filter exactly at the centre of each 2x2 source quad averages the four
 // texels; the result feeds the FidelityFX luma pass, which only needs RGB. Runs on the layer's
@@ -25,8 +25,8 @@ void main()
     ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
     if (pix.x >= p.size.x || pix.y >= p.size.y)
         return;
-    // The centre of the 2x2 source quad this texel covers, in the source's own texels: measured
-    // against the destination it drifts by a texel on an odd frame and the box blurs.
-    vec2 uv = (vec2(pix) * 2.0 + 1.0) / vec2(p.source);
+    // Centre sampling of the source footprint, with no full-res loop.
+    // 4x intentionally trades fine motion and aliasing for lower GPU work.
+    vec2 uv = (vec2(pix) + vec2(0.5)) / vec2(p.size);
     imageStore(u_dst, pix, texture(u_src, uv));
 }

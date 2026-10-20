@@ -2,19 +2,19 @@
 #pragma once
 #include <stdint.h>
 
-/* 0 = dynamic queue size. At 90 Hz this grants 3/4/5 jobs for x2/x3/x4.
- * Scale linearly with display refresh; never exceed the resources actually
- * reserved for this swapchain. One additional safety job absorbs scheduling
- * jitter instead of binding immediately at the theoretical minimum.
- * Greater depth deliberately trades latency
- * for absorbing a longer producer / reconstruction schedule. */
+/* 0 = conservative automatic fallback. Earlier proportional Auto (3..8) was
+ * invalidated by Deck observations: increasing queue depth improved pacing
+ * only until an optimum and then accumulated latency/backpressure. Until GSF
+ * owns a genuinely independent output swapchain, an FPS/multiplier formula
+ * is NOT a safe admission controller. Explicit manual 1..8 remains available
+ * for diagnostics and controlled A/B comparisons. This is a containment fix,
+ * not a claim of sustained x2 / x3 output throughput. */
 static inline uint32_t gsf_queue_desired(uint32_t setting,uint32_t hz,uint32_t multiplier)
 {
+    (void)hz;
+    (void)multiplier;
     if(setting>0u) return setting>8u ? 8u : setting;
-    if(multiplier<2u) multiplier=2u;
-    uint64_t scaled=((uint64_t)hz*multiplier+89u)/90u+1u;
-    if(scaled<2u) scaled=2u;
-    return scaled>8u ? 8u:(uint32_t)scaled;
+    return 2u;
 }
 static inline uint32_t gsf_queue_effective(uint32_t setting,uint32_t hz,
                                             uint32_t multiplier,uint32_t capacity)
@@ -24,9 +24,8 @@ static inline uint32_t gsf_queue_effective(uint32_t setting,uint32_t hz,
     return requested>capacity ? capacity:requested;
 }
 
-/* Convert queued-resource headroom to a bounded display playout horizon.
- * Keep the ordinary source-period EMA if larger, and never let queue growth
- * create an unbounded delay on low refresh monitors. */
+/* Only explicit manual deep queue settings may use this bounded playout
+ * horizon. Never call it for the protected Auto setting (0). */
 static inline uint64_t gsf_queue_playout_ticks(uint64_t source_ticks,
                                                 uint32_t effective_queue)
 {

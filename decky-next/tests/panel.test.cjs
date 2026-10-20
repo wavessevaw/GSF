@@ -23,6 +23,10 @@ test('actual panel: visible launch command, clipboard failure, compact settings,
   failStatus=false;failClipboard=true;await act(async()=>{prepare().props.onClick();});await flush();
   assert.match(JSON.stringify(tree.toJSON()),/Steam запретил копирование/);assert.equal(tree.root.findByType('textarea').props.value,options);
   const mult=()=>tree.root.findAllByType('gsf-Dropdown').find(n=>n.props.rgOptions.some(o=>o.data===4&&o.label.startsWith('×4')));
+  const quality=tree.root.findAllByType('gsf-Dropdown').find(n=>n.props.rgOptions.some(o=>o.data==='economy'));
+  assert.ok(quality,'budget-first Alpha profile selectable');
+  await act(async()=>quality.props.onChange({data:'economy'}));
+  await flush();
   await act(async()=>{mult().props.onChange({data:4});});await flush();assert.equal(profile.multiplier,4);assert.equal(mult().props.selectedOption,4);
   assert.match(JSON.stringify(tree.toJSON()),/Применяется во время игры/);
   assert.doesNotMatch(JSON.stringify(tree.toJSON()),/Перезапустите игру/);
