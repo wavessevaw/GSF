@@ -264,3 +264,57 @@ honor Vulkan loader data, dynamic rendering layouts, device features,
 queue external sync, present extension chains, and safe restoration.
 The separate CI suites prove contracts, NOT a working combined Game Mode
 frame generation installation. The draft PR must not be shipped.
+
+
+## External architecture reference and independent GPU cost guard (2026-10-20)
+
+Examined separately supplied **LSFG-VK** source files (VSYNC Vulkan layer,
+pipeline signature v3_1, benchmark, Vulkan helpers and diagnostics) as a
+**read-only comparison**. These files visibly carry
+`SPDX-License-Identifier: CC-BY-NC-ND-4.0`. No LSFG-VK code, shader
+source, bytecode or pipeline signature is copied into GSF.
+
+Architectural observations, not claims of transferable implementation:
+
+- LSFG-VK's vsync path explicitly inserts multiple downstream
+  acquire/copy/present operations in its game present path, assuming a
+  stable rate and exact divisor of refresh. It is unsuitable for our
+  independently scheduled owner and unstable Deck source FPS.
+- Its explicit pipeline signature distinguishes externally pinned sources
+  and results from short-lived intermediates. Our own private ring already
+  supports lifetime pinning, but physical-GPU memory traffic and resource
+  occupancy still need proper measurements.
+- Its standalone benchmark multiplies synthetic throughput by the requested
+  factor to report a theoretical output FPS. That number is NOT Gamescope
+  WSI present completions, unique scanout pixels or game FPS retention.
+  GSF must continue to use timestamp, accepted/dropped output and real
+  compositor timeline measurements as separate categories.
+- The most useful next optimisation targets are fewer full-resolution
+  reconstruction pixels, fewer full-screen copies, and refusing optional
+  GPU work when the scene consumes the budget. The quarter-flow economy
+  shader alone cannot remove these other costs.
+
+### New opt-in completed-GPU-time admission
+
+`GSF_NEXT_GPU_BUDGET_US=1500` (sample value, not a universal
+recommendation) enables `gpu_cost_guard.h`. Default `0` leaves existing
+runtime unchanged. When active:
+
+1. Enable Vulkan timestamp collection, never infer GPU cost from wall
+   clock or a multiply-derived "Output FPS".
+2. Admit at most **one** synthetic output per eligible real pair, so
+   economy-first load reduction takes priority over nominal x3/x4.
+3. After first admission, await the **completed GPU sample associated
+   with a positive synthetic count** before issuing another probe.
+   Unavailable timestamps fail closed, preventing runaway probes.
+4. If that completed pair exceeded budget, skip seven source-pair
+   opportunities before another single synthetic probe. Two consecutive
+   affordable samples allow continuous x2-level probing; an over-budget
+   sample resets this. Original source presentation is never gated.
+5. No deeper queuing, fabricated rate, or unbounded catch-up frames.
+
+This is a deliberately conservative **P0 experiment**, and NOT proof
+of a physical x2 frame rate or a complete Alpha+Owner game runtime.
+It requires hardware A/B evidence to set or automate any default
+budget: game native FPS retained, timestamped pair cost, actual WSI
+presents/drops, and latency at p95/p99.
