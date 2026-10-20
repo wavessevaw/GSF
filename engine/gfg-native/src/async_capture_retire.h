@@ -38,6 +38,10 @@ typedef struct {
     VkCommandPool pool;
     gfg_async_copy_record record;
     gfg_async_copy_complete complete;
+    /* Explicit handoff of pinned GPU snapshot to a distinct output worker.
+     * Called AFTER capture fence and BEFORE game-source image retirement. */
+    gfg_async_copy_complete handoff;
+    pthread_mutex_t *queue_submit_lock;
     void *user;
     uint32_t count;
     gfg_async_capture_slot slots[GFG_VIRTUAL_MAX_IMAGES];
@@ -75,7 +79,9 @@ static inline void *gfg_async_capture_worker(void *opaque) {
             };
             nanosleep(&delay,NULL);
         }
-        if(result==VK_SUCCESS && a->complete)
+        if(result==VK_SUCCESS && a->handoff)
+            result=a->handoff(a->user,idx,ticket);
+        else if(result==VK_SUCCESS && a->complete)
             result=a->complete(a->user,idx,ticket);
         if(result==VK_SUCCESS)
             result=gfg_vwsi_retire(a->virtual_app,idx,ticket,1);
@@ -201,7 +207,9 @@ static inline VkResult gfg_async_capture_submit(void *opaque,
         .waitSemaphoreCount=wait_count,.pWaitSemaphores=waits,
         .pWaitDstStageMask=wait_count?stages:NULL,
         .commandBufferCount=1,.pCommandBuffers=&slot->command};
+    if(a->queue_submit_lock)pthread_mutex_lock(a->queue_submit_lock);
     result=vkQueueSubmit(a->queue,1,&submit,slot->fence);
+    if(a->queue_submit_lock)pthread_mutex_unlock(a->queue_submit_lock);
     if(result!=VK_SUCCESS)goto bad;
     slot->ticket=ticket;slot->busy=1;
     a->pending[a->tail]=image;
