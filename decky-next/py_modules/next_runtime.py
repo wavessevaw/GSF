@@ -138,8 +138,65 @@ class Runtime:
         self.results = self.home/'GSF-Next-Results'
         self.samples = {}
 
+    def _user_json(self, name, default):
+        """Unlike signed payload files, user state must not crash every RPC.
+        Preserve malformed bytes for diagnosis before a safe reset.
+        Signed payload/manifest JSON remains strict and is never ignored.
+        """
+        path = self.root/name
+        try:
+            value = read(path, default)
+        except (ValueError, UnicodeError):
+            path.rename(path.with_name(path.name+'.corrupt-'+str(time.time_ns())))
+            return default
+        if not isinstance(value, dict):
+            if path.exists():
+                path.rename(path.with_name(path.name+'.corrupt-'+str(time.time_ns())))
+            return default
+        return value
+
     def config(self):
-        return read(self.root/'config.json', dict(schema=1, games={}))
+        cfg = self._user_json('config.json', dict(schema=1, games={}))
+        if not isinstance(cfg.get('games'), dict):
+            source = self.root/'config.json'
+            if source.exists():
+                source.rename(source.with_name(source.name+'.corrupt-'+str(time.time_ns())))
+            return dict(schema=1, games={})
+        return cfg
+
+    def _profile(self, value):
+        """Migrate malformed/older per-game values without losing all games.
+
+        A stale field from Alpha 4 must not prevent selecting a game or
+        recovering its launch command in Alpha 5. Unrecognised fields are
+        not used to drive the engine.
+        """
+        old = self.config()['games'].get(app_id(value), {})
+        if not isinstance(old, dict):
+            old = {}
+        clean = {}
+        for key, value in old.items():
+            if key not in DEFAULTS:
+                continue
+            try:
+                validate({key: value})
+            except (ValueError, TypeError):
+                continue
+            clean[key] = value
+        clean['armed'] = old.get('armed') is True
+        revision = old.get('revision', 0)
+        clean['revision'] = revision if type(revision) is int and revision >= 0 else 0
+        return clean
+
+    def launch_command(self, value):
+        """Independent of status polling and GPU payload reinstall.
+        Never claim readiness if the launcher is absent.
+        """
+        options = self.options(value)
+        ready = (self.root/'launch.py').is_file() and (self.root/'current.json').is_file()
+        return dict(options=options, ready=ready,
+                    error=None if ready else
+                    'Файлы запуска отсутствуют: проверьте установку GSF Next.')
 
     def install(self):
         payload = self.plugin/'payload'
@@ -185,7 +242,11 @@ class Runtime:
         return info
 
     def selection(self):
-        return read(self.root/'selection.json', dict(appid=0))
+        data = self._user_json('selection.json', dict(appid=0))
+        try:
+            return dict(appid=int(app_id(data.get('appid', 0)))) if data.get('appid') else dict(appid=0)
+        except (TypeError, ValueError):
+            return dict(appid=0)
 
     def select(self, value):
         selected = dict(appid=int(app_id(value)))
@@ -200,11 +261,11 @@ class Runtime:
         if not isinstance(patch, dict) or patch.keys()-DEFAULTS.keys():
             raise ValueError('Неизвестный параметр')
         cfg = self.config()
-        old = cfg['games'].get(aid, {})
+        old = self._profile(aid)
         entry = validate({**old, **patch})
         if entry['multiplier'] == 0: entry['enabled'] = False
         entry['armed'] = bool(old.get('armed') or entry['enabled'])
-        entry['revision'] = max(time.time_ns(), old.get('revision',0)+1)
+        entry['revision'] = max(time.time_ns(), old['revision']+1)
         cfg['games'][aid] = entry
         atomic(self.root/'config.json', cfg)
         control(self.root/'controls'/aid, entry)
@@ -212,9 +273,13 @@ class Runtime:
                 'apply':'swapchain' if {'extra_images','present_mode'} & patch.keys() else 'live'}
 
     def prepare(self, value):
-        self.install()
         aid = app_id(value)
-        entry = self.config()['games'].get(aid, {})
+        # Decky _main installs once. A game-selection click must not
+        # reinstall/checksum-scan the entire engine; this used to throw a
+        # raw Python exception and prevent even showing launch options.
+        if not self.launch_command(aid)['ready']:
+            self.install()
+        entry = self._profile(aid)
         return self.configure(aid, dict(enabled=True, multiplier=entry.get('multiplier') or 2))
 
     def disable_all(self):
@@ -239,7 +304,7 @@ class Runtime:
                     aid = app_id(re.search(r'"appid"\s+"(\d+)"', text)[1])
                     name = re.search(r'"name"\s+"([^"\n]+)"', text)[1]
                     games[aid] = dict(appid=int(aid), name=name)
-                except (ValueError, TypeError, OSError): pass
+                except (ValueError, TypeError, OSError, AttributeError): pass
         return sorted(games.values(), key=lambda g:g['name'].lower())
 
     def latest(self, value):
@@ -248,7 +313,7 @@ class Runtime:
 
     def status(self, value):
         aid = app_id(value)
-        profile = validate(self.config()['games'].get(aid, {}))
+        profile = validate(self._profile(aid))
         run = self.latest(aid)
         report = read(run/'REPORT.json', {}) if run else {}
         live = []

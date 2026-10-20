@@ -1,0 +1,27 @@
+name: GSF Next Alpha5 Launch Recovery
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'decky-next/**'
+      - '.github/workflows/gsf-next-alpha5-launch.yml'
+permissions:
+  contents: read
+jobs:
+  launch-recovery:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Python backend crashes and game launch recovery
+        run: python3 -m unittest discover -s decky-next/tests -p 'test_*.py' -v
+      - name: Shipped Decky React UI and manual launch fallback
+        working-directory: decky-next
+        run: |
+          npm ci
+          npm run check
+          npm run build
+          npm run test:panel
