@@ -40,3 +40,18 @@ Results do **not** establish a uniform default-path speedup: some direct runs ar
 The default removes one scratch allocation and one full-image copy per synthetic. It preserves flow resolution, motion search, HUD criteria and reconstruction math. The memory-traffic reduction is structural; an actual GPU-time/energy gain is **unproven on Steam Deck**. The compatibility copy override permits a fair hardware A/B test. Batching stays opt-in until same-device measurements demonstrate a gain without source-FPS or image-quality regression.
 
 Aggregate timestamps, coverage and run medians are retained in `efficiency-software.json`. Reproduce raw logs using `engine/gsf-next/tests/efficiency.py`; methodology and byte-count calculations are in ALPHA5_EFFICIENCY.md. A display-slot cap avoids knowingly generating excess output but does not prove scanout. The separate lifecycle benchmark records failed numeric throughput acceptance as failed, without weakening its thresholds.
+
+## Single-worker control
+
+A follow-up on the same source/shaders uses one lavapipe worker at 640×480, ×4, two interleaved runs of 48 source frames. It reduces multi-worker contention with the CPU quota; it is still a software renderer, not a hardware efficiency qualification.
+
+| Path | Pair p50 / p95 / p99, ms | Reconstruction p50, ms | Complete / warm pairs |
+| --- | --- | ---: | ---: |
+| baseline | 79.768 / 93.566 / 120.094 | 48.162 | 64 / 64 |
+| copy | 80.995 / 172.702 / 238.658 | 48.723 | 63 / 64 |
+| direct | 84.758 / 188.993 / 228.575 | 51.724 | 61 / 64 |
+| batch | 70.293 / 112.317 / 121.486 | 37.895 | 64 / 64 |
+
+This control also does not show a default direct-path timing win. The batch path reduces reconstruction time on this software workload. Its hardware default remains disabled.
+
+The initial single-worker attempt at 1280×800 ×4 **failed** the minimum-sample check: only 16 of 32 warm baseline pairs generated all three outputs, below the required 24. Full-pair median was 295.943 ms, exceeding the unchanged 250-ms source-gap guard and causing alternating admission skips. The check and source-gap threshold were not relaxed. That run is excluded from comparative percentiles; it measures a software-driver/CPU limitation and cannot qualify Deck throughput.

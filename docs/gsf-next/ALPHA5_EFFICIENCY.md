@@ -89,8 +89,9 @@ a 360-Hz display nor a source/scanout throughput benchmark. Timing runs disable
 validation/readback overhead; the separate full pixel/ownership matrix retains
 Vulkan validation, unchanged ±2-pixel motion thresholds and real GPU readbacks.
 
-The 23-case matrix covers both output paths at ×2/×3/×4, batch ×3/×4/HUD; direct/batched with synchronization validation and no profiling,
-queue depths, both validation orders, camera pan, recreation, live settings,
+The 25-case matrix covers both output paths at ×2/×3/×4, batch ×3/×4/HUD; direct/batched with synchronization validation and no profiling,
+queue depths, both validation orders, direct UNORM ingest with unequal source/output counts,
+camera pan, recreation, live settings,
 source overlap and allocation/submission failures. Clock, lifecycle and hot
 reconfiguration tests remain separate from numeric throughput qualification.
 See EFFICIENCY_REPORT.md for measurements and DECK_PROTOCOL.ru.md for hardware

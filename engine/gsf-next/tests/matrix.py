@@ -55,6 +55,8 @@ def main():
       ('batch-validation-first',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',GSF_TEST_VALIDATION_FIRST='1'),3),
       ('direct-no-profile',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('batch-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('unorm-ingest',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),3),
+      ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
       ('queue1',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='1'),3),
       ('queue3-validation-first',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_MAX_IN_FLIGHT='3',GSF_TEST_VALIDATION_FIRST='1'),2),
       ('pan',dict(AFMF_TEST_PAN='1'),0),
@@ -122,6 +124,10 @@ def main():
         if env.get('AFMF_PROFILE')=='0':
             assert not list(directory.glob('gpu.jsonl*')) and 'GPU time per frame' not in log,(name,'profiling was not disabled')
         checked=check_outputs(directory,pixels) if pixels else 0
+        if 'unorm' in name:
+            assert 'direct ingest, direct output' in log,(name,'direct ingest path not exercised')
+            got,asked=map(int,re.findall(r'(\d+) images \(app asked (\d+)\), generation on',log)[0])
+            assert got>=asked+3,(name,'not enough source WSI images',got,asked)
         if 'hud' in name:
             format_id=int(re.findall(r'format (\d+), present mode',log)[0])
             assert format_id in (37,43,44,50),format_id

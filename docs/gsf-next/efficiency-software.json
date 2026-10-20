@@ -1067,5 +1067,213 @@
         }
       ]
     }
-  ]
+  ],
+  "single_worker_control": {
+    "method": {
+      "method": "serial interleaved modes; first 16 frames excluded; full requested output counts only",
+      "frames": 48,
+      "repeats": 2,
+      "threads": "1",
+      "builds": {
+        "candidate": {
+          "library_sha256": "11c076047986ebfba60f379fd1e72ab8e8229b0be362aec61a8664a8e8e3e97f",
+          "provenance": null
+        },
+        "baseline": {
+          "library_sha256": "05ce34e8a95e3c1e47a66693e89ace847f00edadf0c568a3cbe50f25e65ac6a7",
+          "provenance": {
+            "source_commit": "c92ea2919a9bccdca46ea7f14180be4e7e3bc0a1",
+            "library_sha256": "05ce34e8a95e3c1e47a66693e89ace847f00edadf0c568a3cbe50f25e65ac6a7"
+          }
+        }
+      },
+      "displayed": null,
+      "power_w": null
+    },
+    "measurements": [
+      {
+        "extent": "640x480",
+        "multiplier": 4,
+        "mode": "baseline",
+        "pairs": 64,
+        "coverage": [
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          },
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          }
+        ],
+        "run_pair_medians_ms": [
+          76.6634965,
+          82.8379735
+        ],
+        "pair_ms": {
+          "p50": 79.767918,
+          "p95": 93.56645,
+          "p99": 120.094407
+        },
+        "motion_ms": {
+          "p50": 30.405405,
+          "p95": 37.279639,
+          "p99": 48.294774
+        },
+        "reconstruction_ms": {
+          "p50": 48.162239,
+          "p95": 57.135492,
+          "p99": 73.249881
+        },
+        "scratch_copy_ms": {
+          "p50": 0.685995,
+          "p95": 1.129394,
+          "p99": 1.473774
+        },
+        "displayed": null,
+        "power_w": null
+      },
+      {
+        "extent": "640x480",
+        "multiplier": 4,
+        "mode": "copy",
+        "pairs": 63,
+        "coverage": [
+          {
+            "warm_pairs": 32,
+            "full_pairs": 31,
+            "excluded_incomplete": 1
+          },
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          }
+        ],
+        "run_pair_medians_ms": [
+          80.033532,
+          82.409334
+        ],
+        "pair_ms": {
+          "p50": 80.995134,
+          "p95": 172.702287,
+          "p99": 238.657658
+        },
+        "motion_ms": {
+          "p50": 31.814497,
+          "p95": 67.884849,
+          "p99": 73.634106
+        },
+        "reconstruction_ms": {
+          "p50": 48.723001,
+          "p95": 103.416242,
+          "p99": 161.778689
+        },
+        "scratch_copy_ms": {
+          "p50": 0.842802,
+          "p95": 2.19611,
+          "p99": 6.458044
+        },
+        "displayed": null,
+        "power_w": null
+      },
+      {
+        "extent": "640x480",
+        "multiplier": 4,
+        "mode": "direct",
+        "pairs": 61,
+        "coverage": [
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          },
+          {
+            "warm_pairs": 32,
+            "full_pairs": 29,
+            "excluded_incomplete": 3
+          }
+        ],
+        "run_pair_medians_ms": [
+          81.9895875,
+          87.852954
+        ],
+        "pair_ms": {
+          "p50": 84.757886,
+          "p95": 188.993196,
+          "p99": 228.574959
+        },
+        "motion_ms": {
+          "p50": 32.871286,
+          "p95": 62.369122,
+          "p99": 128.85001
+        },
+        "reconstruction_ms": {
+          "p50": 51.724012,
+          "p95": 87.008429,
+          "p99": 139.966852
+        },
+        "scratch_copy_ms": {
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "displayed": null,
+        "power_w": null
+      },
+      {
+        "extent": "640x480",
+        "multiplier": 4,
+        "mode": "batch",
+        "pairs": 64,
+        "coverage": [
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          },
+          {
+            "warm_pairs": 32,
+            "full_pairs": 32,
+            "excluded_incomplete": 0
+          }
+        ],
+        "run_pair_medians_ms": [
+          67.9813815,
+          75.775719
+        ],
+        "pair_ms": {
+          "p50": 70.293489,
+          "p95": 112.317082,
+          "p99": 121.485588
+        },
+        "motion_ms": {
+          "p50": 32.557422,
+          "p95": 57.216244,
+          "p99": 61.972424
+        },
+        "reconstruction_ms": {
+          "p50": 37.895339,
+          "p95": 59.805131,
+          "p99": 65.366105
+        },
+        "scratch_copy_ms": {
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "displayed": null,
+        "power_w": null
+      }
+    ]
+  },
+  "failed_single_worker_1280_control": {
+    "reason": "Insufficient fully generated warm pairs: software pair time crosses the unchanged 250 ms source-gap guard",
+    "warm_pairs": 32,
+    "full_pairs": 16,
+    "full_pair_p50_ms": 295.9427765,
+    "threshold_full_pairs": 24
+  }
 }

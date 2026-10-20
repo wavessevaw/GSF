@@ -16,11 +16,11 @@ def percentile(values,p):
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('matrix',type=Path);ap.add_argument('--out',type=Path,required=True);a=ap.parse_args()
-    results=json.loads((a.matrix/'RESULTS.json').read_text());assert len(results)==23
+    results=json.loads((a.matrix/'RESULTS.json').read_text());assert len(results)==25
     lines=['# GSF Next: software verification report','',
       'This is lavapipe/llvmpipe (LLVM 15, two CPU worker threads), Xvfb/X11, Ubuntu 22.04, GCC 11.4; **not Steam Deck/RDNA2 performance**.',
       'Output 640×480, half-resolution flow 320×240, five pyramid levels. Sixteen uploaded real frames per case, Vulkan validation, explicit GPU pixel readbacks and detailed timestamp output. This is a correctness workload with cold-start and CPU scheduling effects, not a real-time game benchmark.',
-      '', 'All 23 integration cases passed; the display-slot planner independently checks the 60/90/120 Hz scenarios, changing refresh, hitches and fractional source cadence. The software WSI matrix uses a 360 Hz admission budget to ensure a 30 ms source interval can request every synthetic phase; Xvfb is not a 360 Hz physical display.',
+      '', 'All 25 integration cases passed; the display-slot planner independently checks the 60/90/120 Hz scenarios, changing refresh, hitches and fractional source cadence. The software WSI matrix uses a 360 Hz admission budget to ensure a 30 ms source interval can request every synthetic phase; Xvfb is not a 360 Hz physical display.',
       '', '| Mode | Retired pairs with outputs | Pair p50 / p95 / p99, ms | Shared analysis p50, ms | G1 / G2 / G3 p50, ms | Built / WSI accepted |',
       '| --- | ---: | --- | ---: | --- | --- |']
     for case in ('x2','x3','x4'):
