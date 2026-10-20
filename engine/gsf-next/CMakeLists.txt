@@ -216,6 +216,11 @@ target_compile_definitions(afmf_headless PRIVATE _POSIX_C_SOURCE=200809L)
 target_compile_options(afmf_headless PRIVATE ${AFMF_WARNINGS})
 
 
+add_executable(gsf_queue_depth tests/queue_depth.c)
+target_include_directories(gsf_queue_depth PRIVATE src)
+target_compile_options(gsf_queue_depth PRIVATE -UNDEBUG)
+add_test(NAME queue_depth COMMAND gsf_queue_depth)
+
 add_executable(gsf_presentation_deadline tests/presentation_deadline.c)
 target_include_directories(gsf_presentation_deadline PRIVATE src)
 target_compile_options(gsf_presentation_deadline PRIVATE -UNDEBUG)
