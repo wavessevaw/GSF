@@ -41,7 +41,8 @@ VkResult afmf_sc_gen_init(struct afmf_device *dev, struct afmf_swapchain *sc)
     if(res!=VK_SUCCESS) return res;
     if (afmf_config_get()->interpolate)
         sc->fg = afmf_framegen_create(dev, sc->format, sc->extent, sc->image_count, sc->images,
-                                      sc->image_count, false, sc->sampled_usage, &sc->config);
+                                      sc->image_count, sc->output_storage ? sc->output_images : NULL,
+                                      sc->output_capacity*GSF_NEXT_MAX_OUTPUTS, sc->sampled_usage, &sc->config);
     return sc->fg != NULL ? VK_SUCCESS : VK_ERROR_FEATURE_NOT_PRESENT;
 }
 
@@ -128,9 +129,9 @@ void afmf_sc_gen_teardown(struct afmf_device *dev, struct afmf_swapchain *sc)
     }
     if (sc->pool != VK_NULL_HANDLE)
         f->destroy_command_pool(dev->handle, sc->pool, NULL); /* frees the command buffers */
-    afmf_sc_output_destroy(dev,sc);
-    afmf_framegen_destroy(dev, sc->fg);
+    afmf_framegen_destroy(dev, sc->fg); /* output views precede their private images */
     sc->fg = NULL;
+    afmf_sc_output_destroy(dev,sc);
     for (uint32_t i = 0; i < sc->image_count; i++) {
         if (sc->sem_generated != NULL && sc->sem_generated[i] != VK_NULL_HANDLE)
             f->destroy_semaphore(dev->handle, sc->sem_generated[i], NULL);

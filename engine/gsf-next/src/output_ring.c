@@ -11,11 +11,17 @@ VkResult afmf_sc_output_init(struct afmf_device *dev,struct afmf_swapchain *sc)
     VkMemoryRequirements reqs[GSF_NEXT_RING_IMAGES];
     VkDeviceSize offsets[GSF_NEXT_RING_IMAGES],bytes=0;
     uint32_t types=UINT32_MAX,count=sc->output_capacity*GSF_NEXT_MAX_OUTPUTS;
+    const char *copy=getenv("GSF_NEXT_OUTPUT_COPY"); /* A/B measurement and compatibility override */
+    sc->output_format=afmf_framegen_output_format(sc->format);
+    if(sc->output_format==VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    sc->output_storage=afmf_framegen_can_write_direct(dev,sc->output_format) &&
+                       !(copy!=NULL && strcmp(copy,"1")==0);
     for(uint32_t k=0;k<count;k++) {
         VkImageCreateInfo info={.sType=VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,.imageType=VK_IMAGE_TYPE_2D,
-            .format=sc->format,.extent={sc->extent.width,sc->extent.height,1},.mipLevels=1,.arrayLayers=1,
+            .format=sc->output_format,.extent={sc->extent.width,sc->extent.height,1},.mipLevels=1,.arrayLayers=1,
             .samples=VK_SAMPLE_COUNT_1_BIT,.tiling=VK_IMAGE_TILING_OPTIMAL,
-            .usage=VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            .usage=VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT|
+                   (sc->output_storage ? VK_IMAGE_USAGE_STORAGE_BIT : 0u),
             .sharingMode=VK_SHARING_MODE_EXCLUSIVE,.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED};
         VkResult res=f->create_image(dev->handle,&info,NULL,&sc->output_images[k]);
         if(res!=VK_SUCCESS) return res;

@@ -78,8 +78,8 @@ def run(build, out, name, patch, frames=24):
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--build',type=Path,required=True)
-    args=parser.parse_args();build=args.build.resolve();out=build/'Testing/live-pacing'
+    parser=argparse.ArgumentParser();parser.add_argument('--build',type=Path,required=True);parser.add_argument('--out',type=Path)
+    args=parser.parse_args();build=args.build.resolve();out=(args.out or build/'Testing/live-pacing').resolve()
     summaries=[run(build,out,'cap90-x3',{}),
                run(build,out,'late90-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_TEST_READY_DELAY_MS='45')),
                run(build,out,'live',dict(GSF_TEST_LIVE='1'),56)]

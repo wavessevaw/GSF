@@ -18,7 +18,8 @@ void afmf_sc_live_update(struct afmf_device *dev,struct afmf_swapchain *sc,uint6
             if(sc->slots[k].pending && dev->fns.wait_for_fences(dev->handle,1,&sc->slots[k].fence,VK_TRUE,UINT64_MAX)!=VK_SUCCESS)
                 return;
         struct afmf_framegen *replacement=afmf_framegen_create(dev,sc->format,sc->extent,sc->image_count,
-            sc->images,sc->image_count,false,sc->sampled_usage,&next);
+            sc->images,sc->image_count,sc->output_storage ? sc->output_images : NULL,
+            sc->output_capacity*GSF_NEXT_MAX_OUTPUTS,sc->sampled_usage,&next);
         if(replacement==NULL) return;
         afmf_framegen_destroy(dev,sc->fg);sc->fg=replacement;sc->have_history=false;
     }

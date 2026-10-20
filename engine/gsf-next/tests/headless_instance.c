@@ -95,16 +95,20 @@ bool create_instance(struct ctx *ctx, bool with_validation)
      * is the only way to see a read or a write of theirs leave its buffer. It is asked for here
      * rather than through the layer's own settings, which differ between its versions, and it
      * makes the run slow enough that only its own test uses it. */
-    VkValidationFeatureEnableEXT gpu_assisted[] = {VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT};
+    VkValidationFeatureEnableEXT enabled[2];
+    uint32_t enabled_count = 0;
+    if (with_validation && env_is_1("AFMF_TEST_GPUAV"))
+        enabled[enabled_count++] = VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT;
+    if (with_validation && env_is_1("GSF_TEST_SYNC_VALIDATION"))
+        enabled[enabled_count++] = VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT;
     VkValidationFeaturesEXT features = {
         .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-        .enabledValidationFeatureCount = 1,
-        .pEnabledValidationFeatures = gpu_assisted,
+        .enabledValidationFeatureCount = enabled_count,
+        .pEnabledValidationFeatures = enabled,
     };
-    bool with_gpuav = with_validation && env_is_1("AFMF_TEST_GPUAV");
     VkInstanceCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = with_gpuav ? &features : NULL,
+        .pNext = enabled_count > 0 ? &features : NULL,
         .pApplicationInfo = &app,
         .enabledLayerCount = with_validation ? 2u : 1u,
         .ppEnabledLayerNames = layers,

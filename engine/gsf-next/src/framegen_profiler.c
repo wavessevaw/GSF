@@ -47,6 +47,8 @@ void afmf_framegen_profiler_collect(struct afmf_device *dev, struct afmf_framege
     fg->last_gpu_ms = (double)(ticks[count-1] - ticks[0]) * (double)dev->limits.timestampPeriod / 1e6;
     const uint8_t *stages = fg->query_stage + (size_t)slot * AFMF_PROFILE_QUERIES;
     fg->last_motion_ms = 0;
+    fg->last_batch_ms = 0;
+    double output_ms = 0;
     memset(fg->last_warp_ms,0,sizeof fg->last_warp_ms);
     uint32_t warp = 0;
     for (uint32_t i = 1; i < count; i++) {
@@ -54,7 +56,9 @@ void afmf_framegen_profiler_collect(struct afmf_device *dev, struct afmf_framege
         fg->stage_ns[stages[i]] += ns;
         if (stages[i] == STAGE_INTERPOLATE) {
             if (warp < 3) fg->last_warp_ms[warp++] = ns/1e6;
-        } else if (stages[i] != STAGE_OUTPUT) fg->last_motion_ms += ns/1e6;
+        } else if (stages[i] == STAGE_BATCH) fg->last_batch_ms += ns/1e6;
+        else if (stages[i] == STAGE_OUTPUT) output_ms += ns/1e6;
+        else fg->last_motion_ms += ns/1e6;
     }
     const char *path = getenv("GSF_NEXT_GPU_REPORT");
     if (path != NULL && fg->diagnostics) {
@@ -71,7 +75,9 @@ void afmf_framegen_profiler_collect(struct afmf_device *dev, struct afmf_framege
         }
         if(out != NULL) {
             uint32_t pair=fg->query_pair[slot], outputs=fg->query_outputs[slot];
-            (void)fprintf(out,"{\"pair_b\":%u,\"pair_a\":%u,\"outputs\":%u,\"pair_ms\":%.6f,\"motion_ms\":%.6f,\"warp_ms\":[%.6f,%.6f,%.6f],\"phases\":[",
+            (void)fprintf(out,"{\"batch_ms\":%.6f,\"scratch_copy_ms\":%.6f,\"direct_output\":%s,",
+                fg->last_batch_ms,output_ms,fg->direct ? "true" : "false");
+            (void)fprintf(out,"\"pair_b\":%u,\"pair_a\":%u,\"outputs\":%u,\"pair_ms\":%.6f,\"motion_ms\":%.6f,\"warp_ms\":[%.6f,%.6f,%.6f],\"phases\":[",
                 pair,pair ? pair-1 : 0,outputs,fg->last_gpu_ms,fg->last_motion_ms,
                 fg->last_warp_ms[0],fg->last_warp_ms[1],fg->last_warp_ms[2]);
             for(uint32_t k=0;k<outputs;k++)

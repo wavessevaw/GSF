@@ -108,7 +108,6 @@ struct afmf_swapchain {
      * the application gave no list. */
     VkPresentModeKHR allowed_modes[8];
     uint32_t allowed_mode_count;
-    bool storage_usage; /* the images carry STORAGE usage for direct output (AFMF_DIRECT_OUTPUT) */
     bool sampled_usage; /* the images carry SAMPLED usage for the direct ingest (AFMF_DIRECT_INGEST) */
     uint32_t min_image_count;
 
@@ -118,6 +117,8 @@ struct afmf_swapchain {
     uint32_t image_count;
     uint32_t output_capacity;
     VkImage output_images[GSF_NEXT_RING_IMAGES];
+    VkFormat output_format; /* raw-copy-compatible storage format, including sRGB WSI */
+    bool output_storage; /* synth writes private storage images directly when supported */
     VkDeviceMemory output_memory;
     VkDeviceSize output_bytes;
     VkCommandPool copy_pool;

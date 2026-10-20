@@ -14,6 +14,10 @@
 #version 450
 #extension GL_EXT_samplerless_texture_functions : require
 
+#ifndef AFMF_BATCHED
+#define AFMF_BATCHED 0
+#endif
+
 #ifndef AFMF_OUT_FORMAT
 #define AFMF_OUT_FORMAT rgba8
 #endif
@@ -36,6 +40,16 @@ layout(set = 0, binding = 4) writeonly uniform image2D u_out;
 layout(set = 0, binding = 4, AFMF_OUT_FORMAT) uniform image2D u_out;
 #endif
 
+#if AFMF_BATCHED
+#if AFMF_OUT_FORMAT_NONE
+layout(set = 0, binding = 5) writeonly uniform image2D u_out2;
+layout(set = 0, binding = 6) writeonly uniform image2D u_out3;
+#else
+layout(set = 0, binding = 5, AFMF_OUT_FORMAT) uniform image2D u_out2;
+layout(set = 0, binding = 6, AFMF_OUT_FORMAT) uniform image2D u_out3;
+#endif
+#endif
+
 layout(push_constant) uniform Params {
     ivec2 size;          // output size in pixels
     int block;           // optical flow block size (8), in flow-resolution pixels
@@ -44,6 +58,11 @@ layout(push_constant) uniform Params {
     float flow_scale;    // output pixels per flow-resolution pixel (1 or 2)
     float hud_threshold; // a pixel equal in both frames within this, on a moving block, is HUD: kept as is (0 = off)
     float phase; // temporal position in [0,1] between previous and current
+#if AFMF_BATCHED
+    float phase2;
+    float phase3;
+    int count;
+#endif
 } p;
 
 const int SCD_SCENE_CHANGE_SLOT = 0;
@@ -68,40 +87,15 @@ vec2 flow_at(vec2 y)
     return mix(mix(v00, v10, f.x), mix(v01, v11, f.x), f.y) * p.flow_scale;
 }
 
-void main()
+vec4 reconstruct(ivec2 pix, vec2 v, bool trusted, bool keep_hud, vec4 hud, float phase)
 {
-    ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
-    if (pix.x >= p.size.x || pix.y >= p.size.y)
-        return;
-
     vec2 inv_size = 1.0 / vec2(p.size);
     vec2 y = vec2(pix) + 0.5;
-
-    bool scene_changed = (imageLoad(u_scd, ivec2(SCD_HISTORY_BITS_SLOT, 0)).x & 1u) != 0u;
-    vec2 v = flow_at(y);
-    bool trusted = !scene_changed && dot(v, v) <= p.max_motion * p.max_motion;
-
+    if (keep_hud) return hud;
     vec4 colour;
-    if (trusted && p.hud_threshold > 0.0 && dot(v, v) > 0.0) {
-        // A static overlay over motion (HUD, crosshair, subtitles): the pixel itself did not
-        // change between the frames although its block moved. Warping it would drag the
-        // background's motion into the overlay; keeping it is right. A flat interior that moved
-        // meets the same test and gets the same value either way. What it cannot tell apart is
-        // an object narrower than its own motion per frame, which then goes missing in between.
-        vec4 at_cur = texelFetch(u_cur, pix, 0);
-        vec4 at_prev = texelFetch(u_prev, pix, 0);
-        vec3 diff = abs(at_cur.rgb - at_prev.rgb);
-        if (max(diff.r, max(diff.g, diff.b)) <= p.hud_threshold) {
-#if AFMF_SWAP_RB
-            at_cur = at_cur.bgra;
-#endif
-            imageStore(u_out, pix, at_cur);
-            return;
-        }
-    }
     if (trusted) {
-        vec4 from_cur = texture(u_cur, (y - (1.0 - p.phase) * v) * inv_size);
-        vec4 from_prev = texture(u_prev, (y + p.phase * v) * inv_size);
+        vec4 from_cur = texture(u_cur, (y - (1.0 - phase) * v) * inv_size);
+        vec4 from_prev = texture(u_prev, (y + phase * v) * inv_size);
         // The two warps agree where the vector is right and the content exists in both
         // frames; where they disagree (a wrong vector, a silhouette whose blocks carry the
         // background's motion, a background uncovered from behind a passing object) averaging
@@ -113,17 +107,47 @@ void main()
         float level = 0.5 * (dot(from_cur.rgb, vec3(1.0 / 3.0)) + dot(from_prev.rgb, vec3(1.0 / 3.0)));
         float disagreement = max(diff.r, max(diff.g, diff.b)) / (level + 0.05);
         float unmoved = smoothstep(0.15, 0.6, disagreement);
-        colour = mix(from_prev, from_cur, p.phase);
+        colour = mix(from_prev, from_cur, phase);
         if (unmoved > 0.0) /* exactly zero wherever the warps agree, which is nearly everywhere */
-            colour = mix(colour, p.phase < 0.5 ? texelFetch(u_prev, pix, 0) : texelFetch(u_cur, pix, 0), unmoved);
+            colour = mix(colour, phase < 0.5 ? texelFetch(u_prev, pix, 0) : texelFetch(u_cur, pix, 0), unmoved);
     } else if (p.fallback == 1) {
-        colour = mix(texture(u_prev, y * inv_size), texture(u_cur, y * inv_size), p.phase);
+        colour = mix(texture(u_prev, y * inv_size), texture(u_cur, y * inv_size), phase);
     } else {
         colour = texture(u_prev, y * inv_size);
     }
 
+    return colour;
+}
+
+vec4 output_colour(vec4 colour)
+{
 #if AFMF_SWAP_RB
-    colour = colour.bgra;
+    return colour.bgra;
+#else
+    return colour;
 #endif
-    imageStore(u_out, pix, colour);
+}
+
+void main()
+{
+    ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
+    if (pix.x >= p.size.x || pix.y >= p.size.y) return;
+    bool scene_changed = (imageLoad(u_scd, ivec2(SCD_HISTORY_BITS_SLOT, 0)).x & 1u) != 0u;
+    // A cut needs no flow reads. All outputs reuse the same field and conservative HUD test.
+    vec2 v = scene_changed ? vec2(0) : flow_at(vec2(pix) + 0.5);
+    bool trusted = !scene_changed && dot(v, v) <= p.max_motion * p.max_motion;
+    bool keep_hud = false;
+    vec4 hud = vec4(0);
+    if (trusted && p.hud_threshold > 0.0 && dot(v, v) > 0.0) {
+        hud = texelFetch(u_cur, pix, 0);
+        vec3 diff = abs(hud.rgb - texelFetch(u_prev, pix, 0).rgb);
+        keep_hud = max(diff.r, max(diff.g, diff.b)) <= p.hud_threshold;
+    }
+    imageStore(u_out, pix, output_colour(reconstruct(pix, v, trusted, keep_hud, hud, p.phase)));
+#if AFMF_BATCHED
+    if (p.count > 1)
+        imageStore(u_out2, pix, output_colour(reconstruct(pix, v, trusted, keep_hud, hud, p.phase2)));
+    if (p.count > 2)
+        imageStore(u_out3, pix, output_colour(reconstruct(pix, v, trusted, keep_hud, hud, p.phase3)));
+#endif
 }

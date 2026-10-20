@@ -54,9 +54,23 @@ static VkResult sets_allocate(struct afmf_device *dev, struct afmf_framegen *fg,
                 return res;
         }
     }
+    if (fg->batch) {
+        uint32_t triples = fg->target_count/3u;
+        fg->batch_sets = calloc(2u*triples, sizeof *fg->batch_sets);
+        if (fg->batch_sets == NULL) return VK_ERROR_OUT_OF_HOST_MEMORY;
+        for (uint32_t k = 0; k < 2u*triples; k++) {
+            VkDescriptorSetAllocateInfo alloc = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = fg->pool, .descriptorSetCount = 1,
+                .pSetLayouts = &pl->set_layouts[PASS_BATCH],
+            };
+            res = dev->fns.allocate_descriptor_sets(dev->handle, &alloc, &fg->batch_sets[k]);
+            if (res != VK_SUCCESS) return res;
+        }
+    }
     if (fg->ingest_direct) {
         VkDescriptorSetLayout ingest_layouts[AFMF_MAX_IMAGES];
-        for (uint32_t j = 0; j < fg->target_count; j++)
+        for (uint32_t j = 0; j < fg->source_count; j++)
             ingest_layouts[j] = pl->set_layouts[PASS_INGEST];
         fg->ingest_sets = calloc(ingest_sets, sizeof *fg->ingest_sets);
         if (fg->ingest_sets == NULL)
@@ -65,11 +79,11 @@ static VkResult sets_allocate(struct afmf_device *dev, struct afmf_framegen *fg,
             VkDescriptorSetAllocateInfo alloc = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = fg->pool,
-                .descriptorSetCount = fg->target_count,
+                .descriptorSetCount = fg->source_count,
                 .pSetLayouts = ingest_layouts,
             };
             res = dev->fns.allocate_descriptor_sets(dev->handle, &alloc,
-                                                    fg->ingest_sets + p * fg->target_count);
+                                                    fg->ingest_sets + p * fg->source_count);
             if (res != VK_SUCCESS)
                 return res;
         }
@@ -156,6 +170,16 @@ static void sets_write(struct afmf_device *dev, struct afmf_framegen *fg, uint32
         writer_end(&w);
     }
 
+    for (uint32_t j = 0; fg->batch && j < fg->target_count/3u; j++) {
+        writer_begin(&w, dev, fg->batch_sets[p*(fg->target_count/3u)+j]);
+        writer_image(&w, 0, COMBINED, fg->color[q].view, fg->sampler);
+        writer_image(&w, 1, COMBINED, fg->color[p].view, fg->sampler);
+        writer_image(&w, 2, SAMPLED, fg->flow_out.view, VK_NULL_HANDLE);
+        writer_image(&w, 3, STORAGE, fg->scd_output.view, VK_NULL_HANDLE);
+        for (uint32_t k = 0; k < 3; k++)
+            writer_image(&w, 4+k, STORAGE, fg->target_views[j*3+k], VK_NULL_HANDLE);
+        writer_end(&w);
+    }
     if (fg->flow_scale > 1 && !fg->ingest_direct) {
         writer_begin(&w, dev, fg->sets[p][SET_DOWNSAMPLE]);
         writer_image(&w, 0, COMBINED, fg->color[p].view, fg->sampler);
@@ -163,8 +187,8 @@ static void sets_write(struct afmf_device *dev, struct afmf_framegen *fg, uint32
         writer_end(&w);
     }
 
-    for (uint32_t j = 0; fg->ingest_direct && j < fg->target_count; j++) {
-        writer_begin(&w, dev, fg->ingest_sets[p * fg->target_count + j]);
+    for (uint32_t j = 0; fg->ingest_direct && j < fg->source_count; j++) {
+        writer_begin(&w, dev, fg->ingest_sets[p * fg->source_count + j]);
         writer_image(&w, 0, SAMPLED, fg->source_views[j], VK_NULL_HANDLE);
         writer_image(&w, 1, STORAGE, fg->color[p].view, VK_NULL_HANDLE);
         writer_image(&w, 2, STORAGE, fg->luma[p][0].view, VK_NULL_HANDLE);
@@ -177,16 +201,17 @@ VkResult afmf_framegen_descriptor_sets_create(struct afmf_device *dev, struct af
     const struct afmf_framegen_pipelines *pl = dev->framegen_pipelines;
 
     uint32_t direct_sets = fg->direct ? 2u * fg->target_count : 0u; /* one interpolate set each */
-    uint32_t ingest_sets = fg->ingest_direct ? 2u * fg->target_count : 0u;
+    uint32_t ingest_sets = fg->ingest_direct ? 2u * fg->source_count : 0u;
+    uint32_t batch_sets = fg->batch ? 2u*(fg->target_count/3u) : 0u;
     VkDescriptorPoolSize sizes[] = {
-        {SAMPLED, 2 * 42 + direct_sets + ingest_sets},
-        {STORAGE, 2 * 49 + 2 * direct_sets + 2 * ingest_sets},
-        {COMBINED, 2 * 3 + 2 * direct_sets},
+        {SAMPLED, 2 * 42 + direct_sets + ingest_sets + batch_sets},
+        {STORAGE, 2 * 49 + 2 * direct_sets + 2 * ingest_sets + 4 * batch_sets},
+        {COMBINED, 2 * 3 + 2 * direct_sets + 2 * batch_sets},
         {UBO, 2 * 25},
     };
     VkDescriptorPoolCreateInfo pool = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 2 * SET_COUNT + direct_sets + ingest_sets,
+        .maxSets = 2 * SET_COUNT + direct_sets + ingest_sets + batch_sets,
         .poolSizeCount = (uint32_t)(sizeof sizes / sizeof sizes[0]),
         .pPoolSizes = sizes,
     };

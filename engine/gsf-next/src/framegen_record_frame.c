@@ -116,12 +116,12 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
     for (uint32_t n = 0; n < count; n++)
         if (phases[n] <= 0.0f || phases[n] >= 1.0f || (fg->direct && indices[n] >= fg->target_count)) return;
 
-    /* The direct paths keep one view per swapchain image: an index past them is a broken
+    /* The direct paths keep separate source and output views: an index past them is a broken
      * caller, not a case to fall back from (the copy fallback would leave the luma unwritten,
      * or copy from an output image that direct output never creates). */
-    if ((fg->ingest_direct && current_index >= fg->target_count)) {
+    if ((fg->ingest_direct && current_index >= fg->source_count)) {
         AFMF_ERR("frame %u / target %u outside the %u swapchain images: nothing recorded",
-                 current_index, 0u, fg->target_count);
+                 current_index, 0u, fg->source_count);
         return;
     }
 
@@ -156,7 +156,7 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
         dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_INGEST], VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                     (uint32_t)sizeof push, &push);
         afmf_dispatch(dev, cmd, pl->ingest[fg->ingest_variant], pl->layouts[PASS_INGEST],
-                      fg->ingest_sets[p * fg->target_count + current_index], NULL, 0,
+                      fg->ingest_sets[p * fg->source_count + current_index], NULL, 0,
                       (ingest_w + 7) / 8, (ingest_h + 7) / 8, 1);
     } else {
         afmf_framegen_copy_whole(dev, cmd, current, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -180,11 +180,17 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
 
     /* 3. The frame in between, into the target: written by the interpolator itself (direct
      *    output, target in GENERAL) or copied from fg->output (target in TRANSFER_DST). */
+    bool batched = fg->batch && count > 1;
+    for (uint32_t n = 0; batched && n < count; n++)
+        batched = indices[n] == slot*3u+n;
+    if (batched) afmf_framegen_record_batch(dev, fg, cmd, slot, p, phases, count);
     for (uint32_t n = 0; n < count; n++) {
         VkImage target = targets[n];
         uint32_t target_index = indices[n];
-        afmf_sync(dev, cmd); // previous output copy must finish before reusing the shared scratch
-        if (fg->direct) {
+        if (!fg->direct) afmf_sync(dev, cmd); /* scratch reuse after the previous copy */
+        if (batched) {
+            /* Already written; debug readbacks still preserve all three outputs. */
+        } else if (fg->direct) {
             afmf_framegen_record_interpolate(dev, fg, cmd, slot,
                                              fg->direct_sets[p * fg->target_count + target_index],
                                              fg->direct_variant, phases[n]);

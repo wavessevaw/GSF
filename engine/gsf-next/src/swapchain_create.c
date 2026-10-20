@@ -76,7 +76,6 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
     uint32_t chain_mode_count = 0;
     bool async = false;
     bool fifo_to_mailbox = false;
-    bool storage_usage = false;
     bool sampled_usage = false;
     if (blocker == NULL) {
         /* Direct ingest: the layer samples the game's frame straight into its colour ring and
@@ -90,17 +89,8 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
                 AFMF_INFO("direct ingest unavailable for format %d on this surface; copying",
                           (int)info->imageFormat);
         }
-        /* Direct output: the interpolator writes the swapchain image, so it needs STORAGE usage;
-         * only where the surface and the format take it (sRGB formats do not). */
-        if (cfg->direct_output) {
-            storage_usage = (caps.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT) != 0 &&
-                            afmf_framegen_can_write_direct(dev, info->imageFormat);
-            if (storage_usage)
-                patched.imageUsage |= VK_IMAGE_USAGE_STORAGE_BIT;
-            else
-                AFMF_INFO("direct output unavailable for format %d on this surface; copying",
-                          (int)info->imageFormat);
-        }
+        /* Output STORAGE usage belongs to private ring images, never to game WSI.
+         * The legacy AFMF_DIRECT_OUTPUT setting is parsed but cannot change that ownership. */
         /* Every present takes a refresh slot in FIFO and the layer doubles the presents: a game
          * above half the refresh rate loses real frames (120 at 165 Hz -> 82). MAILBOX shows the
          * latest frame and drops the excess instead, which is what the doubling needs. */
@@ -132,7 +122,7 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
          * on failure, so replaying that handle would violate its lifetime. */
         AFMF_WARN("modified swapchain rejected (%d); retrying original real-only WSI",(int)res);
         patched = *info; async = false; fifo_to_mailbox = false;
-        storage_usage = false; sampled_usage = false; chain_mode_count = 0;
+        sampled_usage = false; chain_mode_count = 0;
         blocker = "modified swapchain rejected: real-only";
         res = dev->fns.create_swapchain(dev->handle,info,alloc,out);
     }
@@ -152,7 +142,6 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
     sc->extent = info->imageExtent;
     sc->present_mode = patched.presentMode;
     sc->fifo_to_mailbox = fifo_to_mailbox;
-    sc->storage_usage = storage_usage;
     sc->sampled_usage = sampled_usage;
     memcpy(sc->allowed_modes, chain_modes, chain_mode_count * sizeof *chain_modes);
     sc->allowed_mode_count = chain_mode_count;
