@@ -27,7 +27,7 @@ def main():
     ap.add_argument('--build',type=Path,required=True);ap.add_argument('--baseline',type=Path)
     ap.add_argument('--out',type=Path,required=True);ap.add_argument('--frames',type=int,default=64)
     ap.add_argument('--repeats',type=int,default=3);ap.add_argument('--extent',action='append');ap.add_argument('--multiplier',type=int,choices=(2,3,4),action='append')
-    ap.add_argument('--mode',action='append',choices=('baseline','copy','direct','batch'))
+    ap.add_argument('--mode',action='append',choices=('baseline','copy','direct','batch','auto'))
     a=ap.parse_args();assert a.frames>=32 and a.repeats>=1
     out=a.out.resolve();out.mkdir(parents=True,exist_ok=True);results=[]
     modes=a.mode or (['baseline'] if a.baseline else [])+['copy','direct','batch']
@@ -57,6 +57,8 @@ def main():
                 AFMF_PERFORMANCE_MODE='performance',AFMF_SEARCH_MODE='standard',AFMF_PROFILE='1',
                 GSF_NEXT_DIAGNOSTICS='1',GSF_NEXT_REFRESH_HZ='360',GSF_NEXT_MULTIPLIER=str(mult),
                 GSF_NEXT_OUTPUT_COPY=str(int(mode=='copy')),GSF_NEXT_WARP_BATCH=str(int(mode=='batch')),
+                GSF_NEXT_RENDERER='auto' if mode=='auto' else mode if mode!='baseline' else 'direct',
+                GSF_NEXT_PROFILE_DETAIL='0',
                 GSF_NEXT_GPU_REPORT=str(directory/'gpu'),GSF_NEXT_STATUS_DIR=str(directory))
             for name in ('AFMF_DUMP_DIR','GSF_TEST_PIPELINED','GSF_NEXT_LIVE_CONFIG','GSF_NEXT_PRESENT_REPORT'):
                 env.pop(name,None)
@@ -71,17 +73,24 @@ def main():
             rows=[r for r in warm if r['outputs']==mult-1]
             coverage[mode].append(dict(warm_pairs=len(warm),full_pairs=len(rows),excluded_incomplete=len(warm)-len(rows)))
             assert len(rows)>=a.frames//2,(directory,'too few fully generated warm pairs',len(rows))
-            if mode!='baseline':
+            if mode not in ('baseline','auto'):
                 assert all(r['direct_output']==(mode!='copy') for r in rows)
-                assert all((r['batch_ms']>0)==(mode=='batch' and mult>2) for r in rows)
+                assert all((r['renderer']=='batch')==(mode=='batch' and mult>2) for r in rows)
+            if mode=='auto':
+                locked=[r for r in rows if r['settled'] and r['pair_b']>=48]
+                assert len(locked)>=8,(directory,'insufficient steady auto-selection evidence',len(locked))
+                assert all(r['timestamp_count']==3 for r in rows)
             samples[mode].extend(rows);medians[mode].append(statistics.median(r['pair_ms'] for r in rows))
             print(f'{extent} x{mult} {mode} run {repeat}: {len(rows)} warm pairs, p50 {medians[mode][-1]:.3f} ms',flush=True)
        for mode in modes:
             rows=samples[mode]
             summary=dict(extent=extent,multiplier=mult,mode=mode,pairs=len(rows),coverage=coverage[mode],run_pair_medians_ms=medians[mode],
                 pair_ms=percentiles([r['pair_ms'] for r in rows]),motion_ms=percentiles([r['motion_ms'] for r in rows]),
-                reconstruction_ms=percentiles([sum(r['warp_ms'])+r.get('batch_ms',0) for r in rows]),
+                reconstruction_ms=percentiles([r.get('reconstruction_ms',sum(r['warp_ms'])+r.get('batch_ms',0)) for r in rows]),
                 scratch_copy_ms=percentiles([r.get('scratch_copy_ms',max(0,r['pair_ms']-r['motion_ms']-sum(r['warp_ms']))) for r in rows]),
+                steady_pair_ms=percentiles([r['pair_ms'] for r in rows if r['pair_b']>=48]) if any(r['pair_b']>=48 for r in rows) else None,
+                renderer_counts={m:sum(r.get('renderer')==m for r in rows) for m in ('copy','direct','batch')},
+                steady_renderer_counts={m:sum(r.get('renderer')==m and r['pair_b']>=48 for r in rows) for m in ('copy','direct','batch')},
                 displayed=None,power_w=None)
             results.append(summary)
        (out/'RESULTS.json').write_text(json.dumps(results,indent=2)+'\n')

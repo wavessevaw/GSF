@@ -19,9 +19,9 @@ static void execute_flow(struct afmf_device *dev, struct afmf_framegen *fg, VkCo
     }
     bool profiling = fg->queries != VK_NULL_HANDLE;
     uint32_t before = profiling ? fg->query_count[slot] : 0;
-    if (!sec->recorded || sec->levels != levels) {
+    if (!sec->recorded || sec->levels != levels || sec->detailed != fg->detailed) {
         /* The marks it writes land at fixed query indices: the primary always writes the same
-         * two before it (opening, ingest), so a replay only needs the stage list. */
+         * opening marks for its timing layout, so a replay only needs the stage list. */
         VkCommandBufferInheritanceInfo inherit = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO};
         VkCommandBufferBeginInfo begin = {
@@ -38,6 +38,7 @@ static void execute_flow(struct afmf_device *dev, struct afmf_framegen *fg, VkCo
             return;
         }
         sec->levels = levels;
+        sec->detailed = fg->detailed;
         sec->stage_count = profiling ? fg->query_count[slot] - before : 0;
         if (sec->stage_count > 0)
             memcpy(sec->stages, fg->query_stage + (size_t)slot * AFMF_PROFILE_QUERIES + before,
@@ -83,9 +84,9 @@ static void record_dump(struct afmf_device *dev, struct afmf_framegen *fg, VkCom
     VkBufferImageCopy luma_prev_region = luma_region;
     luma_prev_region.bufferOffset += (VkDeviceSize)fg->luma_size[0].width * fg->luma_size[0].height;
     if (output > 0) regions[0].bufferOffset = fg->dump_size - (VkDeviceSize)out_w * out_h * 8u + (VkDeviceSize)(output-1u)*out_w*out_h*4u;
-    if (fg->direct)
+    if (afmf_framegen_direct(fg))
         afmf_sync(dev, cmd); /* the copy reads what the dispatch just wrote */
-    dev->fns.cmd_copy_image_to_buffer(cmd, fg->direct ? target : fg->output.image,
+    dev->fns.cmd_copy_image_to_buffer(cmd, afmf_framegen_direct(fg) ? target : fg->output.image,
                                       VK_IMAGE_LAYOUT_GENERAL, fg->dump_buffer, 1, &regions[0]);
     dev->fns.cmd_copy_image_to_buffer(cmd, fg->flow_out.image, VK_IMAGE_LAYOUT_GENERAL,
                                       fg->dump_buffer, 1, &regions[1]);
@@ -135,6 +136,9 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
     afmf_framegen_profiler_begin(dev, fg, cmd, slot);
     if(fg->queries != VK_NULL_HANDLE) {
         fg->query_outputs[slot] = count;
+        fg->query_renderer[slot]=(uint8_t)fg->renderer;
+        fg->query_epoch[slot]=count>0 ? fg->choices[count-1].epoch : 0;
+        fg->query_tunable[slot]=fg->automatic && fg->frame_index>=12 && !afmf_framegen_dump_pending(fg);
         for(uint32_t n=0;n<count;n++) fg->query_phases[(size_t)slot*3+n] = phases[n];
     }
 
@@ -173,24 +177,25 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
         afmf_dispatch(dev, cmd, pl->downsample[fg->half], pl->layouts[PASS_DOWNSAMPLE],
                       fg->sets[p][SET_DOWNSAMPLE], NULL, 0, (w + 7) / 8, (h + 7) / 8, 1);
     }
-    afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INGEST);
+    if(fg->detailed) afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INGEST);
 
     /* 2. Optical flow and interpolation: the pre-recorded part. */
     execute_flow(dev, fg, cmd, slot, p, levels, companion);
 
     /* 3. The frame in between, into the target: written by the interpolator itself (direct
      *    output, target in GENERAL) or copied from fg->output (target in TRANSFER_DST). */
-    bool batched = fg->batch && count > 1;
+    afmf_framegen_profiler_mark(dev,fg,cmd,slot,STAGE_MOTION);
+    bool batched = afmf_framegen_batched(fg) && count > 1;
     for (uint32_t n = 0; batched && n < count; n++)
         batched = indices[n] == slot*3u+n;
     if (batched) afmf_framegen_record_batch(dev, fg, cmd, slot, p, phases, count);
     for (uint32_t n = 0; n < count; n++) {
         VkImage target = targets[n];
         uint32_t target_index = indices[n];
-        if (!fg->direct) afmf_sync(dev, cmd); /* scratch reuse after the previous copy */
+        if (!afmf_framegen_direct(fg)) afmf_sync(dev, cmd); /* scratch reuse after the previous copy */
         if (batched) {
             /* Already written; debug readbacks still preserve all three outputs. */
-        } else if (fg->direct) {
+        } else if (afmf_framegen_direct(fg)) {
             afmf_framegen_record_interpolate(dev, fg, cmd, slot,
                                              fg->direct_sets[p * fg->target_count + target_index],
                                              fg->direct_variant, phases[n]);

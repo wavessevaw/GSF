@@ -25,7 +25,7 @@ def run(build, out, name, patch, frames=24):
                GSF_NEXT_REFRESH_HZ='90',GSF_NEXT_MULTIPLIER='3',GSF_NEXT_DIAGNOSTICS='1',
                GSF_NEXT_STATUS_DIR=str(directory),GSF_NEXT_PRESENT_REPORT=str(directory/'present'),
                GSF_NEXT_GPU_REPORT=str(directory/'gpu'))
-    if name=='live':
+    if name in ('live','live-diag'):
         path=directory/'control';path.write_text('GSF_NEXT_CONTROL_V1\n1 1 2 90 2 2 3 0 1\n')
         env['GSF_NEXT_CONTROL']=str(path)
     env.update(patch)
@@ -37,6 +37,11 @@ def run(build, out, name, patch, frames=24):
     totals=re.findall(r'GSF_NEXT_SUMMARY real=(\d+) built=(\d+) accepted_real=(\d+) accepted_synthetic=(\d+)',result.stdout)
     assert sum(int(r[2]) for r in totals)==frames,(name,totals)
     assert all(r[1]==r[3] for r in totals),(name,'lost constructed output',totals)
+    if name=='live-diag':
+        assert 'GPU timing detail changed: compact' in result.stdout,'compact timing never applied'
+        assert 'GPU timing detail changed: detailed' in result.stdout,'detailed timing never restored'
+        summary=dict(case=name,real=frames,synthetic=sum(int(r[3]) for r in totals),displayed=None)
+        print(json.dumps(summary),flush=True);return summary
     records=[]
     for path in directory.glob('present.*.jsonl'):
         records.extend(json.loads(line) for line in path.read_text().splitlines())
@@ -82,7 +87,8 @@ def main():
     args=parser.parse_args();build=args.build.resolve();out=(args.out or build/'Testing/live-pacing').resolve()
     summaries=[run(build,out,'cap90-x3',{}),
                run(build,out,'late90-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_TEST_READY_DELAY_MS='45')),
-               run(build,out,'live',dict(GSF_TEST_LIVE='1'),56)]
+               run(build,out,'live',dict(GSF_TEST_LIVE='1'),56),
+               run(build,out,'live-diag',dict(GSF_TEST_LIVE='1',GSF_TEST_LIVE_DIAGNOSTICS='1',GSF_TEST_SYNC_VALIDATION='1'),56)]
     (out/'RESULTS.json').write_text(json.dumps(summaries,indent=2)+'\n')
     print('Vulkan live control and API pacing: PASS. Physical scanout UNVERIFIED.')
 

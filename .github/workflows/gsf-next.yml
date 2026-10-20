@@ -26,7 +26,7 @@ jobs:
       - name: Native compile, SPIR-V validation and display-slot planning
         run: |
           VULKAN_HEADERS="$RUNNER_TEMP/vkh/include" sh scripts/build_gsf_next.sh
-          ctest --test-dir engine/gsf-next/build --output-on-failure -R 'output_plan|present_wait_contract|live_config'
+          ctest --test-dir engine/gsf-next/build --output-on-failure -R 'output_plan|present_wait_contract|live_config|renderer_choice'
       - name: Actual Vulkan WSI and synthetic pixel checks
         run: |
           python3 engine/gsf-next/tests/matrix.py --build engine/gsf-next/build --out artifacts/gsf-next-matrix
@@ -47,7 +47,7 @@ jobs:
       - name: Offline package and extracted smoke
         run: |
           python3 scripts/package_gsf_next.py
-          GSF_NEXT_SMOKE_HARNESS="$PWD/engine/gsf-next/build/afmf_headless" python3 decky-next/tests/extracted_smoke.py artifacts/gsf-next-release/GSF-Next-0.2.0-alpha.5.zip
+          GSF_NEXT_SMOKE_HARNESS="$PWD/engine/gsf-next/build/afmf_headless" python3 decky-next/tests/extracted_smoke.py artifacts/gsf-next-release/GSF-Next-0.2.0-alpha.6.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -24,8 +24,9 @@ static bool live_control(uint32_t frame)
     char temporary[4096];int n=snprintf(temporary,sizeof temporary,"%s.tmp",path);
     if(n<0 || (size_t)n>=sizeof temporary) return false;
     FILE *out=fopen(temporary,"w");if(out==NULL) return false;
-    int written=fprintf(out,"GSF_NEXT_CONTROL_V1\n%u %u %u %u %u %u %u %u 1\n",
-        stage+1u,stage==3u?0u:1u,multipliers[stage],hz,quality,queue,images,mode);
+    unsigned diagnostics=env_is_1("GSF_TEST_LIVE_DIAGNOSTICS") ? (stage%2u==0 ? 1u:0u):1u;
+    int written=fprintf(out,"GSF_NEXT_CONTROL_V1\n%u %u %u %u %u %u %u %u %u\n",
+        stage+1u,stage==3u?0u:1u,multipliers[stage],hz,quality,queue,images,mode,diagnostics);
     if(fclose(out)!=0 || written<0 || rename(temporary,path)!=0) return false;
     (void)fprintf(stderr,"live control revision %u at source frame %u\n",stage+1u,frame);
     return true;

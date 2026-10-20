@@ -45,10 +45,10 @@ outputs and avoids endpoint duplicates and loading gaps over 250 ms. At 90 Hz,
 45→×4 reserves only one intermediate and 30→×4 normally reserves two. At lower
 source rates, ×3 and ×4 can construct two/three genuinely different outputs from
 one common flow. Actual free-image misses remain possible and are counted.
-No full optical-flow search is repeated for another output. The default interpolator writes directly into private storage images with separate source/output
-views and descriptor counts. A scratch-copy compatibility override remains available;
+No full optical-flow search is repeated for another output. Runtime GPU measurements select scratch-copy, independent direct, or shared-pixel reconstruction.
+Source/output views and descriptor counts remain separate. See MEASURED_RUNTIME.md. A scratch-copy compatibility override remains available;
 it reuses scratch with compute/transfer barriers. Target images and ready semaphores are
-independent. See ALPHA5_EFFICIENCY.md for the opt-in shared-pixel reconstruction experiment. Quality reduction does not relabel the selected multiplier.
+independent. See MEASURED_RUNTIME.md for automatic route selection and compact timing. Quality reduction does not relabel the selected multiplier.
 
 The profile refresh rate is **user supplied**, not a measured refresh rate.
 Changing Steam's display refresh requires updating the profile; this applies

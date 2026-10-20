@@ -249,3 +249,8 @@ set_tests_properties(vulkan_pipeline_metrics PROPERTIES TIMEOUT 300)
 
 add_test(NAME vulkan_live_batch COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/live_pacing.py --build ${CMAKE_BINARY_DIR} --out ${CMAKE_BINARY_DIR}/Testing/live-batch)
 set_tests_properties(vulkan_live_batch PROPERTIES TIMEOUT 180 ENVIRONMENT "GSF_NEXT_WARP_BATCH=1")
+
+add_executable(gsf_renderer_choice tests/renderer_choice.c)
+target_include_directories(gsf_renderer_choice PRIVATE src)
+target_compile_options(gsf_renderer_choice PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME renderer_choice COMMAND gsf_renderer_choice)

@@ -6,6 +6,7 @@
  * framegen_record.h, included at the end. */
 
 #include "framegen.h"
+#include "renderer_choice.h"
 
 #include "afmf_spirv.h"
 #include "config.h"
@@ -38,6 +39,8 @@ enum stage {
     STAGE_SCALE,
     STAGE_INTERPOLATE,
     STAGE_OUTPUT,
+    STAGE_MOTION, /* compact timing: complete shared analysis */
+    STAGE_FINISH, /* final layout/readback dependencies; compact reconstruction interval */
     STAGE_BATCH, /* one timestamp for all outputs; never fabricate per-output durations */
     STAGE_COUNT
 };
@@ -113,6 +116,7 @@ enum set_index {
 struct secondary {
     VkCommandBuffer cmd;
     bool recorded;
+    bool detailed;
     uint32_t levels;                      /* search levels it was recorded with; re-recorded on change */
     uint8_t stages[AFMF_PROFILE_QUERIES]; /* profiler stages its timestamps close, replayed per use */
     uint32_t stage_count;
@@ -132,7 +136,15 @@ struct afmf_framegen {
     enum variant variant;
     /* Direct output: the interpolator writes a private ring image through a
      * storage view per image, with an interpolate set per (parity, image); `output` is unused. */
-    bool direct;
+    bool direct; /* resource capability, not this pair's selected route */
+    bool automatic, detailed;
+    enum gsf_renderer requested, renderer, last_renderer;
+    struct gsf_renderer_choice choices[3];
+    double last_reconstruction_ms;
+    uint32_t query_failures;
+    uint8_t *query_renderer;
+    uint32_t *query_epoch;
+    bool *query_tunable;
     bool batch; /* opt-in until RDNA2 measurements justify the extra register pressure */
     VkDescriptorSet *batch_sets; /* [parity * (target_count/3) + work_slot] */
     enum variant direct_variant;

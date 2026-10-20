@@ -73,6 +73,9 @@ void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
         afmf_framegen_profiler_report(fg);
         dev->fns.destroy_query_pool(dev->handle, fg->queries, NULL);
     }
+    free(fg->query_renderer);
+    free(fg->query_epoch);
+    free(fg->query_tunable);
     free(fg->query_pair);
     free(fg->query_outputs);
     free(fg->query_phases);
@@ -154,6 +157,10 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
         return NULL;
     fg->context_id = atomic_fetch_add_explicit(&g_context_id,1,memory_order_relaxed)+1;
     fg->diagnostics=cfg->diagnostics;
+    const char *detail=getenv("GSF_NEXT_PROFILE_DETAIL");
+    fg->detailed=cfg->diagnostics && !(detail!=NULL && strcmp(detail,"0")==0);
+    fg->requested=gsf_renderer_requested();
+    fg->last_renderer=GSF_RENDER_AUTO;
     fg->extent = extent;
     fg->slots = slots;
     fg->swapchain_format = swapchain_format;
@@ -165,8 +172,11 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
                  afmf_framegen_format_supports(dev,fg->out_format,VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
     fg->ingest_variant = afmf_framegen_ingest_variant_for(dev, swapchain_format);
     fg->ingest_direct = have_images && direct_ingest && fg->ingest_variant != VARIANT_COUNT;
-    const char *batch = getenv("GSF_NEXT_WARP_BATCH");
-    fg->batch = fg->direct && target_count % 3u == 0 && batch != NULL && strcmp(batch,"1") == 0;
+    fg->automatic=fg->direct && fg->requested==GSF_RENDER_AUTO && cfg->profile;
+    fg->batch=fg->direct && target_count%3u==0 &&
+        (fg->automatic || fg->requested==GSF_RENDER_BATCH);
+    fg->renderer=fg->requested==GSF_RENDER_BATCH && fg->batch ? GSF_RENDER_BATCH :
+        fg->requested==GSF_RENDER_DIRECT && fg->direct ? GSF_RENDER_DIRECT : GSF_RENDER_COPY;
     fg->source_count = fg->ingest_direct ? image_count : 0;
     fg->target_count = fg->direct ? target_count : 0;
 
@@ -243,4 +253,15 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
 }
 
 void afmf_framegen_set_diagnostics(struct afmf_framegen *fg,bool enabled)
-{ if(fg!=NULL) fg->diagnostics=enabled; }
+{
+    if(fg!=NULL) {
+        bool before=fg->detailed;
+        fg->diagnostics=enabled;
+        const char *detail=getenv("GSF_NEXT_PROFILE_DETAIL");
+        fg->detailed=enabled && !(detail!=NULL && strcmp(detail,"0")==0);
+        if(before!=fg->detailed) {
+            for(uint32_t k=0;k<3;k++) gsf_renderer_reset(&fg->choices[k],fg->choices[k].available);
+            AFMF_INFO("GPU timing detail changed: %s",fg->detailed ? "detailed":"compact");
+        }
+    }
+}

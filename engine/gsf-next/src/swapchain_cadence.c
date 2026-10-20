@@ -200,6 +200,9 @@ void afmf_sc_status_write(struct afmf_swapchain *sc)
         (unsigned long long)sc->accepted_real,(unsigned long long)sc->accepted_synthetic);
     (void)fprintf(out,"\"queue_depth\":%u,\"queue_delay_ms\":%.3f,\"gpu_pair_ms\":%.3f,\"motion_ms\":%.3f,\"warp_ms\":[%.3f,%.3f,%.3f],",
         sc->in_flight,sc->last_delay_ms,sc->last_gpu_ms,sc->last_motion_ms,sc->last_warp_ms[0],sc->last_warp_ms[1],sc->last_warp_ms[2]);
+    (void)fprintf(out,"\"renderer\":\"%s\",\"reconstruction_ms\":%.3f,",
+        !cfg->enabled ? "off":sc->last_gpu_ms<0 ? "unavailable":gsf_renderer_name(sc->last_renderer),
+        cfg->enabled ? sc->reconstruction_ms:0);
     (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,",
         (unsigned long long)cfg->revision,cfg->multiplier,cfg->enabled?"true":"false",cfg->refresh_hz,
         cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight);
