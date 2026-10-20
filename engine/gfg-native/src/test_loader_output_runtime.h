@@ -17,6 +17,7 @@
 #include "output_proxy_bootstrap.h"
 #include "async_capture_retire.h"
 #include "output_frame_pacer.h"
+#include "owned_snapshot_ring.h"
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
 #include "te_engine.h"
 #include "post_deadline_budget.h"
@@ -44,6 +45,19 @@ typedef struct {
     uint32_t last_history_image;
     int have_previous, interleave, hold_initial_real;
     int started;
+    /* Isolated real Vulkan WSI test only. No LMC in detached mode. */
+    int detached,owner_lock_ok,owner_thread_ok,owner_stop;
+    uint32_t owner_delay_ms,owner_head,owner_count;
+    uint64_t owner_completed,early_source_releases;
+    VkResult owner_failure;
+    pthread_mutex_t owner_lock,host_queue_lock;
+    pthread_cond_t owner_cond;
+    pthread_t owner_thread;
+    gfg_snapshot_ring owner_snapshots;
+    struct {uint32_t index;uint64_t ticket;} owner_queue[GFG_SNAPSHOT_MAX_IMAGES];
+    uint32_t snap_for_ticket[GFG_SNAPSHOT_MAX_IMAGES],app_for_ticket[GFG_SNAPSHOT_MAX_IMAGES];
+    uint64_t stamp_for_ticket[GFG_SNAPSHOT_MAX_IMAGES];
+    uint8_t snap_ever_copied[GFG_SNAPSHOT_MAX_IMAGES];
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
     VkInstance temporal_instance;
     PFN_vkGetInstanceProcAddr temporal_gipa;
@@ -87,7 +101,10 @@ static inline VkResult gfg_test_live_acquire(void *user,
         .signalSemaphoreCount=semaphore?1u:0u,
         .pSignalSemaphores=semaphore?&semaphore:NULL};
     /* GPU-signals acquire; never signal a binary VkSemaphore on host. */
-    return vkQueueSubmit(r->queue,1,&submit,fence);
+    if(r->detached)pthread_mutex_lock(&r->host_queue_lock);
+    VkResult result=vkQueueSubmit(r->queue,1,&submit,fence);
+    if(r->detached)pthread_mutex_unlock(&r->host_queue_lock);
+    return result;
 }
 
 static inline VkResult gfg_test_live_capture(void *user,
@@ -99,25 +116,48 @@ static inline VkResult gfg_test_live_capture(void *user,
     if(image<GFG_VIRTUAL_MAX_IMAGES)
         r->captured_ns[image]=gfg_pacer_monotonic_ns();
 #endif
+    if(r->detached) {
+        const uint32_t k=(uint32_t)(ticket%GFG_SNAPSHOT_MAX_IMAGES);
+        unsigned slot=0;
+        pthread_mutex_lock(&r->owner_lock);
+        while(!gfg_snapshot_reserve(&r->owner_snapshots,ticket,
+                                     gfg_pacer_monotonic_ns(),&slot)) {
+            if(r->owner_stop||r->owner_failure!=VK_SUCCESS) {
+                VkResult err=r->owner_failure!=VK_SUCCESS?
+                    r->owner_failure:VK_ERROR_DEVICE_LOST;
+                pthread_mutex_unlock(&r->owner_lock);return err;
+            }
+            pthread_cond_wait(&r->owner_cond,&r->owner_lock);
+        }
+        r->snap_for_ticket[k]=slot;r->app_for_ticket[k]=image;
+        r->stamp_for_ticket[k]=ticket;
+        pthread_mutex_unlock(&r->owner_lock);
+    }
     return gfg_async_capture_submit(&r->capture,image,ticket,count,waits);
 }
 
 static inline void gfg_test_live_record(void *user,
         VkCommandBuffer cmd,uint64_t ticket) {
     gfg_test_loader_runtime *r=user;
-    const uint32_t idx=(uint32_t)(ticket%r->history.count);
-    const VkImage src=r->proxy->source.images[idx];
+    const uint32_t k=(uint32_t)(ticket%GFG_SNAPSHOT_MAX_IMAGES);
+    const uint32_t idx=r->detached?r->snap_for_ticket[k]:
+        (uint32_t)(ticket%r->history.count);
+    const uint32_t app=r->detached?r->app_for_ticket[k]:idx;
+    const VkImage src=r->proxy->source.images[app];
     const VkImage dst=r->history.images[idx];
+    const int seen=r->detached?r->snap_ever_copied[idx]:
+        ticket>r->history.count;
+    if(r->detached)r->snap_ever_copied[idx]=1u;
     /* Only loader test app with virtual PRESENT->TRANSFER_SRC barrier
      * rewriting is eligible. Source never goes to real WSI. */
     const VkImageMemoryBarrier pre=gfg_test_barrier(dst,
-        ticket>r->history.count?VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+        seen?VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
                                 VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        ticket>r->history.count?VK_ACCESS_TRANSFER_READ_BIT:0,
+        seen?VK_ACCESS_TRANSFER_READ_BIT:0,
         VK_ACCESS_TRANSFER_WRITE_BIT);
     vkCmdPipelineBarrier(cmd,
-        ticket>r->history.count?VK_PIPELINE_STAGE_TRANSFER_BIT:
+        seen?VK_PIPELINE_STAGE_TRANSFER_BIT:
                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,NULL,0,NULL,1,&pre);
     const VkImageCopy copy={
@@ -224,7 +264,9 @@ static inline VkResult gfg_test_live_emit(gfg_test_loader_runtime *r,
         .pCommandBuffers=&r->output_cmd,
         .signalSemaphoreCount=1,.pSignalSemaphores=&r->ready[out_idx]
     };
+    if(r->detached)pthread_mutex_lock(&r->host_queue_lock);
     result=vkQueueSubmit(r->queue,1,&submit,r->output_fence);
+    if(r->detached)pthread_mutex_unlock(&r->host_queue_lock);
     if(result!=VK_SUCCESS)return result;
     /* Pace the output WORKER, not the game thread. Output frame spacing
      * uses an absolute monotonic target. When the source arrives late,
@@ -237,7 +279,9 @@ static inline VkResult gfg_test_live_emit(gfg_test_loader_runtime *r,
         .swapchainCount=1,.pSwapchains=&r->proxy->output,
         .pImageIndices=&out_idx
     };
+    if(r->detached)pthread_mutex_lock(&r->host_queue_lock);
     result=vkQueuePresentKHR(r->queue,&present);
+    if(r->detached)pthread_mutex_unlock(&r->host_queue_lock);
     if(result!=VK_SUCCESS && result!=VK_SUBOPTIMAL_KHR)return result;
     r->seen[out_idx]=1;
     ++r->output_presents;
@@ -450,7 +494,8 @@ static inline VkResult gfg_test_lmc_verify(gfg_test_loader_runtime *r,unsigned o
 static inline VkResult gfg_test_live_output(void *user,
         uint32_t image,uint64_t ticket) {
     gfg_test_loader_runtime *r=user;
-    if(!r||!r->started||!ticket||image!=ticket%r->history.count)
+    if(!r||!r->started||!ticket||image>=r->history.count||
+       (!r->detached && image!=ticket%r->history.count))
         return VK_ERROR_INITIALIZATION_FAILED;
     const int detailed_timing=getenv("GFG_NATIVE_TEST_POST_STAGE_TIMING")!=NULL;
     const uint64_t started=detailed_timing?gfg_pacer_monotonic_ns():0;
