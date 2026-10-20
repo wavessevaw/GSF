@@ -65,7 +65,7 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev,VkFormat form
     (void)dev;(void)format;(void)cfg;
     assert(extent.width==800u && extent.height==600u);
     assert(images && targets && sources==4u && count==6u && slots==2u && ingest);
-    generator=(struct afmf_framegen){.sources=sources,.targets=count,.slots=slots,.direct=true};
+    generator=(struct afmf_framegen){.sources=sources,.targets=count,.slots=slots,.direct=ingest};
     alive++;created++;return &generator;
 }
 void afmf_framegen_destroy(struct afmf_device *dev,struct afmf_framegen *fg) {
@@ -123,7 +123,7 @@ int main(void) {
     for(unsigned i=0;i<4;i++)sources[i]=(VkImage)(uintptr_t)(0x10000u+i);
     for(unsigned i=0;i<6;i++)targets[i]=(VkImage)(uintptr_t)(0x20000u+i);
     const struct gsf_alpha_owner_callbacks cb={release,ready,drop};
-    const struct afmf_config cfg={.enabled=true,.multiplier=4};
+    const struct afmf_config cfg={.enabled=true,.interpolate=true,.multiplier=4};
     pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
     struct gsf_owner_alpha_runtime rt={0};
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
@@ -152,12 +152,30 @@ int main(void) {
     assert(completed==1u);
     assert(gsf_owner_alpha_runtime_destroy(&rt));
     assert(!alive && pool_created==pool_destroyed && created_fences==destroyed_fences);
+    /* Production native Output Owner copy fence leaves a TRANSFER_SRC image,
+     * so COPY ingest must be exercised as a supported first integration. */
+    assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
+        &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
+        sources,4,targets,6,2,false,&cfg,&cb,NULL)==VK_SUCCESS);
+    assert(gsf_owner_alpha_runtime_submit(&rt,100u,10000000u,1u,3u,3u)==VK_SUCCESS);
+    assert(last_pair.snapshot==sources[3] &&
+        last_pair.layout==VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    assert(last_pair.targets[0]==targets[3] && last_pair.targets[2]==targets[5]);
+    assert(gsf_owner_alpha_runtime_destroy(&rt));
+    assert(!alive && pool_created==pool_destroyed && created_fences==destroyed_fences);
     /* Reject image aliasing BEFORE touching Vulkan. */
     targets[0]=sources[0];
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
         &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
         sources,4,targets,6,2,true,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
-    assert(created==1);
+    assert(created==2);
+    /* Aliased targets must fail before creating an Alpha context. */
+    targets[0]=(VkImage)(uintptr_t)0x20000u;
+    targets[1]=targets[0];
+    assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
+        &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
+        sources,4,targets,6,2,false,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
+    assert(created==2);
     pthread_mutex_destroy(&lock);
     puts("GSF_ALPHA_RUNTIME one_device=1 alpha_context=1 actual_slots=2"
          " private_snapshots=4 private_targets=6 mutex=1 no_wsi=1"
