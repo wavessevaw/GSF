@@ -31,7 +31,7 @@ VkResult gsf_owner_alpha_runtime_init(
     const struct gsf_alpha_owner_callbacks *callbacks,void *user)
 {
     if(!r||!dev||!queue||!queue_mutex||!snapshots||!targets||!config||
-       !callbacks||!dev->set_loader_data||
+       !callbacks||!config->interpolate||!dev->set_loader_data||
        !dev->fns.create_command_pool||!dev->fns.destroy_command_pool||
        !dev->fns.allocate_command_buffers||!dev->fns.create_fence||
        !dev->fns.destroy_fence||!dev->fns.wait_for_fences||
@@ -39,15 +39,24 @@ VkResult gsf_owner_alpha_runtime_init(
        !slots||slots>GSF_ALPHA_OWNER_MAX_SLOTS||
        !snapshot_count||snapshot_count>GSF_OWNER_SOURCES||
        target_count!=slots*GSF_OWNER_ALPHA_OUTPUTS||
-       !extent.width||!extent.height||family>=dev->queue_family_count||
+       !extent.width||!extent.height||!dev->queue_families||
+       family>=dev->queue_family_count||
        (dev->queue_families[family].queueFlags & VK_QUEUE_COMPUTE_BIT)==0)
         return VK_ERROR_INITIALIZATION_FAILED;
-    for(uint32_t i=0;i<snapshot_count;i++)
+    /* Immutable one-to-one mapping: descriptor indices are stable for
+     * the whole context lifetime. Aliased snapshots or duplicate target
+     * lanes would race across the asynchronous GPU work slots. */
+    for(uint32_t i=0;i<snapshot_count;i++) {
         if(!snapshots[i])return VK_ERROR_INITIALIZATION_FAILED;
+        for(uint32_t j=0;j<i;j++)
+            if(snapshots[i]==snapshots[j])return VK_ERROR_INITIALIZATION_FAILED;
+    }
     for(uint32_t i=0;i<target_count;i++) {
         if(!targets[i])return VK_ERROR_INITIALIZATION_FAILED;
         for(uint32_t j=0;j<snapshot_count;j++)
             if(targets[i]==snapshots[j])return VK_ERROR_INITIALIZATION_FAILED;
+        for(uint32_t j=0;j<i;j++)
+            if(targets[i]==targets[j])return VK_ERROR_INITIALIZATION_FAILED;
     }
     memset(r,0,sizeof(*r));
     r->device=dev;r->queue=queue;r->queue_mutex=queue_mutex;
