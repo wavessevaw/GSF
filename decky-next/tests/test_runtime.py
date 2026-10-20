@@ -100,7 +100,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertGreater(second['revision'],first['revision']);self.assertEqual(second['apply'],'swapchain')
         fields=(self.runtime.root/'controls/42').read_text().split()
         self.assertEqual(fields[0],'GSF_NEXT_CONTROL_V1')
-        self.assertEqual(list(map(int,fields[1:])),[second['revision'],1,4,90,1,2,5,0,0])
+        self.assertEqual(list(map(int,fields[1:])),[second['revision'],1,4,90,1,second['max_in_flight'],5,0,0])
     def test_corrupt_runtime_launches_game_once_without_layer(self):
         result=self.invoke(True,True);self.assertEqual(result.returncode,0)
         report=read(self.runtime.latest(1)/'REPORT.json');self.assertEqual(report['result'],'REAL_ONLY_PREFLIGHT_FAILURE')
