@@ -43,6 +43,9 @@ VkResult gsf_owner_alpha_record(struct afmf_device *dev,
      * descriptor aliases lane #2 but the count=2 shader never writes it. */
     const uint32_t views=job->count;
     const uint32_t stride=afmf_framegen_owner_output_stride(fg);
+    if(batch && (stride<2u || stride>GSF_OWNER_ALPHA_OUTPUTS ||
+                 job->count>stride))
+        return VK_ERROR_FEATURE_NOT_PRESENT; /* cannot steal next work slot */
     float prev=0.0f;
     for(uint32_t i=0;i<views;i++) {
         if(!job->targets[i])
