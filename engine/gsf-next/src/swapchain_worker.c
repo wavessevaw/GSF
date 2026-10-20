@@ -54,16 +54,13 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     /* The lag belongs to the same grid. Rounding a jittery fractional-period
      * lag upward at EACH present otherwise randomly inserts an entire tick. */
     uint64_t lag_ticks=(job->buffer_delay_ns+tick/2)/tick;
-    /* A deeper bounded queue must be paired with additional playout horizon.
-     * The old two-refresh buffer made synthetic output ready after its due
-     * slot. New auto queue scales with Hz and multiplier, with one further
-     * display tick reserved for jitter. This explicitly trades input latency
-     * for a greater chance of on-time synthetic output. */
+    /* Deck evidence invalidated proportional Auto queue growth. Only
+     * manually selected diagnostic depths 4..8 retain extended hold. */
     uint32_t effective_queue=gsf_queue_effective(cfg->max_in_flight,
                               cfg->refresh_hz,cfg->multiplier,sc->output_capacity);
-    /* Preserve the prior latency behavior for legacy profiles selecting 1..3;
-     * adaptive or explicitly deep queues opt in to the larger playout hold. */
-    if(cfg->max_in_flight==0u || cfg->max_in_flight>3u)
+    /* Auto and manual 1..3 use the old hold; manual 4..8 explicitly opts
+     * into additional latency for controlled comparisons only. */
+    if(cfg->max_in_flight>3u)
         lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
