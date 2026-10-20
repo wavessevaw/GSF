@@ -69,6 +69,9 @@ void afmf_framegen_pipelines_destroy(struct afmf_device *dev)
     for (uint32_t v = 0; v < VARIANT_COUNT; v++)
         if (p->interpolate[v] != VK_NULL_HANDLE)
             dev->fns.destroy_pipeline(dev->handle, p->interpolate[v], NULL);
+    for (uint32_t v = 0; v < VARIANT_COUNT; v++)
+        if (p->batch[v] != VK_NULL_HANDLE)
+            dev->fns.destroy_pipeline(dev->handle, p->batch[v], NULL);
     for (uint32_t v = 0; v < HALF_COUNT; v++)
         if (p->downsample[v] != VK_NULL_HANDLE)
             dev->fns.destroy_pipeline(dev->handle, p->downsample[v], NULL);
@@ -130,7 +133,7 @@ static VkResult pipelines_create(struct afmf_device *dev)
         if (res != VK_SUCCESS)
             return res;
 
-        if (i == PASS_INTERPOLATE || i == PASS_DOWNSAMPLE || i == PASS_INGEST)
+        if (i == PASS_INTERPOLATE || i == PASS_BATCH || i == PASS_DOWNSAMPLE || i == PASS_INGEST)
             continue;
         /* The search's static-block threshold (afmfStaticBlockSad in the patched v5 header). */
         uint32_t static_sad = afmf_config_get()->static_block_sad;
@@ -160,6 +163,20 @@ static VkResult pipelines_create(struct afmf_device *dev)
                                                p->layouts[PASS_INTERPOLATE], NULL, &p->interpolate[v]);
         if (res != VK_SUCCESS)
             return res;
+    }
+    const char *batch = getenv("GSF_NEXT_WARP_BATCH");
+    if (batch != NULL && strcmp(batch,"1") == 0) {
+        for (uint32_t v = 0; v < VARIANT_COUNT; v++) {
+            if (v == VARIANT_NOFORMAT && !dev->storage_write_without_format) continue;
+            VkResult res = create_compute_pipeline(dev, batch_variants[v].spirv,
+                batch_variants[v].spirv_size, p->layouts[PASS_BATCH], NULL, &p->batch[v]);
+            if (res != VK_SUCCESS) {
+                if (res == VK_ERROR_DEVICE_LOST) return res;
+                AFMF_WARN("batched interpolation variant %u unavailable (%d); using independent warps",v,(int)res);
+                if (p->batch[v] != VK_NULL_HANDLE) dev->fns.destroy_pipeline(dev->handle,p->batch[v],NULL);
+                p->batch[v] = VK_NULL_HANDLE;
+            }
+        }
     }
     for (uint32_t v = 0; v < HALF_COUNT; v++) {
         VkResult res = create_compute_pipeline(dev, downsample_variants[v].spirv,

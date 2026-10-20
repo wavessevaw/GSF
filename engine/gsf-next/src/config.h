@@ -47,7 +47,7 @@ struct afmf_config {
     enum afmf_present_mode present_mode; /* AFMF_PRESENT_MODE: auto | keep */
     bool governor;               /* AFMF_GOVERNOR=0 keeps generating every frame however late the GPU runs */
     uint32_t static_block_sad;   /* AFMF_STATIC_BLOCK_SAD: a block at rest under this SAD skips the search (0 = never) */
-    bool direct_output;          /* AFMF_DIRECT_OUTPUT=1: interpolate straight into the swapchain image (STORAGE usage on it) */
+    bool direct_output;          /* legacy parsed flag; output STORAGE is always private now */
     bool hud_detect;             /* AFMF_HUD_DETECT: a pixel unchanged between the frames on a moving block is kept, not warped */
     bool direct_ingest;          /* AFMF_DIRECT_INGEST: sample the game's frame straight into the ring and luma (SAMPLED usage) */
     bool sad_int16;              /* AFMF_SAD_INT16=0: the block search's scalar SAD even where shaderInt16 is available */

@@ -59,15 +59,25 @@ VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc
         image_barrier(dev, cmd, sc->images[i], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, read, 0, read_access,
                       top, reader);
         VkImage output_images[GSF_NEXT_MAX_OUTPUTS];
-        for(uint32_t n=0;n<count;n++) {
-            output_images[n]=sc->output_images[slot*GSF_NEXT_MAX_OUTPUTS+n];
+        uint32_t output_indices[GSF_NEXT_MAX_OUTPUTS];
+        (void)targets; /* public output ordinals; descriptor indices address the private ring */
+        /* All statically bound storage descriptors need GENERAL, even when count=2
+         * makes the shader skip the third store. No unreserved output is computed. */
+        uint32_t views = count > 1 && afmf_framegen_batched(sc->fg) ? 3u : count;
+        for(uint32_t n=0;n<views;n++) {
+            output_indices[n]=slot*GSF_NEXT_MAX_OUTPUTS+n;
+            output_images[n]=sc->output_images[output_indices[n]];
             image_barrier(dev,cmd,output_images[n],VK_IMAGE_LAYOUT_UNDEFINED,written,0,write,top,writer);
         }
         afmf_framegen_record_multi(dev, sc->fg, cmd, slot, sc->images[i], i,
-                                  output_images, targets, phases, count);
+                                  output_images, output_indices, phases, count);
+        /* A debug dump reads a direct output before this transition. Include its
+         * transfer execution scope: layout transitions must follow readers too. */
+        VkPipelineStageFlags completed = writer;
+        if (afmf_framegen_dump_recorded(sc->fg)) completed |= transfer;
         for (uint32_t n = 0; n < count; n++)
             image_barrier(dev,cmd,output_images[n],written,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          write,VK_ACCESS_TRANSFER_READ_BIT,writer,transfer);
+                          write,VK_ACCESS_TRANSFER_READ_BIT,completed,transfer);
         image_barrier(dev, cmd, sc->images[i], read, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, read_access, 0,
                       reader, bottom);
         return dev->fns.end_command_buffer(cmd);

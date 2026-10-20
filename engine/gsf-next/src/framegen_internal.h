@@ -38,6 +38,7 @@ enum stage {
     STAGE_SCALE,
     STAGE_INTERPOLATE,
     STAGE_OUTPUT,
+    STAGE_BATCH, /* one timestamp for all outputs; never fabricate per-output durations */
     STAGE_COUNT
 };
 
@@ -65,6 +66,7 @@ enum pass {
     PASS_FILTER,
     PASS_SCALE,
     PASS_INTERPOLATE,
+    PASS_BATCH,
     PASS_DOWNSAMPLE,
     PASS_INGEST,
     PASS_COUNT
@@ -128,11 +130,14 @@ struct afmf_framegen {
     VkFormat out_format;
     VkFormat swapchain_format;
     enum variant variant;
-    /* Direct output (AFMF_DIRECT_OUTPUT): the interpolator writes the swapchain image through a
+    /* Direct output: the interpolator writes a private ring image through a
      * storage view per image, with an interpolate set per (parity, image); `output` is unused. */
     bool direct;
+    bool batch; /* opt-in until RDNA2 measurements justify the extra register pressure */
+    VkDescriptorSet *batch_sets; /* [parity * (target_count/3) + work_slot] */
     enum variant direct_variant;
-    uint32_t target_count;        /* swapchain images handed in, for either direct path */
+    uint32_t target_count;        /* private output images */
+    uint32_t source_count;        /* game swapchain images, independent of target_count */
     VkImageView *target_views;
     VkDescriptorSet *direct_sets; /* [parity * target_count + image] */
     /* Direct ingest: one pass reads the swapchain image (sampled view per image) and writes the
@@ -140,7 +145,7 @@ struct afmf_framegen {
     bool ingest_direct;
     enum variant ingest_variant;
     VkImageView *source_views;
-    VkDescriptorSet *ingest_sets; /* [parity * target_count + image] */
+    VkDescriptorSet *ingest_sets; /* [parity * source_count + image] */
     uint32_t transfer_function; /* FidelityFX backbuffer transfer function id */
     float min_luminance, max_luminance;
 
@@ -184,6 +189,7 @@ struct afmf_framegen {
     float *query_phases;
     double last_gpu_ms;
     double last_motion_ms;
+    double last_batch_ms;
     double last_warp_ms[3];
     uint32_t profiled_frames;
 

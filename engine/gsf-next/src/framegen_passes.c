@@ -5,7 +5,7 @@
 
 const char *const stage_names[STAGE_COUNT] = {
     "ingest", "prepare luma", "pyramid + scd histogram", "search (all levels)",
-    "filter (all levels)", "scale (all levels)", "interpolate", "output copy",
+    "filter (all levels)", "scale (all levels)", "interpolate", "output copy", "batched interpolate",
 };
 
 static const VkDescriptorType bindings_prepare[] = {SAMPLED, STORAGE, UBO};
@@ -17,6 +17,7 @@ static const VkDescriptorType bindings_search[] = {SAMPLED, SAMPLED, STORAGE, ST
 static const VkDescriptorType bindings_filter[] = {SAMPLED, STORAGE, UBO};
 static const VkDescriptorType bindings_scale[] = {SAMPLED, SAMPLED, SAMPLED, STORAGE, STORAGE, UBO};
 static const VkDescriptorType bindings_interpolate[] = {COMBINED, COMBINED, SAMPLED, STORAGE, STORAGE};
+static const VkDescriptorType bindings_batch[] = {COMBINED, COMBINED, SAMPLED, STORAGE, STORAGE, STORAGE, STORAGE};
 static const VkDescriptorType bindings_downsample[] = {COMBINED, STORAGE};
 static const VkDescriptorType bindings_ingest[] = {SAMPLED, STORAGE, STORAGE};
 
@@ -33,6 +34,7 @@ const struct pass_desc passes[PASS_COUNT] = {
     [PASS_SCALE] = PASS(scale, ffx_opticalflow_scale_optical_flow_advanced_pass_v5_spv, 0),
     [PASS_INTERPOLATE] = PASS(interpolate, afmf_interpolate_rgba8_spv,
                               (uint32_t)sizeof(struct interpolate_push)),
+    [PASS_BATCH] = PASS(batch, afmf_batch_rgba8_spv, (uint32_t)sizeof(struct batch_push)),
     [PASS_DOWNSAMPLE] = PASS(downsample, afmf_downsample_rgba8_spv,
                              (uint32_t)sizeof(struct downsample_push)),
     [PASS_INGEST] = PASS(ingest, afmf_ingest_rgba8_spv, (uint32_t)sizeof(struct ingest_push)),
@@ -50,6 +52,14 @@ const struct spirv_variant interpolate_variants[VARIANT_COUNT] = {
     [VARIANT_RGB10A2] = {afmf_interpolate_rgb10a2_spv, afmf_interpolate_rgb10a2_spv_size},
     [VARIANT_RGBA16F] = {afmf_interpolate_rgba16f_spv, afmf_interpolate_rgba16f_spv_size},
     [VARIANT_NOFORMAT] = {afmf_interpolate_noformat_spv, afmf_interpolate_noformat_spv_size},
+};
+
+const struct spirv_variant batch_variants[VARIANT_COUNT] = {
+    [VARIANT_RGBA8] = {afmf_batch_rgba8_spv, afmf_batch_rgba8_spv_size},
+    [VARIANT_RGBA8_BGRA] = {afmf_batch_rgba8_bgra_spv, afmf_batch_rgba8_bgra_spv_size},
+    [VARIANT_RGB10A2] = {afmf_batch_rgb10a2_spv, afmf_batch_rgb10a2_spv_size},
+    [VARIANT_RGBA16F] = {afmf_batch_rgba16f_spv, afmf_batch_rgba16f_spv_size},
+    [VARIANT_NOFORMAT] = {afmf_batch_noformat_spv, afmf_batch_noformat_spv_size},
 };
 
 /* The fused ingest per ring format; a B8G8R8A8 ring has no SPIR-V format and stores unqualified. */

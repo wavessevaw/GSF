@@ -27,6 +27,7 @@ extern const char *const stage_names[STAGE_COUNT];
 extern const struct pass_desc passes[PASS_COUNT];
 extern const struct downsample_variant downsample_variants[HALF_COUNT];
 extern const struct spirv_variant interpolate_variants[VARIANT_COUNT];
+extern const struct spirv_variant batch_variants[VARIANT_COUNT];
 extern const struct spirv_variant ingest_variants[VARIANT_COUNT];
 
 struct interpolate_push {
@@ -38,6 +39,13 @@ struct interpolate_push {
     float hud_threshold;
     float phase;
 };
+
+struct batch_push {
+    struct interpolate_push base;
+    float phase2, phase3;
+    int32_t count;
+};
+_Static_assert(sizeof(struct batch_push) == 44, "batch push constants");
 
 struct downsample_push {
     int32_t size[2];   /* destination */
@@ -63,6 +71,7 @@ struct afmf_framegen_pipelines {
     VkPipelineLayout layouts[PASS_COUNT];
     VkPipeline pipelines[PASS_COUNT]; /* PASS_INTERPOLATE / PASS_DOWNSAMPLE / PASS_INGEST unused: see below */
     VkPipeline interpolate[VARIANT_COUNT];
+    VkPipeline batch[VARIANT_COUNT];
     VkPipeline downsample[HALF_COUNT];
     VkPipeline ingest[VARIANT_COUNT];
 };

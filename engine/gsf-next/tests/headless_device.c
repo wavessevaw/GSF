@@ -120,9 +120,14 @@ bool create_device_and_swapchain(struct ctx *ctx)
     }
     VkDeviceQueueCreateInfo queues[MAX_FAMILIES];
     uint32_t queue_info_count = queue_requests(ctx, queues, priorities);
+    VkPhysicalDeviceFeatures available, requested = {0};
+    vkGetPhysicalDeviceFeatures(ctx->physical_device,&available);
+    if (env_is_1("GSF_TEST_UNORM"))
+        requested.shaderStorageImageWriteWithoutFormat = available.shaderStorageImageWriteWithoutFormat;
     VkDeviceCreateInfo device = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = device_next,
+        .pEnabledFeatures = &requested,
         .queueCreateInfoCount = queue_info_count,
         .pQueueCreateInfos = queues,
         .enabledExtensionCount = extension_count,

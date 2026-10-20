@@ -12,20 +12,22 @@ struct afmf_framegen;
 /* Whether the interpolated frame can be written straight into a swapchain image of this format
  * (the image then needs STORAGE usage): the format takes storage writes, and either has a SPIR-V
  * image format or the application enabled shaderStorageImageWriteWithoutFormat. */
+VkFormat afmf_framegen_output_format(VkFormat source_format);
+
 bool afmf_framegen_can_write_direct(const struct afmf_device *dev, VkFormat swapchain_format);
 
-/* NULL when the swapchain format has no interpolation variant or the device lacks a required
- * format feature; the caller then falls back to repeating frames. `images` are the swapchain's:
- * with `direct_output` (STORAGE usage on them) the interpolator writes into them instead of an
- * internal image copied at record time; with `direct_ingest` (SAMPLED usage) the frame is read
- * from them straight into the colour ring and the luma instead of copied first. */
+/* Source images belong to the game's WSI. Targets are the independent GPU output ring;
+ * they need STORAGE usage for direct output. Counts are independent. Unsupported storage
+ * formats pass NULL targets and retain the scratch/copy path. direct_ingest requires
+ * SAMPLED usage on source images. NULL means generation is unavailable: use real-only. */
 struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swapchain_format,
                                            VkExtent2D extent, uint32_t slots,
                                            const VkImage *images, uint32_t image_count,
-                                           bool direct_output, bool direct_ingest, const struct afmf_config *config);
+                                           const VkImage *targets, uint32_t target_count, bool direct_ingest, const struct afmf_config *config);
 
 /* True when the interpolator writes the target itself: the caller hands it in GENERAL layout. */
 bool afmf_framegen_direct(const struct afmf_framegen *fg);
+bool afmf_framegen_batched(const struct afmf_framegen *fg);
 
 /* Whether the frame can be read straight from a swapchain image of this format into the colour
  * ring and the luma in one pass (the image then needs SAMPLED usage): the swapchain's format is
@@ -52,8 +54,7 @@ void afmf_framegen_set_family(struct afmf_device *dev, struct afmf_framegen *fg,
  *      interpolated frame between the previous and the new one, copied into it.
  * Without a target the frame only enters the history (about a fifth of the cost).
  * `slot` selects the constants region so `slots` command buffers can be in flight;
- * `current_index` and `target_index` are the images' indices in the swapchain (the direct paths
- * select their views by them). */
+ * `current_index` selects a source WSI view; `target_index` selects a private output view. */
 void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
                           uint32_t slot, VkImage current, uint32_t current_index,
                           const VkImage *targets, const uint32_t *indices, const float *phases, uint32_t count);

@@ -46,6 +46,17 @@ def main():
       ('x2',dict(GSF_NEXT_MULTIPLIER='2'),1),
       ('x3',dict(GSF_NEXT_MULTIPLIER='3'),2),
       ('x4',dict(GSF_NEXT_MULTIPLIER='4'),3),
+      ('copy-x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_OUTPUT_COPY='1'),1),
+      ('copy-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_OUTPUT_COPY='1'),2),
+      ('copy-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_OUTPUT_COPY='1'),3),
+      ('batch-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_WARP_BATCH='1'),2),
+      ('batch-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1'),3),
+      ('batch-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
+      ('batch-validation-first',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',GSF_TEST_VALIDATION_FIRST='1'),3),
+      ('direct-no-profile',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('batch-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
+      ('unorm-ingest',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),3),
+      ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
       ('queue1',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='1'),3),
       ('queue3-validation-first',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_MAX_IN_FLIGHT='3',GSF_TEST_VALIDATION_FIRST='1'),2),
       ('pan',dict(AFMF_TEST_PAN='1'),0),
@@ -91,7 +102,7 @@ def main():
             assert totals,(name,'no retirement counters')
             assert sum(int(t[2]) for t in totals)==16, (name,totals)
             assert all(t[1]==t[3] for t in totals),(name,'submitted output lost before WSI acceptance',totals)
-        if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure'):
+        if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure') and env.get('AFMF_PROFILE')!='0':
             timed=0
             for file in directory.glob('gpu.jsonl*'):
                 seen=set()
@@ -104,10 +115,31 @@ def main():
                     assert record['phases']==sorted(set(record['phases']))
                     assert all(0<t<1 for t in record['phases'])
                     assert record['motion_ms']>=0 and all(v>=0 for v in record['warp_ms'])
-                    assert record['motion_ms']+sum(record['warp_ms'])<=record['pair_ms']+.01
+                    assert record['motion_ms']+sum(record['warp_ms'])+record.get('batch_ms',0)+record.get('scratch_copy_ms',0)<=record['pair_ms']+.01
+                    if name in ('x2','x3','x4'): assert record['direct_output']
+                    if name.startswith('copy-'): assert not record['direct_output']
+                    if name.startswith('batch-') and count>1: assert record['batch_ms']>0 and sum(record['warp_ms'])==0
                     timed+=1
             assert timed>0,(name,'no GPU timestamp evidence')
+        if env.get('AFMF_PROFILE')=='0':
+            assert not list(directory.glob('gpu.jsonl*')) and 'GPU time per frame' not in log,(name,'profiling was not disabled')
         checked=check_outputs(directory,pixels) if pixels else 0
+        if 'unorm' in name:
+            assert 'direct ingest, direct output' in log,(name,'direct ingest path not exercised')
+            got,asked=map(int,re.findall(r'(\d+) images \(app asked (\d+)\), generation on',log)[0])
+            assert got>=asked+3,(name,'not enough source WSI images',got,asked)
+        if 'hud' in name:
+            format_id=int(re.findall(r'format (\d+), present mode',log)[0])
+            assert format_id in (37,43,44,50),format_id
+            expected=bytes((0,0,255) if format_id in (44,50) else (255,0,0))
+            files=list(directory.glob('afmf_generated_*.ppm'));assert files
+            for file in files:
+                _,size,_,data=file.read_bytes().split(b'\n',3);w,h=map(int,size.split())
+                for y in range(150,350):
+                    for x in range(170,172):
+                        k=(y*w+x)*3
+                        assert data[k:k+3]==expected,(file,x,y,'HUD colour or coverage changed')
+                checked+=1
         summaries.append(dict(case=name,exit_code=result.returncode,pixel_checks=checked))
         (out/'RESULTS.json').write_text(json.dumps(summaries,indent=2)+'\n')
         print(name+': PASS'+(' ('+str(checked)+' GPU output images)' if checked else ''),flush=True)

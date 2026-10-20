@@ -43,6 +43,14 @@ bool afmf_framegen_describe_format(VkFormat swapchain_format, struct afmf_frameg
     return true;
 }
 
+/* Raw copies preserve encoded bytes. A private RGBA8 image can hold BGRA/sRGB
+ * output bytes using the existing swizzle variant, without requesting STORAGE on WSI. */
+VkFormat afmf_framegen_output_format(VkFormat source_format)
+{
+    struct afmf_framegen probe = {0};
+    return afmf_framegen_describe_format(source_format,&probe) ? probe.out_format : VK_FORMAT_UNDEFINED;
+}
+
 bool afmf_framegen_format_supports(const struct afmf_device *dev, VkFormat format,
                                    VkFormatFeatureFlags features)
 {
@@ -81,6 +89,11 @@ bool afmf_framegen_can_write_direct(const struct afmf_device *dev, VkFormat swap
 bool afmf_framegen_direct(const struct afmf_framegen *fg)
 {
     return fg->direct;
+}
+
+bool afmf_framegen_batched(const struct afmf_framegen *fg)
+{
+    return fg->batch;
 }
 
 /* The ingest variant that reads a swapchain image of this format as is and stores the ring, or

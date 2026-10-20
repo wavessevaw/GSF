@@ -16,6 +16,10 @@ void afmf_framegen_record_interpolate(struct afmf_device *dev, struct afmf_frame
 void afmf_framegen_record_flow(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
                                uint32_t slot, uint32_t p, uint32_t levels, bool companion);
 
+void afmf_framegen_record_batch(struct afmf_device *dev, struct afmf_framegen *fg,
+                                VkCommandBuffer cmd, uint32_t slot, uint32_t p,
+                                const float *phases, uint32_t count);
+
 /* Which of the two flow textures the search at `level` writes, for a frame of parity `p`: the
  * SDK alternates per frame and per level so that each level's output is the next level's input. */
 static inline uint32_t afmf_flow_parity_a(uint32_t p, uint32_t level)

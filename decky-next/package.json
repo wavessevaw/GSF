@@ -1,6 +1,6 @@
 {
   "name": "gsf-next",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.5",
   "description": "Open FidelityFX optical flow with independent asynchronous presentation",
   "type": "module",
   "license": "GPL-3.0-or-later",

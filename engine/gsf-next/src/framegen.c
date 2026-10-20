@@ -56,8 +56,13 @@ void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
     for (uint32_t j = 0; fg->target_views != NULL && j < fg->target_count; j++)
         if (fg->target_views[j] != VK_NULL_HANDLE)
             dev->fns.destroy_image_view(dev->handle, fg->target_views[j], NULL);
-    free(fg->target_views); /* source_views is the same array */
+    free(fg->target_views);
+    for (uint32_t j = 0; fg->source_views != NULL && j < fg->source_count; j++)
+        if (fg->source_views[j] != VK_NULL_HANDLE)
+            dev->fns.destroy_image_view(dev->handle, fg->source_views[j], NULL);
+    free(fg->source_views);
     free(fg->direct_sets);
+    free(fg->batch_sets);
     free(fg->ingest_sets);
     if (fg->pool != VK_NULL_HANDLE)
         dev->fns.destroy_descriptor_pool(dev->handle, fg->pool, NULL); /* frees the sets */
@@ -142,7 +147,7 @@ static const char *blocker_for(struct afmf_device *dev, struct afmf_framegen *fg
 struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swapchain_format,
                                            VkExtent2D extent, uint32_t slots,
                                            const VkImage *images, uint32_t image_count,
-                                           bool direct_output, bool direct_ingest, const struct afmf_config *cfg)
+                                           const VkImage *targets, uint32_t target_count, bool direct_ingest, const struct afmf_config *cfg)
 {
     struct afmf_framegen *fg = calloc(1, sizeof *fg);
     if (fg == NULL)
@@ -154,11 +159,16 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
     fg->swapchain_format = swapchain_format;
     fg->dump_from = AFMF_DUMP_FIRST;
     bool have_images = images != NULL && image_count > 0 && image_count <= AFMF_MAX_IMAGES;
-    fg->direct_variant = afmf_framegen_direct_variant_for(dev, swapchain_format);
-    fg->direct = have_images && direct_output && fg->direct_variant != VARIANT_COUNT;
+    fg->direct_variant = afmf_framegen_describe_format(swapchain_format,fg) ? fg->variant : VARIANT_COUNT;
+    fg->direct = targets != NULL && target_count > 0 && target_count <= AFMF_MAX_IMAGES &&
+                 fg->direct_variant != VARIANT_COUNT &&
+                 afmf_framegen_format_supports(dev,fg->out_format,VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
     fg->ingest_variant = afmf_framegen_ingest_variant_for(dev, swapchain_format);
     fg->ingest_direct = have_images && direct_ingest && fg->ingest_variant != VARIANT_COUNT;
-    fg->target_count = fg->direct || fg->ingest_direct ? image_count : 0;
+    const char *batch = getenv("GSF_NEXT_WARP_BATCH");
+    fg->batch = fg->direct && target_count % 3u == 0 && batch != NULL && strcmp(batch,"1") == 0;
+    fg->source_count = fg->ingest_direct ? image_count : 0;
+    fg->target_count = fg->direct ? target_count : 0;
 
     /* Performance mode: the block search, 85 % of the cost, runs on a half-size frame; blocks
      * become 16 pixels on screen. Auto picks it from 1440p up, where the search dominates. */
@@ -182,25 +192,29 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
 
     const char *blocker = blocker_for(dev, fg, swapchain_format, extent, half);
     VkResult res = VK_SUCCESS;
-    if (blocker == NULL && (fg->direct || fg->ingest_direct)) {
-        /* One view per swapchain image, in the swapchain's own format: storage for the direct
-         * output, sampled for the direct ingest (the same view serves both). */
-        fg->target_views = calloc(fg->target_count, sizeof *fg->target_views);
-        if (fg->target_views == NULL)
-            res = VK_ERROR_OUT_OF_HOST_MEMORY;
-        for (uint32_t j = 0; res == VK_SUCCESS && j < fg->target_count; j++) {
-            VkImageViewCreateInfo view = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = images[j],
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = swapchain_format,
-                .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-            };
-            res = dev->fns.create_image_view(dev->handle, &view, NULL, &fg->target_views[j]);
+    if (blocker == NULL && fg->batch && dev->framegen_pipelines->batch[fg->direct_variant] == VK_NULL_HANDLE)
+        fg->batch = false;
+    if (blocker == NULL) {
+        /* Game sources and private outputs have different cardinalities and lifetimes.
+         * Never alias their views or use a source index to address an output descriptor. */
+        const VkImage *groups[2] = {images, targets};
+        uint32_t counts[2] = {fg->source_count, fg->target_count};
+        VkImageView **views[2] = {&fg->source_views, &fg->target_views};
+        for (uint32_t g = 0; g < 2 && res == VK_SUCCESS; g++) {
+            if (counts[g] == 0) continue;
+            *views[g] = calloc(counts[g], sizeof **views[g]);
+            if (*views[g] == NULL) { res = VK_ERROR_OUT_OF_HOST_MEMORY; break; }
+            for (uint32_t j = 0; j < counts[g] && res == VK_SUCCESS; j++) {
+                VkImageViewCreateInfo view = {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .image = groups[g][j], .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = g == 0 ? swapchain_format : fg->out_format,
+                    .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+                };
+                res = dev->fns.create_image_view(dev->handle, &view, NULL, &(*views[g])[j]);
+            }
         }
-        fg->source_views = fg->target_views;
-        if (res != VK_SUCCESS)
-            blocker = "views of the swapchain images failed";
+        if (res != VK_SUCCESS) blocker = "source or private-output views failed";
     }
     if (blocker == NULL) {
         res = afmf_framegen_resources_create(dev, fg);

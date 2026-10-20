@@ -137,9 +137,33 @@ void afmf_framegen_record_interpolate(struct afmf_device *dev, struct afmf_frame
     };
     dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_INTERPOLATE], VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                 (uint32_t)sizeof push, &push);
-    afmf_dispatch(dev, cmd, pl->interpolate[variant], pl->layouts[PASS_INTERPOLATE], set, NULL, 0,
-                  (out_w + 7) / 8, (out_h + 7) / 8, 1);
+    afmf_dispatch_pass(dev, cmd, pl->interpolate[variant], pl->layouts[PASS_INTERPOLATE], set, NULL, 0,
+                  (out_w + 7) / 8, (out_h + 7) / 8, 1, !fg->direct);
     afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INTERPOLATE);
+}
+
+/* Same pixel reconstruction, with flow/HUD fetched once for all reserved outputs. */
+void afmf_framegen_record_batch(struct afmf_device *dev, struct afmf_framegen *fg,
+                                VkCommandBuffer cmd, uint32_t slot, uint32_t p,
+                                const float *phases, uint32_t count)
+{
+    const struct afmf_framegen_pipelines *pl = dev->framegen_pipelines;
+    struct batch_push push = {
+        .base = {.size = {(int32_t)fg->extent.width, (int32_t)fg->extent.height},
+            .block = (int32_t)AFMF_FLOW_BLOCK,
+            .fallback = afmf_config_get()->fast_motion == AFMF_RESPONSE_BLENDED_FRAMES ? 1 : 0,
+            .max_motion = AFMF_MAX_TRUSTED_MOTION, .flow_scale = (float)fg->flow_scale,
+            .hud_threshold = afmf_config_get()->hud_detect ? 1.0f/255.0f : 0.0f,
+            .phase = phases[0]},
+        .phase2 = count > 1 ? phases[1] : 0, .phase3 = count > 2 ? phases[2] : 0,
+        .count = (int32_t)count,
+    };
+    dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_BATCH], VK_SHADER_STAGE_COMPUTE_BIT,
+        0, (uint32_t)sizeof push, &push);
+    afmf_dispatch_pass(dev, cmd, pl->batch[fg->direct_variant], pl->layouts[PASS_BATCH],
+        fg->batch_sets[p*(fg->target_count/3u)+slot], NULL, 0,
+        (fg->extent.width+7)/8, (fg->extent.height+7)/8, 1, false);
+    afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_BATCH);
 }
 
 /* The fixed part of a frame: luma, pyramid, scene change detector, then, with a companion, the

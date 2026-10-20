@@ -15,6 +15,23 @@ bool create_swapchain(struct ctx *ctx, uint32_t width, uint32_t height)
     if ((res != VK_SUCCESS && res != VK_INCOMPLETE) || format_count == 0)
         return false;
 
+    if (env_is_1("GSF_TEST_UNORM")) {
+        uint32_t count = 0;
+        CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(ctx->physical_device,ctx->surface,&count,NULL));
+        VkSurfaceFormatKHR *formats = calloc(count,sizeof *formats);
+        if (formats == NULL) return false;
+        res = vkGetPhysicalDeviceSurfaceFormatsKHR(ctx->physical_device,ctx->surface,&count,formats);
+        bool found = false;
+        const VkFormat preferred[2] = {VK_FORMAT_R8G8B8A8_UNORM,VK_FORMAT_B8G8R8A8_UNORM};
+        for (uint32_t k = 0; k < 2 && !found && res == VK_SUCCESS; k++)
+            for (uint32_t j = 0; j < count && !found; j++)
+                if (formats[j].format == preferred[k] && formats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                    format = formats[j]; found = true;
+                }
+        free(formats);
+        if (!found) return false; /* Never silently exercise the sRGB copy-ingest path. */
+    }
+
     VkExtent2D extent = caps.currentExtent;
     if (extent.width == UINT32_MAX) { /* the surface lets the swapchain choose */
         extent.width = 640;
