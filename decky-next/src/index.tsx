@@ -74,8 +74,8 @@ function Content(){
  {p&&<PanelSection title="Дополнительно">
   <ButtonItem disabled={busy} onClick={()=>setAdvanced(!advanced)}>{advanced?'Скрыть настройки вывода':'Настройки вывода'}</ButtonItem>
   {advanced&&<>
-   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Предел очереди</div><Dropdown selectedOption={p.max_in_flight} rgOptions={[{label:'1 · меньше задержка',data:1},{label:'2 · баланс, рекомендуется',data:2},{label:'3 · больше запас',data:3},{label:'4 · глубокая',data:4},{label:'5 · глубже',data:5},{label:'6 · расширенная',data:6},{label:'7 · большой запас',data:7},{label:'8 · максимум',data:8}]} onChange={o=>change({max_in_flight:Number(o.data)})} disabled={busy}/></PanelSectionRow>
-   <PanelSectionRow><div style={muted}>Большая очередь может сгладить перегрузку, но увеличивает задержку управления.</div></PanelSectionRow>
+   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Предел очереди</div><Dropdown selectedOption={p.max_in_flight} rgOptions={[{label:'Авто · по герцовке и множителю',data:0},{label:'1 · меньше задержка',data:1},{label:'2 · баланс, рекомендуется',data:2},{label:'3 · больше запас',data:3},{label:'4 · глубокая',data:4},{label:'5 · глубже',data:5},{label:'6 · расширенная',data:6},{label:'7 · большой запас',data:7},{label:'8 · максимум',data:8}]} onChange={o=>change({max_in_flight:Number(o.data)})} disabled={busy}/></PanelSectionRow>
+   <PanelSectionRow><div style={muted}>Авто масштабирует очередь по герцовке и множителю (90 Гц ×2: 2, ×3: 3, ×4: 4; 120 Гц ×4: 6). Реальный предел ограничен GPU-буфером и swapchain. Большая очередь увеличивает задержку управления.</div></PanelSectionRow>
    <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Запас изображений</div><Dropdown selectedOption={p.extra_images} rgOptions={[{label:'Стандартный · +3',data:3},{label:'Увеличенный · +5',data:5}]} onChange={o=>change({extra_images:Number(o.data)})} disabled={busy}/></PanelSectionRow>
    <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Режим вывода</div><Dropdown selectedOption={p.present_mode} rgOptions={[{label:'Автоматически · рекомендуется',data:'auto'},{label:'Сохранить режим игры',data:'keep'}]} onChange={o=>change({present_mode:String(o.data)})} disabled={busy}/></PanelSectionRow>
    <PanelSectionRow><div style={muted}>Запас изображений и режим вывода применяются через пересоздание swapchain. Если игра его не обрабатывает, меняйте эти параметры до запуска.</div></PanelSectionRow>
@@ -88,6 +88,7 @@ function Content(){
     <Detail label="GPU на пару" value={fmt(live?.gpu_pair_ms,2)+' мс'}/>
     <Detail label="Ожидание GPU и очереди" value={fmt(live?.queue_delay_ms,2)+' мс'}/>
     <Detail label="Заданий в очереди" value={String(live?.queue_depth??'—')}/>
+    <Detail label="Доступная глубина очереди" value={live?.queue_effective===undefined?'—':String(live.queue_effective)+' / '+String(live.queue_capacity??'—')}/>
     <Detail label="Ожидание WSI-изображения" value={fmt(live?.output_acquire_ms,2)+' мс'}/>
     <Detail label="GPU-копия на вывод" value={fmt(live?.output_copy_gpu_ms,2)+' мс'}/>
     <Detail label="Отклонено до GPU" value={String(live?.budget_skipped_synthetic??'—')}/>
