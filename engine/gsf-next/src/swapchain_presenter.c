@@ -192,11 +192,12 @@ void *afmf_sc_presenter_main(void *arg)
             if(late) {
                 pthread_mutex_lock(&sc->job_lock);sc->late_pairs++;pthread_mutex_unlock(&sc->job_lock);
             }
-            /* Compatibility escape hatch for A/B. New builds must prefer the real
-             * endpoint and must not rebase already-expired synthetic slots. */
-            const char *legacy=getenv("GSF_NEXT_REAL_PRIORITY_PACING");
+            /* Deadline rescue is opt-in until the source/real GPU semaphore
+             * dependency is removed. A trace replay showed that enabling it
+             * with the Alpha 4 buffer would suppress nearly all FG. */
+            const char *priority_env=getenv("GSF_NEXT_REAL_PRIORITY_PACING");
             bool priority=job.config.enabled && job.config.pacing &&
-                          !(legacy && legacy[0]=='0' && legacy[1]==0);
+                          priority_env && priority_env[0]=='1' && priority_env[1]==0;
             uint64_t first_due=late ? earliest : first_slot+shift;
             uint64_t tick=gsf_refresh_period(job.config.refresh_hz);
             uint64_t real_due=job.real_slot+shift;
