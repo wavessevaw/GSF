@@ -3,6 +3,7 @@
  * (the hook only consumes the application's semaphores and queues the frame) or inline. */
 
 #include "swapchain_internal.h"
+#include "queue_depth.h"
 
 /* The application's present, with the generated frame in front of it when one could be made. */
 VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchain *sc, VkQueue queue,
@@ -49,7 +50,12 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
         struct timespec wait_start,wait_end;
         bool waited=false;
         pthread_mutex_lock(&sc->job_lock);
-        while (sc->in_flight >= sc->config.max_in_flight && !sc->presenter_stop) {
+        /* The work/output ring is allocated once at swapchain creation.
+         * Live queue changes are always clamped to that physical capacity. */
+        uint32_t queue_limit=gsf_queue_effective(sc->config.max_in_flight,
+                                 sc->config.refresh_hz,sc->config.multiplier,
+                                 sc->output_capacity);
+        while (sc->in_flight >= queue_limit && !sc->presenter_stop) {
             if(!waited) { (void)clock_gettime(CLOCK_MONOTONIC,&wait_start);waited=true; }
             pthread_cond_wait(&sc->drain_cond, &sc->job_lock);
         }
