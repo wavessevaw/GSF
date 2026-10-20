@@ -9,7 +9,7 @@ type Profile={enabled:boolean;armed?:boolean;multiplier:number;quality:string;re
 type Live={source_fps:number;generated_fps?:number;output_fps?:number;effective_multiplier?:number;generated:number;accepted_real:number;accepted_synthetic:number;queue_depth:number;queue_delay_ms:number;gpu_pair_ms:number;settings_pending?:boolean;recreate_pending?:boolean;selected_multiplier?:number;enabled?:boolean;refresh_hz?:number;late_pairs?:number;last_present_gap_ms?:number;dropped_synthetic?:number;budget_skipped_synthetic?:number;output_acquire_ms?:number;output_copy_gpu_ms?:number;output_ring_bytes?:number};
 type Status={reason?:string;profile:Profile;options:string;live:Live[];report:{stage?:string;error?:string};state:string;restart_required?:boolean};
 function backend<A extends unknown[],R>(name:string){const rpc=callable<A,R>(name);return (...a:A)=>withTimeout(rpc(...a));}
-const api={games:backend<[],Game[]>('get_games'),selection:backend<[],{appid:number}>('get_selection'),select:backend<[number],unknown>('select_game'),prepare:backend<[number],{options:string}>('prepare_game'),configure:backend<[number,Partial<Profile>],{apply?:string}>('configure_game'),status:backend<[number],Status>('get_status'),export:backend<[number],{path:string}>('export_report')};
+const api={games:backend<[],Game[]>('get_games'),selection:backend<[],{appid:number}>('get_selection'),select:backend<[number],unknown>('select_game'),prepare:backend<[number],{options:string}>('prepare_game'),launchCommand:backend<[number],{options:string;ready:boolean;error?:string}>('get_launch_command'),configure:backend<[number,Partial<Profile>],{apply?:string}>('configure_game'),status:backend<[number],Status>('get_status'),export:backend<[number],{path:string}>('export_report')};
 const fmt=(n:number|undefined,digits=1)=>n===undefined||n===null||!Number.isFinite(n)||n<0?'—':n.toFixed(digits);
 const muted={fontSize:12,color:'#acb6c2',lineHeight:1.45};
 const card={padding:'12px 14px',background:'#ffffff08',border:'1px solid #ffffff12',borderRadius:8};
@@ -24,6 +24,11 @@ function Content(){
   setStatus(undefined);setCommand('');setMessage('');setError(false);setShowLaunch(false);setAdvanced(false);setDiagnostics(false);
   if(!appid)return;
   let gone=false,pending=false;
+  // Launch options are independent of get_status. An invalid old Python
+  // profile must not make the command or recovery button disappear.
+  void api.launchCommand(appid).then(r=>{
+    if(!gone && r.ready)setCommand(r.options);
+  }).catch(()=>{/* Status and prepare show diagnostic errors separately. */});
   const poll=async()=>{if(pending)return;pending=true;try{const s=await api.status(appid);if(!gone)setStatus(s);}catch(e){if(!gone){setMessage(String(e));setError(true);}}finally{pending=false;}};
   void poll();const timer=setInterval(poll,1000);return()=>{gone=true;clearInterval(timer);};
  },[appid]);
@@ -47,7 +52,25 @@ function Content(){
   {!appid&&<PanelSectionRow><div style={muted}>Выберите игру, затем настройте её запуск один раз. После этого генерацией можно управлять прямо здесь.</div></PanelSectionRow>}
   {p&&<PanelSectionRow><div role="status" style={{...card,borderLeft:'3px solid '+color}}><div style={{color,fontSize:14,fontWeight:600}}>{state}</div>{live&&<div style={{...muted,marginTop:4}}>Сейчас: {live.enabled===false?'Off':'×'+(live.selected_multiplier??p.multiplier)} · экран {live.refresh_hz??p.refresh_hz} Гц</div>}</div></PanelSectionRow>}
   {message&&<PanelSectionRow><div role={error?'alert':'status'} style={{...muted,color:error?'#ffaaaa':'#d5dce4'}}>{message}</div></PanelSectionRow>}
-  {appid!==0&&!configured&&<ButtonItem disabled={busy||!p} onClick={()=>void act(async()=>{const id=appid;const r=await api.prepare(id);if(selected.current===id){setCommand(r.options);setShowLaunch(true);}try{await copyCommand(r.options);return 'Профиль готов. Команда скопирована — вставьте её в параметры запуска Steam.';}catch{return 'Профиль готов. Steam запретил копирование — команда доступна ниже.';}})}>Подготовить игру</ButtonItem>}
+  {appid!==0&&!configured&&<ButtonItem disabled={busy} onClick={()=>void act(async()=>{
+    const id=appid;
+    let r:{options:string};
+    try{r=await api.prepare(id);}
+    catch(e){
+      // Keep a manual recovery route even if Python status/installation
+      // failed. Do not claim the GSF profile was activated.
+      const fallback=await api.launchCommand(id);
+      if(selected.current===id&&fallback.ready){
+        setCommand(fallback.options);setShowLaunch(true);
+        setError(true);
+        return 'Не удалось активировать профиль: '+String(e)+'. Команда доступна ниже, но генерация может остаться выключенной.';
+      }
+      throw Error('Не удалось подготовить запуск: '+String(e)+(fallback.error?'. '+fallback.error:''));
+    }
+    if(selected.current===id){setCommand(r.options);setShowLaunch(true);}
+    try{await copyCommand(r.options);return 'Профиль готов. Команда скопирована — вставьте её в параметры запуска Steam.';}
+    catch{return 'Профиль готов. Steam запретил копирование — команда доступна ниже.';}
+   })}>Подготовить игру</ButtonItem>}
  </PanelSection>
  {p&&<PanelSection title="Генерация">
   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Режим</div><Dropdown selectedOption={p.enabled?p.multiplier:0} rgOptions={[{label:'Off · выключено',data:0},{label:'×2 · 1 промежуточный',data:2},{label:'×3 · 2 промежуточных',data:3},{label:'×4 · 3 промежуточных',data:4}]} onChange={o=>change({multiplier:Number(o.data),enabled:Number(o.data)!==0})} disabled={busy}/></PanelSectionRow>
@@ -62,7 +85,7 @@ function Content(){
   </div></PanelSectionRow>
   <PanelSectionRow><div style={muted}>WSI — кадры, принятые Vulkan. Фактические FPS экрана здесь не измеряются.</div></PanelSectionRow>
  </PanelSection>}
- {p&&<PanelSection title="Запуск игры">
+ {appid!==0&&<PanelSection title="Запуск игры">
   <ButtonItem disabled={busy} onClick={()=>setShowLaunch(!showLaunch)}>{showLaunch?'Скрыть команду запуска':'Показать команду запуска'}</ButtonItem>
   {showLaunch&&<>
    <PanelSectionRow><div style={muted}>Steam → Свойства игры → Параметры запуска. Замените прежнюю команду GSF и уберите другие генераторы.</div></PanelSectionRow>
