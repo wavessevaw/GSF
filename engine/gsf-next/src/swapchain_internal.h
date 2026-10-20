@@ -26,7 +26,8 @@
 #define AFMF_MAX_APP_WAITS 8u
 /* Presents queued for the presentation thread; bounded by the images in flight in practice. */
 #define AFMF_MAX_JOBS 16u
-#define GSF_NEXT_RING_IMAGES (3u * GSF_NEXT_MAX_OUTPUTS)
+#define GSF_NEXT_MAX_QUEUE 8u
+#define GSF_NEXT_RING_IMAGES (GSF_NEXT_MAX_QUEUE * GSF_NEXT_MAX_OUTPUTS)
 /* The application's acquire is run in slices of this length under the swapchain lock, so the
  * presentation thread is never held off for longer than one slice. */
 #define AFMF_ACQUIRE_SLICE_NS 1000000ull
