@@ -57,6 +57,61 @@ class RuntimeTests(unittest.TestCase):
         for patch in ({'multiplier':1},{'multiplier':True},{'refresh_hz':0},{'max_in_flight':999},{'quality':'unknown'}):
             with self.assertRaises(ValueError):validate(patch)
         with self.assertRaises(ValueError):self.runtime.configure(1,{'unknown':1})
+    def test_corrupt_user_json_recovered_without_python_exception(self):
+        self.runtime.root.mkdir(parents=True,exist_ok=True)
+        cfg=self.runtime.root/'config.json';cfg.write_text('{partial-json')
+        selected=self.runtime.root/'selection.json';selected.write_text('{bad')
+        self.assertEqual(self.runtime.selection(),dict(appid=0))
+        self.assertEqual(self.runtime.status(42)['profile']['enabled'],False)
+        self.assertEqual(len(list(self.runtime.root.glob('config.json.corrupt-*'))),1)
+        self.assertEqual(len(list(self.runtime.root.glob('selection.json.corrupt-*'))),1)
+        self.assertEqual(next(self.runtime.root.glob('config.json.corrupt-*')).read_text(),'{partial-json')
+        self.assertEqual(next(self.runtime.root.glob('selection.json.corrupt-*')).read_text(),'{bad')
+        result=self.runtime.prepare(42)
+        self.assertTrue(result['enabled'])
+        self.assertIn('--appid 42 -- %command%',result['options'])
+
+    def test_legacy_game_profile_never_disables_launch_preparation(self):
+        self.runtime.root.mkdir(parents=True,exist_ok=True)
+        atomic(self.runtime.root/'config.json',dict(schema=1,games={
+            '42':dict(multiplier='x4',enabled='yes',revision='old',armed=True,
+                      max_in_flight='8',quality='performance'),
+            '44':dict(multiplier=3,enabled=True)}))
+        profile=self.runtime.status(42)['profile']
+        self.assertEqual(profile['multiplier'],2)
+        self.assertEqual(profile['max_in_flight'],0)
+        self.assertFalse(profile['enabled'])
+        self.assertEqual(self.runtime.prepare(42)['enabled'],True)
+        self.assertEqual(self.runtime.status(44)['profile']['multiplier'],3)
+        self.assertEqual(self.runtime.status(42)['profile']['revision']>0,True)
+
+    def test_invalid_config_shape_is_preserved_for_recovery(self):
+        self.runtime.root.mkdir(parents=True,exist_ok=True)
+        atomic(self.runtime.root/'config.json',dict(schema=1,games=[]))
+        self.assertEqual(self.runtime.status(4)['profile']['quality'],'performance')
+        self.assertEqual(len(list(self.runtime.root.glob('config.json.corrupt-*'))),1)
+        self.assertTrue(self.runtime.prepare(4)['enabled'])
+
+    def test_launch_command_survives_payload_recheck_failure(self):
+        self.runtime.prepare(42)
+        (self.plugin/'payload/libgsf-next.so').write_bytes(b'corrupted')
+        command=self.runtime.launch_command(42)
+        self.assertTrue(command['ready'])
+        self.assertIn('--appid 42 -- %command%',command['options'])
+        # Do NOT re-run the full payload installer on every game-selection
+        # click: existing installed launcher remains valid and accessible.
+        self.assertTrue(self.runtime.prepare(42)['enabled'])
+        self.assertEqual(self.runtime.launch_command(99)['ready'],True)
+
+    def test_missing_launcher_reports_recovery_instead_of_fake_success(self):
+        fallback=self.runtime.launch_command(42)
+        self.assertFalse(fallback['ready'])
+        self.assertIn('отсутствуют',fallback['error'])
+        (self.plugin/'payload/libgsf-next.so').write_bytes(b'corrupted')
+        with self.assertRaises(ValueError):
+            self.runtime.prepare(42)
+        self.assertFalse(self.runtime.launch_command(42)['ready'])
+
     def invoke(self,enabled,corrupt=False):
         self.runtime.prepare(1);self.runtime.configure(1,{'enabled':enabled})
         if corrupt:
