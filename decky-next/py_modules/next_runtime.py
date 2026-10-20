@@ -12,7 +12,8 @@ import time
 import zipfile
 
 DEFAULTS = dict(enabled=False, multiplier=2, quality='performance', refresh_hz=90,
-                max_in_flight=2, extra_images=3, present_mode='auto', diagnostics=False)
+                max_in_flight=2, extra_images=3, present_mode='auto', diagnostics=False,
+                real_priority_pacing=False)
 
 
 def read(path, default=None):
@@ -51,6 +52,7 @@ def validate(settings):
     if p['quality'] not in ('performance', 'quality') or p['present_mode'] not in ('auto', 'keep'):
         raise ValueError('Неверный профиль качества/вывода')
     if type(p['diagnostics']) is not bool: raise ValueError('Неверный режим диагностики')
+    if type(p['real_priority_pacing']) is not bool: raise ValueError('Неверный экспериментальный режим презентации')
     if type(p['enabled']) is not bool:
         raise ValueError('Неверное состояние профиля')
     return p
@@ -118,7 +120,8 @@ def environment(kit, run, inherited, profile, control_path=None):
     env['VK_LAYER_PATH']=':'.join(dict.fromkeys(paths))
     env['VK_INSTANCE_LAYERS'] = 'VK_LAYER_GSF_next' +(':'+explicit if explicit else '')
     env.update(GSF_NEXT_ENABLED=str(int(p['enabled'])), GSF_NEXT_CONTROL=str(control_path or run/'control'),
-               GSF_NEXT_DIAGNOSTICS=str(int(p['diagnostics'])), GSF_NEXT_MULTIPLIER=str(p['multiplier']), GSF_NEXT_REFRESH_HZ=str(p['refresh_hz']),
+               GSF_NEXT_DIAGNOSTICS=str(int(p['diagnostics'])), GSF_NEXT_REAL_PRIORITY_PACING=str(int(p['real_priority_pacing'])),
+               GSF_NEXT_MULTIPLIER=str(p['multiplier']), GSF_NEXT_REFRESH_HZ=str(p['refresh_hz']),
                GSF_NEXT_MAX_IN_FLIGHT=str(p['max_in_flight']), GSF_NEXT_STATUS_DIR=str(run/'status'),
                AFMF_EXTRA_IMAGES=str(p['extra_images']), AFMF_PERFORMANCE_MODE=p['quality'],
                AFMF_SEARCH_MODE='standard', AFMF_MIN_FPS='0', AFMF_GOVERNOR='1',
