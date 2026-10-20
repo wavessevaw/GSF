@@ -25,6 +25,11 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
         if (retired != VK_SUCCESS) return retired;
         slot->pending = false;
     }
+    if (slot->ingest_pending) {
+        VkResult retired = f->wait_for_fences(dev->handle,1,&slot->ingest_fence,VK_TRUE,UINT64_MAX);
+        if (retired != VK_SUCCESS) return retired;
+        slot->ingest_pending = false;
+    }
     (void)clock_gettime(CLOCK_MONOTONIC, &t_fence);
 
     /* The image the generated frame goes into: the spare, if the presentation engine has one
@@ -80,35 +85,74 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     }
     (void)clock_gettime(CLOCK_MONOTONIC, &t_acquire);
 
-    VkResult res = afmf_sc_record_frame(dev, sc, slot->cmd, slot_index, i, job->output_images, job->phases, job->output_count);
+    const char *early_env=getenv("GSF_NEXT_EARLY_REAL_INGEST");
+    bool early=threaded && sc->async && cfg->enabled &&
+               early_env && early_env[0]=='1' && early_env[1]==0;
+    job->early_real=early;
+    job->ingest_done=VK_NULL_HANDLE;
+    VkResult res=early
+        ? afmf_sc_record_split(dev,sc,slot->ingest_cmd,slot->cmd,
+                               slot_index,i,job->output_images,job->phases,job->output_count)
+        : afmf_sc_record_frame(dev,sc,slot->cmd,slot_index,i,
+                               job->output_images,job->phases,job->output_count);
     (void)clock_gettime(CLOCK_MONOTONIC, &t_record);
-    if (res == VK_SUCCESS) {
+    bool generation_submitted=false;
+    bool ingest_submitted=false;
+    if(res == VK_SUCCESS) {
         VkPipelineStageFlags stages[AFMF_MAX_APP_WAITS];
-        for (uint32_t k = 0; k < wait_count; k++)
-            stages[k] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        VkSemaphore signals[1] = {sc->sem_real[i]};
-
-        VkSubmitInfo submit = {
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount = wait_count,
-            .pWaitSemaphores = waits,
-            .pWaitDstStageMask = stages,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &slot->cmd,
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores = signals,
-        };
-        if (!threaded)
-            wsi_take(sc);
-        if (sc->async)
-            pthread_mutex_lock(&dev->async_lock);
-        res = getenv("GSF_NEXT_TEST_FAIL_SUBMIT") ? VK_ERROR_DEVICE_LOST :
-            f->queue_submit(queue, 1, &submit, slot->fence);
-        if (sc->async && (res != VK_SUCCESS || threaded))
+        for(uint32_t k=0;k<wait_count;k++)
+            stages[k]=VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        VkSemaphore signals[1]={sc->sem_real[i]};
+        VkCommandBuffer real_cmd=early ? slot->ingest_cmd:slot->cmd;
+        VkSubmitInfo submit={
+            .sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount=wait_count,.pWaitSemaphores=waits,
+            .pWaitDstStageMask=stages,.commandBufferCount=1,
+            .pCommandBuffers=&real_cmd,.signalSemaphoreCount=1,
+            .pSignalSemaphores=signals};
+        if(!threaded) wsi_take(sc);
+        if(sc->async) pthread_mutex_lock(&dev->async_lock);
+        if(early) {
+            res=f->reset_fences(dev->handle,1,&slot->ingest_fence);
+            if(res==VK_SUCCESS)
+                res=getenv("GSF_NEXT_TEST_FAIL_SUBMIT") ? VK_ERROR_DEVICE_LOST :
+                    f->queue_submit(queue,1,&submit,slot->ingest_fence);
+            if(res==VK_SUCCESS) {
+                slot->ingest_pending=true;
+                ingest_submitted=true;
+                job->ingest_done=slot->ingest_fence;
+                /* A separate queue submit intentionally has no real semaphore:
+                 * only its own fence signals when optional optical flow retires. */
+                VkSubmitInfo synthetic={
+                    .sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                    .commandBufferCount=1,.pCommandBuffers=&slot->cmd};
+                res=f->queue_submit(queue,1,&synthetic,slot->fence);
+                if(res==VK_SUCCESS) generation_submitted=true;
+                else {
+                    /* Stage 1 already consumed app waits and signalled real. Do
+                     * NOT submit the old fallback: binary wait would be consumed
+                     * twice. Publish the real-only job and report the failure. */
+                    pthread_mutex_lock(&sc->job_lock);
+                    sc->worker_failed=true;
+                    if(sc->deferred_result>=0) sc->deferred_result=res;
+                    pthread_mutex_unlock(&sc->job_lock);
+                    job->output_count=0;
+                    generate=false;
+                    res=VK_SUCCESS;
+                }
+            }
+        } else {
+            res=getenv("GSF_NEXT_TEST_FAIL_SUBMIT") ? VK_ERROR_DEVICE_LOST :
+                f->queue_submit(queue,1,&submit,slot->fence);
+            if(res==VK_SUCCESS) generation_submitted=true;
+        }
+        if(sc->async && (res!=VK_SUCCESS || threaded))
             pthread_mutex_unlock(&dev->async_lock);
-        if (!threaded && res != VK_SUCCESS)
+        if(!threaded && res!=VK_SUCCESS)
             wsi_give(sc);
     }
+    if(!ingest_submitted && early)
+        job->early_real=false; /* existing pass-through fallback owns sem_app */
     (void)clock_gettime(CLOCK_MONOTONIC, &t_submit);
 
     pthread_mutex_lock(&sc->job_lock);
@@ -130,8 +174,8 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     if (res != VK_SUCCESS)
         return res; /* the image acquired for the generated frame, if any, stays with the engine */
 
-    slot->pending = true;
-    job->done = slot->fence;
+    slot->pending = generation_submitted;
+    job->done = generation_submitted ? slot->fence : slot->ingest_fence;
 
     /* Debug dumps block on the submission; only while AFMF_DUMP_DIR asks for frames. */
     if (sc->fg != NULL)
