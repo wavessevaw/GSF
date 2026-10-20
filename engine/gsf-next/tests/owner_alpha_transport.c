@@ -27,13 +27,14 @@ static VkResult VKAPI_PTR wait_probe(VkDevice device,uint32_t count,
     assert(id>=1u && id<=16u);
     return ready_flags[id-1]?VK_SUCCESS:VK_TIMEOUT;
 }
-VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg,
+VkResult gsf_owner_alpha_submit_serialized(struct afmf_device *dev,struct afmf_framegen *fg,
     VkQueue queue,VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
     VkFence ingest_done,VkFence reconstruct_done,
     const struct gsf_owner_alpha_pair *job,
-    struct gsf_owner_alpha_submit_status *status)
+    struct gsf_owner_alpha_submit_status *status,
+    pthread_mutex_t *queue_lock)
 {
-    (void)dev;(void)fg;
+    (void)dev;(void)fg;(void)queue_lock;
     assert(queue && ingest_cmd && reconstruct_cmd && ingest_done && reconstruct_done);
     assert(job && status && job->slot<2u);
     submitted++;

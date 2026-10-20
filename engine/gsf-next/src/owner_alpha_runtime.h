@@ -16,6 +16,8 @@ struct gsf_owner_alpha_runtime {
     struct gsf_alpha_owner_transport transport;
     VkQueue queue;
     pthread_mutex_t *queue_mutex; /* must be the actual queue's host lock */
+    pthread_mutex_t record_lock; /* guards Alpha CPU history/commands, not game VkQueue */
+    bool record_lock_ready;
     VkCommandPool commands;
     VkCommandBuffer ingest_cmd[GSF_ALPHA_OWNER_MAX_SLOTS];
     VkCommandBuffer reconstruct_cmd[GSF_ALPHA_OWNER_MAX_SLOTS];

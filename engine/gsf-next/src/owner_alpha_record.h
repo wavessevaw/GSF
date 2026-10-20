@@ -48,3 +48,14 @@ VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg
     VkFence ingest_done,VkFence reconstruct_done,
     const struct gsf_owner_alpha_pair *job,
     struct gsf_owner_alpha_submit_status *status);
+
+/* Specialization for the single-owner runtime. CPU command recording
+ * happens OUTSIDE the game's queue host mutex. Only the contiguous pair
+ * of VkQueueSubmit calls is under the shared queue lock. */
+VkResult gsf_owner_alpha_submit_serialized(
+    struct afmf_device *dev,struct afmf_framegen *fg,VkQueue queue,
+    VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
+    VkFence ingest_done,VkFence reconstruct_done,
+    const struct gsf_owner_alpha_pair *job,
+    struct gsf_owner_alpha_submit_status *status,
+    pthread_mutex_t *queue_lock);

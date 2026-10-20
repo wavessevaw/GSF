@@ -16,6 +16,10 @@ static void cleanup(struct gsf_owner_alpha_runtime *r)
     }
     if(r->commands)
         dev->fns.destroy_command_pool(dev->handle,r->commands,NULL);
+    if(r->record_lock_ready) {
+        pthread_mutex_destroy(&r->record_lock);
+        r->record_lock_ready=false;
+    }
     if(r->generator)
         afmf_framegen_destroy(dev,r->generator);
     memset(r,0,sizeof(*r));
@@ -62,6 +66,10 @@ VkResult gsf_owner_alpha_runtime_init(
     r->device=dev;r->queue=queue;r->queue_mutex=queue_mutex;
     r->slot_count=slots;r->snapshot_count=snapshot_count;
     r->target_count=target_count;
+    if(pthread_mutex_init(&r->record_lock,NULL)!=0) {
+        cleanup(r);return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    r->record_lock_ready=true;
     memcpy(r->snapshots,snapshots,snapshot_count*sizeof(VkImage));
     memcpy(r->targets,targets,target_count*sizeof(VkImage));
     /* The actual Alpha generator creates FidelityFX flow history, descriptors
@@ -75,6 +83,7 @@ VkResult gsf_owner_alpha_runtime_init(
                                       queue,slots,callbacks,user)) {
         cleanup(r);return VK_ERROR_INITIALIZATION_FAILED;
     }
+    r->transport.submit_lock=queue_mutex;
     const VkCommandPoolCreateInfo pool={
         .sType=VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -125,11 +134,14 @@ VkResult gsf_owner_alpha_runtime_submit(
         work.indices[i]=ix;
         if(i<count)work.phases[i]=(float)(i+1u)/(float)(count+1u);
     }
-    pthread_mutex_lock(r->queue_mutex);
+    /* Other jobs cannot modify Alpha's CPU frame_index / 2-frame history
+     * during recording. Only the two actual vkQueueSubmit calls take the
+     * shared game Vulkan-queue mutex, inside the transport/recorder. */
+    pthread_mutex_lock(&r->record_lock);
     VkResult result=gsf_alpha_owner_enqueue(&r->transport,frame_id,deadline_ns,
          slot,r->ingest_cmd[slot],r->reconstruct_cmd[slot],
          r->ingest_done[slot],r->reconstruct_done[slot],&work);
-    pthread_mutex_unlock(r->queue_mutex);
+    pthread_mutex_unlock(&r->record_lock);
     return result;
 }
 

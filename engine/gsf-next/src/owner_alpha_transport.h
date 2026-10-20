@@ -49,6 +49,7 @@ struct gsf_alpha_owner_transport {
     struct afmf_device *device;
     struct afmf_framegen *generator;
     VkQueue compute_queue;
+    pthread_mutex_t *submit_lock; /* external Vulkan host queue mutex */
     uint32_t capacity;
     struct gsf_alpha_owner_callbacks events;
     void *user;

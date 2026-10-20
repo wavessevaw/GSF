@@ -91,11 +91,13 @@ VkResult gsf_owner_alpha_record(struct afmf_device *dev,
     return dev->fns.end_command_buffer(reconstruct_cmd);
 }
 
-VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg,
-    VkQueue queue,VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
+VkResult gsf_owner_alpha_submit_serialized(
+    struct afmf_device *dev,struct afmf_framegen *fg,VkQueue queue,
+    VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
     VkFence ingest_done,VkFence reconstruct_done,
     const struct gsf_owner_alpha_pair *job,
-    struct gsf_owner_alpha_submit_status *status)
+    struct gsf_owner_alpha_submit_status *status,
+    pthread_mutex_t *queue_lock)
 {
     if(!status)return VK_ERROR_INITIALIZATION_FAILED;
     *status=(struct gsf_owner_alpha_submit_status){0};
@@ -110,19 +112,34 @@ VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg
         .commandBufferCount=1,.pCommandBuffers=&ingest_cmd};
     result=dev->fns.reset_fences(dev->handle,1,&ingest_done);
     if(result!=VK_SUCCESS)return result;
-    result=dev->fns.queue_submit(queue,1,&ingest,ingest_done);
-    if(result!=VK_SUCCESS)return result;
-    status->ingest_submitted=true;
-
-    /* Same VkQueue orders the internal Alpha colour/luma writes before
-     * optical-flow reads; source release only needs the ingest fence. */
+    /* Reset both idle fences BEFORE the first queue submit: a failed
+     * reconstruction fence reset must never leave an in-flight source
+     * submission with no valid second-stage fence. */
     const VkSubmitInfo warp={
         .sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount=1,.pCommandBuffers=&reconstruct_cmd};
     result=dev->fns.reset_fences(dev->handle,1,&reconstruct_done);
     if(result!=VK_SUCCESS)return result;
-    result=dev->fns.queue_submit(queue,1,&warp,reconstruct_done);
-    if(result!=VK_SUCCESS)return result;
-    status->reconstruct_submitted=true;
-    return VK_SUCCESS;
+    /* The application's VkQueue is host-external-synchronized. Hold its
+     * shared lock ONLY for the two quick Vulkan submits, never for shader
+     * command recording or Alpha descriptor preparation. */
+    if(queue_lock)pthread_mutex_lock(queue_lock);
+    result=dev->fns.queue_submit(queue,1,&ingest,ingest_done);
+    if(result==VK_SUCCESS) {
+        status->ingest_submitted=true;
+        result=dev->fns.queue_submit(queue,1,&warp,reconstruct_done);
+        if(result==VK_SUCCESS)status->reconstruct_submitted=true;
+    }
+    if(queue_lock)pthread_mutex_unlock(queue_lock);
+    return result;
+}
+
+VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg,
+    VkQueue queue,VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
+    VkFence ingest_done,VkFence reconstruct_done,
+    const struct gsf_owner_alpha_pair *job,
+    struct gsf_owner_alpha_submit_status *status)
+{
+    return gsf_owner_alpha_submit_serialized(dev,fg,queue,ingest_cmd,
+        reconstruct_cmd,ingest_done,reconstruct_done,job,status,NULL);
 }

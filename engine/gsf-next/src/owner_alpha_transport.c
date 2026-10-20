@@ -54,9 +54,9 @@ VkResult gsf_alpha_owner_enqueue(struct gsf_alpha_owner_transport *t,
         s->targets[i]=job->targets[i];
     t->last_frame_id=frame_id;
     struct gsf_owner_alpha_submit_status status={0};
-    VkResult result=gsf_owner_alpha_submit(t->device,t->generator,
+    VkResult result=gsf_owner_alpha_submit_serialized(t->device,t->generator,
         t->compute_queue,ingest_cmd,reconstruct_cmd,
-        ingest_done,reconstruct_done,job,&status);
+        ingest_done,reconstruct_done,job,&status,t->submit_lock);
     s->ingest_submitted=status.ingest_submitted;
     s->reconstruct_submitted=status.reconstruct_submitted;
     if(result!=VK_SUCCESS) {
