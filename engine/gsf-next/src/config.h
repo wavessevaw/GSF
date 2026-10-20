@@ -44,6 +44,7 @@ struct afmf_config {
     bool profile;                /* AFMF_PROFILE=1 (or AFMF_LOG=3): GPU time per pass, logged periodically */
     uint32_t gpu_budget_us;      /* GSF_NEXT_GPU_BUDGET_US, 0 off; hard cap on synthetic probe cost */
     bool cheap_warp;             /* GSF_NEXT_FAST_WARP=1, optional nearest-flow 1 fetch/pixel */
+    uint32_t owner_target_stride; /* INTERNAL only: 1 for x2, 2 for x3; ordinary game WSI stays unchanged */
     bool async;                  /* AFMF_ASYNC=0 keeps the work on the application's queue */
     bool pacing;                 /* AFMF_PACING=0 presents the real frame right behind the generated one */
     bool passive;                /* AFMF_GAMESCOPE=1 and this process is Gamescope itself: pass-through */

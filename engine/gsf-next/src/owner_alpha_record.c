@@ -39,14 +39,17 @@ VkResult gsf_owner_alpha_record(struct afmf_device *dev,
 
     const bool direct=afmf_framegen_direct(fg);
     const bool batch=job->count>1 && afmf_framegen_batched(fg);
-    const uint32_t views=batch?GSF_OWNER_ALPHA_OUTPUTS:job->count;
+    /* Batch x3 has 2 physical targets, not 3 dummy textures. The third
+     * descriptor aliases lane #2 but the count=2 shader never writes it. */
+    const uint32_t views=job->count;
+    const uint32_t stride=afmf_framegen_owner_output_stride(fg);
     float prev=0.0f;
     for(uint32_t i=0;i<views;i++) {
         if(!job->targets[i])
             return VK_ERROR_INITIALIZATION_FAILED;
         if(direct&&job->indices[i]>=afmf_framegen_owner_targets(fg))
             return VK_ERROR_INITIALIZATION_FAILED;
-        if(batch&&job->indices[i]!=job->slot*GSF_OWNER_ALPHA_OUTPUTS+i)
+        if(batch&&job->indices[i]!=job->slot*stride+i)
             return VK_ERROR_FEATURE_NOT_PRESENT;
         if(i<job->count) {
             const float phase=job->phases[i];

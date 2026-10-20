@@ -13,6 +13,7 @@
 struct afmf_framegen {
     uint32_t slots,sources,targets;
     int direct,batched,ingest;
+    uint32_t stride;
 };
 static uint32_t begin_count,end_count,prepare_count,ingest_count,reconstruct_count,finish_count,barriers;
 static VkImage snapshot;
@@ -50,6 +51,7 @@ static void VKAPI_PTR cmd_barrier(VkCommandBuffer cb,VkPipelineStageFlags src,
 uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *f){return f->slots;}
 uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *f){return f->sources;}
 uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *f){return f->targets;}
+uint32_t afmf_framegen_owner_output_stride(const struct afmf_framegen *f){return f->stride;}
 bool afmf_framegen_direct(const struct afmf_framegen *f){return f->direct!=0;}
 bool afmf_framegen_batched(const struct afmf_framegen *f){return f->batched!=0;}
 bool afmf_framegen_ingest_direct(const struct afmf_framegen *f){return f->ingest!=0;}
@@ -108,7 +110,7 @@ int main(void) {
     d.fns.begin_command_buffer=cmd_begin;
     d.fns.end_command_buffer=cmd_end;
     d.fns.cmd_pipeline_barrier=cmd_barrier;
-    struct afmf_framegen f={.slots=4,.sources=4,.targets=12,.direct=1,.batched=1};
+    struct afmf_framegen f={.slots=4,.sources=4,.targets=12,.direct=1,.batched=1,.stride=3};
     const VkCommandBuffer in=(VkCommandBuffer)(uintptr_t)0x7777u;
     const VkCommandBuffer out=(VkCommandBuffer)(uintptr_t)0x8888u;
     for(unsigned count=0;count<=3;count++) {
@@ -117,7 +119,7 @@ int main(void) {
         assert(gsf_owner_alpha_record(&d,&f,in,out,&p)==VK_SUCCESS);
         assert(begin_count==2 && end_count==2 && ingest_count==1 &&
                reconstruct_count==1 && finish_count==1 && prepare_count==1);
-        assert(barriers==(count>1?3u:count)+count);
+        assert(barriers==2u*count);
         assert(invalid_source_writes==0);
     }
     f.batched=0;f.direct=0;f.ingest=0;

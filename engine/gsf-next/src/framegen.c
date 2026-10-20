@@ -49,6 +49,9 @@ void afmf_framegen_set_family(struct afmf_device *dev, struct afmf_framegen *fg,
 uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg) { return fg ? fg->slots : 0u; }
 uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg) { return fg ? fg->owner_registered_sources : 0u; }
 uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg) { return fg ? fg->target_count : 0u; }
+uint32_t afmf_framegen_owner_output_stride(const struct afmf_framegen *fg) {
+    return fg ? fg->batch_stride : 0u;
+}
 
 void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg)
 {
@@ -164,6 +167,15 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
     const char *detail=getenv("GSF_NEXT_PROFILE_DETAIL");
     fg->detailed=cfg->diagnostics && !(detail!=NULL && strcmp(detail,"0")==0);
     fg->requested=gsf_renderer_requested();
+    /* Only the independent private owner may request 2-lane batching.
+     * The existing game-facing swapchain remains on legacy 3-lane indices.
+     * Default owner x3 is one batched reconstruction per pair, not two
+     * full-resolution interpolation dispatches. */
+    const bool owner_x3=cfg->owner_target_stride==2u &&
+                          slots>0u && target_count==slots*2u;
+    fg->batch_stride=owner_x3 ? 2u : 3u;
+    if(owner_x3 && fg->requested==GSF_RENDER_AUTO)
+        fg->requested=GSF_RENDER_BATCH;
     fg->last_renderer=GSF_RENDER_AUTO;
     fg->extent = extent;
     fg->slots = slots;
@@ -177,7 +189,7 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
     fg->ingest_variant = afmf_framegen_ingest_variant_for(dev, swapchain_format);
     fg->ingest_direct = have_images && direct_ingest && fg->ingest_variant != VARIANT_COUNT;
     fg->automatic=fg->direct && fg->requested==GSF_RENDER_AUTO && cfg->profile;
-    fg->batch=fg->direct && target_count%3u==0 &&
+    fg->batch=fg->direct && target_count%fg->batch_stride==0u &&
         (fg->automatic || fg->requested==GSF_RENDER_BATCH);
     fg->renderer=fg->requested==GSF_RENDER_BATCH && fg->batch ? GSF_RENDER_BATCH :
         fg->requested==GSF_RENDER_DIRECT && fg->direct ? GSF_RENDER_DIRECT : GSF_RENDER_COPY;

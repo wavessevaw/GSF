@@ -25,7 +25,7 @@ struct gsf_owner_alpha_runtime {
     VkFence reconstruct_done[GSF_ALPHA_OWNER_MAX_SLOTS];
     VkImage snapshots[GSF_OWNER_SOURCES];
     VkImage targets[GSF_ALPHA_OWNER_MAX_SLOTS*GSF_OWNER_ALPHA_OUTPUTS];
-    uint32_t snapshot_count,slot_count,target_count;
+    uint32_t snapshot_count,slot_count,target_count,outputs_per_pair;
     bool started;
 };
 
@@ -33,7 +33,9 @@ struct gsf_owner_alpha_runtime {
  * never virtual game VkImages or compositor WSI VkImages. All sources must
  * carry SAMPLED + TRANSFER_SRC and be created for same device/format/extent.
  * Synthetic targets require STORAGE + TRANSFER_SRC (direct) or TRANSFER_DST
- * + TRANSFER_SRC (copy). No image allocation/WSI ownership transfer here.
+ * + TRANSFER_SRC (copy). For multiplier x2 allocate 1 target per slot, x3
+ * allocate 2 targets per slot. No x4/dummy target allocation here.
+ * No image allocation/WSI ownership transfer here.
  *
  * Only one of the two existing native layers may be installed in a game.
  * This module lives in the Alpha library, not a second interceptor.

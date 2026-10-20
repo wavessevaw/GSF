@@ -64,7 +64,10 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev,VkFormat form
     const VkImage *targets,uint32_t count,bool ingest,const struct afmf_config *cfg) {
     (void)dev;(void)format;(void)cfg;
     assert(extent.width==800u && extent.height==600u);
-    assert(images && targets && sources==4u && count==6u && slots==2u);
+    assert(images && targets && sources==4u && slots==2u);
+    assert((cfg->multiplier==2u || cfg->multiplier==3u) &&
+           count==slots*(cfg->multiplier-1u));
+    assert(cfg->owner_target_stride==cfg->multiplier-1u);
     generator=(struct afmf_framegen){.sources=sources,.targets=count,.slots=slots,.direct=ingest};
     alive++;created++;return &generator;
 }
@@ -123,29 +126,29 @@ int main(void) {
     for(unsigned i=0;i<4;i++)sources[i]=(VkImage)(uintptr_t)(0x10000u+i);
     for(unsigned i=0;i<6;i++)targets[i]=(VkImage)(uintptr_t)(0x20000u+i);
     const struct gsf_alpha_owner_callbacks cb={release,ready,drop};
-    const struct afmf_config cfg={.enabled=true,.interpolate=true,.multiplier=4};
+    struct afmf_config cfg={.enabled=true,.interpolate=true,.multiplier=2};
     pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
     struct gsf_owner_alpha_runtime rt={0};
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
         &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
-        sources,4,targets,6,2,true,&cfg,&cb,NULL)==VK_SUCCESS);
+        sources,4,targets,2,2,true,&cfg,&cb,NULL)==VK_SUCCESS);
     assert(alive==1 && created==1 && pool_created==1);
     assert(alloc_count==2 && created_fences==4 && rt.started);
     assert(rt.transport.capacity==2);
-    for(uint32_t slot=0;slot<2;slot++)for(uint32_t count=0;count<=3;count++) {
-        assert(gsf_owner_alpha_runtime_submit(&rt,1u+count+slot*4u,
+    for(uint32_t slot=0;slot<2;slot++)for(uint32_t count=0;count<=1;count++) {
+        assert(gsf_owner_alpha_runtime_submit(&rt,1u+count+slot*2u,
             10000000u,slot,slot,count)==VK_SUCCESS);
         assert(last_pair.snapshot==sources[slot]);
         assert(last_pair.source_index==slot && last_pair.slot==slot);
         assert(last_slot==slot && last_count==count);
-        for(uint32_t i=0;i<3;i++) {
-            assert(last_pair.targets[i]==targets[slot*3u+i]);
-            assert(last_pair.indices[i]==slot*3u+i);
+        for(uint32_t i=0;i<1;i++) {
+            assert(last_pair.targets[i]==targets[slot+i]);
+            assert(last_pair.indices[i]==slot+i);
         }
         for(uint32_t i=0;i<count;i++)
             assert(last_pair.phases[i] > 0.0f && last_pair.phases[i] < 1.0f);
     }
-    assert(submitted==8u);
+    assert(submitted==4u && rt.outputs_per_pair==1u);
     assert(gsf_owner_alpha_runtime_poll(&rt,20000000u)==VK_SUCCESS && polls==1);
     assert(gsf_owner_alpha_runtime_output_done(&rt,1,99,
         (VkFence)(uintptr_t)0x1234u));
@@ -154,31 +157,34 @@ int main(void) {
     assert(!alive && pool_created==pool_destroyed && created_fences==destroyed_fences);
     /* Production native Output Owner copy fence leaves a TRANSFER_SRC image,
      * so COPY ingest must be exercised as a supported first integration. */
+    cfg.multiplier=3u;
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
         &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
-        sources,4,targets,6,2,false,&cfg,&cb,NULL)==VK_SUCCESS);
-    assert(gsf_owner_alpha_runtime_submit(&rt,100u,10000000u,1u,3u,3u)==VK_SUCCESS);
+        sources,4,targets,4,2,false,&cfg,&cb,NULL)==VK_SUCCESS);
+    assert(gsf_owner_alpha_runtime_submit(&rt,100u,10000000u,1u,3u,2u)==VK_SUCCESS);
     assert(last_pair.snapshot==sources[3] &&
         last_pair.layout==VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    assert(last_pair.targets[0]==targets[3] && last_pair.targets[2]==targets[5]);
+    assert(last_pair.targets[0]==targets[2] && last_pair.targets[1]==targets[3]);
+    assert(last_pair.indices[0]==2u && last_pair.indices[1]==3u);
+    assert(rt.outputs_per_pair==2u);
     assert(gsf_owner_alpha_runtime_destroy(&rt));
     assert(!alive && pool_created==pool_destroyed && created_fences==destroyed_fences);
     /* Reject image aliasing BEFORE touching Vulkan. */
     targets[0]=sources[0];
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
         &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
-        sources,4,targets,6,2,true,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
+        sources,4,targets,4,2,true,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
     assert(created==2);
     /* Aliased targets must fail before creating an Alpha context. */
     targets[0]=(VkImage)(uintptr_t)0x20000u;
     targets[1]=targets[0];
     assert(gsf_owner_alpha_runtime_init(&rt,&dev,(VkQueue)(uintptr_t)0x88u,
         &lock,0,VK_FORMAT_R8G8B8A8_UNORM,(VkExtent2D){800,600},
-        sources,4,targets,6,2,false,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
+        sources,4,targets,4,2,false,&cfg,&cb,NULL)==VK_ERROR_INITIALIZATION_FAILED);
     assert(created==2);
     pthread_mutex_destroy(&lock);
     puts("GSF_ALPHA_RUNTIME one_device=1 alpha_context=1 actual_slots=2"
-         " private_snapshots=4 private_targets=6 mutex=1 no_wsi=1"
+         " private_snapshots=4 x2_targets=2 x3_targets=4 mutex=1 no_wsi=1"
          " real_gpu_driver=UNVERIFIED PASS");
     return 0;
 }

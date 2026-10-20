@@ -42,7 +42,8 @@ VkResult gsf_owner_alpha_runtime_init(
        !dev->fns.reset_fences||!dev->fns.queue_submit||
        !slots||slots>GSF_ALPHA_OWNER_MAX_SLOTS||
        !snapshot_count||snapshot_count>GSF_OWNER_SOURCES||
-       target_count!=slots*GSF_OWNER_ALPHA_OUTPUTS||
+       (config->multiplier!=2u && config->multiplier!=3u)||
+       target_count!=slots*(config->multiplier-1u)||
        !extent.width||!extent.height||!dev->queue_families||
        family>=dev->queue_family_count||
        (dev->queue_families[family].queueFlags & VK_QUEUE_COMPUTE_BIT)==0)
@@ -66,6 +67,7 @@ VkResult gsf_owner_alpha_runtime_init(
     r->device=dev;r->queue=queue;r->queue_mutex=queue_mutex;
     r->slot_count=slots;r->snapshot_count=snapshot_count;
     r->target_count=target_count;
+    r->outputs_per_pair=config->multiplier-1u;
     if(pthread_mutex_init(&r->record_lock,NULL)!=0) {
         cleanup(r);return VK_ERROR_INITIALIZATION_FAILED;
     }
@@ -74,8 +76,10 @@ VkResult gsf_owner_alpha_runtime_init(
     memcpy(r->targets,targets,target_count*sizeof(VkImage));
     /* The actual Alpha generator creates FidelityFX flow history, descriptors
      * and reconstructor pipelines against the owner's private snapshots. */
+    struct afmf_config compact_config=*config;
+    compact_config.owner_target_stride=r->outputs_per_pair;
     r->generator=afmf_framegen_create(dev,format,extent,slots,snapshots,
-         snapshot_count,targets,target_count,direct_ingest,config);
+         snapshot_count,targets,target_count,direct_ingest,&compact_config);
     if(!r->generator) {
         cleanup(r);return VK_ERROR_FEATURE_NOT_PRESENT;
     }
@@ -119,7 +123,7 @@ VkResult gsf_owner_alpha_runtime_submit(
     uint32_t slot,uint32_t snapshot_index,uint32_t count)
 {
     if(!r||!r->started||slot>=r->slot_count||
-       snapshot_index>=r->snapshot_count||count>GSF_OWNER_ALPHA_OUTPUTS)
+       snapshot_index>=r->snapshot_count||count>r->outputs_per_pair)
         return VK_ERROR_INITIALIZATION_FAILED;
     struct gsf_owner_alpha_pair work={
         .snapshot=r->snapshots[snapshot_index],.slot=slot,
@@ -128,8 +132,8 @@ VkResult gsf_owner_alpha_runtime_submit(
                     VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
     /* One pinned, unaliased target lane per Alpha work slot. Never write a
      * texture from another in-flight slot just to increase the multiplier. */
-    for(uint32_t i=0;i<GSF_OWNER_ALPHA_OUTPUTS;i++) {
-        const uint32_t ix=slot*GSF_OWNER_ALPHA_OUTPUTS+i;
+    for(uint32_t i=0;i<r->outputs_per_pair;i++) {
+        const uint32_t ix=slot*r->outputs_per_pair+i;
         work.targets[i]=r->targets[ix];
         work.indices[i]=ix;
         if(i<count)work.phases[i]=(float)(i+1u)/(float)(count+1u);

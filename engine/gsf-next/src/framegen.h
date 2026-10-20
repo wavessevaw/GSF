@@ -50,6 +50,7 @@ void afmf_framegen_destroy(struct afmf_device *dev, struct afmf_framegen *fg);
 uint32_t afmf_framegen_owner_slots(const struct afmf_framegen *fg);
 uint32_t afmf_framegen_owner_sources(const struct afmf_framegen *fg);
 uint32_t afmf_framegen_owner_targets(const struct afmf_framegen *fg);
+uint32_t afmf_framegen_owner_output_stride(const struct afmf_framegen *fg);
 
 /* The queue family afmf_framegen_record's command buffers belong to, once the caller knows it:
  * the fixed part of a frame is then recorded once per (slot, parity, companion) into secondary

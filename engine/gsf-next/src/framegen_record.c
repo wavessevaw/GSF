@@ -169,7 +169,7 @@ void afmf_framegen_record_batch(struct afmf_device *dev, struct afmf_framegen *f
     dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_BATCH], VK_SHADER_STAGE_COMPUTE_BIT,
         0, (uint32_t)sizeof push, &push);
     afmf_dispatch_pass(dev, cmd, pl->batch[fg->direct_variant], pl->layouts[PASS_BATCH],
-        fg->batch_sets[p*(fg->target_count/3u)+slot], NULL, 0,
+        fg->batch_sets[p*(fg->target_count/fg->batch_stride)+slot], NULL, 0,
         (fg->extent.width+7)/8, (fg->extent.height+7)/8, 1, false);
     afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_BATCH);
 }

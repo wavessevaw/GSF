@@ -195,7 +195,7 @@ static void afmf_framegen_record_parts(struct afmf_device *dev, struct afmf_fram
     afmf_framegen_profiler_mark(dev,fg,cmd,slot,STAGE_MOTION);
     bool batched = afmf_framegen_batched(fg) && count > 1;
     for (uint32_t n = 0; batched && n < count; n++)
-        batched = indices[n] == slot*3u+n;
+        batched = indices[n] == slot*fg->batch_stride+n;
     if (batched) afmf_framegen_record_batch(dev, fg, cmd, slot, p, phases, count);
     for (uint32_t n = 0; n < count; n++) {
         VkImage target = targets[n];

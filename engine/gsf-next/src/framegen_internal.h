@@ -146,7 +146,8 @@ struct afmf_framegen {
     uint32_t *query_epoch;
     bool *query_tunable;
     bool batch; /* opt-in until RDNA2 measurements justify the extra register pressure */
-    VkDescriptorSet *batch_sets; /* [parity * (target_count/3) + work_slot] */
+    uint32_t batch_stride; /* legacy 3 targets per slot; private owner x3 uses 2 */
+    VkDescriptorSet *batch_sets; /* [parity * (target_count/batch_stride) + work_slot] */
     enum variant direct_variant;
     uint32_t target_count;        /* private output images */
     uint32_t source_count;        /* direct-ingest descriptor count, 0 in copy mode */
