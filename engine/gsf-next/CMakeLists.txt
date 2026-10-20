@@ -244,6 +244,11 @@ target_link_libraries(gsf_owner_alpha_runtime PRIVATE Vulkan::Headers Threads::T
 target_compile_options(gsf_owner_alpha_runtime PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
 add_test(NAME owner_alpha_runtime COMMAND gsf_owner_alpha_runtime)
 
+add_executable(gsf_gpu_cost_guard tests/gpu_cost_guard.c)
+target_include_directories(gsf_gpu_cost_guard PRIVATE src)
+target_compile_options(gsf_gpu_cost_guard PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME gpu_cost_guard COMMAND gsf_gpu_cost_guard)
+
 add_executable(gsf_queue_depth tests/queue_depth.c)
 target_include_directories(gsf_queue_depth PRIVATE src)
 target_compile_options(gsf_queue_depth PRIVATE -UNDEBUG)

@@ -69,6 +69,23 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
      * observed source period into an order for MORE synthetic work. Return those
      * slots to real-frame progress before recording any GPU reconstruction. */
     uint32_t admitted=gsf_budget_outputs(plan.count,job->source_blocked_ns,cfg->refresh_hz);
+    if(cfg->gpu_budget_us && sc->fg) {
+        uint64_t sample_id=0;
+        uint32_t observed_outputs=0;
+        double observed_gpu_ms=0.0;
+        if(afmf_framegen_cost_sample(sc->fg,&sample_id,
+                                     &observed_outputs,&observed_gpu_ms) &&
+           observed_gpu_ms>0.0 && observed_gpu_ms<100000.0) {
+            /* Observed GPU work from a completed pair only. No CPU scheduling
+             * time or benchmark-derived "output FPS" enters the admission. */
+            uint32_t actual_us=(uint32_t)(observed_gpu_ms*1000.0+0.5);
+            gsf_gpu_cost_observe(&sc->gpu_cost,sample_id,observed_outputs,
+                                  actual_us,cfg->gpu_budget_us);
+        }
+        uint32_t cost_admit=gsf_gpu_cost_admit(&sc->gpu_cost,admitted,
+                                               cfg->gpu_budget_us);
+        if(cost_admit<admitted)admitted=cost_admit;
+    }
     if(admitted<plan.count) {
         uint32_t skip=plan.count-admitted;
         sc->budget_skipped_synthetic+=skip;

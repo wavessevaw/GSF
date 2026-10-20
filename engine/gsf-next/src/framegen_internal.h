@@ -201,6 +201,8 @@ struct afmf_framegen {
     uint32_t *query_outputs;
     float *query_phases;
     double last_gpu_ms;
+    uint64_t completed_cost_sample; /* sequence of actually retired GPU timestamp samples */
+    uint32_t completed_cost_outputs; /* synthetic count paired with the sample */
     double last_motion_ms;
     double last_batch_ms;
     double last_warp_ms[3];

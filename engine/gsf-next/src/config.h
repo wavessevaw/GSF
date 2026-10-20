@@ -42,6 +42,7 @@ struct afmf_config {
     enum afmf_performance_mode performance;     /* AFMF_PERFORMANCE_MODE: auto | quality | performance */
     const char *dump_dir;        /* AFMF_DUMP_DIR: where the first generated frames are written as PPM */
     bool profile;                /* AFMF_PROFILE=1 (or AFMF_LOG=3): GPU time per pass, logged periodically */
+    uint32_t gpu_budget_us;      /* GSF_NEXT_GPU_BUDGET_US, 0 off; hard cap on synthetic probe cost */
     bool async;                  /* AFMF_ASYNC=0 keeps the work on the application's queue */
     bool pacing;                 /* AFMF_PACING=0 presents the real frame right behind the generated one */
     bool passive;                /* AFMF_GAMESCOPE=1 and this process is Gamescope itself: pass-through */

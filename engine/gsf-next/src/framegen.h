@@ -110,6 +110,10 @@ void afmf_framegen_pipelines_destroy(struct afmf_device *dev);
 
 /* Most recently retired pair, GPU timestamps only; -1 when unavailable. */
 double afmf_framegen_gpu_ms(const struct afmf_framegen *fg);
+/* Last actually retired Vulkan GPU timestamps with associated synthetic count.
+ * Never substitute output FPS from a throughput benchmark for this metric. */
+bool afmf_framegen_cost_sample(const struct afmf_framegen *fg,
+                               uint64_t *sequence,uint32_t *outputs,double *gpu_ms);
 enum gsf_renderer afmf_framegen_gpu_renderer(const struct afmf_framegen *fg);
 double afmf_framegen_reconstruction_ms(const struct afmf_framegen *fg);
 void afmf_framegen_gpu_stages(const struct afmf_framegen *fg, double *motion, double warps[3]);

@@ -76,6 +76,8 @@ void afmf_framegen_profiler_collect(struct afmf_device *dev, struct afmf_framege
     fg->last_reconstruction_ms=finish_ms+output_ms+fg->last_batch_ms;
     for(uint32_t k=0;k<3;k++) fg->last_reconstruction_ms+=fg->last_warp_ms[k];
     uint32_t outputs=fg->query_outputs[slot];
+    fg->completed_cost_outputs=outputs;
+    fg->completed_cost_sample++; /* each valid query readback, including real-only */
     if(outputs>0 && outputs<=3 && fg->query_tunable[slot])
         gsf_renderer_observe(&fg->choices[outputs-1],fg->query_epoch[slot],fg->last_renderer,fg->last_reconstruction_ms);
     const char *path = getenv("GSF_NEXT_GPU_REPORT");
@@ -157,6 +159,17 @@ void afmf_framegen_profiler_begin(struct afmf_device *dev, struct afmf_framegen 
     fg->query_pair[slot] = fg->frame_index;
     fg->query_count[slot] = 0;
     afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INGEST); /* the opening timestamp; stage unused */
+}
+
+bool afmf_framegen_cost_sample(const struct afmf_framegen *fg,
+                               uint64_t *sequence,uint32_t *outputs,double *gpu_ms)
+{
+    if(!fg||fg->queries==VK_NULL_HANDLE||!fg->completed_cost_sample||
+       !sequence||!outputs||!gpu_ms)return false;
+    *sequence=fg->completed_cost_sample;
+    *outputs=fg->completed_cost_outputs;
+    *gpu_ms=fg->last_gpu_ms;
+    return true;
 }
 
 double afmf_framegen_gpu_ms(const struct afmf_framegen *fg)
