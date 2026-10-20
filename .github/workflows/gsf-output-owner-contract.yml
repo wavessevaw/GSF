@@ -165,6 +165,23 @@ jobs:
           fi
           echo 'Loader installed app virtual Acquire->render->Present->private output->X11 pixels PASS (not FG or OLED)'
 
+      - name: "Detached owner Vulkan WSI: release real game source before delayed output"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 \
+          GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_DETACHED_OWNER=1 \
+          GFG_NATIVE_TEST_OUTPUT_DELAY_MS=40 \
+          VK_LAYER_PATH="$PWD/engine/gfg-native/build/loader-probe:/usr/share/vulkan/explicit_layer.d" \
+          VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation \
+          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+          xvfb-run -a -s '-screen 0 1024x768x24' \
+          engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_LIVE_APP frame=8 virtual_present=1 x11_visible=1' "$log"
+          grep -E 'GSF_DETACHED_OWNER handoff=8 source_retired=8 output_retired=8 early_source_release=[1-9][0-9]* live=0 status=0' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then cat "$log"; exit 1; fi
+          echo 'Detached Output Owner source retirement precedes downstream output; native transport only, Alpha not yet bound'
+
       - name: "Isolated virtual-game post-owner GPU LMC x4: 8 real plus 21 unique synthetic X11 images"
         run: |
           set -euo pipefail
