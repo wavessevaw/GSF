@@ -95,7 +95,7 @@ int main(void) {
      * reconstruction still runs and the output slot must stay pinned. */
     for(uint64_t frame=1;frame<=12000;frame++) {
         const unsigned slot=(unsigned)(frame&1u);
-        const unsigned count=frame%7u==0?0u:frame%3u+1u;
+        const unsigned count=frame%7u==0u?0u:(unsigned)(frame%3u)+1u;
         struct gsf_owner_alpha_pair p=job(slot,count);
         const uint64_t t0=1000000000ull+frame*30000000ull;
         const uint64_t deadline=t0+10000000ull;
