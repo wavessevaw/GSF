@@ -51,8 +51,8 @@ typedef struct {
     te_device *temporal_device;
     te_context *temporal;
     unsigned temporal_slot,temporal_multiplier;
-    unsigned temporal_outputs,temporal_slot_ids[2];
-    float temporal_tau[2];
+    unsigned temporal_outputs,temporal_slot_ids[3];
+    float temporal_tau[3];
     VkBuffer verify_buffer;
     VkDeviceMemory verify_memory;
     unsigned char *verify_map;
@@ -255,10 +255,18 @@ static inline VkResult gfg_test_live_emit(gfg_test_loader_runtime *r,
 static inline VkResult gfg_test_lmc_start(gfg_test_loader_runtime *r,VkInstance instance,
         PFN_vkGetInstanceProcAddr gipa,PFN_vkGetDeviceProcAddr gdpa,
         PFN_vkSetDeviceLoaderData loader_data) {
-    r->temporal_multiplier=getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
+    /* Experimental post-owner proof only: one temporal analysis per A/B,
+     * with 1/2/3 distinct GPU outputs at immutable subframe positions.
+     * Reject two competing mode overrides instead of silently choosing. */
+    if(getenv("GFG_NATIVE_TEST_LMC_X3") && getenv("GFG_NATIVE_TEST_LMC_X4"))
+        return VK_ERROR_FEATURE_NOT_PRESENT;
+    r->temporal_multiplier=getenv("GFG_NATIVE_TEST_LMC_X4")?4u:
+                           getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
     r->temporal_outputs=r->temporal_multiplier-1u;
-    r->temporal_tau[0]=1.f/(float)r->temporal_multiplier;r->temporal_tau[1]=2.f/3.f;
-    r->temporal_slot_ids[0]=0;r->temporal_slot_ids[1]=1;
+    for(unsigned i=0;i<r->temporal_outputs;++i) {
+        r->temporal_tau[i]=(float)(i+1u)/(float)r->temporal_multiplier;
+        r->temporal_slot_ids[i]=i;
+    }
     if(getenv("GFG_NATIVE_TEST_LMC_MASK2")) {
         if(r->temporal_multiplier!=3)return VK_ERROR_FEATURE_NOT_PRESENT;
         r->temporal_outputs=1;r->temporal_tau[0]=0.5f;r->temporal_slot_ids[0]=1;
@@ -338,7 +346,8 @@ static inline VkResult gfg_test_lmc_feed(gfg_test_loader_runtime *r,uint32_t ima
     VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&r->output_cmd};
     result=vkQueueSubmit(r->queue,1,&submit,r->output_fence);if(result!=VK_SUCCESS)return result;
     te_submit work={.slot=r->temporal_slot,.count=r->have_previous?r->temporal_outputs:0,
-        .timestamps={r->temporal_tau[0],r->temporal_tau[1]},.nonblocking=1,.lmc_tier=2};
+        .timestamps={r->temporal_tau[0],r->temporal_tau[1],r->temporal_tau[2]},
+        .nonblocking=1,.lmc_tier=2};
     result=te_submit_frame(r->temporal,&work);
     if(result==VK_NOT_READY) {
         /* Prototype only: source pool bounds outstanding images. This is a
