@@ -50,6 +50,14 @@ class RuntimeTests(unittest.TestCase):
             self.assertNotIn('GFG_NATIVE_FORCE_FIFO',env);self.assertNotIn('AFMF_DUMP_DIR',env)
             self.assertNotIn('GSF_NEXT_TEST_FAIL_SUBMIT',env);self.assertEqual(env['DISABLE_MAKO'],'1')
         self.assertEqual(inherited['GFG_NATIVE_FORCE_FIFO'],'1')
+    def test_auto_and_deep_queue_are_valid_and_transmitted(self):
+        for depth in (0,1,2,3,4,5,6,7,8):
+            self.assertEqual(validate({'max_in_flight':depth})['max_in_flight'],depth)
+            env=environment(Path('/kit'),Path('/run'),{},dict(max_in_flight=depth,multiplier=4,refresh_hz=120))
+            self.assertEqual(env['GSF_NEXT_MAX_IN_FLIGHT'],str(depth))
+        self.assertEqual(validate({})['max_in_flight'],0)
+        for depth in (-1,9,2.5,'8',True):
+            with self.assertRaises(ValueError): validate({'max_in_flight':depth})
     def test_priority_pacing_opt_in_is_isolated_and_validated(self):
         inherited={'GSF_NEXT_REAL_PRIORITY_PACING':'1','KEEP':'yes'}
         baseline=environment(Path('/kit'),Path('/run'),inherited,{})
