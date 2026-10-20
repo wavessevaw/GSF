@@ -33,8 +33,9 @@ static bool live_control(uint32_t frame)
 
 static bool run(struct ctx *ctx)
 {
-    bool with_validation = instance_layer_available(VALIDATION_LAYER_NAME);
-    if (!with_validation)
+    bool with_validation = instance_layer_available(VALIDATION_LAYER_NAME) && !env_is_1("GSF_TEST_BENCHMARK");
+    if(env_is_1("GSF_TEST_BENCHMARK")) (void)fprintf(stderr,"benchmark: validation explicitly disabled; correctness matrix validates separately\n");
+    if (!with_validation && !env_is_1("GSF_TEST_BENCHMARK"))
         (void)fprintf(stderr, "note: " VALIDATION_LAYER_NAME " not installed, running without it\n");
 
     if (!create_instance(ctx, with_validation) || !pick_physical_device(ctx) ||
@@ -80,8 +81,9 @@ static bool run(struct ctx *ctx)
     }
     (void)clock_gettime(CLOCK_MONOTONIC, &end);
     double ms = ((double)(end.tv_sec - start.tv_sec) * 1e3 + (double)(end.tv_nsec - start.tv_nsec) / 1e6);
-    (void)fprintf(stderr, "%ux%u: %.2f ms per present (upload + layer work, queue drained each frame)\n",
-                  ctx->extent.width, ctx->extent.height, ms / frames);
+    (void)fprintf(stderr, "%ux%u: %.2f ms per present (upload + layer work; %s)\n",
+                  ctx->extent.width, ctx->extent.height, ms / frames,
+                  env_is_1("GSF_TEST_PIPELINED") ? "producer overlaps output" : "queue drained each frame");
     /* AFMF_TEST_MAX_MS=<n>: a ceiling on that figure. It is a blunt instrument, since the figure
      * carries this test's own upload and a queue drain per frame as well as the layer's work, so
      * it is set with room to spare: what it is there to catch is the class of change that

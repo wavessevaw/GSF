@@ -46,7 +46,9 @@ def run(build, out, name, patch, frames=24):
     for before,after in zip(records,records[1:]):
         if after['enabled']:
             tick=(1_000_000_000+after['refresh_hz']-1)//after['refresh_hz']
-            assert after['submit_ns']-before['submit_ns']>=tick,(name,'compressed or uncapped API output',before,after)
+            assert after['submit_ns']-before['submit_ns']>=tick//2,(name,'compressed API output',before,after)
+            if before['refresh_hz']==after['refresh_hz']:
+                assert after['target_ns']-before['target_ns']>=tick,(name,'reused target slot',before,after)
     pairs={}
     for row in records:
         assert row['result'] in (0,1000001003),(name,row)

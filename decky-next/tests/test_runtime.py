@@ -117,4 +117,24 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(report['counters']['accepted_synthetic'],5)
         self.assertIsNone(report['displayed'])
 
+    def test_running_report_refreshes_wsi_evidence(self):
+        import time
+        self.runtime.prepare(1)
+        child='import json,os,pathlib,time; p=pathlib.Path(os.environ["GSF_NEXT_STATUS_DIR"])/"1.json"; p.write_text(json.dumps(dict(generated=5,accepted_real=6,accepted_synthetic=5))); time.sleep(3)'
+        env=os.environ.copy();env.update(HOME=str(self.home));env.pop('VK_INSTANCE_LAYERS',None)
+        process=subprocess.Popen([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            deadline=time.monotonic()+4
+            report={}
+            while time.monotonic()<deadline:
+                run=self.runtime.latest(1)
+                report=read(run/'REPORT.json',{}) if run else {}
+                if report.get('stage')=='running' and report.get('result')=='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED':break
+                time.sleep(.05)
+            self.assertEqual(report.get('stage'),'running')
+            self.assertEqual(report.get('result'),'WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED')
+            self.assertEqual(report['counters']['accepted_synthetic'],5)
+        finally: process.communicate(timeout=8)
+        self.assertEqual(process.returncode,0)
+
 if __name__=='__main__': unittest.main()

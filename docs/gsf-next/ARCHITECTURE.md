@@ -22,15 +22,19 @@ when RADV exposes compute and presentation in different queue families. No host
 mutex holds a GPU-readiness wait. A second thread presents reserved intermediates in increasing temporal order,
 then the current real frame. It waits on GPU readiness independently of the game
 hook. One source period of buffered delay places the sequence on its target
-slots. A late-ready pair is rebased as a whole; there is no expired-deadline
-catch-up burst. A monotonic minimum spacing gate applies to real AND synthetic
-API presents while generation is enabled (ceil(1e9 / refresh_hz) ns). This bounds
+slots. A late-ready pair compacts its surviving outputs onto consecutive future ticks.
+The absolute grid does not accumulate host wake jitter: target slots stay one
+period apart, with a half-period actual-call guard against catch-up bursts. This bounds
 API submission rate, not compositor scanout. The game remains unpaced by this
 gate in Off mode. The presentation
 queue is bounded to 1/2/3 jobs, default 2. Backpressure can still block application
 present when that bound is reached; no claim of zero latency or zero game impact
 is made. This is a real-WSI companion design, not the former virtual-source WSI.
-Increasing extra WSI images (+3/+5) does not itself increase the job queue limit.
+Nine private GPU images, independent of acquired WSI images, store synthetic
+outputs until a just-in-time output copy. A separate command pool and GPU fence
+protect each sequential WSI copy. Increasing extra WSI images (+3/+5) does not
+itself increase the job queue limit. See ALPHA3_OUTPUT.md for the tradeoff,
+source-backpressure admission and measured-copy telemetry.
 
 The display-slot planner derives temporal phases from one monotonic display
 clock and actual captured source timestamps. Both nearest-grid real endpoints

@@ -113,7 +113,7 @@ static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, 
     bool paced=job->config.enabled && job->config.pacing;
     uint64_t hold_start=monotonic_ns();
     if(paced) {
-        target=gsf_output_deadline(desired,sc->last_output_ns,job->config.refresh_hz);
+        target=gsf_grid_deadline(sc->plan_epoch_ns,desired,hold_start,sc->last_target_ns,sc->last_output_ns,job->config.refresh_hz);
         pace_until(target);
     }
     struct timespec t0, t1;
@@ -139,7 +139,7 @@ static VkResult present_one(struct afmf_device *dev, struct afmf_swapchain *sc, 
     if (res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) {
         sc->last_present_gap_ns=sc->last_output_ns ? submitted-sc->last_output_ns : 0;
         sc->last_output_ns=submitted;
-        if(paced) sc->paced_presents++;
+        if(paced) {sc->paced_presents++;sc->last_target_ns=target;}
         if (real) {
             sc->accepted_real++;sc->presented_config=job->config;
             if(job->have_present_id) sc->last_submitted_present_id=job->present_id;
@@ -186,36 +186,44 @@ void *afmf_sc_presenter_main(void *arg)
             uint64_t shift=job.config.enabled ? job.buffer_delay_ns : 0;
             uint64_t earliest=job.ready_ns;
             if(job.config.enabled && job.config.pacing)
-                earliest=gsf_output_deadline(earliest,sc->last_output_ns,job.config.refresh_hz);
-            if(first_slot+shift<earliest) {
-                shift=earliest-first_slot;
+                earliest=gsf_grid_deadline(sc->plan_epoch_ns,0,earliest,sc->last_target_ns,sc->last_output_ns,job.config.refresh_hz);
+            bool late=first_slot+shift<earliest;
+            if(late) {
                 pthread_mutex_lock(&sc->job_lock);sc->late_pairs++;pthread_mutex_unlock(&sc->job_lock);
             }
-            /* Rebase the whole sequence on lateness, retaining every spacing.
-             * There is no arrival+period clamp that can collapse G1/G2/G3/B. */
+            /* A late pair has no reason to replay empty historical display slots.
+             * Compact its AVAILABLE outputs onto consecutive future ticks; the
+             * old whole-pair shift preserved holes and fed its slowdown back
+             * into the measured source period, especially at high multipliers. */
+            uint64_t first_due=late ? earliest : first_slot+shift;
+            uint64_t tick=gsf_refresh_period(job.config.refresh_hz);
+            uint32_t shown=0;
             for(uint32_t n=0;n<job.output_count;n++) {
-                uint32_t image=job.output_images[n];
-                VkResult result=present_one(dev,sc,image,sc->sem_generated[image],&job,false,
-                    job.output_slots[n]+shift,job.phases[n]);
+                uint32_t image=0;
+                VkResult result=afmf_sc_output_copy(dev,sc,&job,n,&image);
+                if(result==VK_NOT_READY) {
+                    pthread_mutex_lock(&sc->job_lock);sc->dropped_synthetic+=job.output_count-n;pthread_mutex_unlock(&sc->job_lock);
+                    break;
+                }
+                if(result!=VK_SUCCESS) {
+                    pthread_mutex_lock(&sc->job_lock);sc->dropped_synthetic+=job.output_count-n;pthread_mutex_unlock(&sc->job_lock);
+                    first=result;break;
+                }
+                uint64_t desired=late ? first_due+(uint64_t)shown*tick : job.output_slots[n]+shift;
+                result=present_one(dev,sc,image,sc->sem_generated[image],&job,false,desired,job.phases[n]);
+                shown++;
                 if(result<0 || first==VK_SUCCESS) first=result;
             }
             second=present_one(dev,sc,job.real_image,sc->sem_real[job.real_image],&job,true,
-                job.real_slot+shift,1.0f);
+                late ? first_due+(uint64_t)shown*tick : job.real_slot+shift,1.0f);
         } else {
             second=gpu;
             pthread_mutex_lock(&sc->job_lock);sc->worker_failed=true;pthread_mutex_unlock(&sc->job_lock);
         }
 
-        /* Line up the next companion's image while the application renders. */
-        struct timespec r0, r1;
-        (void)clock_gettime(CLOCK_MONOTONIC, &r0);
-        wsi_take(sc);
-        afmf_sc_spare_refill(dev, sc, 0);
-        wsi_give(sc);
-        (void)clock_gettime(CLOCK_MONOTONIC, &r1);
-
+        /* No speculative WSI acquire after the real endpoint. That could hold
+         * an image (and a host lock) away from the game's next source frame. */
         pthread_mutex_lock(&sc->job_lock);
-        sc->refill_ms += elapsed_ms(&r0, &r1);
         /* The worst outcome reaches the application with its next present call. Errors beat
          * SUBOPTIMAL, SUBOPTIMAL beats SUCCESS. */
         VkResult worst = first < 0 ? first : second < 0 ? second : first != VK_SUCCESS ? first : second;

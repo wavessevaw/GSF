@@ -65,6 +65,21 @@ static void paint_frame(struct ctx *ctx, uint32_t frame)
  * step 0 once the hitches pass. */
 static void pace(uint32_t frame)
 {
+    if(env_is_1("GSF_TEST_PIPELINED")) {
+        static uint64_t epoch=0;
+        const char *text=getenv("GSF_TEST_SOURCE_PERIOD_NS");
+        uint64_t period=text!=NULL ? strtoull(text,NULL,10) : 22222222ull;
+        if(period<1000000ull || period>1000000000ull) period=22222222ull;
+        struct timespec now;(void)clock_gettime(CLOCK_MONOTONIC,&now);
+        uint64_t ns=(uint64_t)now.tv_sec*1000000000ull+(uint64_t)now.tv_nsec;
+        if(epoch==0) epoch=ns;
+        uint64_t deadline=epoch+(uint64_t)(frame+1u)*period;
+        /* A source hitch never causes multiple zero-time catch-up renders. */
+        if(ns>deadline+period) { epoch=ns-(uint64_t)(frame+1u)*period;deadline=ns; }
+        struct timespec until={.tv_sec=(time_t)(deadline/1000000000ull),.tv_nsec=(long)(deadline%1000000000ull)};
+        while(clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&until,NULL)==EINTR) ;
+        return;
+    }
     static long frame_ms = -1, hitch = -1;
     if (frame_ms < 0) {
         const char *wanted = getenv("AFMF_TEST_FRAME_MS");
@@ -151,7 +166,7 @@ bool present_frame(struct ctx *ctx, uint32_t frame)
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = &ctx->ready,
     };
-    CHECK(vkQueueSubmit(ctx->queue, 1, &submit, VK_NULL_HANDLE));
+    CHECK(vkQueueSubmit(ctx->queue, 1, &submit, ctx->render_done));
 
     uint64_t present_id = frame + 1;
     VkPresentIdKHR id = {
@@ -188,7 +203,13 @@ bool present_frame(struct ctx *ctx, uint32_t frame)
         (void)fprintf(stderr, "vkQueuePresentKHR -> VkResult %d\n", (int)res);
         return false;
     }
-    CHECK(vkQueueWaitIdle(ctx->queue));
+    if(ctx->render_done!=VK_NULL_HANDLE) {
+        /* Wait only for the game's upload, never the layer's output thread.
+         * This retains actual producer/presenter overlap and exposes pacing
+         * feedback which vkQueueWaitIdle-after-every-frame concealed. */
+        CHECK(vkWaitForFences(ctx->device,1,&ctx->render_done,VK_TRUE,UINT64_MAX));
+        CHECK(vkResetFences(ctx->device,1,&ctx->render_done));
+    } else CHECK(vkQueueWaitIdle(ctx->queue));
     pace(frame);
     return true;
 }

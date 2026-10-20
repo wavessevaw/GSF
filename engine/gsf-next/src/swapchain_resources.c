@@ -37,9 +37,11 @@ VkResult afmf_sc_gen_init(struct afmf_device *dev, struct afmf_swapchain *sc)
     res = dev->fns.create_fence(dev->handle, &fence, NULL, &sc->spare_fence);
     if (res != VK_SUCCESS)
         return res;
+    res=afmf_sc_output_init(dev,sc);
+    if(res!=VK_SUCCESS) return res;
     if (afmf_config_get()->interpolate)
         sc->fg = afmf_framegen_create(dev, sc->format, sc->extent, sc->image_count, sc->images,
-                                      sc->image_count, sc->storage_usage, sc->sampled_usage, &sc->config);
+                                      sc->image_count, false, sc->sampled_usage, &sc->config);
     return sc->fg != NULL ? VK_SUCCESS : VK_ERROR_FEATURE_NOT_PRESENT;
 }
 
@@ -84,6 +86,7 @@ bool afmf_sc_ensure_pool(struct afmf_device *dev, struct afmf_swapchain *sc, uin
         if (dev->set_loader_data(dev->handle, sc->slots[i].cmd) != VK_SUCCESS)
             return false;
     }
+    if(!afmf_sc_output_pool(dev,sc,family)) return false;
     if (sc->fg != NULL)
         afmf_framegen_set_family(dev, sc->fg, family);
     return true;
@@ -125,6 +128,7 @@ void afmf_sc_gen_teardown(struct afmf_device *dev, struct afmf_swapchain *sc)
     }
     if (sc->pool != VK_NULL_HANDLE)
         f->destroy_command_pool(dev->handle, sc->pool, NULL); /* frees the command buffers */
+    afmf_sc_output_destroy(dev,sc);
     afmf_framegen_destroy(dev, sc->fg);
     sc->fg = NULL;
     for (uint32_t i = 0; i < sc->image_count; i++) {

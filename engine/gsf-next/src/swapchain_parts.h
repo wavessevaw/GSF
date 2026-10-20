@@ -50,3 +50,10 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
 void afmf_sc_status_write(struct afmf_swapchain *sc);
 
 void afmf_sc_live_update(struct afmf_device *dev,struct afmf_swapchain *sc,uint64_t now);
+
+/* Independent synthetic storage and late WSI acquisition. */
+VkResult afmf_sc_output_init(struct afmf_device *dev,struct afmf_swapchain *sc);
+bool afmf_sc_output_pool(struct afmf_device *dev,struct afmf_swapchain *sc,uint32_t family);
+void afmf_sc_output_destroy(struct afmf_device *dev,struct afmf_swapchain *sc);
+VkResult afmf_sc_output_copy(struct afmf_device *dev,struct afmf_swapchain *sc,
+                             const struct afmf_present_job *job,uint32_t output,uint32_t *index);

@@ -57,15 +57,16 @@ def main():
         sampler.start()
     except (ImportError,OSError): pass
     observed={}
+    last_report_ns=0
     def evidence():
         for path in (run/'status').glob('*.json'):
             try:
                 row=read(path)
                 previous=observed.get(path.name,{})
-                observed[path.name]={k:max(row.get(k,0),previous.get(k,0)) for k in ('generated','accepted_real','accepted_synthetic')}
+                observed[path.name]={k:max(row.get(k,0),previous.get(k,0)) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic')}
             except (OSError,ValueError,TypeError): pass
         if observed:
-            report['counters']={k:sum(row.get(k,0) for row in observed.values()) for k in ('generated','accepted_real','accepted_synthetic')}
+            report['counters']={k:sum(row.get(k,0) for row in observed.values()) for k in ('generated','accepted_real','accepted_synthetic','dropped_synthetic')}
             if report['counters']['accepted_synthetic']>0: report['result']='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED'
     try:
         with (run/'game.log').open('ab',buffering=0) as output:
@@ -76,6 +77,9 @@ def main():
                     with (run/'game.log').open('r+b') as log: log.truncate(0)
                     report['log_truncated']=True
                 evidence()
+                now=time.monotonic_ns()
+                if now-last_report_ns>=2_000_000_000:
+                    atomic(run/'REPORT.json',report);last_report_ns=now
                 time.sleep(.5)
         code=child.returncode
         report.update(stage='finished',exit_code=code)

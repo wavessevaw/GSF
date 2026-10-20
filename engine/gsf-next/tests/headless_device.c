@@ -149,6 +149,10 @@ bool create_device_and_swapchain(struct ctx *ctx)
     CHECK(vkCreateSemaphore(ctx->device, &semaphore, NULL, &ctx->acquired));
     CHECK(vkCreateSemaphore(ctx->device, &semaphore, NULL, &ctx->ready));
 
+    if(env_is_1("GSF_TEST_PIPELINED")) {
+        VkFenceCreateInfo done={.sType=VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        CHECK(vkCreateFence(ctx->device,&done,NULL,&ctx->render_done));
+    }
     return create_swapchain(ctx, 0, 0);
 }
 
@@ -169,6 +173,7 @@ void destroy(struct ctx *ctx)
             vkDestroyBuffer(ctx->device, ctx->staging, NULL);
         if (ctx->staging_memory != VK_NULL_HANDLE)
             vkFreeMemory(ctx->device, ctx->staging_memory, NULL);
+        if(ctx->render_done!=VK_NULL_HANDLE) vkDestroyFence(ctx->device,ctx->render_done,NULL);
         if (ctx->ready != VK_NULL_HANDLE)
             vkDestroySemaphore(ctx->device, ctx->ready, NULL);
         if (ctx->acquired != VK_NULL_HANDLE)

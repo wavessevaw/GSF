@@ -42,14 +42,32 @@ int main(void)
         }
         assert(total<=90*60);
     }
-    /* Ready jitter, long overload, refresh changes: never compress late output. */
-    uint64_t last=1000000000ull;
+    /* Wake jitter must NOT accumulate into a slower effective display clock.
+     * The Alpha 2 last-actual-call+tick rule drifts by 0.3 ms on every call. */
+    uint64_t epoch=1000000000ull,last_target=0,last_call=0,tick=gsf_refresh_period(90);
     for(uint32_t k=0;k<10000;k++) {
-        uint32_t hz=k<5000?90:60;
-        uint64_t desired=1000000000ull+(uint64_t)k*1000000ull;
-        uint64_t next=gsf_output_deadline(desired,last,hz);
-        assert(next-last>=gsf_refresh_period(hz));
-        last=next+(k%91==0?45000000ull:0);
+        uint64_t expected=epoch+(uint64_t)k*tick;
+        uint64_t target=gsf_grid_deadline(epoch,expected,expected+300000ull,last_target,last_call,90);
+        assert(target==expected);
+        last_target=target;last_call=target+300000ull;
     }
+    /* Late readiness can use the current slot, preserving a half-tick minimum
+     * actual gap; it cannot replay the missed slots in a compressed burst. */
+    for(uint32_t k=0;k<1000;k++) {
+        uint64_t now=last_call+(k%7u==0u?45000000ull:400000ull);
+        uint64_t target=gsf_grid_deadline(epoch,0,now,last_target,last_call,90);
+        assert(target>=last_target+tick);
+        assert((target-epoch)%tick==0);
+        uint64_t actual=now>target?now:target;
+        assert(actual-last_call>=tick/2);
+        last_call=actual;last_target=target;
+    }
+    for(uint32_t requested=0;requested<=3;requested++) {
+        assert(gsf_budget_outputs(requested,0,90)==requested);
+        assert(gsf_budget_outputs(requested,tick/4,90)==requested);
+        assert(gsf_budget_outputs(requested,10*tick,90)==0);
+    }
+    assert(gsf_budget_outputs(3,tick/4+1,90)==2);
+    assert(gsf_budget_outputs(3,2*tick,90)==1);
     puts("display-slot planner: PASS (multipliers, caps, drift, hitches, refresh changes)");
 }
