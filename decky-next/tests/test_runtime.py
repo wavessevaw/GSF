@@ -137,4 +137,17 @@ class RuntimeTests(unittest.TestCase):
         finally: process.communicate(timeout=8)
         self.assertEqual(process.returncode,0)
 
+    def test_gamescope_wsi_isolated_without_touching_other_layers(self):
+        inherited={'ENABLE_GAMESCOPE_WSI':'1','WAYLAND_DISPLAY':'gamescope-0','DISPLAY':':0',
+            'VK_INSTANCE_LAYERS':'VK_LAYER_FROG_gamescope_wsi_x86_64:VK_LAYER_MANGOHUD_overlay',
+            'VK_LOADER_LAYERS_DISABLE':'VK_LAYER_example'}
+        result=environment(Path('/kit'),Path('/run'),inherited,dict(enabled=True))
+        self.assertNotIn('ENABLE_GAMESCOPE_WSI',result)
+        self.assertEqual(result['DISABLE_GAMESCOPE_WSI'],'1')
+        self.assertEqual(result['VK_INSTANCE_LAYERS'],'VK_LAYER_GSF_next:VK_LAYER_MANGOHUD_overlay')
+        self.assertIn('VK_LAYER_FROG_gamescope_wsi_x86_64',result['VK_LOADER_LAYERS_DISABLE'])
+        self.assertIn('VK_LAYER_example',result['VK_LOADER_LAYERS_DISABLE'])
+        self.assertEqual(result['WAYLAND_DISPLAY'],'gamescope-0');self.assertEqual(result['DISPLAY'],':0')
+        self.assertEqual(inherited['ENABLE_GAMESCOPE_WSI'],'1')
+
 if __name__=='__main__': unittest.main()

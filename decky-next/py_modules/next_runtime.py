@@ -94,7 +94,13 @@ def environment(kit, run, inherited, profile, control_path=None):
         raise ValueError('Уберите другой генератор из параметров этой игры')
     env = {k:v for k,v in inherited.items() if not k.startswith(('GFG_NATIVE_', 'GSF_NEXT_', 'AFMF_'))}
     env.update(DISABLE_GFG_NATIVE_FG='1', DISABLE_LSFGVK='1', DISABLE_MAKO='1', DISABLE_AFMF='1')
-    env['VK_LOADER_LAYERS_DISABLE'] = ','.join(filter(None,[inherited.get('VK_LOADER_LAYERS_DISABLE'), 'VK_LAYER_MAKO_render,VK_LAYER_LS_frame_generation,VK_LAYER_AFMF,VK_LAYER_GFG_native']))
+    # Gamescope compositor stays active. Its WSI layer must not sit above GSF:
+    # otherwise it sees only source calls while generated presents bypass it.
+    wsi_layers={'VK_LAYER_FROG_gamescope_wsi_x86_64','VK_LAYER_FROG_gamescope_wsi'}
+    explicit=':'.join(layer for layer in explicit.split(':') if layer and layer not in wsi_layers)
+    env.pop('ENABLE_GAMESCOPE_WSI',None)
+    env['DISABLE_GAMESCOPE_WSI']='1'
+    env['VK_LOADER_LAYERS_DISABLE'] = ','.join(filter(None,[inherited.get('VK_LOADER_LAYERS_DISABLE'), 'VK_LAYER_MAKO_render,VK_LAYER_LS_frame_generation,VK_LAYER_AFMF,VK_LAYER_GFG_native,VK_LAYER_FROG_gamescope_wsi_x86_64,VK_LAYER_FROG_gamescope_wsi']))
     env['VK_ADD_LAYER_PATH'] = str(kit)+(':'+inherited['VK_ADD_LAYER_PATH'] if inherited.get('VK_ADD_LAYER_PATH') else '')
     # Explicit manifest: no root, global implicit install, or Gamescope layer rewriting.
     # Also support pre-1.3.234 loaders that ignore VK_ADD_LAYER_PATH. Only

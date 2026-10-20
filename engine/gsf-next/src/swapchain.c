@@ -47,14 +47,18 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
          * on its fence for the pacing: that frame has to be done before the work thread resets
          * it, so at most image_count frames are in flight between here and their presents. */
         struct timespec wait_start,wait_end;
-        (void)clock_gettime(CLOCK_MONOTONIC,&wait_start);
+        bool waited=false;
         pthread_mutex_lock(&sc->job_lock);
-        while (sc->in_flight >= sc->config.max_in_flight && !sc->presenter_stop)
+        while (sc->in_flight >= sc->config.max_in_flight && !sc->presenter_stop) {
+            if(!waited) { (void)clock_gettime(CLOCK_MONOTONIC,&wait_start);waited=true; }
             pthread_cond_wait(&sc->drain_cond, &sc->job_lock);
+        }
         sc->in_flight++;
         pthread_mutex_unlock(&sc->job_lock);
-        (void)clock_gettime(CLOCK_MONOTONIC,&wait_end);
-        job.source_blocked_ns=(uint64_t)(elapsed_ms(&wait_start,&wait_end)*1e6);
+        if(waited) {
+            (void)clock_gettime(CLOCK_MONOTONIC,&wait_end);
+            job.source_blocked_ns=(uint64_t)(elapsed_ms(&wait_start,&wait_end)*1e6);
+        }
 
         /* The application's semaphores are consumed before the call returns, as it expects:
          * one submission with nothing to run turns them into the slot's semaphore, which the

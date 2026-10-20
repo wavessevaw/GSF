@@ -46,7 +46,7 @@ jobs:
       - name: Offline package and extracted smoke
         run: |
           python3 scripts/package_gsf_next.py
-          GSF_NEXT_SMOKE_HARNESS="$PWD/engine/gsf-next/build/afmf_headless" python3 decky-next/tests/extracted_smoke.py artifacts/gsf-next-release/GSF-Next-0.2.0-alpha.3.zip
+          GSF_NEXT_SMOKE_HARNESS="$PWD/engine/gsf-next/build/afmf_headless" python3 decky-next/tests/extracted_smoke.py artifacts/gsf-next-release/GSF-Next-0.2.0-alpha.4.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:

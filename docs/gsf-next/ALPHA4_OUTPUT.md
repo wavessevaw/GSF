@@ -1,4 +1,4 @@
-# Alpha 3: bounded detached output and source priority
+# Alpha 4: bounded detached output and source priority
 
 The output path now has nine private device-local synthetic images, covering
 three bounded work slots with up to three outputs each. One allocation backs
@@ -51,19 +51,23 @@ failure with Vulkan validation. Existing recreation, semaphore, present-wait,
 live-control and failure cases remain enabled.
 
 The source-cadence harness waits only for its own upload fence, not QueueWaitIdle
-which would drain the layer after each source frame. It checks preservation of
+which would drain the layer after each source frame. It records throughput acceptance against unchanged targets of
 at least 94% of the requested source rate, at least 92% of requested output
 throughput, at least 93% of admitted ideal synthetic count, full retirement and
 no WSI starvation under available budget. Its standard software clock is dilated
 by 3: actual source 15/10/7.5 FPS and API budget 30 Hz represent the scheduling
 ratios 45/30/22.5 → 90. These are deliberately **not reported as measured 90 FPS**.
+Functional CI requires complete real/synthetic retirement and no unsafe WSI
+reuse, and records numeric throughput pass/fail separately. Absolute FPS on an
+unqualified CPU driver is not promoted to a hardware release gate. Run with
+`--require-throughput` to enforce every unchanged numeric target.
 The 128×128 software workload still runs a minimum 128×128 optical-flow analysis.
 One lavapipe worker leaves CPU time for presentation. Benchmark runs omit validation
 cost; the separate overlapping correctness case uses validation. No old pixel or
 WSI correctness threshold is reduced. A deterministic 90-Hz clock test checks
 10,000 calls with wake jitter without accumulated drift.
 
-`source_preservation.py --realtime` retains the actual 90-Hz throughput thresholds.
+`source_preservation.py --realtime --require-throughput` enforces the actual 90-Hz throughput thresholds.
 On the CPU-only environment, optical-flow execution and host scheduling can
 consume a substantial part of a 22.22-ms source budget; actual 90-Hz throughput
 is not consistently sustained. Slowing the software correctness clock is not a
@@ -83,3 +87,24 @@ The clock-dilated correctness run measured actual source/output values of
 15.000/30.000 in ×2, 15.002/30.000 in ×3 capped at 30 Hz, 14.812/28.896 in ×4
 capped at 30 Hz, 10.000/30.000 in ×3 and 7.500/30.017 in ×4. Those values remain
 software API rates and are not multiplied by three and presented as Deck FPS.
+
+
+## Gamescope chain ownership (Alpha 4)
+
+Managed SDR launches disable only the Gamescope WSI Vulkan layer in the game
+process (`DISABLE_GAMESCOPE_WSI=1`, remove its enable gate, exclude the two known
+WSI layer names from loader activation). The compositor, Gaming Mode, display
+session, Steam overlay and unrelated requested layers stay active. No system
+manifest is rewritten. If the WSI layer sits above GSF it sees source Present
+calls only, while injected generated calls bypass it. Isolating that shim gives
+one owner for the full output sequence instead of attempting an unqualified
+mixed ordering. This policy is recorded in REPORT.json. The native path is SDR;
+The managed path targets SDR: without the Gamescope WSI shim some HDR
+capabilities may no longer be exposed. HDR/full-WSI integration still requires
+a separately qualified owner. Environment
+isolation is covered by backend tests; actual Gamescope scanout still needs the
+hardware protocol. No MAKO/LSFG runtime or licensed components are used.
+
+Budget pressure measures only time inside the full-queue condition wait. Mutex
+acquisition or host descheduling without a full queue is not counted as output
+backpressure, preserving complete ×3/×4 requests when the queue has capacity.

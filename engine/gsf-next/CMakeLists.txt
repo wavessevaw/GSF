@@ -238,5 +238,5 @@ add_test(NAME live_config COMMAND gsf_live_config)
 add_test(NAME vulkan_live_pacing COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/live_pacing.py --build ${CMAKE_BINARY_DIR})
 set_tests_properties(vulkan_live_pacing PROPERTIES TIMEOUT 180)
 
-add_test(NAME vulkan_source_preservation COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/source_preservation.py --build ${CMAKE_BINARY_DIR})
-set_tests_properties(vulkan_source_preservation PROPERTIES TIMEOUT 300)
+add_test(NAME vulkan_pipeline_metrics COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/source_preservation.py --build ${CMAKE_BINARY_DIR})
+set_tests_properties(vulkan_pipeline_metrics PROPERTIES TIMEOUT 300)

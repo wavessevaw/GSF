@@ -99,7 +99,7 @@ function Content(){
    </div></PanelSectionRow>
    <ButtonItem disabled={busy} onClick={()=>change({diagnostics:!p.diagnostics})}>Подробная запись: {p.diagnostics?'включена':'выключена'}</ButtonItem>
    <ButtonItem disabled={!appid||busy} onClick={()=>void act(async()=>{const r=await api.export(appid);return 'Отчёт сохранён: '+r.path;})}>Сохранить отчёт</ButtonItem>
-   <PanelSectionRow><div style={muted}>GSF Next 0.2.0 Alpha 3 · Vulkan SDR · FidelityFX Optical Flow. Проверка физического вывода новой сборки на Steam Deck ещё требуется.</div></PanelSectionRow>
+   <PanelSectionRow><div style={muted}>GSF Next 0.2.0 Alpha 4 · Vulkan SDR · FidelityFX Optical Flow. Проверка физического вывода новой сборки на Steam Deck ещё требуется.</div></PanelSectionRow>
   </>}
   {status?.reason&&<PanelSectionRow><div role="alert" style={{...muted,color:'#f2c56b'}}>{status.reason}</div></PanelSectionRow>}
   {status?.report?.error&&<PanelSectionRow><div role="alert" style={{...muted,color:'#ffaaaa'}}>{status.report.error}</div></PanelSectionRow>}

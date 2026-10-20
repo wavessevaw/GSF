@@ -33,7 +33,7 @@ is made. This is a real-WSI companion design, not the former virtual-source WSI.
 Nine private GPU images, independent of acquired WSI images, store synthetic
 outputs until a just-in-time output copy. A separate command pool and GPU fence
 protect each sequential WSI copy. Increasing extra WSI images (+3/+5) does not
-itself increase the job queue limit. See ALPHA3_OUTPUT.md for the tradeoff,
+itself increase the job queue limit. See ALPHA4_OUTPUT.md for the tradeoff,
 source-backpressure admission and measured-copy telemetry.
 
 The display-slot planner derives temporal phases from one monotonic display
@@ -61,6 +61,10 @@ DLSS integration, low-resolution synthesis/upscale pipeline, or perfect HUD
 segmentation is claimed. Scene-cut fallback may blend real frames and is not
 represented as newly recovered motion detail. Optional debug image dumps expose
 all phases, allowing duplicate and temporal-order checks.
+
+The managed child disables the Gamescope WSI shim while preserving the
+compositor/session and unrelated layers; source-only interception above GSF
+cannot own the complete generated sequence. See ALPHA4_OUTPUT.md.
 
 The layer does not force FIFO. Auto requests MAILBOX only where supported and
 compatible with the copied maintenance1 mode list; Keep preserves the game's

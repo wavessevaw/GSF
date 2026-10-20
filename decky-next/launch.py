@@ -42,6 +42,7 @@ def main():
         control(control_path,profile)
         env=environment(kit,run,inherited,profile,control_path)
         report['profile']=profile
+        report['presentation_policy']=dict(gamescope_wsi='disabled_in_child',gamescope_compositor='unchanged')
         report['result']='NO_GENERATION_EVIDENCE'
     except (OSError,ValueError,KeyError,TypeError) as error:
         # No automatic retry after starting the game: only preflight may fail open.
