@@ -1,13 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * Experimental GPU-time budget for Alpha synthetic admission.
- * Written for GSF; no third-party shader / frame generation source.
- *
- * Only actual completed Vulkan timestamp samples train the gate. The game
- * source and Output Owner real-frame transport are not affected.
- * 0 = disabled, preserving existing behaviour. When enabled, the guard
- * initially probes ONE synthetic and blocks further work until its GPU
- * timestamp is observed; expensive probes impose a 7-frame cooldown.
- * It never invents an x3/x4 throughput multiplier in saturated scenes.
+ * Optional timestamp-driven synthetic GPU admission: cheap x2 first,
+ * cautious two-output x3 only with measured headroom.
+ * Real frames and Output Owner source retirement are never gated.
+ * This is an independent original implementation, not LSFG-VK code.
  */
 #pragma once
 #include <stdint.h>
@@ -20,33 +15,52 @@ struct gsf_gpu_cost_guard {
     uint32_t cooldown;
     uint32_t good_samples;
     uint32_t last_synthetic_us;
+    uint32_t last_outputs;
     bool sample_seen;
     bool probe_pending;
+    bool x3_confirmed;
 };
 
+/* A probe is released ONLY by completed positive-output Vulkan timestamps.
+ * Duplicate, real-only and zero-cost samples cannot promote x3.
+ * If a two-output probe breaches the budget, x3 is immediately revoked.
+ */
 static inline void gsf_gpu_cost_observe(struct gsf_gpu_cost_guard *g,
                                         uint64_t sample_id,uint32_t synthetic_outputs,
                                         uint32_t measured_pair_us,uint32_t budget_us)
 {
     if(!g||!budget_us||!sample_id||sample_id<=g->last_sample||
-       !synthetic_outputs||synthetic_outputs>3u||!measured_pair_us)
+       synthetic_outputs<1u||synthetic_outputs>2u||!measured_pair_us)
         return;
     g->last_sample=sample_id;
+    g->last_outputs=synthetic_outputs;
     g->sample_seen=true;
     g->probe_pending=false;
     g->last_synthetic_us=measured_pair_us;
     if(measured_pair_us>budget_us) {
         g->cooldown=7u;
         g->good_samples=0u;
+        g->x3_confirmed=false;
     } else {
         g->cooldown=0u;
         if(g->good_samples<2u)g->good_samples++;
+        /* Real measured two-output x3 under budget, not a multiplied
+         * benchmark fps or a queue-depth-based prediction. */
+        if(synthetic_outputs==2u)g->x3_confirmed=true;
     }
 }
 
-/* Call exactly once per source pair after reading newly completed timestamp.
- * The result is NEVER >1: budget mode targets inexpensive x2 before x3/x4.
- * No fresh GPU timestamps => one probe only, avoiding unbounded work.
+/* Each positive admission is a new probe. Do not issue another synthetic
+ * GPU job until its completed Vulkan timing is observed. That bounds work
+ * even under driver stalls and incomplete timestamps.
+ *
+ * For x3, first establish two affordable x2 samples. Only attempt two
+ * outputs if a conservative 2x extrapolation of the measured *total*
+ * x2 pair cost fits the budget. After a verified affordable x3 result,
+ * maintain two outputs until the first measured overrun.
+ *
+ * Normal x2/x3 calls only; any requested x4 is capped to two synthetic
+ * outputs while budget control is active.
  */
 static inline uint32_t gsf_gpu_cost_admit(struct gsf_gpu_cost_guard *g,
                                           uint32_t requested,uint32_t budget_us)
@@ -62,12 +76,13 @@ static inline uint32_t gsf_gpu_cost_admit(struct gsf_gpu_cost_guard *g,
         g->denied+=requested;
         return 0u;
     }
-    if(!g->sample_seen||g->good_samples<2u) {
-        g->probe_pending=true;
-        g->probes++;
-        g->denied+=requested-1u;
-        return 1u;
+    uint32_t allowed=1u;
+    if(requested>=2u&&g->good_samples>=2u) {
+        bool predicted=(uint64_t)g->last_synthetic_us*2u<=(uint64_t)budget_us;
+        if(g->x3_confirmed||predicted)allowed=2u;
     }
-    if(requested>1u)g->denied+=requested-1u;
-    return 1u;
+    g->probe_pending=true;
+    ++g->probes;
+    g->denied+=requested-allowed;
+    return allowed;
 }
