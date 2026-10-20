@@ -125,9 +125,9 @@ struct secondary {
 struct afmf_framegen {
     VkExtent2D extent;
     VkExtent2D of_extent;   /* what the optical flow sees: extent, or half of it in performance mode */
-    uint32_t flow_scale;    /* extent / of_extent: 1 or 2 */
+    uint32_t flow_scale;    /* extent / of_extent: 1, 2 or economy 4 */
     uint32_t levels;        /* pyramid levels the search walks now: 5..max_levels */
-    uint32_t max_levels;    /* what the configuration asked for: 5 or 7 (AFMF_LEVELS) */
+    uint32_t max_levels;    /* economy 3, otherwise 5 or 7 (AFMF_LEVELS) */
     struct image color_half; /* of_extent-sized downscale of the new frame; unused when scale is 1 */
     enum half_variant half;
     VkFormat color_format; /* UNORM sibling of the swapchain format: same bytes, no sRGB decode */

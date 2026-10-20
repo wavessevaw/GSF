@@ -131,7 +131,8 @@ static void init(void)
                                              {"blend", AFMF_RESPONSE_BLENDED_FRAMES}};
     static const struct choice performance_modes[] = {{"auto", AFMF_PERFORMANCE_AUTO},
                                                      {"quality", AFMF_PERFORMANCE_QUALITY},
-                                                     {"performance", AFMF_PERFORMANCE_FAST}};
+                                                     {"performance", AFMF_PERFORMANCE_FAST},
+                                                     {"economy", AFMF_PERFORMANCE_ECONOMY}};
     static const struct choice present_modes[] = {{"auto", AFMF_PRESENT_AUTO},
                                                  {"keep", AFMF_PRESENT_KEEP}};
 
@@ -144,7 +145,7 @@ static void init(void)
     ok = read_bounded("AFMF_PROFILE", 0, 1, &profile) && ok;
     ok = read_bounded("AFMF_ASYNC", 0, 1, &async) && ok;
     ok = read_bounded("AFMF_PACING", 0, 1, &pacing) && ok;
-    ok = read_choice("AFMF_PERFORMANCE_MODE", performance_modes, 3, &performance) && ok;
+    ok = read_choice("AFMF_PERFORMANCE_MODE", performance_modes, 4, &performance) && ok;
     ok = read_choice("AFMF_PRESENT_MODE", present_modes, 2, &present_mode) && ok;
     ok = read_bounded("AFMF_GOVERNOR", 0, 1, &governor) && ok;
     ok = read_bounded("AFMF_MIN_FPS", 0, 240, &min_fps) && ok;

@@ -187,20 +187,26 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
 
     /* Performance mode: the block search, 85 % of the cost, runs on a half-size frame; blocks
      * become 16 pixels on screen. Auto picks it from 1440p up, where the search dominates. */
-    bool half = cfg->performance == AFMF_PERFORMANCE_FAST ||
-                (cfg->performance == AFMF_PERFORMANCE_AUTO &&
-                 (uint64_t)extent.width * extent.height >= 2560u * 1440u);
-    if (extent.width / 2 < AFMF_MIN_EXTENT || extent.height / 2 < AFMF_MIN_EXTENT)
-        half = false; /* too small for the pyramid at half size: full resolution instead */
-    fg->flow_scale = half ? 2u : 1u;
+    const bool economy=cfg->performance==AFMF_PERFORMANCE_ECONOMY;
+    bool half = economy || cfg->performance==AFMF_PERFORMANCE_FAST ||
+                (cfg->performance==AFMF_PERFORMANCE_AUTO &&
+                 (uint64_t)extent.width*extent.height>=2560u*1440u);
+    if(extent.width/2u<AFMF_MIN_EXTENT || extent.height/2u<AFMF_MIN_EXTENT)
+        half=false;
+    /* Budget-first: 1280x800 -> 320x200 optical flow (vs 640x400).
+     * Full-resolution colour history and interpolation are preserved. */
+    fg->flow_scale=economy && extent.width/4u>=AFMF_MIN_EXTENT &&
+                   extent.height/4u>=AFMF_MIN_EXTENT ? 4u : half?2u:1u;
     fg->of_extent.width = (extent.width + fg->flow_scale - 1) / fg->flow_scale;
     fg->of_extent.height = (extent.height + fg->flow_scale - 1) / fg->flow_scale;
     fg->half = swapchain_format == VK_FORMAT_R16G16B16A16_SFLOAT ? HALF_RGBA16F : HALF_RGBA8;
     /* At reduced flow resolution five levels already cover +-128 flow pixels (+-256 on screen): the
      * two coarsest levels are drains, not accuracy. `high` still forces all seven. */
-    fg->levels = cfg->search_mode == AFMF_SEARCH_STANDARD ? 5u : 7u;
-    if (fg->flow_scale > 1 && cfg->search_mode != AFMF_SEARCH_HIGH && fg->levels > 5)
-        fg->levels = 5;
+    fg->levels=economy?3u:
+        cfg->search_mode==AFMF_SEARCH_STANDARD?5u:7u;
+    if(!economy && fg->flow_scale>1u &&
+       cfg->search_mode!=AFMF_SEARCH_HIGH && fg->levels>5u)
+        fg->levels=5u;
     if (fg->levels > AFMF_LEVELS)
         fg->levels = AFMF_LEVELS;
     fg->max_levels = fg->levels;

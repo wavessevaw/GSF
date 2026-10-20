@@ -110,7 +110,8 @@ void afmf_framegen_copy_whole(struct afmf_device *dev, VkCommandBuffer cmd, VkIm
 
 void afmf_framegen_set_levels(struct afmf_framegen *fg, uint32_t levels)
 {
-    fg->levels = levels < 5u ? 5u : levels > fg->max_levels ? fg->max_levels : levels;
+    const uint32_t floor=fg->max_levels<5u?fg->max_levels:5u;
+    fg->levels=levels<floor?floor:levels>fg->max_levels?fg->max_levels:levels;
 }
 
 uint32_t afmf_framegen_max_levels(const struct afmf_framegen *fg)

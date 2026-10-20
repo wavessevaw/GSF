@@ -7,6 +7,7 @@ enum afmf_performance_mode {
     AFMF_PERFORMANCE_AUTO = 0,    /* half-resolution flow from 2560x1440 upwards */
     AFMF_PERFORMANCE_QUALITY = 1, /* optical flow at display resolution */
     AFMF_PERFORMANCE_FAST = 2,    /* optical flow at half resolution, 16-pixel blocks on screen */
+    AFMF_PERFORMANCE_ECONOMY = 3, /* budget: quarter-resolution flow, 3 levels */
 };
 
 enum afmf_search_mode {
