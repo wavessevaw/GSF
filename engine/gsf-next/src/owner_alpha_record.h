@@ -32,3 +32,19 @@ VkResult gsf_owner_alpha_record(struct afmf_device *dev,
                                VkCommandBuffer ingest_cmd,
                                VkCommandBuffer reconstruct_cmd,
                                const struct gsf_owner_alpha_pair *job);
+
+/* No application semaphores or WSI handles may be consumed here. Call
+ * ONLY after Output Owner's private snapshot copy is GPU-ready.
+ * The caller owns VkQueue host synchronization and must not reuse either
+ * fence or buffer before retiring its previous use. Separate fences allow
+ * real-source release after ingest, independently of synthetic readiness.
+ * Partial failure is observable; never replay the submitted ingest. */
+struct gsf_owner_alpha_submit_status {
+    bool ingest_submitted;
+    bool reconstruct_submitted;
+};
+VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg,
+    VkQueue queue,VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
+    VkFence ingest_done,VkFence reconstruct_done,
+    const struct gsf_owner_alpha_pair *job,
+    struct gsf_owner_alpha_submit_status *status);

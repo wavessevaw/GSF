@@ -90,3 +90,39 @@ VkResult gsf_owner_alpha_record(struct afmf_device *dev,
     afmf_framegen_finish(dev,fg,reconstruct_cmd,job->slot);
     return dev->fns.end_command_buffer(reconstruct_cmd);
 }
+
+VkResult gsf_owner_alpha_submit(struct afmf_device *dev,struct afmf_framegen *fg,
+    VkQueue queue,VkCommandBuffer ingest_cmd,VkCommandBuffer reconstruct_cmd,
+    VkFence ingest_done,VkFence reconstruct_done,
+    const struct gsf_owner_alpha_pair *job,
+    struct gsf_owner_alpha_submit_status *status)
+{
+    if(!status)return VK_ERROR_INITIALIZATION_FAILED;
+    *status=(struct gsf_owner_alpha_submit_status){0};
+    if(!dev||!queue||!ingest_done||!reconstruct_done||
+       ingest_done==reconstruct_done||
+       !dev->fns.queue_submit||!dev->fns.reset_fences)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    VkResult result=gsf_owner_alpha_record(dev,fg,ingest_cmd,reconstruct_cmd,job);
+    if(result!=VK_SUCCESS)return result;
+    const VkSubmitInfo ingest={
+        .sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount=1,.pCommandBuffers=&ingest_cmd};
+    result=dev->fns.reset_fences(dev->handle,1,&ingest_done);
+    if(result!=VK_SUCCESS)return result;
+    result=dev->fns.queue_submit(queue,1,&ingest,ingest_done);
+    if(result!=VK_SUCCESS)return result;
+    status->ingest_submitted=true;
+
+    /* Same VkQueue orders the internal Alpha colour/luma writes before
+     * optical-flow reads; source release only needs the ingest fence. */
+    const VkSubmitInfo warp={
+        .sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount=1,.pCommandBuffers=&reconstruct_cmd};
+    result=dev->fns.reset_fences(dev->handle,1,&reconstruct_done);
+    if(result!=VK_SUCCESS)return result;
+    result=dev->fns.queue_submit(queue,1,&warp,reconstruct_done);
+    if(result!=VK_SUCCESS)return result;
+    status->reconstruct_submitted=true;
+    return VK_SUCCESS;
+}

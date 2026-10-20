@@ -69,6 +69,19 @@ void afmf_framegen_finish(struct afmf_device *d,struct afmf_framegen *f,VkComman
     (void)d;(void)f;(void)cb;(void)slot;
     assert(reconstruct_count==1);finish_count++;
 }
+static unsigned submit_calls;
+static VkResult submit_second_failure;
+static VkResult VKAPI_PTR test_reset(VkDevice device,uint32_t count,const VkFence *fences) {
+    (void)device;assert(count==1 && fences && *fences);return VK_SUCCESS;
+}
+static VkResult VKAPI_PTR test_submit(VkQueue queue,uint32_t count,
+                                     const VkSubmitInfo *info,VkFence fence) {
+    assert(queue && count==1 && info && fence);
+    assert(info->commandBufferCount==1 && info->waitSemaphoreCount==0);
+    assert(info->signalSemaphoreCount==0);
+    ++submit_calls;
+    return submit_calls==2?submit_second_failure:VK_SUCCESS;
+}
 static struct gsf_owner_alpha_pair pair(unsigned count) {
     struct gsf_owner_alpha_pair p={0};
     p.snapshot=(VkImage)(uintptr_t)0x1234u;snapshot=p.snapshot;
@@ -117,6 +130,28 @@ int main(void) {
     bad=pair(3);bad.indices[2]=12u;
     assert(gsf_owner_alpha_record(&d,&f,in,out,&bad)==VK_ERROR_INITIALIZATION_FAILED);
     assert(!begin_count && !end_count && !prepare_count && !barriers);
+    d.fns.queue_submit=test_submit;
+    d.fns.reset_fences=test_reset;
+    f.direct=1;f.batched=1;expected_direct=1;
+    struct gsf_owner_alpha_pair ok=pair(2);
+    struct gsf_owner_alpha_submit_status state={0};
+    clear();submit_calls=0;submit_second_failure=VK_SUCCESS;
+    assert(gsf_owner_alpha_submit(&d,&f,(VkQueue)(uintptr_t)0x9999,
+        in,out,(VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa2,
+        &ok,&state)==VK_SUCCESS);
+    assert(submit_calls==2 && state.ingest_submitted && state.reconstruct_submitted);
+    clear();submit_calls=0;submit_second_failure=VK_ERROR_DEVICE_LOST;
+    assert(gsf_owner_alpha_submit(&d,&f,(VkQueue)(uintptr_t)0x9999,
+        in,out,(VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa2,
+        &ok,&state)==VK_ERROR_DEVICE_LOST);
+    assert(submit_calls==2 && state.ingest_submitted && !state.reconstruct_submitted);
+    clear();submit_calls=0;submit_second_failure=VK_SUCCESS;
+    assert(gsf_owner_alpha_submit(&d,&f,(VkQueue)(uintptr_t)0x9999,
+        in,out,(VkFence)(uintptr_t)0xa1,(VkFence)(uintptr_t)0xa1,
+        &ok,&state)==VK_ERROR_INITIALIZATION_FAILED);
+    assert(submit_calls==0 && !state.ingest_submitted);
+    puts("GSF_ALPHA_OWNER_GPU_SUBMITS two_fences=1"
+         " no_game_semaphore_replay=1 partial_failure_handled=1 PASS");
     puts("GSF_ALPHA_OUTPUT_OWNER contract=PASS synthetic=0..3 alpha_only=1"
          " source_untouched=1 output_private=1 physical_scanout=UNVERIFIED");
     return 0;
