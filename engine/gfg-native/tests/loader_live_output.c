@@ -470,6 +470,9 @@ int main(void) {
         fprintf(stderr,"GSF_PACED_%u_TO_%u_X11 paced_source=%u originals=%u intermediate=%u visible=%u app_to_worker_distinct_frames=1 PASS\n",
                 source_hz,output_hz,frame_count,visible,intermediate_visible,
                 output_visible);
+        if(paced_225_90)
+            fprintf(stderr,"GSF_PACED_22P5_TO_90_X11 source_period_ns=%llu multiplier=4 originals=%u intermediate=%u visible=%u PASS\n",
+                (unsigned long long)source_period_ns,visible,intermediate_visible,output_visible);
     }
     }
     TRY(vkDeviceWaitIdle(device));

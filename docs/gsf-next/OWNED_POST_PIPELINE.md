@@ -88,3 +88,25 @@ At 90 Hz, 45 source FPS ×2 ideally means **45 distinct synthetic + 45 real** pe
 - `docs/research/GSF_GAMESCOPE_PRESENT_TIMING_20261018.md` — compositor prediction vs actual physical display.
 - `engine/gfg-native/src/output_owner.h` and test-only `src/virtual_wsi_facade.h` — proof-of-contract code to reuse.
 - `engine/gsf-next/src/swapchain_presenter.c`, `swapchain_worker.c`, `output_ring.c` — old shared-WSI pipeline; not a real independent output owner.
+
+## Implementation checkpoint (P1 partial, 2026-10-20)
+
+Experimental isolated-loader code in engine/gfg-native now supports GPU LMC
+×2/×3/×4 on a virtual game source with one downstream X11 Vulkan output
+swapchain. ×4 was verified with 8 real and 21 pixel-distinct GPU intermediate
+images. An optional capture-age budget reduces synthetic output rather than
+adding backlog, while retaining the real endpoint.
+
+The new src/owned_snapshot_ring.h and tests/owned_snapshot_ring.c implement
+the ownership state machine for the next step. Once an actual snapshot GPU
+fence signals, a virtual game image may be released while the separate GPU
+snapshot stays pinned for pending real/synthetic output. The ring is bounded
+at eight; it never overwrites pinned images or assumes a missed GPU deadline
+has completed. Overflow is an explicit admission failure.
+
+**Hardware integration remains pending:** the current test-only capture worker
+still completes output before retiring the game's virtual source image. This
+code proves the resource-lifetime **contract**, not actual independent
+source retirement. A distinct output worker with correct semaphore and
+image lifetime retirement must now be connected. Also, a paced 22.5→90
+software X11 lab result is not a Steam Deck OLED scanout measurement.
