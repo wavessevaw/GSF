@@ -253,6 +253,7 @@ int main(void) {
     const int paced_30_60=getenv("GFG_NATIVE_TEST_PACED_30_60")!=NULL;
     const int paced_45_90=getenv("GFG_NATIVE_TEST_PACED_45_90")!=NULL;
     const int paced_225_90=getenv("GFG_NATIVE_TEST_PACED_225_90")!=NULL;
+    const int hold_first=getenv("GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST")!=NULL;
     const int paced_source=paced_30_60||paced_45_90||paced_225_90;
     /* Gamescope WSI may present directly without populating X11 backing
      * pixels. Do not treat XCB GetImage black as a Vulkan output failure.
@@ -271,6 +272,7 @@ int main(void) {
     REQUIRE(!paced_source || interleave);
     REQUIRE((int)paced_30_60+(int)paced_45_90+(int)paced_225_90<=1);
     REQUIRE(!paced_225_90 || (lmc_owner && lmc_multiplier==4u));
+    REQUIRE(!hold_first || (lmc_owner && interleave && observe_pixels));
     REQUIRE(!sustained || paced_source);
     uint32_t visible=0, intermediate_visible=0, output_visible=0;
     int last_level=-1;
@@ -370,6 +372,23 @@ int main(void) {
          * right pixel from B. A mere duplicate present cannot pass. */
         if(interleave && frame>1 && observe_pixels) {
             REQUIRE(last_level>=0 && last_level!=expected);
+            if(hold_first && frame==2) {
+                /* A was not displayed at its capture. The first owner
+                 * output is A only AFTER B arrived, leaving real A,
+                 * optional AB intermediates and B on one cadence grid. */
+                uint64_t first_latency=0;
+                REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,
+                    extent.height,last_level,last_level,1500000000ull,&first_latency));
+                ++visible;
+                ++output_visible;
+                if(paced_source) {
+                    x11_last_ns=gfg_pacer_monotonic_ns();
+                    REQUIRE(x11_last_ns);
+                }
+                fprintf(stderr,"GSF_POST_OWNER_PRIME first_A_visible_after_B=1"
+                    " source_causality_preserved=1 latency_us=%llu\n",
+                    (unsigned long long)(first_latency/1000u));
+            }
             for(unsigned middle=0;middle<middle_count;++middle) {
             const int blended=(last_level*(int)(lmc_multiplier-1-middle)+
                 expected*(int)(middle+1)+(int)lmc_multiplier/2)/(int)lmc_multiplier;
@@ -401,13 +420,15 @@ int main(void) {
             }
         }
         uint64_t latency=0;
-        if(observe_pixels) {
+        if(observe_pixels && !(hold_first && frame==1)) {
             REQUIRE(gfg_x11_wait_visible_pair(x,window,extent.width,extent.height,
                     expected,expected,lmc_owner && frame<=3?20000000000ull:1500000000ull,&latency));
         }
+        if(!(hold_first && frame==1)) {
         ++visible;
         ++output_visible;
-        if(paced_source && observe_pixels) {
+        }
+        if(paced_source && observe_pixels && !(hold_first && frame==1)) {
             const uint64_t observed=gfg_pacer_monotonic_ns();
             REQUIRE(observed);
             if(x11_last_ns && output_visible>=3) {
@@ -427,6 +448,9 @@ int main(void) {
             fprintf(stderr,
                 "GSF_GAMESCOPE_APP original_submit=%u vk_present_accepted=1 x11_pixels=UNOBSERVABLE oled_scanout=UNVERIFIED\n",
                 frame);
+        else if(hold_first && frame==1)
+            fprintf(stderr,"GSF_LOADER_LIVE_APP frame=1 virtual_present=1"
+                           " first_real_pending=1 x11_visible=0\n");
         else
             fprintf(stderr,"GSF_LOADER_LIVE_APP frame=%u virtual_present=1 x11_visible=1 latency_us=%llu\\n",
                 frame,(unsigned long long)(latency/1000));

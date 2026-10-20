@@ -42,7 +42,7 @@ typedef struct {
     uint64_t output_originals, output_intermediates;
     gfg_output_frame_pacer output_pacer;
     uint32_t last_history_image;
-    int have_previous, interleave;
+    int have_previous, interleave, hold_initial_real;
     int started;
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
     VkInstance temporal_instance;
@@ -455,6 +455,14 @@ static inline VkResult gfg_test_live_output(void *user,
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
     if(r->temporal_instance){VkResult feed=gfg_test_lmc_feed(r,image);if(feed!=VK_SUCCESS)return feed;}
 #endif
+    /* The initial A cannot be paced against A/B intermediates until B
+     * exists. Holding it one source interval allows A -> A/B1 -> ... -> B
+     * to occupy evenly spaced OUTPUT ticks. Never block the game API here. */
+    if(r->interleave && r->have_previous && r->hold_initial_real &&
+       r->output_originals==0) {
+        VkResult first=gfg_test_live_emit(r,r->last_history_image,0,0);
+        if(first!=VK_SUCCESS)return first;
+    }
     if(r->interleave && r->have_previous) {
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
         const unsigned outputs=r->temporal?r->temporal_active_outputs:1u;
@@ -470,6 +478,11 @@ static inline VkResult gfg_test_live_output(void *user,
         }
         /* No fixed 35ms diagnostic exposure. The actual worker pacer
          * spaces BOTH A/B and B output by the same target interval. */
+    }
+    if(!r->have_previous && r->hold_initial_real) {
+        r->last_history_image=image;
+        r->have_previous=1;
+        return VK_SUCCESS; /* first A is retained in GPU history, not WSI */
     }
     VkResult result=gfg_test_live_emit(r,image,0,0);
     if(result!=VK_SUCCESS)return result;
@@ -489,8 +502,11 @@ static inline VkResult gfg_test_live_init(gfg_test_loader_runtime *r,
     r->device=device;r->queue=queue;r->family=family;r->proxy=proxy;
     r->memory_ops=memory_ops;
     r->interleave=getenv("GFG_NATIVE_TEST_OUTPUT_INTERLEAVE")!=NULL;
+    r->hold_initial_real=getenv("GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST")!=NULL;
+    if(r->hold_initial_real && !r->interleave)return VK_ERROR_FEATURE_NOT_PRESENT;
     if(r->interleave)gfg_output_pacer_init(&r->output_pacer,
-        getenv("GFG_NATIVE_TEST_PACED_45_90")?90u:60u);
+        (getenv("GFG_NATIVE_TEST_PACED_45_90") ||
+         getenv("GFG_NATIVE_TEST_PACED_225_90"))?90u:60u);
     if(r->interleave && (proxy->source.extent.width<2 ||
                         (proxy->source.extent.width&1u)))
         return VK_ERROR_FEATURE_NOT_PRESENT;

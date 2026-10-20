@@ -110,3 +110,20 @@ code proves the resource-lifetime **contract**, not actual independent
 source retirement. A distinct output worker with correct semaphore and
 image lifetime retirement must now be connected. Also, a paced 22.5→90
 software X11 lab result is not a Steam Deck OLED scanout measurement.
+
+## Initial pair priming experiment (2026-10-20)
+
+The first 22.5→90 x4 software X11 run **FAILED output spacing**, despite 8/21
+unique real/intermediate pixels. A 44ms hole recurred between real B and
+the next pair's first synthesized BC. This is causal: interpolation requires
+the next real C, while the old owner had displayed B before C arrived.
+The test's previous 35ms max-gap gate was correctly kept as a failure.
+
+The new test-only `GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST=1` holds initial
+A until B is captured, then emits A, AB1/AB2/AB3, B at output-clock ticks.
+This spends a **fixed one-source-period startup delay**, not a continually
+growing frame queue. The X11 observer explicitly detects the initial real A
+once B arrives instead of falsely claiming it was visible at first capture.
+The same 35ms max-gap gate remains; no validation limit was relaxed.
+This is an isolated lab pacing experiment; it is not yet a production output
+scheduler or OLED measurement.

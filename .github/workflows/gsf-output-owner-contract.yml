@@ -185,7 +185,8 @@ jobs:
         run: |
           set -euo pipefail
           log="$(mktemp)"
-          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1 GFG_NATIVE_TEST_PACED_225_90=1 VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d" VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1 GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1 GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1 GFG_NATIVE_TEST_PACED_225_90=1 GFG_NATIVE_TEST_PIPELINE_HOLD_FIRST=1 VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d" VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run -a -s '-screen 0 1024x768x24' engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_POST_OWNER_PRIME first_A_visible_after_B=1' "$log"
           grep 'GSF_PACED_22P5_TO_90_X11 source_period_ns=44444444 multiplier=4 originals=8 intermediate=21 visible=29 PASS' "$log"
           grep 'GSF_OUTPUT_PACER rate=90 emitted=29 originals=8 intermediate=21' "$log"
           if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
