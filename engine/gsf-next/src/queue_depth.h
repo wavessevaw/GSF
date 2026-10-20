@@ -24,9 +24,8 @@ static inline uint32_t gsf_queue_effective(uint32_t setting,uint32_t hz,
     return requested>capacity ? capacity:requested;
 }
 
-/* Convert queued-resource headroom to a bounded display playout horizon.
- * Keep the ordinary source-period EMA if larger, and never let queue growth
- * create an unbounded delay on low refresh monitors. */
+/* Only explicit manual deep queue settings may use this bounded playout
+ * horizon. Never call it for the protected Auto setting (0). */
 static inline uint64_t gsf_queue_playout_ticks(uint64_t source_ticks,
                                                 uint32_t effective_queue)
 {
