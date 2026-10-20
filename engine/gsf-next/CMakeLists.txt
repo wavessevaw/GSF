@@ -149,6 +149,7 @@ add_library(afmf-linux SHARED
     src/framegen_record_frame.c
     src/owner_alpha_record.c
     src/owner_alpha_transport.c
+    src/owner_alpha_runtime.c
     src/framegen_resources.c
     src/layer.c
     src/layer_device.c
@@ -233,6 +234,15 @@ target_include_directories(gsf_owner_alpha_transport PRIVATE src)
 target_link_libraries(gsf_owner_alpha_transport PRIVATE Vulkan::Headers)
 target_compile_options(gsf_owner_alpha_transport PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
 add_test(NAME owner_alpha_transport COMMAND gsf_owner_alpha_transport)
+
+# Native Output Owner's private VkImage handles are registered with the
+# actual Alpha generator under one device dispatch; mock tests assert the
+# live allocation/slot wiring and no WSI / foreign engine dependency.
+add_executable(gsf_owner_alpha_runtime tests/owner_alpha_runtime.c src/owner_alpha_runtime.c)
+target_include_directories(gsf_owner_alpha_runtime PRIVATE src)
+target_link_libraries(gsf_owner_alpha_runtime PRIVATE Vulkan::Headers Threads::Threads)
+target_compile_options(gsf_owner_alpha_runtime PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME owner_alpha_runtime COMMAND gsf_owner_alpha_runtime)
 
 add_executable(gsf_queue_depth tests/queue_depth.c)
 target_include_directories(gsf_queue_depth PRIVATE src)
