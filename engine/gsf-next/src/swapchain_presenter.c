@@ -196,7 +196,7 @@ void *afmf_sc_presenter_main(void *arg)
              * endpoint and must not rebase already-expired synthetic slots. */
             const char *legacy=getenv("GSF_NEXT_REAL_PRIORITY_PACING");
             bool priority=job.config.enabled && job.config.pacing &&
-                          !(legacy && legacy[0]=='0' && legacy[1]=='\\0');
+                          !(legacy && legacy[0]=='0' && legacy[1]==0);
             uint64_t first_due=late ? earliest : first_slot+shift;
             uint64_t tick=gsf_refresh_period(job.config.refresh_hz);
             uint64_t real_due=job.real_slot+shift;
