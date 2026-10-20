@@ -35,8 +35,10 @@ historical 3-slot minimum preserved. Actual Vulkan allocations may exceed
 the estimate and remain subject to device memory availability. Extra WSI
 images remain separately configurable (+3/+5); they must not be silently
 raised beyond surface caps. Output/fence retirement still uses the same
-ownership rules. The playout horizon grows to at least one more refresh tick
-than the effective queue depth and is bounded at 9 ticks / 100 ms.
+ownership rules. With Auto or manual depth 4..8, playout grows to at least
+one more refresh tick than the effective queue depth and is bounded at
+9 ticks / 100 ms. Existing profiles set to manual 1..3 retain the old
+hold behavior for a controlled comparison.
 
 ## Tradeoff and non-claims
 
