@@ -2,6 +2,7 @@
  * the next companion goes into. */
 
 #include "swapchain_internal.h"
+#include "queue_depth.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -203,9 +204,11 @@ void afmf_sc_status_write(struct afmf_swapchain *sc)
     (void)fprintf(out,"\"renderer\":\"%s\",\"reconstruction_ms\":%.3f,",
         !cfg->enabled ? "off":sc->last_gpu_ms<0 ? "unavailable":gsf_renderer_name(sc->last_renderer),
         cfg->enabled ? sc->reconstruction_ms:0);
-    (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,",
+    (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,\"queue_effective\":%u,\"queue_capacity\":%u,",
         (unsigned long long)cfg->revision,cfg->multiplier,cfg->enabled?"true":"false",cfg->refresh_hz,
-        cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight);
+        cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight,
+        gsf_queue_effective(cfg->max_in_flight,cfg->refresh_hz,cfg->multiplier,sc->output_capacity),
+        sc->output_capacity);
     (void)fprintf(out,"\"recreate_pending\":%s,\"late_pairs\":%llu,\"last_present_gap_ms\":%.3f,\"paced_presents\":%llu,\"dropped_synthetic\":%llu,\"expired_synthetic\":%llu,\"superseded_synthetic\":%llu,\"budget_skipped_synthetic\":%llu,\"pairs_without_slot\":%llu,\"output_ring_bytes\":%llu,\"output_acquire_ms\":%.3f,\"output_copy_wait_ms\":%.3f,\"output_copy_gpu_ms\":%.3f,\"displayed\":null}\n",
         sc->recreate_requested?"true":"false",(unsigned long long)sc->late_pairs,
         (double)sc->last_present_gap_ns/1e6,(unsigned long long)sc->paced_presents,(unsigned long long)sc->dropped_synthetic,(unsigned long long)sc->expired_synthetic,(unsigned long long)sc->superseded_synthetic,(unsigned long long)sc->budget_skipped_synthetic,(unsigned long long)sc->skipped_no_slot,(unsigned long long)sc->output_bytes,
