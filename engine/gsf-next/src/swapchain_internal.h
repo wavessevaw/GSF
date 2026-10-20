@@ -171,7 +171,7 @@ struct afmf_swapchain {
     uint32_t wsi_extra_images;
     enum afmf_present_mode wsi_present_mode;
     uint64_t last_target_ns, last_output_ns, last_status_ns, ready_synthetic, late_pairs;
-    uint64_t last_present_gap_ns, paced_presents;
+    uint64_t last_present_gap_ns, paced_presents, last_playout_delay_ns;
     uint64_t present_count;
     uint64_t generated;
     uint64_t accepted_real, accepted_synthetic;
