@@ -61,7 +61,10 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
      * for a greater chance of on-time synthetic output. */
     uint32_t effective_queue=gsf_queue_effective(cfg->max_in_flight,
                               cfg->refresh_hz,cfg->multiplier,sc->output_capacity);
-    lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
+    /* Preserve the prior latency behavior for legacy profiles selecting 1..3;
+     * adaptive or explicitly deep queues opt in to the larger playout hold. */
+    if(cfg->max_in_flight==0u || cfg->max_in_flight>3u)
+        lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
     sc->last_playout_delay_ns=job->buffer_delay_ns;
