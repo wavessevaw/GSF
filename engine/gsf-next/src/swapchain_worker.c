@@ -2,6 +2,7 @@
  * here, so the hook only consumes the application's semaphores and queues. */
 
 #include "swapchain_internal.h"
+#include "queue_depth.h"
 
 /* The frame's work behind the hook: the slot's fence, the governor, the spare, recording and
  * the submission, which waits on `waits` (the application's semaphores inline; from the work
@@ -53,7 +54,16 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     /* The lag belongs to the same grid. Rounding a jittery fractional-period
      * lag upward at EACH present otherwise randomly inserts an entire tick. */
     uint64_t lag_ticks=(job->buffer_delay_ns+tick/2)/tick;
-    if(lag_ticks<1) lag_ticks=1;
+    /* A deeper bounded queue must be paired with additional playout horizon.
+     * The old two-refresh buffer made synthetic output ready after its due
+     * slot. New auto queue scales with Hz and multiplier, with one further
+     * display tick reserved for jitter. This explicitly trades input latency
+     * for a greater chance of on-time synthetic output. */
+    uint32_t effective_queue=gsf_queue_effective(cfg->max_in_flight,
+                              cfg->refresh_hz,cfg->multiplier,sc->output_capacity);
+    uint64_t planned_ticks=(uint64_t)effective_queue+1u;
+    if(lag_ticks<planned_ticks) lag_ticks=planned_ticks;
+    if(lag_ticks>9u) lag_ticks=9u;
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
     /* Backpressure already spent future output slots. Do not turn the slower
