@@ -1,23 +1,29 @@
-# GSF Next 0.2.0 Alpha 2
+# GSF Next 0.2.0 Alpha 3
 
-Experimental Decky plugin: corrected combined real/synthetic pacing, live settings,
-and a simplified panel. Main/stable is not replaced.
+Experimental Decky plugin with private GPU synthetic storage, late-sequence
+compaction, absolute pacing and source-priority admission before GPU work.
 
-- [Installable Alpha 2 ZIP](GSF-Next-0.2.0-alpha.2.zip)
-- [SHA-256](GSF-Next-0.2.0-alpha.2.zip.sha256)
-- [Source](https://github.com/wavessevaw/GSF/tree/2dd24cbc5e639a9ce7ab5523e4b8aa663967e6d4)
-- [Installation](https://github.com/wavessevaw/GSF/blob/2dd24cbc5e639a9ce7ab5523e4b8aa663967e6d4/decky-next/README.md)
-- [Pacing evidence and limitations](https://github.com/wavessevaw/GSF/blob/2dd24cbc5e639a9ce7ab5523e4b8aa663967e6d4/docs/gsf-next/ALPHA2_PACING.md)
-- [Pull request](https://github.com/wavessevaw/GSF/pull/53)
+- [Installable Alpha 3 ZIP](GSF-Next-0.2.0-alpha.3.zip)
+- [SHA-256](GSF-Next-0.2.0-alpha.3.zip.sha256)
+- [Source](https://github.com/wavessevaw/GSF/tree/9e528d650f7bd52a0a2ff48b46b757b5336d2f14)
+- [Installation](https://github.com/wavessevaw/GSF/blob/9e528d650f7bd52a0a2ff48b46b757b5336d2f14/decky-next/README.md)
+- [Architecture, evidence and limitations](https://github.com/wavessevaw/GSF/blob/9e528d650f7bd52a0a2ff48b46b757b5336d2f14/docs/gsf-next/ALPHA3_OUTPUT.md)
+- [Pull request](https://github.com/wavessevaw/GSF/pull/54)
 
-SHA-256: `796d4ed768f5a54b3acbba808b1fd391022cddf5c61377706e0aa873ede61489`
+SHA-256: `7d8e523f56ddd707769ba334c26c262a1ccbc196bade323b44c13f6ec0113c2e`
 
-The ZIP includes corresponding source, licenses, offline native payload and a
-hardware acceptance protocol. Software Vulkan, API intervals, live changes,
-Decky tests and the extracted production launcher x2/x3/x4 passed locally.
-Physical scanout, perceived smoothness and power on Steam Deck remain unverified.
-Updating from Alpha 1 requires one game restart to load the new library; later
-multiplier/quality/refresh/queue changes apply live. Image count/present mode use
-application-supported swapchain recreation. Display refresh is selected manually.
+The package includes corresponding source, licenses, offline native payload and
+hardware acceptance instructions. Actual Vulkan WSI/pixel/ownership tests, live
+controls, Decky tests and the extracted launcher x2/x3/x4 were checked locally.
+The software cadence correctness clock uses 30 Hz with explicitly scaled source
+intervals; deterministic 90-Hz clock tests are separate. CPU-only real-time 90-Hz
+throughput is not consistently achieved. Physical Deck output, native FPS and
+power require a new hardware run. No LSFG/MAKO parity or achieved 45-to-90 hardware
+claim is made. Stable/main is untouched.
 
-Alpha 1 is retained for rollback: [ZIP](GSF-Next-0.2.0-alpha.1.zip).
+Restart the game once after updating. Select the actual display refresh. For a
+45-to-90 check, let the Steam/Gamescope output cap pass 90, and cap source FPS
+inside the game or DXVK. Settings and multipliers can subsequently change live.
+
+Previous experimental builds remain available for rollback:
+[Alpha 2](GSF-Next-0.2.0-alpha.2.zip), [Alpha 1](GSF-Next-0.2.0-alpha.1.zip).
