@@ -248,7 +248,8 @@ int main(void) {
     const int lmc_owner=getenv("GFG_NATIVE_TEST_LMC_OUTPUT_OWNER")!=NULL;
     const unsigned lmc_multiplier=getenv("GFG_NATIVE_TEST_LMC_X4")?4u:
                                   getenv("GFG_NATIVE_TEST_LMC_X3")?3u:2u;
-    const unsigned middle_count=lmc_owner && !getenv("GFG_NATIVE_TEST_LMC_MASK2")?lmc_multiplier-1u:1u;
+    const unsigned middle_count=getenv("GFG_NATIVE_TEST_POST_EXPECT_REAL_ONLY")?0u:
+        lmc_owner && !getenv("GFG_NATIVE_TEST_LMC_MASK2")?lmc_multiplier-1u:1u;
     const int paced_30_60=getenv("GFG_NATIVE_TEST_PACED_30_60")!=NULL;
     const int paced_45_90=getenv("GFG_NATIVE_TEST_PACED_45_90")!=NULL;
     const int paced_225_90=getenv("GFG_NATIVE_TEST_PACED_225_90")!=NULL;

@@ -19,6 +19,7 @@
 #include "output_frame_pacer.h"
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
 #include "te_engine.h"
+#include "post_deadline_budget.h"
 #endif
 
 typedef struct {
@@ -50,7 +51,9 @@ typedef struct {
     PFN_vkSetDeviceLoaderData temporal_loader;
     te_device *temporal_device;
     te_context *temporal;
-    unsigned temporal_slot,temporal_multiplier;
+    unsigned temporal_slot,temporal_multiplier,temporal_active_outputs;
+    uint64_t post_max_age_ns,post_skipped_pairs;
+    uint64_t captured_ns[GFG_VIRTUAL_MAX_IMAGES];
     unsigned temporal_outputs,temporal_slot_ids[3];
     float temporal_tau[3];
     VkBuffer verify_buffer;
@@ -92,6 +95,10 @@ static inline VkResult gfg_test_live_capture(void *user,
         const VkSemaphore *waits) {
     gfg_test_loader_runtime *r=user;
     if(!r)return VK_ERROR_INITIALIZATION_FAILED;
+#ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    if(image<GFG_VIRTUAL_MAX_IMAGES)
+        r->captured_ns[image]=gfg_pacer_monotonic_ns();
+#endif
     return gfg_async_capture_submit(&r->capture,image,ticket,count,waits);
 }
 
@@ -303,6 +310,14 @@ static inline VkResult gfg_test_lmc_start(gfg_test_loader_runtime *r,VkInstance 
     result=vkBindBufferMemory(r->device,r->verify_buffer,r->verify_memory,0);if(result!=VK_SUCCESS)return result;
     result=vkMapMemory(r->device,r->verify_memory,0,VK_WHOLE_SIZE,0,(void**)&r->verify_map);if(result!=VK_SUCCESS)return result;
     gfg_output_pacer_init(&r->output_pacer,90);
+    const char *age=getenv("GFG_NATIVE_TEST_POST_MAX_AGE_MS");
+    if(age) {
+        char *end=NULL;
+        const unsigned long ms=strtoul(age,&end,10);
+        if(!end||end==age||*end||ms==0 || ms>500u)
+            return VK_ERROR_INITIALIZATION_FAILED;
+        r->post_max_age_ns=(uint64_t)ms*1000000ull;
+    }
     return VK_SUCCESS;
 }
 static inline VkResult gfg_test_lmc_init(gfg_test_loader_runtime *r,VkInstance instance,
@@ -318,6 +333,26 @@ static inline VkResult gfg_test_lmc_feed(gfg_test_loader_runtime *r,uint32_t ima
         VkResult init=gfg_test_lmc_start(r,r->temporal_instance,r->temporal_gipa,
             r->temporal_gdpa,r->temporal_loader);
         if(init!=VK_SUCCESS)return init;
+    }
+    unsigned allowed=r->have_previous?r->temporal_outputs:0u;
+    if(allowed && r->post_max_age_ns) {
+        const uint64_t now=gfg_pacer_monotonic_ns();
+        const gfg_post_deadline_budget budget={
+            .refresh_tick_ns=1000000000ull/90u,
+            .max_real_age_ns=r->post_max_age_ns,
+            .real_present_cost_ns=1000000ull,
+            .synthetic_cost_ns=1000000000ull/90u};
+        const unsigned admitted=gfg_post_admit_companions(
+            &budget,r->captured_ns[image],now,0,allowed);
+        /* A reduced multiplier re-distributes tau across the remaining
+         * synthetic outputs. Never try to resuscitate an expired pair. */
+        allowed=admitted;
+        if(allowed<r->temporal_outputs)++r->post_skipped_pairs;
+    }
+    r->temporal_active_outputs=allowed;
+    for(unsigned i=0;i<allowed;i++) {
+        r->temporal_tau[i]=(float)(i+1u)/(float)(allowed+1u);
+        r->temporal_slot_ids[i]=i;
     }
     VkResult result=vkWaitForFences(r->device,1,&r->output_fence,VK_TRUE,UINT64_MAX);
     if(result!=VK_SUCCESS)return result;
@@ -345,7 +380,7 @@ static inline VkResult gfg_test_lmc_feed(gfg_test_loader_runtime *r,uint32_t ima
     result=vkResetFences(r->device,1,&r->output_fence);if(result!=VK_SUCCESS)return result;
     VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&r->output_cmd};
     result=vkQueueSubmit(r->queue,1,&submit,r->output_fence);if(result!=VK_SUCCESS)return result;
-    te_submit work={.slot=r->temporal_slot,.count=r->have_previous?r->temporal_outputs:0,
+    te_submit work={.slot=r->temporal_slot,.count=r->temporal_active_outputs,
         .timestamps={r->temporal_tau[0],r->temporal_tau[1],r->temporal_tau[2]},
         .nonblocking=1,.lmc_tier=2};
     result=te_submit_frame(r->temporal,&work);
@@ -422,7 +457,7 @@ static inline VkResult gfg_test_live_output(void *user,
 #endif
     if(r->interleave && r->have_previous) {
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
-        const unsigned outputs=r->temporal?r->temporal_outputs:1u;
+        const unsigned outputs=r->temporal?r->temporal_active_outputs:1u;
 #else
         const unsigned outputs=1;
 #endif
@@ -527,6 +562,12 @@ static inline void gfg_test_live_destroy(gfg_test_loader_runtime *r) {
     }
     vkDeviceWaitIdle(r->device); /* teardown only */
 #ifdef GFG_NATIVE_TEST_LMC_OUTPUT_OWNER
+    if(r->post_max_age_ns)
+        fprintf(stderr,"GSF_POST_OWNER_ADMISSION max_real_age_ms=%.1f skipped_pairs=%llu originals=%llu intermediates=%llu real_preserved=1\n",
+            (double)r->post_max_age_ns/1000000.0,
+            (unsigned long long)r->post_skipped_pairs,
+            (unsigned long long)r->output_originals,
+            (unsigned long long)r->output_intermediates);
     if(r->verify_map)vkUnmapMemory(r->device,r->verify_memory);
     if(r->verify_buffer)vkDestroyBuffer(r->device,r->verify_buffer,NULL);
     if(r->verify_memory)vkFreeMemory(r->device,r->verify_memory,NULL);
