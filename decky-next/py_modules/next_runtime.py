@@ -12,7 +12,7 @@ import time
 import zipfile
 
 DEFAULTS = dict(enabled=False, multiplier=2, quality='performance', refresh_hz=90,
-                max_in_flight=2, extra_images=3, present_mode='auto', diagnostics=False,
+                max_in_flight=0, extra_images=3, present_mode='auto', diagnostics=False,
                 real_priority_pacing=False)
 
 
@@ -45,7 +45,7 @@ def app_id(value):
 def validate(settings):
     p = {**DEFAULTS, **settings}
     limits = dict(multiplier=(0, 2, 3, 4), refresh_hz=(40, 45, 60, 72, 80, 90, 120, 144, 165, 240),
-                  max_in_flight=(1, 2, 3), extra_images=(3, 5))
+                  max_in_flight=(0, 1, 2, 3, 4, 5, 6, 7, 8), extra_images=(3, 5))
     for key, values in limits.items():
         if type(p[key]) is not int or p[key] not in values:
             raise ValueError('Неверное значение: '+key)
