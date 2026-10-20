@@ -138,8 +138,11 @@ bool create_instance(struct ctx *ctx, bool with_validation)
         for (int i = 0; i < screen_index; i++) xcb_screen_next(&it);
         xcb_screen_t *screen = it.data;
         ctx->window = xcb_generate_id(ctx->connection);
+        unsigned width=640,height=480;
+        const char *extent=getenv("AFMF_TEST_EXTENT");unsigned w=0,h=0;
+        if(extent!=NULL && sscanf(extent,"%ux%u",&w,&h)==2 && w>=128 && h>=128 && w<=8192 && h<=8192) {width=w;height=h;}
         xcb_create_window(ctx->connection, XCB_COPY_FROM_PARENT, ctx->window, screen->root,
-                          0, 0, 640, 480, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                          0, 0, (uint16_t)width, (uint16_t)height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
                           screen->root_visual, 0, NULL);
         xcb_map_window(ctx->connection, ctx->window);
         xcb_flush(ctx->connection);

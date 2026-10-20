@@ -30,7 +30,6 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     /* The image the generated frame goes into: the spare, if the presentation engine has one
      * for us; otherwise this frame simply gets no companion, the application never waits. */
     bool generate = false;
-    uint32_t j = 0;
     uint64_t b_ns = (uint64_t)job->arrival.tv_sec * 1000000000ull + (uint64_t)job->arrival.tv_nsec;
     if (sc->plan_epoch_ns == 0) sc->plan_epoch_ns = b_ns;
     afmf_sc_live_update(dev,sc,b_ns);
@@ -46,15 +45,28 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     bool allowed = cfg->enabled && !sc->recreate_requested && afmf_sc_governor_allows(sc, sc->last_delay_ms, job->ordinal);
     uint64_t tick=gsf_refresh_period(cfg->refresh_hz);
     job->buffer_delay_ns=sc->frame_ms_ema>0 ? (uint64_t)(sc->frame_ms_ema*1e6) : 2*tick;
+    /* The lag belongs to the same grid. Rounding a jittery fractional-period
+     * lag upward at EACH present otherwise randomly inserts an entire tick. */
+    uint64_t lag_ticks=(job->buffer_delay_ns+tick/2)/tick;
+    if(lag_ticks<1) lag_ticks=1;
+    job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
+    /* Backpressure already spent future output slots. Do not turn the slower
+     * observed source period into an order for MORE synthetic work. Return those
+     * slots to real-frame progress before recording any GPU reconstruction. */
+    uint32_t admitted=gsf_budget_outputs(plan.count,job->source_blocked_ns,cfg->refresh_hz);
+    if(admitted<plan.count) {
+        uint32_t skip=plan.count-admitted;
+        sc->budget_skipped_synthetic+=skip;
+        plan=gsf_output_plan(job->source_a,b_ns,sc->plan_epoch_ns,cfg->refresh_hz,plan.count-skip+1u);
+    }
     bool have_history = sc->have_history;
     if (!have_history)
         sc->skipped_no_history++;
     pthread_mutex_unlock(&sc->job_lock);
     if (have_history && allowed) {
         for (uint32_t n = 0; n < plan.count; n++) {
-            if (!afmf_sc_spare_take(dev, sc, &j)) break;
-            job->output_images[job->output_count] = j;
+            job->output_images[job->output_count] = n;
             job->phases[job->output_count] = plan.phases[n];
             job->output_slots[job->output_count] = plan.slots[n];
             job->output_count++;
@@ -62,7 +74,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
         generate = job->output_count > 0;
         if (!generate) {
             pthread_mutex_lock(&sc->job_lock);
-            sc->skipped_no_image++;
+            sc->skipped_no_slot++;
             pthread_mutex_unlock(&sc->job_lock);
         }
     }
@@ -74,9 +86,8 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
         VkPipelineStageFlags stages[AFMF_MAX_APP_WAITS];
         for (uint32_t k = 0; k < wait_count; k++)
             stages[k] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        VkSemaphore signals[1 + GSF_NEXT_MAX_OUTPUTS] = {sc->sem_real[i]};
-        for (uint32_t n = 0; n < job->output_count; n++)
-            signals[n + 1] = sc->sem_generated[job->output_images[n]];
+        VkSemaphore signals[1] = {sc->sem_real[i]};
+
         VkSubmitInfo submit = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = wait_count,
@@ -84,7 +95,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
             .pWaitDstStageMask = stages,
             .commandBufferCount = 1,
             .pCommandBuffers = &slot->cmd,
-            .signalSemaphoreCount = job->output_count + 1u,
+            .signalSemaphoreCount = 1,
             .pSignalSemaphores = signals,
         };
         if (!threaded)

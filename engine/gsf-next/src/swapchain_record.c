@@ -58,16 +58,16 @@ VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc
         VkPipelineStageFlags reader = ingest ? compute : transfer;
         image_barrier(dev, cmd, sc->images[i], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, read, 0, read_access,
                       top, reader);
-        for (uint32_t n = 0; n < count; n++)
-            image_barrier(dev, cmd, sc->images[targets[n]], VK_IMAGE_LAYOUT_UNDEFINED, written, 0, write, top,
-                          writer);
         VkImage output_images[GSF_NEXT_MAX_OUTPUTS];
-        for (uint32_t n = 0; n < count; n++) output_images[n] = sc->images[targets[n]];
+        for(uint32_t n=0;n<count;n++) {
+            output_images[n]=sc->output_images[slot*GSF_NEXT_MAX_OUTPUTS+n];
+            image_barrier(dev,cmd,output_images[n],VK_IMAGE_LAYOUT_UNDEFINED,written,0,write,top,writer);
+        }
         afmf_framegen_record_multi(dev, sc->fg, cmd, slot, sc->images[i], i,
                                   output_images, targets, phases, count);
         for (uint32_t n = 0; n < count; n++)
-            image_barrier(dev, cmd, sc->images[targets[n]], written, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                          write, 0, writer, bottom);
+            image_barrier(dev,cmd,output_images[n],written,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                          write,VK_ACCESS_TRANSFER_READ_BIT,writer,transfer);
         image_barrier(dev, cmd, sc->images[i], read, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, read_access, 0,
                       reader, bottom);
         return dev->fns.end_command_buffer(cmd);

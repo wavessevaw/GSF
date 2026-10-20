@@ -35,6 +35,7 @@ VkResult afmf_swapchain_get_images(struct afmf_device *dev, VkSwapchainKHR swapc
 /* Waits until every presentation thread of the device has nothing queued: vkDeviceWaitIdle
  * needs every queue idle and externally synchronised, ours included. */
 void afmf_swapchain_drain_all(struct afmf_device *dev);
+void afmf_swapchain_drain_queue(struct afmf_device *dev,VkQueue queue);
 
 /* Frees whatever bookkeeping the application left behind when the device goes away. */
 void afmf_swapchain_forget_all(struct afmf_device *dev);

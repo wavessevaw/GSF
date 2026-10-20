@@ -6,7 +6,7 @@ import {copyCommand, withTimeout} from './steam-options.mjs';
 
 type Game={appid:number;name:string};
 type Profile={enabled:boolean;armed?:boolean;multiplier:number;quality:string;refresh_hz:number;max_in_flight:number;extra_images:number;present_mode:string;diagnostics?:boolean};
-type Live={source_fps:number;generated_fps?:number;output_fps?:number;effective_multiplier?:number;generated:number;accepted_real:number;accepted_synthetic:number;queue_depth:number;queue_delay_ms:number;gpu_pair_ms:number;settings_pending?:boolean;recreate_pending?:boolean;selected_multiplier?:number;enabled?:boolean;refresh_hz?:number;late_pairs?:number;last_present_gap_ms?:number};
+type Live={source_fps:number;generated_fps?:number;output_fps?:number;effective_multiplier?:number;generated:number;accepted_real:number;accepted_synthetic:number;queue_depth:number;queue_delay_ms:number;gpu_pair_ms:number;settings_pending?:boolean;recreate_pending?:boolean;selected_multiplier?:number;enabled?:boolean;refresh_hz?:number;late_pairs?:number;last_present_gap_ms?:number;dropped_synthetic?:number;budget_skipped_synthetic?:number;output_acquire_ms?:number;output_copy_gpu_ms?:number;output_ring_bytes?:number};
 type Status={reason?:string;profile:Profile;options:string;live:Live[];report:{stage?:string;error?:string};state:string;restart_required?:boolean};
 function backend<A extends unknown[],R>(name:string){const rpc=callable<A,R>(name);return (...a:A)=>withTimeout(rpc(...a));}
 const api={games:backend<[],Game[]>('get_games'),selection:backend<[],{appid:number}>('get_selection'),select:backend<[number],unknown>('select_game'),prepare:backend<[number],{options:string}>('prepare_game'),configure:backend<[number,Partial<Profile>],{apply?:string}>('configure_game'),status:backend<[number],Status>('get_status'),export:backend<[number],{path:string}>('export_report')};
@@ -53,7 +53,7 @@ function Content(){
   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Режим</div><Dropdown selectedOption={p.enabled?p.multiplier:0} rgOptions={[{label:'Off · выключено',data:0},{label:'×2 · 1 промежуточный',data:2},{label:'×3 · 2 промежуточных',data:3},{label:'×4 · 3 промежуточных',data:4}]} onChange={o=>change({multiplier:Number(o.data),enabled:Number(o.data)!==0})} disabled={busy}/></PanelSectionRow>
   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Качество</div><Dropdown selectedOption={p.quality} rgOptions={[{label:'Быстро · рекомендуется',data:'performance'},{label:'Качественно',data:'quality'}]} onChange={o=>change({quality:String(o.data)})} disabled={busy}/></PanelSectionRow>
   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Частота экрана</div><Dropdown selectedOption={p.refresh_hz} rgOptions={[40,45,60,72,80,90,120,144,165,240].map(hz=>({label:hz+' Гц',data:hz}))} onChange={o=>change({refresh_hz:Number(o.data)})} disabled={busy}/></PanelSectionRow>
-  <PanelSectionRow><div style={muted}>{capped?`При ${fmt(live?.source_fps,0)} FPS режим ×${p.multiplier} ограничен экраном ${p.refresh_hz} Гц. Лишние промежуточные кадры не создаются.`:'Укажите частоту из меню Steam. Плагин использует её как предел вывода; частота самого экрана не меняется.'}</div></PanelSectionRow>
+  <PanelSectionRow><div style={muted}>{capped?`При ${fmt(live?.source_fps,0)} FPS режим ×${p.multiplier} ограничен экраном ${p.refresh_hz} Гц. Лишние промежуточные кадры не создаются.`:'Укажите частоту из меню Steam. Общий лимит Steam должен пропускать эту частоту; исходные FPS ограничивайте внутри игры. Частота экрана здесь не меняется.'}</div></PanelSectionRow>
  </PanelSection>}
  {p&&<PanelSection title="Показатели">
   <PanelSectionRow><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -88,13 +88,18 @@ function Content(){
     <Detail label="GPU на пару" value={fmt(live?.gpu_pair_ms,2)+' мс'}/>
     <Detail label="Ожидание GPU и очереди" value={fmt(live?.queue_delay_ms,2)+' мс'}/>
     <Detail label="Заданий в очереди" value={String(live?.queue_depth??'—')}/>
+    <Detail label="Ожидание WSI-изображения" value={fmt(live?.output_acquire_ms,2)+' мс'}/>
+    <Detail label="GPU-копия на вывод" value={fmt(live?.output_copy_gpu_ms,2)+' мс'}/>
+    <Detail label="Отклонено до GPU" value={String(live?.budget_skipped_synthetic??'—')}/>
+    <Detail label="Пропущено synthetic" value={String(live?.dropped_synthetic??'—')}/>
+    <Detail label="GPU-буфер вывода" value={live?.output_ring_bytes===undefined?'—':fmt(live.output_ring_bytes/1048576,1)+' МиБ'}/>
     <Detail label="Интервал WSI" value={fmt(live?.last_present_gap_ms,2)+' мс'}/>
     <Detail label="Опоздавшие пары" value={String(live?.late_pairs??'—')}/>
     <Detail label="Создано / принято synthetic" value={`${live?.generated??'—'} / ${live?.accepted_synthetic??'—'}`}/>
    </div></PanelSectionRow>
    <ButtonItem disabled={busy} onClick={()=>change({diagnostics:!p.diagnostics})}>Подробная запись: {p.diagnostics?'включена':'выключена'}</ButtonItem>
    <ButtonItem disabled={!appid||busy} onClick={()=>void act(async()=>{const r=await api.export(appid);return 'Отчёт сохранён: '+r.path;})}>Сохранить отчёт</ButtonItem>
-   <PanelSectionRow><div style={muted}>GSF Next 0.2.0 Alpha 2 · Vulkan SDR · FidelityFX Optical Flow. Проверка физического вывода новой сборки на Steam Deck ещё требуется.</div></PanelSectionRow>
+   <PanelSectionRow><div style={muted}>GSF Next 0.2.0 Alpha 4 · Vulkan SDR · FidelityFX Optical Flow. Проверка физического вывода новой сборки на Steam Deck ещё требуется.</div></PanelSectionRow>
   </>}
   {status?.reason&&<PanelSectionRow><div role="alert" style={{...muted,color:'#f2c56b'}}>{status.reason}</div></PanelSectionRow>}
   {status?.report?.error&&<PanelSectionRow><div role="alert" style={{...muted,color:'#ffaaaa'}}>{status.report.error}</div></PanelSectionRow>}

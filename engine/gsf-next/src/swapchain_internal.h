@@ -26,6 +26,7 @@
 #define AFMF_MAX_APP_WAITS 8u
 /* Presents queued for the presentation thread; bounded by the images in flight in practice. */
 #define AFMF_MAX_JOBS 16u
+#define GSF_NEXT_RING_IMAGES (3u * GSF_NEXT_MAX_OUTPUTS)
 /* The application's acquire is run in slices of this length under the swapchain lock, so the
  * presentation thread is never held off for longer than one slice. */
 #define AFMF_ACQUIRE_SLICE_NS 1000000ull
@@ -43,7 +44,7 @@
 #define AFMF_GOVERNOR_EARLY 0.75
 #define AFMF_GOVERNOR_LATE_FRAMES 30u
 #define AFMF_GOVERNOR_EARLY_FRAMES 15u
-#define AFMF_GOVERNOR_STEPS 3u
+#define AFMF_GOVERNOR_STEPS 1u
 /* Bytes and present modes a copied create chain may need. */
 #define AFMF_CHAIN_BYTES 1024u
 #define AFMF_MAX_PRESENT_MODES 8u
@@ -53,6 +54,8 @@
  * copied (present id, per-present mode). */
 struct afmf_present_job {
     uint32_t real_image;
+    uint32_t work_slot;
+    uint64_t source_blocked_ns;
     struct afmf_config config;
     uint64_t output_slots[GSF_NEXT_MAX_OUTPUTS], real_slot, source_a, source_b, ready_ns, buffer_delay_ns;
     uint32_t output_count;
@@ -113,6 +116,17 @@ struct afmf_swapchain {
     bool gen_enabled;
     bool async;                 /* work and presents go to dev->async_queue */
     uint32_t image_count;
+    uint32_t output_capacity;
+    VkImage output_images[GSF_NEXT_RING_IMAGES];
+    VkDeviceMemory output_memory;
+    VkDeviceSize output_bytes;
+    VkCommandPool copy_pool;
+    VkCommandBuffer copy_cmd;
+    VkFence copy_fence;
+    VkQueryPool copy_queries;
+    double output_copy_gpu_ms;
+    double output_acquire_ms,output_copy_wait_ms;
+    uint64_t dropped_synthetic,budget_skipped_synthetic;
     VkImage *images;
     VkSemaphore *sem_generated; /* per image: signals "the generated frame in image k is ready" */
     VkSemaphore *sem_real;      /* per image: signals "the layer is done reading image k" */
@@ -145,7 +159,7 @@ struct afmf_swapchain {
     bool status_retired;
     uint32_t wsi_extra_images;
     enum afmf_present_mode wsi_present_mode;
-    uint64_t last_output_ns, last_status_ns, ready_synthetic, late_pairs;
+    uint64_t last_target_ns, last_output_ns, last_status_ns, ready_synthetic, late_pairs;
     uint64_t last_present_gap_ns, paced_presents;
     uint64_t present_count;
     uint64_t generated;
@@ -153,6 +167,7 @@ struct afmf_swapchain {
     uint64_t last_submitted_present_id;
     uint64_t plan_epoch_ns, source_a_ns;
     uint64_t skipped_no_image;
+    uint64_t skipped_no_slot;
     uint64_t skipped_no_history;
     struct timespec last_present;
     double frame_time_ms_accum;

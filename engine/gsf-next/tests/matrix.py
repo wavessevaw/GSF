@@ -54,6 +54,8 @@ def main():
       ('no-idle-teardown',dict(AFMF_TEST_NO_IDLE='1'),None),
       ('no-interpolator-real-only',dict(AFMF_INTERPOLATE='0'),None),
       ('overload-hitches',dict(AFMF_TEST_HITCH='4'),None),
+      ('pipelined',dict(GSF_TEST_PIPELINED='1',GSF_TEST_SOURCE_PERIOD_NS='33333333'),None),
+      ('output-allocation-failure',dict(GSF_NEXT_TEST_FAIL_OUTPUT_ALLOC='1'),None),
       ('submit-device-lost',dict(GSF_NEXT_TEST_FAIL_SUBMIT='1'),None),
     ]
     summaries=[]
@@ -82,14 +84,14 @@ def main():
         else:
             assert result.returncode==0, (name,result.returncode,log[-4000:])
             assert 'presented 16 frames through VK_LAYER_GSF_next' in log,(name,'lost source frame')
-        if name=='no-interpolator-real-only':
+        if name in ('no-interpolator-real-only','output-allocation-failure'):
             assert 'generation off' in log and 'built=0' in log
         elif name!='submit-device-lost':
             totals=re.findall(r'GSF_NEXT_SUMMARY real=(\d+) built=(\d+) accepted_real=(\d+) accepted_synthetic=(\d+)',log)
             assert totals,(name,'no retirement counters')
             assert sum(int(t[2]) for t in totals)==16, (name,totals)
             assert all(t[1]==t[3] for t in totals),(name,'submitted output lost before WSI acceptance',totals)
-        if name not in ('submit-device-lost','no-interpolator-real-only'):
+        if name not in ('submit-device-lost','no-interpolator-real-only','output-allocation-failure'):
             timed=0
             for file in directory.glob('gpu.jsonl*'):
                 seen=set()

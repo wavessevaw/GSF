@@ -63,6 +63,7 @@ struct ctx {
     VkCommandBuffer command_buffer;
     VkSemaphore acquired;
     VkSemaphore ready;
+    VkFence render_done;
     VkExtent2D extent;
     VkBuffer staging;
     VkDeviceMemory staging_memory;

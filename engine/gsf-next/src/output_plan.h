@@ -33,9 +33,31 @@ static inline struct gsf_output_plan gsf_output_plan(uint64_t a,uint64_t b,
     }
     return p;
 }
-/* A late wake/late GPU must never produce a compressed catch-up burst. */
-static inline uint64_t gsf_output_deadline(uint64_t desired,uint64_t last,uint32_t hz)
+/* Absolute display grid: host wake jitter does not accumulate into a slower
+ * refresh clock. A delayed call can use its still-current slot, never two calls
+ * on one target slot and never a near-zero catch-up burst. */
+static inline uint64_t gsf_grid_deadline(uint64_t epoch,uint64_t desired,uint64_t now,
+                                        uint64_t last_target,uint64_t last_call,uint32_t hz)
 {
-    uint64_t next=last ? last+gsf_refresh_period(hz) : 0;
-    return desired>next ? desired : next;
+    uint64_t tick=gsf_refresh_period(hz);
+    uint64_t due=desired;
+    if(last_target && due<last_target+tick) due=last_target+tick;
+    if(last_call && due<last_call+tick/2) due=last_call+tick/2;
+    if(due<epoch) due=epoch;
+    due=epoch+(due-epoch+tick-1)/tick*tick;
+    if(now>due+tick/2) {
+        uint64_t current=epoch+(now-epoch+tick/2)/tick*tick;
+        if(current>due) due=current;
+    }
+    return due;
+}
+/* Preserve source progress under output backpressure, before GPU generation.
+ * A normal short handoff does not change admission. Already-spent refresh
+ * slots cannot be sold a second time as additional interpolation budget. */
+static inline uint32_t gsf_budget_outputs(uint32_t requested,uint64_t blocked,uint32_t hz)
+{
+    uint64_t tick=gsf_refresh_period(hz);
+    if(blocked<=tick/4) return requested;
+    uint64_t spent=(blocked+tick-1)/tick;
+    return spent<requested ? requested-(uint32_t)spent : 0;
 }

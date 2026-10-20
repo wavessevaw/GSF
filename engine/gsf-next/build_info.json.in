@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.4",
   "source_commit": "@GSF_SOURCE_COMMIT@",
   "upstream": "https://github.com/serialexperimentslainnnn/afmf-linux",
   "upstream_commit": "bc56e5bd0e3a6c328aedef664d0d36363fb58b36",

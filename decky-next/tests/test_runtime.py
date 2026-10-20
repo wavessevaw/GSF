@@ -117,4 +117,37 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(report['counters']['accepted_synthetic'],5)
         self.assertIsNone(report['displayed'])
 
+    def test_running_report_refreshes_wsi_evidence(self):
+        import time
+        self.runtime.prepare(1)
+        child='import json,os,pathlib,time; p=pathlib.Path(os.environ["GSF_NEXT_STATUS_DIR"])/"1.json"; p.write_text(json.dumps(dict(generated=5,accepted_real=6,accepted_synthetic=5))); time.sleep(3)'
+        env=os.environ.copy();env.update(HOME=str(self.home));env.pop('VK_INSTANCE_LAYERS',None)
+        process=subprocess.Popen([sys.executable,str(self.runtime.root/'launch.py'),'--appid','1','--',sys.executable,'-c',child],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            deadline=time.monotonic()+4
+            report={}
+            while time.monotonic()<deadline:
+                run=self.runtime.latest(1)
+                report=read(run/'REPORT.json',{}) if run else {}
+                if report.get('stage')=='running' and report.get('result')=='WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED':break
+                time.sleep(.05)
+            self.assertEqual(report.get('stage'),'running')
+            self.assertEqual(report.get('result'),'WSI_ACCEPTED_SYNTHETIC_DISPLAY_UNVERIFIED')
+            self.assertEqual(report['counters']['accepted_synthetic'],5)
+        finally: process.communicate(timeout=8)
+        self.assertEqual(process.returncode,0)
+
+    def test_gamescope_wsi_isolated_without_touching_other_layers(self):
+        inherited={'ENABLE_GAMESCOPE_WSI':'1','WAYLAND_DISPLAY':'gamescope-0','DISPLAY':':0',
+            'VK_INSTANCE_LAYERS':'VK_LAYER_FROG_gamescope_wsi_x86_64:VK_LAYER_MANGOHUD_overlay',
+            'VK_LOADER_LAYERS_DISABLE':'VK_LAYER_example'}
+        result=environment(Path('/kit'),Path('/run'),inherited,dict(enabled=True))
+        self.assertNotIn('ENABLE_GAMESCOPE_WSI',result)
+        self.assertEqual(result['DISABLE_GAMESCOPE_WSI'],'1')
+        self.assertEqual(result['VK_INSTANCE_LAYERS'],'VK_LAYER_GSF_next:VK_LAYER_MANGOHUD_overlay')
+        self.assertIn('VK_LAYER_FROG_gamescope_wsi_x86_64',result['VK_LOADER_LAYERS_DISABLE'])
+        self.assertIn('VK_LAYER_example',result['VK_LOADER_LAYERS_DISABLE'])
+        self.assertEqual(result['WAYLAND_DISPLAY'],'gamescope-0');self.assertEqual(result['DISPLAY'],':0')
+        self.assertEqual(inherited['ENABLE_GAMESCOPE_WSI'],'1')
+
 if __name__=='__main__': unittest.main()
