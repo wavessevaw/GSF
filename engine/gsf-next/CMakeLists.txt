@@ -216,6 +216,11 @@ target_compile_definitions(afmf_headless PRIVATE _POSIX_C_SOURCE=200809L)
 target_compile_options(afmf_headless PRIVATE ${AFMF_WARNINGS})
 
 
+add_executable(gsf_presentation_deadline tests/presentation_deadline.c)
+target_include_directories(gsf_presentation_deadline PRIVATE src)
+target_compile_options(gsf_presentation_deadline PRIVATE -UNDEBUG)
+add_test(NAME presentation_deadline COMMAND gsf_presentation_deadline)
+
 add_executable(gsf_output_plan tests/output_plan.c)
 target_include_directories(gsf_output_plan PRIVATE src)
 target_compile_options(gsf_output_plan PRIVATE -UNDEBUG)
