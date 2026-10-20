@@ -158,7 +158,7 @@ jobs:
           fi
           echo 'Loader installed app virtual Acquire->render->Present->private output->X11 pixels PASS (not FG or OLED)'
 
-      - name: Isolated virtual-game post-owner GPU LMC x4: 8 real plus 21 unique synthetic X11 images
+      - name: "Isolated virtual-game post-owner GPU LMC x4: 8 real plus 21 unique synthetic X11 images"
         run: |
           set -euo pipefail
           make -C engine/gfg-temporal -j2 lib
