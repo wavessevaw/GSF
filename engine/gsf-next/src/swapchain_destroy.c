@@ -1,6 +1,8 @@
 /* The swapchain's end: its report, its resources, and what the device's destruction leaves. */
 
 #include "swapchain_internal.h"
+#include <stdio.h>
+#include <unistd.h>
 
 static void report_and_free(struct afmf_device *dev, struct afmf_swapchain *sc)
 {
@@ -13,6 +15,11 @@ static void report_and_free(struct afmf_device *dev, struct afmf_swapchain *sc)
               (void *)sc->handle, sc->present_count, sc->generated,
               sc->skipped_no_image + sc->skipped_no_history + sc->reduced_frames,
               sc->skipped_no_image, sc->skipped_no_history, sc->reduced_frames);
+    /* Retain final counters for report export, but never select a retired WSI
+     * context as the live renderer after recreation. */
+    pthread_mutex_lock(&sc->job_lock);
+    sc->status_retired=true;sc->last_status_ns=0;afmf_sc_status_write(sc);
+    pthread_mutex_unlock(&sc->job_lock);
     pthread_cond_destroy(&sc->work_drain_cond);
     pthread_cond_destroy(&sc->work_cond);
     pthread_mutex_destroy(&sc->work_lock);

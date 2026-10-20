@@ -39,7 +39,7 @@ VkResult afmf_sc_gen_init(struct afmf_device *dev, struct afmf_swapchain *sc)
         return res;
     if (afmf_config_get()->interpolate)
         sc->fg = afmf_framegen_create(dev, sc->format, sc->extent, sc->image_count, sc->images,
-                                      sc->image_count, sc->storage_usage, sc->sampled_usage);
+                                      sc->image_count, sc->storage_usage, sc->sampled_usage, &sc->config);
     return sc->fg != NULL ? VK_SUCCESS : VK_ERROR_FEATURE_NOT_PRESENT;
 }
 

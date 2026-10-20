@@ -85,10 +85,17 @@ static void pace(uint32_t frame)
 
 bool present_frame(struct ctx *ctx, uint32_t frame)
 {
-    paint_frame(ctx, frame);
     uint32_t index = 0;
-    CHECK(vkAcquireNextImageKHR(ctx->device, ctx->swapchain, UINT64_MAX, ctx->acquired,
-                                VK_NULL_HANDLE, &index));
+    VkResult acquired=vkAcquireNextImageKHR(ctx->device,ctx->swapchain,UINT64_MAX,ctx->acquired,VK_NULL_HANDLE,&index);
+    if(acquired==VK_ERROR_OUT_OF_DATE_KHR) {
+        VkExtent2D size=ctx->extent;
+        destroy_swapchain(ctx);
+        if(!create_swapchain(ctx,size.width,size.height)) return false;
+        (void)fprintf(stderr,"live swapchain recreation at frame %u\n",frame);
+        acquired=vkAcquireNextImageKHR(ctx->device,ctx->swapchain,UINT64_MAX,ctx->acquired,VK_NULL_HANDLE,&index);
+    }
+    CHECK(acquired);
+    paint_frame(ctx, frame);
 
     uint32_t image_count = 0;
     CHECK(vkGetSwapchainImagesKHR(ctx->device, ctx->swapchain, &image_count, NULL));

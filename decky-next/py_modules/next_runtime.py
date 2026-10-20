@@ -70,7 +70,22 @@ def verify(directory):
     return read(directory/'BUILD_INFO.json')
 
 
-def environment(kit, run, inherited, profile):
+def control(path, profile):
+    p = validate(profile)
+    text = ('GSF_NEXT_CONTROL_V1\n%d %d %d %d %d %d %d %d %d\n' % (
+        p.get('revision', 0), p['enabled'], p['multiplier'], p['refresh_hz'],
+        2 if p['quality']=='performance' else 1, p['max_in_flight'],
+        p['extra_images'], p['present_mode']=='keep', p['diagnostics']))
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, temp = tempfile.mkstemp(prefix='.control-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as out: out.write(text)
+        os.replace(temp, path)
+    finally: Path(temp).unlink(missing_ok=True)
+
+
+def environment(kit, run, inherited, profile, control_path=None):
     p = validate(profile)
     # One generator owns presentation. Disable known implicit competitors only
     # in the child; reject explicit layers and injected upscalers before loading.
@@ -96,7 +111,8 @@ def environment(kit, run, inherited, profile):
         if base: paths.append(base+'/vulkan/explicit_layer.d')
     env['VK_LAYER_PATH']=':'.join(dict.fromkeys(paths))
     env['VK_INSTANCE_LAYERS'] = 'VK_LAYER_GSF_next' +(':'+explicit if explicit else '')
-    env.update(GSF_NEXT_MULTIPLIER=str(p['multiplier']), GSF_NEXT_REFRESH_HZ=str(p['refresh_hz']),
+    env.update(GSF_NEXT_ENABLED=str(int(p['enabled'])), GSF_NEXT_CONTROL=str(control_path or run/'control'),
+               GSF_NEXT_DIAGNOSTICS=str(int(p['diagnostics'])), GSF_NEXT_MULTIPLIER=str(p['multiplier']), GSF_NEXT_REFRESH_HZ=str(p['refresh_hz']),
                GSF_NEXT_MAX_IN_FLIGHT=str(p['max_in_flight']), GSF_NEXT_STATUS_DIR=str(run/'status'),
                AFMF_EXTRA_IMAGES=str(p['extra_images']), AFMF_PERFORMANCE_MODE=p['quality'],
                AFMF_SEARCH_MODE='standard', AFMF_MIN_FPS='0', AFMF_GOVERNOR='1',
@@ -104,7 +120,8 @@ def environment(kit, run, inherited, profile):
                AFMF_INTERPOLATE='1', AFMF_FAST_MOTION_RESPONSE='blend', AFMF_HUD_DETECT='1',
                AFMF_DIRECT_OUTPUT='0', AFMF_DIRECT_INGEST='1', AFMF_ACQUIRE_TIMEOUT_US='0',
                AFMF_PRESENT_MODE=p['present_mode'], AFMF_GAMESCOPE='1')
-    if p['diagnostics']: env['GSF_NEXT_GPU_REPORT']=str(run/'gpu-pairs.jsonl')
+    env['GSF_NEXT_GPU_REPORT']=str(run/'gpu-pairs.jsonl')
+    env['GSF_NEXT_PRESENT_REPORT']=str(run/'present.jsonl')
     return env
 
 
@@ -177,11 +194,16 @@ class Runtime:
         if not isinstance(patch, dict) or patch.keys()-DEFAULTS.keys():
             raise ValueError('Неизвестный параметр')
         cfg = self.config()
-        entry = validate({**cfg['games'].get(aid, {}), **patch})
+        old = cfg['games'].get(aid, {})
+        entry = validate({**old, **patch})
         if entry['multiplier'] == 0: entry['enabled'] = False
+        entry['armed'] = bool(old.get('armed') or entry['enabled'])
+        entry['revision'] = max(time.time_ns(), old.get('revision',0)+1)
         cfg['games'][aid] = entry
         atomic(self.root/'config.json', cfg)
-        return {**entry, 'options':self.options(aid), 'restart_required':True}
+        control(self.root/'controls'/aid, entry)
+        return {**entry, 'options':self.options(aid), 'restart_required':False,
+                'apply':'swapchain' if {'extra_images','present_mode'} & patch.keys() else 'live'}
 
     def prepare(self, value):
         self.install()
@@ -191,7 +213,9 @@ class Runtime:
 
     def disable_all(self):
         cfg = self.config()
-        for entry in cfg['games'].values(): entry['enabled'] = False
+        for aid,entry in cfg['games'].items():
+            entry.update(enabled=False, armed=False, revision=max(time.time_ns(),entry.get('revision',0)+1))
+            control(self.root/'controls'/aid,entry)
         atomic(self.root/'config.json', cfg)
 
     def games(self):
@@ -226,6 +250,7 @@ class Runtime:
             for path in (run/'status').glob('*.json'):
                 try:
                     r = read(path)
+                    if r.get('retired'): continue
                     if not 0 <= time.monotonic_ns()-r['monotonic_ns'] < 3_000_000_000: continue
                     old = self.samples.get(str(path))
                     if old and any(r[k]<old.get(k,0) for k in ('accepted_real','accepted_synthetic','generated')): old=None
@@ -243,6 +268,8 @@ class Runtime:
                     self.samples[str(path)]=r.copy()
                     live.append(r)
                 except (OSError, ValueError, KeyError, TypeError): pass
+        for r in live:
+            r['settings_pending'] = r.get('control_revision',0) < profile.get('revision',0) or r.get('recreate_pending',False)
         reason=None
         if run and not live:
             try:
@@ -252,8 +279,10 @@ class Runtime:
                 matches=re.findall(r'(?:pass-through \(([^\n]+)\)|generation resources failed[^\n]*|no compute queue[^\n]*)',tail)
                 if matches: reason=next((m for m in reversed(matches) if m),'GPU interpolation unavailable')
             except OSError: pass
-        return dict(profile=profile, options=self.options(aid), live=live, report=report,reason=reason,
-                    state='generating' if any(r.get('accepted_synthetic',0)>0 for r in live) else 'capturing' if live else 'blocked' if reason else 'waiting',
+        installed=read(self.root/'current.json', {}).get('build',{})
+        restart_required=bool(report.get('stage')=='running' and report.get('build',{}).get('version')!=installed.get('version'))
+        return dict(profile=profile, options=self.options(aid), live=live, report=report,reason=reason,restart_required=restart_required,
+                    state='paused' if live and not profile['enabled'] else 'generating' if any(r.get('accepted_synthetic',0)>0 for r in live) else 'capturing' if live else 'blocked' if reason else 'waiting',
                     build=read(self.root/'current.json', {}).get('build'))
 
     def export(self, value):

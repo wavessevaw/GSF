@@ -26,6 +26,9 @@ enum afmf_present_mode {
 };
 
 struct afmf_config {
+    uint64_t revision;
+    bool enabled;
+    bool diagnostics;
     uint32_t multiplier;
     uint32_t refresh_hz;
     uint32_t max_in_flight;

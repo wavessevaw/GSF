@@ -99,6 +99,14 @@ VkResult afmf_swapchain_acquire(struct afmf_device *dev, const VkAcquireNextImag
     struct afmf_swapchain *sc = find_locked(dev, info->swapchain);
     pthread_mutex_unlock(&dev->lock);
 
+    if(sc!=NULL) {
+        pthread_mutex_lock(&sc->job_lock);
+        bool recreate=sc->recreate_requested;
+        pthread_mutex_unlock(&sc->job_lock);
+        /* No image acquired and no application acquire semaphore signalled.
+         * The normal Vulkan OUT_OF_DATE path rebuilds WSI without restarting. */
+        if(recreate) return VK_ERROR_OUT_OF_DATE_KHR;
+    }
     VkAcquireNextImageInfoKHR sliced = *info;
     uint64_t left = info->timeout;
     for (;;) {

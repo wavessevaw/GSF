@@ -5,6 +5,7 @@
 
 #include "swapchain.h"
 #include "output_plan.h"
+#include "live_config.h"
 
 #include "config.h"
 #include "framegen.h"
@@ -52,6 +53,8 @@
  * copied (present id, per-present mode). */
 struct afmf_present_job {
     uint32_t real_image;
+    struct afmf_config config;
+    uint64_t output_slots[GSF_NEXT_MAX_OUTPUTS], real_slot, source_a, source_b, ready_ns, buffer_delay_ns;
     uint32_t output_count;
     uint32_t output_images[GSF_NEXT_MAX_OUTPUTS];
     float phases[GSF_NEXT_MAX_OUTPUTS];
@@ -135,6 +138,15 @@ struct afmf_swapchain {
     uint32_t spare_image;
     VkFence spare_fence; /* signalled once the presentation engine has released spare_image */
 
+    struct afmf_config config;
+    struct afmf_config presented_config;
+    uint64_t config_poll_ns;
+    bool recreate_requested;
+    bool status_retired;
+    uint32_t wsi_extra_images;
+    enum afmf_present_mode wsi_present_mode;
+    uint64_t last_output_ns, last_status_ns, ready_synthetic, late_pairs;
+    uint64_t last_present_gap_ns, paced_presents;
     uint64_t present_count;
     uint64_t generated;
     uint64_t accepted_real, accepted_synthetic;

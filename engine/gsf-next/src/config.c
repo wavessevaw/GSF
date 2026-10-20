@@ -67,6 +67,7 @@ static bool process_is_gamescope(void)
 /* Runs under pthread_once: it must not log, because logging reads the config back. */
 static void init(void)
 {
+    long enabled=1;
     long multiplier = 2, refresh_hz = 90, max_in_flight = 2;
     long log_level = AFMF_LOG_ERROR;
     long gamescope = 0;
@@ -176,9 +177,12 @@ static void init(void)
     g_config.hud_detect = hud_detect != 0;
     g_config.direct_ingest = direct_ingest != 0;
     g_config.sad_int16 = sad_int16 != 0;
-    ok = read_bounded("GSF_NEXT_MULTIPLIER", 2, 4, &multiplier) && ok;
+    ok = read_bounded("GSF_NEXT_MULTIPLIER", 0, 4, &multiplier) && ok;
     ok = read_bounded("GSF_NEXT_REFRESH_HZ", 30, 360, &refresh_hz) && ok;
     ok = read_bounded("GSF_NEXT_MAX_IN_FLIGHT", 1, 3, &max_in_flight) && ok;
+    ok = read_bounded("GSF_NEXT_ENABLED",0,1,&enabled) && multiplier!=1 && ok;
+    g_config.enabled=enabled!=0 && multiplier!=0;
+    g_config.diagnostics=getenv("GSF_NEXT_DIAGNOSTICS")!=NULL ? strcmp(getenv("GSF_NEXT_DIAGNOSTICS"),"1")==0 : getenv("GSF_NEXT_GPU_REPORT")!=NULL;
     g_config.multiplier = (uint32_t)multiplier;
     g_config.refresh_hz = (uint32_t)refresh_hz;
     g_config.max_in_flight = (uint32_t)max_in_flight;

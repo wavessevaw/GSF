@@ -37,6 +37,8 @@ VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc
     if (res != VK_SUCCESS)
         return res;
 
+    if(!sc->config.enabled) return dev->fns.end_command_buffer(cmd);
+
     const VkPipelineStageFlags top = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     const VkPipelineStageFlags transfer = VK_PIPELINE_STAGE_TRANSFER_BIT;
     const VkPipelineStageFlags bottom = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;

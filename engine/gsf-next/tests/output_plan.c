@@ -26,9 +26,30 @@ int main(void)
                 assert(p.count<=mult-1);
                 for (uint32_t k=0; k<p.count;k++) {
                     assert(p.phases[k]>0 && p.phases[k]<1);
-                    assert(p.slots[k]>a && p.slots[k]<a+23456789);
+                    struct gsf_output_plan previous=gsf_output_plan(0,a,0,hz,mult);
+                    assert(p.slots[k]>previous.real_slot && p.slots[k]<p.real_slot);
                     if(k) assert(p.slots[k]>p.slots[k-1]);
                 }
             }
+    /* Fractional source rates must reserve each real endpoint exactly once.
+     * The old interior-ticks-only plan generated ~136 total presents at 46/90 x3. */
+    for(uint32_t mult=2;mult<=4;mult++) for(uint32_t rate=15;rate<=89;rate++) {
+        uint64_t a=1000000000ull,total=0,epoch=a;
+        for(uint32_t n=1;n<=rate*60;n++) {
+            uint64_t b=epoch+(uint64_t)n*1000000000ull/rate;
+            struct gsf_output_plan p=gsf_output_plan(a,b,epoch,90,mult);
+            total+=1+p.count;a=b;
+        }
+        assert(total<=90*60);
+    }
+    /* Ready jitter, long overload, refresh changes: never compress late output. */
+    uint64_t last=1000000000ull;
+    for(uint32_t k=0;k<10000;k++) {
+        uint32_t hz=k<5000?90:60;
+        uint64_t desired=1000000000ull+(uint64_t)k*1000000ull;
+        uint64_t next=gsf_output_deadline(desired,last,hz);
+        assert(next-last>=gsf_refresh_period(hz));
+        last=next+(k%91==0?45000000ull:0);
+    }
     puts("display-slot planner: PASS (multipliers, caps, drift, hitches, refresh changes)");
 }

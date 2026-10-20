@@ -129,6 +129,8 @@ add_custom_command(
 
 add_library(afmf-linux SHARED
     src/config.c
+    src/live_config.c
+    src/live_runtime.c
     src/framegen.c
     src/framegen_descriptors.c
     src/framegen_dump.c
@@ -226,3 +228,11 @@ target_link_libraries(gsf_present_wait_contract PRIVATE Vulkan::Headers Threads:
 target_compile_definitions(gsf_present_wait_contract PRIVATE _POSIX_C_SOURCE=200809L)
 target_compile_options(gsf_present_wait_contract PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
 add_test(NAME present_wait_contract COMMAND gsf_present_wait_contract)
+
+add_executable(gsf_live_config tests/live_config.c src/live_config.c)
+target_include_directories(gsf_live_config PRIVATE src)
+target_compile_definitions(gsf_live_config PRIVATE _POSIX_C_SOURCE=200809L)
+target_compile_options(gsf_live_config PRIVATE ${AFMF_WARNINGS} -UNDEBUG)
+add_test(NAME live_config COMMAND gsf_live_config)
+add_test(NAME vulkan_live_pacing COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/live_pacing.py --build ${CMAKE_BINARY_DIR})
+set_tests_properties(vulkan_live_pacing PROPERTIES TIMEOUT 180)

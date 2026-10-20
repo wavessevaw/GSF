@@ -19,7 +19,6 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
     }
     sc->present_queue = queue;
     sc->present_lock = afmf_device_queue_mutex(dev,queue);
-    VkQueue work_queue = sc->async ? dev->async_queue : queue;
     if (sc->async)
         family = dev->async_family;
 
@@ -47,7 +46,7 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
          * on its fence for the pacing: that frame has to be done before the work thread resets
          * it, so at most image_count frames are in flight between here and their presents. */
         pthread_mutex_lock(&sc->job_lock);
-        while (sc->in_flight >= afmf_config_get()->max_in_flight && !sc->presenter_stop)
+        while (sc->in_flight >= sc->config.max_in_flight && !sc->presenter_stop)
             pthread_cond_wait(&sc->drain_cond, &sc->job_lock);
         sc->in_flight++;
         pthread_mutex_unlock(&sc->job_lock);
@@ -66,9 +65,9 @@ VkResult afmf_sc_present_generated(struct afmf_device *dev, struct afmf_swapchai
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &sc->sem_app[slot_index],
         };
-        pthread_mutex_lock(&dev->async_lock);
-        VkResult res = f->queue_submit(work_queue, 1, &adapter, VK_NULL_HANDLE);
-        pthread_mutex_unlock(&dev->async_lock);
+        pthread_mutex_lock(sc->present_lock);
+        VkResult res = f->queue_submit(queue, 1, &adapter, VK_NULL_HANDLE);
+        pthread_mutex_unlock(sc->present_lock);
         if (res != VK_SUCCESS) {
             /* Nothing consumed: the application's own present still works. */
             pthread_mutex_lock(&sc->job_lock);

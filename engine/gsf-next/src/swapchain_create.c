@@ -6,12 +6,12 @@
 /* Why this swapchain cannot host generated frames, or NULL when it can. */
 static const char *generation_blocker(const struct afmf_device *dev,
                                       const VkSwapchainCreateInfoKHR *info,
-                                      VkSurfaceCapabilitiesKHR *caps)
+                                      VkSurfaceCapabilitiesKHR *caps,const struct afmf_config *cfg)
 {
     const VkImageUsageFlags copy_usage =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    if (!afmf_config_get()->interpolate) return "interpolation disabled: real-only";
-    if (afmf_config_get()->passive)
+    if (!cfg->interpolate) return "interpolation disabled: real-only";
+    if (cfg->passive)
         return "this process is Gamescope itself (AFMF_GAMESCOPE=1); the game inside gets the layer";
     if (dev->ifns.get_surface_capabilities == NULL ||
         dev->ifns.get_surface_capabilities(dev->physical_device, info->surface, caps) != VK_SUCCESS)
@@ -27,7 +27,7 @@ static const char *generation_blocker(const struct afmf_device *dev,
     if ((caps->supportedUsageFlags & copy_usage) != copy_usage)
         return "surface images cannot be copied";
     if (caps->maxImageCount != 0 &&
-        info->minImageCount + afmf_config_get()->extra_images > caps->maxImageCount)
+        info->minImageCount + cfg->extra_images > caps->maxImageCount)
         return "no room for the extra images";
     return NULL;
 }
@@ -65,7 +65,9 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
                                const VkAllocationCallbacks *alloc, VkSwapchainKHR *out)
 {
     VkSurfaceCapabilitiesKHR caps;
-    const char *blocker = generation_blocker(dev, info, &caps);
+    struct afmf_config config=gsf_live_config();
+    const struct afmf_config *cfg=&config;
+    const char *blocker = generation_blocker(dev, info, &caps,cfg);
 
     VkSwapchainCreateInfoKHR patched = *info;
     uint32_t families[AFMF_MAX_FAMILIES];
@@ -79,7 +81,7 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
     if (blocker == NULL) {
         /* Direct ingest: the layer samples the game's frame straight into its colour ring and
          * luma (one read instead of a copy and a luma pass); needs SAMPLED usage on the images. */
-        if (afmf_config_get()->direct_ingest) {
+        if (cfg->direct_ingest) {
             sampled_usage = (caps.supportedUsageFlags & VK_IMAGE_USAGE_SAMPLED_BIT) != 0 &&
                             afmf_framegen_can_ingest_direct(dev, info->imageFormat);
             if (sampled_usage)
@@ -90,7 +92,7 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
         }
         /* Direct output: the interpolator writes the swapchain image, so it needs STORAGE usage;
          * only where the surface and the format take it (sRGB formats do not). */
-        if (afmf_config_get()->direct_output) {
+        if (cfg->direct_output) {
             storage_usage = (caps.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT) != 0 &&
                             afmf_framegen_can_write_direct(dev, info->imageFormat);
             if (storage_usage)
@@ -102,7 +104,7 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
         /* Every present takes a refresh slot in FIFO and the layer doubles the presents: a game
          * above half the refresh rate loses real frames (120 at 165 Hz -> 82). MAILBOX shows the
          * latest frame and drops the excess instead, which is what the doubling needs. */
-        if (afmf_config_get()->present_mode == AFMF_PRESENT_AUTO &&
+        if (cfg->present_mode == AFMF_PRESENT_AUTO &&
             (info->presentMode == VK_PRESENT_MODE_FIFO_KHR ||
              info->presentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR) &&
             afmf_sc_surface_offers(dev, info->surface, VK_PRESENT_MODE_MAILBOX_KHR)) {
@@ -119,7 +121,7 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
         patched.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         /* Generated frames are presented from images of the same swapchain; the presentation
          * engine keeps a few queued, so one extra is not enough to find one free at present time. */
-        patched.minImageCount += afmf_config_get()->extra_images;
+        patched.minImageCount += cfg->extra_images;
         async = share_with_layer_queue(dev, info, &patched, families);
     }
 
@@ -142,6 +144,8 @@ VkResult afmf_swapchain_create(struct afmf_device *dev, const VkSwapchainCreateI
         *out = VK_NULL_HANDLE;
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
+    sc->config=config;sc->presented_config=config;
+    sc->wsi_extra_images=config.extra_images;sc->wsi_present_mode=config.present_mode;
     sc->handle = *out;
     sc->dev = dev;
     sc->format = info->imageFormat;

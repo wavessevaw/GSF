@@ -6,7 +6,9 @@ runtime with GSF Test 0.1.13. The retained upstream identifiers `afmf_*` are
 implementation names, not a claim to ship AMD's proprietary AFMF driver.
 
 The application keeps real downstream Vulkan WSI images. At present, an adapter
-submission consumes its binary waits once and signals a per-slot handoff.
+submission on the originating application queue consumes its binary waits once
+and signals a per-slot handoff. Keeping future-frame waits off the asynchronous
+compute queue avoids head-of-line blocking older generation behind future render.
 A work thread captures the current image into a two-image GPU history, creates
 luma/pyramid/scene-change state once, estimates motion once, then performs up to
 three temporally parameterized warps. There are no mandatory pixel readbacks;
@@ -19,14 +21,22 @@ application queue with externally synchronized host API access. This is essentia
 when RADV exposes compute and presentation in different queue families. No host
 mutex holds a GPU-readiness wait. A second thread presents reserved intermediates in increasing temporal order,
 then the current real frame. It waits on GPU readiness independently of the game
-hook, and bounds pacing holds to one source period from arrival. The presentation
+hook. One source period of buffered delay places the sequence on its target
+slots. A late-ready pair is rebased as a whole; there is no expired-deadline
+catch-up burst. A monotonic minimum spacing gate applies to real AND synthetic
+API presents while generation is enabled (ceil(1e9 / refresh_hz) ns). This bounds
+API submission rate, not compositor scanout. The game remains unpaced by this
+gate in Off mode. The presentation
 queue is bounded to 1/2/3 jobs, default 2. Backpressure can still block application
 present when that bound is reached; no claim of zero latency or zero game impact
 is made. This is a real-WSI companion design, not the former virtual-source WSI.
 Increasing extra WSI images (+3/+5) does not itself increase the job queue limit.
 
 The display-slot planner derives temporal phases from one monotonic display
-clock and actual captured source timestamps; it admits at most multiplier-1
+clock and actual captured source timestamps. Both nearest-grid real endpoints
+are reserved before interior slots are counted, preventing fractional rates
+from reusing a real endpoint as synthetic budget. Phases use the actual A/B
+interval at each admitted slot. It admits at most multiplier-1
 outputs and avoids endpoint duplicates and loading gaps over 250 ms. At 90 Hz,
 45→×4 reserves only one intermediate and 30→×4 normally reserves two. At lower
 source rates, ×3 and ×4 can construct two/three genuinely different outputs from
@@ -36,8 +46,8 @@ is reused with compute/transfer barriers; target images and ready semaphores are
 independent. Quality reduction does not relabel the selected multiplier.
 
 The profile refresh rate is **user supplied**, not a measured refresh rate.
-Changing Steam's display refresh requires updating the profile and restarting
-the game. Automatic refresh notification is not implemented in this Alpha.
+Changing Steam's display refresh requires updating the profile; this applies
+inside the running layer. Automatic refresh notification is not implemented in this Alpha.
 
 Default Performance runs flow at half input resolution with five pyramid levels;
 Quality runs full input resolution. Both reconstruct directly at output size with
@@ -73,7 +83,9 @@ privileged queue priority, TDP changes, GPU clock changes or system manifests.
 Decky installation is user-owned and transactional. The offline payload carries
 checksums and corresponding source; relocated manifests pin the installed
 library. Preflight failure runs the game once without the new layer. Disabled
-profiles are strict pass-through. Runtime state is `~/.local/share/gsf-next`,
+profiles that have never been armed, and profiles disarmed on plugin removal,
+are strict pass-through. Prepared profiles keep a resident layer in Off mode,
+with no capture/flow/warp work, to allow subsequent live enabling. Runtime state is `~/.local/share/gsf-next`,
 separate from old `gsf-test`; the plugin never imports old enabled profiles.
 
 Optional detailed GPU reporting records one retired pair's source indices,
@@ -87,3 +99,20 @@ submitted downstream before asking the driver, with only the remaining caller
 timeout. Zero timeout never waits for a queued worker. Host timeout/error
 contracts are tested separately; driver physical-present-wait extensions are
 unavailable on the software test device and remain hardware-qualified later.
+
+
+Per-game atomic control files are bounded to 511 bytes and checked before use.
+A worker polls at most every 100 ms; every present job owns an immutable snapshot.
+Status acknowledges a revision only after its real frame reaches WSI acceptance.
+Quality replaces the GPU context only after older jobs and slot fences retire;
+allocation failure retains the old configuration and leaves the new revision
+pending. Queue depth changes do not reclaim resources still in use. Image count
+and present mode changes request ordinary swapchain recreation by returning
+OUT_OF_DATE from Acquire before any image acquisition or semaphore signaling.
+No claim is made that unsupported applications handle this correctly.
+
+Status is sampled every 250 ms. Retired swapchains retain final counters for
+report export but are excluded from live-panel selection. Detailed GPU and API
+presentation traces can be enabled/disabled in the current process; files are
+local, bounded, per context, and are never published automatically. Accepted API
+rates remain separate from generated rates and unmeasured displayed rates.
