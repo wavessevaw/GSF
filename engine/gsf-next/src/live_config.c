@@ -21,7 +21,7 @@ struct afmf_config gsf_live_config(void)
         &revision,&enabled,&multiplier,&hz,&quality,&queue,&images,&mode,&diagnostics,&used);
     if(!complete || fields!=9 || used<=0 || (size_t)used!=size || enabled>1 ||
        (multiplier!=0 && multiplier!=2 && multiplier!=3 && multiplier!=4) || hz<30 || hz>360 ||
-       (quality!=1 && quality!=2) || queue<1 || queue>3 || (images!=3 && images!=5) || mode>1 || diagnostics>1)
+       (quality!=1 && quality!=2) || queue>8 || (images!=3 && images!=5) || mode>1 || diagnostics>1)
         return cfg;
     cfg.revision=(uint64_t)revision;cfg.enabled=enabled!=0 && multiplier!=0;
     cfg.multiplier=multiplier;cfg.refresh_hz=hz;cfg.performance=(enum afmf_performance_mode)quality;
