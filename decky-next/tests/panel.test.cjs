@@ -42,7 +42,7 @@ test('actual panel: visible launch command, clipboard failure, compact settings,
   assert(queue.props.rgOptions.some(o=>o.data===0));
   await act(async()=>{queue.props.onChange({data:0});});await flush();assert.equal(profile.max_in_flight,0);
   await act(async()=>{queue.props.onChange({data:8});});await flush();assert.equal(profile.max_in_flight,8);
-  const images=tree.root.findAllByType('gsf-Dropdown').find(n=>n.props.rgOptions.some(o=>o.data===5));
+  const images=tree.root.findAllByType('gsf-Dropdown').find(n=>n.props.rgOptions.some(o=>o.data===5&&o.label.startsWith('Увеличенный')));
   await act(async()=>{images.props.onChange({data:5});});await flush();assert.equal(profile.extra_images,5);
   assert.match(JSON.stringify(tree.toJSON()),/Игра пересоздаст вывод/);
   await act(async()=>{button('Диагностика и отчёт').props.onClick();});assert.match(JSON.stringify(tree.toJSON()),/GPU на пару/);
