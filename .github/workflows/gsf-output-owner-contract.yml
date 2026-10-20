@@ -16,6 +16,7 @@ on:
       - fix/gsf-borrowed-physical-dispatch-20261017
       - experiment/gsf-output-owner-contract-20261017
       - experiment/gsf-offscreen-source-pool-20261017
+      - experiment/gsf-next-early-real-ingest
     paths:
       - 'engine/gfg-native/src/**'
       - 'engine/gfg-native/tests/**'
@@ -27,7 +28,7 @@ permissions:
 jobs:
   output-owner:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Native output-owner proof at O2 with warnings as errors
@@ -47,7 +48,7 @@ jobs:
       - name: Install software Vulkan WSI test dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb
+          sudo apt-get install -y -qq libvulkan-dev libxcb1-dev mesa-vulkan-drivers vulkan-validationlayers xvfb glslang-tools spirv-tools
       - name: Transactional offscreen Vulkan source images with simulated GPU allocation failures
         run: make -C engine/gfg-native offscreen-source-pool
       - name: Source VkImage/VkDeviceMemory allocation sanitizer
@@ -156,6 +157,22 @@ jobs:
             cat "$log"; exit 1
           fi
           echo 'Loader installed app virtual Acquire->render->Present->private output->X11 pixels PASS (not FG or OLED)'
+
+      - name: Isolated virtual-game post-owner GPU LMC x4: 8 real plus 21 unique synthetic X11 images
+        run: |
+          set -euo pipefail
+          make -C engine/gfg-temporal -j2 lib
+          make -C engine/gfg-native ENABLE_TE=1 VULKAN_HEADERS="$RUNNER_TEMP/vkh/include"             build/lmc-owner-layer/libVkLayer_gfg_native.so
+          log="$(mktemp)"
+          GFG_NATIVE_FG=1 GFG_NATIVE_TEST_LOADER_LIVE_OUTPUT=1             GFG_NATIVE_TEST_PROXY_CREATE=1 GFG_NATIVE_TEST_LMC_OUTPUT_OWNER=1             GFG_NATIVE_TEST_OUTPUT_INTERLEAVE=1 GFG_NATIVE_TEST_LMC_X4=1             VK_LAYER_PATH="$PWD/engine/gfg-native/build/lmc-owner-layer:/usr/share/vulkan/explicit_layer.d"             VK_INSTANCE_LAYERS=VK_LAYER_GFG_native:VK_LAYER_KHRONOS_validation             VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json             xvfb-run -a -s '-screen 0 1024x768x24'             engine/gfg-native/build/loader-live-output > "$log" 2>&1 || { cat "$log"; exit 1; }
+          grep 'GSF_LOADER_SPLIT_APP output_visible=29 original=8 intermediate=21 x11_distinct_pixels=1 PASS' "$log"
+          test "$(grep -c 'GSF_LMC_GPU_VERIFY PASS' "$log")" -eq 21
+          test "$(grep -c 'GSF_LMC_OWNER_PIXEL' "$log")" -eq 21
+          grep 'GSF_OUTPUT_PACER rate=90 emitted=29 originals=8 intermediate=21' "$log"
+          if grep -E 'Validation Error|VUID-|UNASSIGNED-.*ERROR' "$log"; then
+            cat "$log"; exit 1
+          fi
+          echo 'TEST ONLY: virtual app -> GPU LMC x4 -> single real X11 WSI, unique pixels; physical Deck 90Hz unverified'
 
       - name: Loader-installed 8 originals PLUS 7 distinct A-B GPU frames verified AFTER X11 composition
         run: |
