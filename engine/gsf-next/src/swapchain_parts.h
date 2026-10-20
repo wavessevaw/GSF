@@ -19,6 +19,11 @@ bool afmf_sc_chain_allows_mailbox(const struct afmf_device *dev, VkSurfaceKHR su
 VkResult afmf_sc_record_frame(struct afmf_device *dev, struct afmf_swapchain *sc, VkCommandBuffer cmd,
                               uint32_t slot, uint32_t i, const uint32_t *targets, const float *phases, uint32_t count);
 
+VkResult afmf_sc_record_split(struct afmf_device *dev, struct afmf_swapchain *sc,
+                              VkCommandBuffer ingest_cmd, VkCommandBuffer synth_cmd,
+                              uint32_t slot, uint32_t image, const uint32_t *targets,
+                              const float *phases, uint32_t count);
+
 /* swapchain_cadence.c */
 uint64_t afmf_sc_update_cadence(struct afmf_device *dev, struct afmf_swapchain *sc);
 bool afmf_sc_governor_allows(struct afmf_swapchain *sc, double last_delay_ms, uint64_t ordinal);
