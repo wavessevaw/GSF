@@ -18,6 +18,8 @@ class Plugin:
         return await asyncio.to_thread(self.runtime.selection)
     async def select_game(self,appid:int):
         async with self.lock: return await asyncio.to_thread(self.runtime.select,appid)
+    async def get_launch_command(self,appid:int):
+        return await asyncio.to_thread(self.runtime.launch_command,appid)
     async def prepare_game(self,appid:int):
         async with self.lock: return await asyncio.to_thread(self.runtime.prepare,appid)
     async def configure_game(self,appid:int,patch:dict):
