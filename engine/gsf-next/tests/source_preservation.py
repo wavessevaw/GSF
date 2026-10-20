@@ -24,7 +24,7 @@ def run(build,out,mult,period,hz=90,require_throughput=False):
         AFMF_SEARCH_MODE='standard',AFMF_ACQUIRE_TIMEOUT_US='0',
         GSF_TEST_PIPELINED='1',GSF_TEST_BENCHMARK='1',GSF_TEST_SOURCE_PERIOD_NS=str(period),
         GSF_NEXT_MULTIPLIER=str(mult),GSF_NEXT_ENABLED=str(int(mult!=0)),GSF_NEXT_REFRESH_HZ=str(hz),
-        GSF_NEXT_DIAGNOSTICS='1',GSF_NEXT_PRESENT_REPORT=str(directory/'present'),GSF_NEXT_STATUS_DIR=str(directory))
+        GSF_NEXT_DIAGNOSTICS='1',GSF_NEXT_REAL_PRIORITY_PACING='0',GSF_NEXT_PRESENT_REPORT=str(directory/'present'),GSF_NEXT_STATUS_DIR=str(directory))
     result=subprocess.run(['xvfb-run','-a',str(build/'afmf_headless')],env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=120)
     (directory/'run.log').write_text(result.stdout)
     assert result.returncode==0,(name,result.returncode,result.stdout[-5000:])
