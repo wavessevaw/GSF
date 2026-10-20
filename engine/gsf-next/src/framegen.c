@@ -171,11 +171,19 @@ struct afmf_framegen *afmf_framegen_create(struct afmf_device *dev, VkFormat swa
      * The existing game-facing swapchain remains on legacy 3-lane indices.
      * Default owner x3 is one batched reconstruction per pair, not two
      * full-resolution interpolation dispatches. */
+    const bool owner_x2=cfg->owner_target_stride==1u &&
+                          slots>0u && target_count==slots;
     const bool owner_x3=cfg->owner_target_stride==2u &&
                           slots>0u && target_count==slots*2u;
     fg->batch_stride=owner_x3 ? 2u : 3u;
-    if(owner_x3 && fg->requested==GSF_RENDER_AUTO)
-        fg->requested=GSF_RENDER_BATCH;
+    if(fg->requested==GSF_RENDER_AUTO) {
+        /* Native Output Owner owns unaliased storage output textures.
+         * Direct x2 eliminates a full-frame scratch write+copy; batched x3
+         * reuses one full-resolution pass for the two temporal phases.
+         * If storage format is unavailable, existing copy fallback remains. */
+        if(owner_x2)fg->requested=GSF_RENDER_DIRECT;
+        else if(owner_x3)fg->requested=GSF_RENDER_BATCH;
+    }
     fg->last_renderer=GSF_RENDER_AUTO;
     fg->extent = extent;
     fg->slots = slots;
