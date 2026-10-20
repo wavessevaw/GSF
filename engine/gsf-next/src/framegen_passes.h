@@ -37,6 +37,7 @@ struct interpolate_push {
     float max_motion;
     float flow_scale;
     float hud_threshold;
+    int32_t warp_sampling; /* 0 = four block reads/bilinear, 1 = nearest one */
     float phase;
 };
 
@@ -45,7 +46,7 @@ struct batch_push {
     float phase2, phase3;
     int32_t count;
 };
-_Static_assert(sizeof(struct batch_push) == 44, "batch push constants");
+_Static_assert(sizeof(struct batch_push) == 48, "batch push constants");
 
 struct downsample_push {
     int32_t size[2];   /* destination */
@@ -62,7 +63,7 @@ struct ingest_push {
 
 /* The GLSL side declares the same members in the same order; a member added on one side only
  * would read the next one's bytes. */
-_Static_assert(sizeof(struct interpolate_push) == 32, "interpolate push constants");
+_Static_assert(sizeof(struct interpolate_push) == 36, "interpolate push constants");
 _Static_assert(sizeof(struct downsample_push) == 16, "downsample push constants");
 _Static_assert(sizeof(struct ingest_push) == 24, "ingest push constants");
 

@@ -60,6 +60,13 @@ def main():
       # shader pass, distinct output pixels, golden motion and validation.
       ('economy-x2',dict(GSF_NEXT_MULTIPLIER='2',AFMF_PERFORMANCE_MODE='economy'),1),
       ('economy-x4',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PERFORMANCE_MODE='economy'),3),
+      ('economy-fast-warp-x2',dict(GSF_NEXT_MULTIPLIER='2',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1'),1),
+      ('economy-fast-warp-x4',dict(GSF_NEXT_MULTIPLIER='4',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1'),3),
+      ('economy-fast-warp-batch',dict(GSF_NEXT_MULTIPLIER='4',
+          AFMF_PERFORMANCE_MODE='economy',GSF_NEXT_FAST_WARP='1',
+          GSF_NEXT_WARP_BATCH='1'),3),
       ('economy-unorm-ingest',dict(GSF_NEXT_MULTIPLIER='2',
           AFMF_PERFORMANCE_MODE='economy',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),1),
       ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),

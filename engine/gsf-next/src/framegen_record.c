@@ -126,6 +126,7 @@ void afmf_framegen_record_interpolate(struct afmf_device *dev, struct afmf_frame
 {
     const struct afmf_framegen_pipelines *pl = dev->framegen_pipelines;
     uint32_t out_w = fg->extent.width, out_h = fg->extent.height;
+    bool cheap=afmf_config_get()->cheap_warp && fg->flow_scale==4u;
     struct interpolate_push push = {
         .size = {(int32_t)out_w, (int32_t)out_h},
         .phase = phase,
@@ -134,7 +135,11 @@ void afmf_framegen_record_interpolate(struct afmf_device *dev, struct afmf_frame
         .max_motion = AFMF_MAX_TRUSTED_MOTION,
         .flow_scale = (float)fg->flow_scale,
         /* One 8-bit level: HUD text is drawn after anti-aliasing and repeats exactly. */
-        .hud_threshold = afmf_config_get()->hud_detect ? 1.0f / 255.0f : 0.0f,
+        /* Opt-in cheapest warp skips HUD comparison reads. The original
+         * path, including full bilinear flow and HUD reconstruction,
+         * remains the default and serves as the quality reference. */
+        .hud_threshold = !cheap && afmf_config_get()->hud_detect ? 1.0f / 255.0f : 0.0f,
+        .warp_sampling = cheap ? 1 : 0,
     };
     dev->fns.cmd_push_constants(cmd, pl->layouts[PASS_INTERPOLATE], VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                 (uint32_t)sizeof push, &push);
@@ -149,12 +154,14 @@ void afmf_framegen_record_batch(struct afmf_device *dev, struct afmf_framegen *f
                                 const float *phases, uint32_t count)
 {
     const struct afmf_framegen_pipelines *pl = dev->framegen_pipelines;
+    bool cheap=afmf_config_get()->cheap_warp && fg->flow_scale==4u;
     struct batch_push push = {
         .base = {.size = {(int32_t)fg->extent.width, (int32_t)fg->extent.height},
             .block = (int32_t)AFMF_FLOW_BLOCK,
             .fallback = afmf_config_get()->fast_motion == AFMF_RESPONSE_BLENDED_FRAMES ? 1 : 0,
             .max_motion = AFMF_MAX_TRUSTED_MOTION, .flow_scale = (float)fg->flow_scale,
-            .hud_threshold = afmf_config_get()->hud_detect ? 1.0f/255.0f : 0.0f,
+            .hud_threshold = !cheap && afmf_config_get()->hud_detect ? 1.0f/255.0f : 0.0f,
+            .warp_sampling = cheap ? 1 : 0,
             .phase = phases[0]},
         .phase2 = count > 1 ? phases[1] : 0, .phase3 = count > 2 ? phases[2] : 0,
         .count = (int32_t)count,
