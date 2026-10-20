@@ -34,10 +34,12 @@ static void trace_present(struct afmf_swapchain *sc,const struct afmf_present_jo
         char backup[4100];(void)snprintf(backup,sizeof backup,"%s.1",path);(void)rename(path,backup);
     }
     FILE *out=fopen(path,"a");if(out==NULL) return;
-    (void)fprintf(out,"{\"source_b\":%llu,\"source_a\":%llu,\"ordinal\":%llu,\"real\":%s,\"t\":%.6f,\"target_ns\":%llu,\"submit_ns\":%llu,\"ready_observed_ns\":%llu,\"result\":%d,\"refresh_hz\":%u,\"revision\":%llu,\"multiplier\":%u,\"enabled\":%s,\"quality\":%d,\"queue_limit\":%u}\n",
+    (void)fprintf(out,"{\"source_b\":%llu,\"source_a\":%llu,\"ordinal\":%llu,\"real\":%s,\"t\":%.6f,\"target_ns\":%llu,\"submit_ns\":%llu,\"ready_observed_ns\":%llu,\"ingest_ready_ns\":%llu,\"synthetic_ready_ns\":%llu,\"early_real\":%s,\"result\":%d,\"refresh_hz\":%u,\"revision\":%llu,\"multiplier\":%u,\"enabled\":%s,\"quality\":%d,\"queue_limit\":%u}\n",
         (unsigned long long)job->source_b,(unsigned long long)job->source_a,(unsigned long long)job->ordinal,
         real?"true":"false",(double)phase,(unsigned long long)target,(unsigned long long)start,
-        (unsigned long long)job->ready_ns,(int)result,job->config.refresh_hz,(unsigned long long)job->config.revision,job->config.multiplier,job->config.enabled?"true":"false",
+        (unsigned long long)job->ready_ns,(unsigned long long)job->ingest_ready_ns,
+        (unsigned long long)job->synthetic_ready_ns,job->early_real?"true":"false",
+        (int)result,job->config.refresh_hz,(unsigned long long)job->config.revision,job->config.multiplier,job->config.enabled?"true":"false",
         (int)job->config.performance,job->config.max_in_flight);
     (void)fclose(out);
 }
@@ -166,6 +168,98 @@ void *afmf_sc_presenter_main(void *arg)
         struct afmf_present_job job = sc->jobs[sc->job_head];
         VkResult first=VK_SUCCESS,second=VK_SUCCESS;
         pthread_mutex_unlock(&sc->job_lock);
+        if(job.early_real) {
+            /* Stage 1 alone has finished reading B and restored PRESENT_SRC.
+             * Optical flow in stage 2 is optional and MUST NOT gate real B.
+             * The presenter keeps output order G then B only for on-time G. */
+            VkResult ingest;
+            do { ingest=dev->fns.wait_for_fences(dev->handle,1,&job.ingest_done,
+                                                VK_TRUE,5000000ull); }
+            while(ingest==VK_TIMEOUT);
+            job.ingest_ready_ns=monotonic_ns();
+            job.ready_ns=job.ingest_ready_ns; /* real ingestion, not generation-ready */
+            pthread_mutex_lock(&sc->job_lock);
+            sc->gpu_delay_ms+=(double)(job.ingest_ready_ns-job.source_b)/1e6;
+            sc->last_delay_ms=(double)(job.ingest_ready_ns-job.source_b)/1e6;
+            pthread_mutex_unlock(&sc->job_lock);
+            if(ingest!=VK_SUCCESS) {
+                second=ingest;
+                pthread_mutex_lock(&sc->job_lock);
+                sc->worker_failed=true;
+                pthread_mutex_unlock(&sc->job_lock);
+            } else {
+                uint64_t tick=gsf_refresh_period(job.config.refresh_hz);
+                uint64_t shift=job.config.enabled ? job.buffer_delay_ns:0;
+                uint64_t real_due=job.real_slot+shift;
+                bool synth_ready=false;
+                uint32_t shown=0;
+                for(uint32_t n=0;n<job.output_count;n++) {
+                    uint64_t desired=job.output_slots[n]+shift;
+                    uint64_t now=monotonic_ns();
+                    pthread_mutex_lock(&sc->job_lock);
+                    bool superseded=sc->job_count>1;
+                    pthread_mutex_unlock(&sc->job_lock);
+                    enum gsf_synthetic_deadline policy=gsf_synthetic_deadline_check(
+                        sc->plan_epoch_ns,desired,real_due,now,
+                        sc->last_target_ns,sc->last_output_ns,tick,
+                        job.config.refresh_hz,superseded);
+                    if(policy!=GSF_SYNTHETIC_ON_TIME) {
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->dropped_synthetic+=job.output_count-n;
+                        if(policy==GSF_SYNTHETIC_SUPERSEDED)
+                            sc->superseded_synthetic+=job.output_count-n;
+                        else sc->expired_synthetic+=job.output_count-n;
+                        pthread_mutex_unlock(&sc->job_lock);
+                        break;
+                    }
+                    /* If the synthetic GPU work isn't ready by the slot,
+                     * discard the OPTIONAL image. Never block B behind it. */
+                    if(now<desired) pace_until(desired);
+                    VkResult gpu=getenv("GSF_NEXT_TEST_FORCE_SYNTH_LATE") ? VK_NOT_READY :
+                        dev->fns.wait_for_fences(dev->handle,1,&job.done,VK_TRUE,0);
+                    if(gpu!=VK_SUCCESS) {
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->dropped_synthetic+=job.output_count-n;
+                        sc->expired_synthetic+=job.output_count-n;
+                        pthread_mutex_unlock(&sc->job_lock);
+                        break;
+                    }
+                    if(!synth_ready) {
+                        synth_ready=true;
+                        job.synthetic_ready_ns=monotonic_ns();
+                        job.ready_ns=job.synthetic_ready_ns;
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->ready_synthetic+=job.output_count;
+                        pthread_mutex_unlock(&sc->job_lock);
+                    }
+                    uint32_t image=0;
+                    VkResult copied=afmf_sc_output_copy(dev,sc,&job,n,&image);
+                    if(copied==VK_NOT_READY) {
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->dropped_synthetic+=job.output_count-n;
+                        pthread_mutex_unlock(&sc->job_lock);
+                        break;
+                    }
+                    if(copied!=VK_SUCCESS) {
+                        pthread_mutex_lock(&sc->job_lock);
+                        sc->dropped_synthetic+=job.output_count-n;
+                        pthread_mutex_unlock(&sc->job_lock);
+                        first=copied;
+                        break;
+                    }
+                    VkResult presented=present_one(dev,sc,image,sc->sem_generated[image],
+                                                  &job,false,desired,job.phases[n]);
+                    shown++;
+                    if(presented<0 || first==VK_SUCCESS) first=presented;
+                    if(presented<0) break;
+                }
+                (void)shown;
+                /* Real WSI signal is stage-1 complete, never stage-2. */
+                job.ready_ns=job.ingest_ready_ns;
+                second=present_one(dev,sc,job.real_image,sc->sem_real[job.real_image],
+                                   &job,true,real_due,1.0f);
+            }
+        } else {
         /* Never enqueue a WSI wait before observing ready. The bounded queue
          * owns every resource until this fence retires, including during stop. */
         VkResult gpu;
@@ -247,6 +341,8 @@ void *afmf_sc_presenter_main(void *arg)
             second=gpu;
             pthread_mutex_lock(&sc->job_lock);sc->worker_failed=true;pthread_mutex_unlock(&sc->job_lock);
         }
+
+        } /* ordinary shared GPU-fence path */
 
         /* No speculative WSI acquire after the real endpoint. That could hold
          * an image (and a host lock) away from the game's next source frame. */

@@ -2,6 +2,7 @@
  * the next companion goes into. */
 
 #include "swapchain_internal.h"
+#include "queue_depth.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -198,14 +199,16 @@ void afmf_sc_status_write(struct afmf_swapchain *sc)
     (void)fprintf(out,"\"generated\":%llu,\"ready_synthetic\":%llu,\"accepted_real\":%llu,\"accepted_synthetic\":%llu,",
         (unsigned long long)sc->generated,(unsigned long long)sc->ready_synthetic,
         (unsigned long long)sc->accepted_real,(unsigned long long)sc->accepted_synthetic);
-    (void)fprintf(out,"\"queue_depth\":%u,\"queue_delay_ms\":%.3f,\"gpu_pair_ms\":%.3f,\"motion_ms\":%.3f,\"warp_ms\":[%.3f,%.3f,%.3f],",
-        sc->in_flight,sc->last_delay_ms,sc->last_gpu_ms,sc->last_motion_ms,sc->last_warp_ms[0],sc->last_warp_ms[1],sc->last_warp_ms[2]);
+    (void)fprintf(out,"\"queue_depth\":%u,\"playout_delay_ms\":%.3f,\"queue_delay_ms\":%.3f,\"gpu_pair_ms\":%.3f,\"motion_ms\":%.3f,\"warp_ms\":[%.3f,%.3f,%.3f],",
+        sc->in_flight,(double)sc->last_playout_delay_ns/1e6,sc->last_delay_ms,sc->last_gpu_ms,sc->last_motion_ms,sc->last_warp_ms[0],sc->last_warp_ms[1],sc->last_warp_ms[2]);
     (void)fprintf(out,"\"renderer\":\"%s\",\"reconstruction_ms\":%.3f,",
         !cfg->enabled ? "off":sc->last_gpu_ms<0 ? "unavailable":gsf_renderer_name(sc->last_renderer),
         cfg->enabled ? sc->reconstruction_ms:0);
-    (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,",
+    (void)fprintf(out,"\"control_revision\":%llu,\"selected_multiplier\":%u,\"enabled\":%s,\"refresh_hz\":%u,\"quality\":\"%s\",\"max_in_flight\":%u,\"queue_effective\":%u,\"queue_capacity\":%u,",
         (unsigned long long)cfg->revision,cfg->multiplier,cfg->enabled?"true":"false",cfg->refresh_hz,
-        cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight);
+        cfg->performance==AFMF_PERFORMANCE_FAST?"performance":"quality",cfg->max_in_flight,
+        gsf_queue_effective(cfg->max_in_flight,cfg->refresh_hz,cfg->multiplier,sc->output_capacity),
+        sc->output_capacity);
     (void)fprintf(out,"\"recreate_pending\":%s,\"late_pairs\":%llu,\"last_present_gap_ms\":%.3f,\"paced_presents\":%llu,\"dropped_synthetic\":%llu,\"expired_synthetic\":%llu,\"superseded_synthetic\":%llu,\"budget_skipped_synthetic\":%llu,\"pairs_without_slot\":%llu,\"output_ring_bytes\":%llu,\"output_acquire_ms\":%.3f,\"output_copy_wait_ms\":%.3f,\"output_copy_gpu_ms\":%.3f,\"displayed\":null}\n",
         sc->recreate_requested?"true":"false",(unsigned long long)sc->late_pairs,
         (double)sc->last_present_gap_ns/1e6,(unsigned long long)sc->paced_presents,(unsigned long long)sc->dropped_synthetic,(unsigned long long)sc->expired_synthetic,(unsigned long long)sc->superseded_synthetic,(unsigned long long)sc->budget_skipped_synthetic,(unsigned long long)sc->skipped_no_slot,(unsigned long long)sc->output_bytes,

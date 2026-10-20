@@ -6,7 +6,7 @@ import {copyCommand, withTimeout} from './steam-options.mjs';
 
 type Game={appid:number;name:string};
 type Profile={enabled:boolean;armed?:boolean;multiplier:number;quality:string;refresh_hz:number;max_in_flight:number;extra_images:number;present_mode:string;diagnostics?:boolean};
-type Live={source_fps:number;generated_fps?:number;output_fps?:number;effective_multiplier?:number;generated:number;accepted_real:number;accepted_synthetic:number;queue_depth:number;queue_delay_ms:number;gpu_pair_ms:number;settings_pending?:boolean;recreate_pending?:boolean;selected_multiplier?:number;enabled?:boolean;refresh_hz?:number;late_pairs?:number;last_present_gap_ms?:number;dropped_synthetic?:number;budget_skipped_synthetic?:number;output_acquire_ms?:number;output_copy_gpu_ms?:number;output_ring_bytes?:number};
+type Live={source_fps:number;generated_fps?:number;output_fps?:number;effective_multiplier?:number;generated:number;accepted_real:number;accepted_synthetic:number;queue_depth:number;queue_effective?:number;queue_capacity?:number;playout_delay_ms?:number;queue_delay_ms:number;gpu_pair_ms:number;settings_pending?:boolean;recreate_pending?:boolean;selected_multiplier?:number;enabled?:boolean;refresh_hz?:number;late_pairs?:number;last_present_gap_ms?:number;dropped_synthetic?:number;budget_skipped_synthetic?:number;output_acquire_ms?:number;output_copy_gpu_ms?:number;output_ring_bytes?:number};
 type Status={reason?:string;profile:Profile;options:string;live:Live[];report:{stage?:string;error?:string};state:string;restart_required?:boolean};
 function backend<A extends unknown[],R>(name:string){const rpc=callable<A,R>(name);return (...a:A)=>withTimeout(rpc(...a));}
 const api={games:backend<[],Game[]>('get_games'),selection:backend<[],{appid:number}>('get_selection'),select:backend<[number],unknown>('select_game'),prepare:backend<[number],{options:string}>('prepare_game'),configure:backend<[number,Partial<Profile>],{apply?:string}>('configure_game'),status:backend<[number],Status>('get_status'),export:backend<[number],{path:string}>('export_report')};
@@ -74,8 +74,8 @@ function Content(){
  {p&&<PanelSection title="Дополнительно">
   <ButtonItem disabled={busy} onClick={()=>setAdvanced(!advanced)}>{advanced?'Скрыть настройки вывода':'Настройки вывода'}</ButtonItem>
   {advanced&&<>
-   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Предел очереди</div><Dropdown selectedOption={p.max_in_flight} rgOptions={[{label:'1 · меньше задержка',data:1},{label:'2 · баланс, рекомендуется',data:2},{label:'3 · больше запас',data:3}]} onChange={o=>change({max_in_flight:Number(o.data)})} disabled={busy}/></PanelSectionRow>
-   <PanelSectionRow><div style={muted}>Большая очередь может сгладить перегрузку, но увеличивает задержку управления.</div></PanelSectionRow>
+   <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Предел очереди</div><Dropdown selectedOption={p.max_in_flight} rgOptions={[{label:'Авто · по герцовке и множителю',data:0},{label:'1 · меньше задержка',data:1},{label:'2 · баланс, рекомендуется',data:2},{label:'3 · больше запас',data:3},{label:'4 · глубокая',data:4},{label:'5 · глубже',data:5},{label:'6 · расширенная',data:6},{label:'7 · большой запас',data:7},{label:'8 · максимум',data:8}]} onChange={o=>change({max_in_flight:Number(o.data)})} disabled={busy}/></PanelSectionRow>
+   <PanelSectionRow><div style={muted}>Авто масштабирует очередь по герцовке и множителю (90 Гц ×2: 3, ×3: 4, ×4: 5; 120 Гц ×4: 7). Реальный предел ограничен GPU-буфером и swapchain. Большая очередь увеличивает задержку управления.</div></PanelSectionRow>
    <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Запас изображений</div><Dropdown selectedOption={p.extra_images} rgOptions={[{label:'Стандартный · +3',data:3},{label:'Увеличенный · +5',data:5}]} onChange={o=>change({extra_images:Number(o.data)})} disabled={busy}/></PanelSectionRow>
    <PanelSectionRow><div style={{fontSize:13,marginBottom:6}}>Режим вывода</div><Dropdown selectedOption={p.present_mode} rgOptions={[{label:'Автоматически · рекомендуется',data:'auto'},{label:'Сохранить режим игры',data:'keep'}]} onChange={o=>change({present_mode:String(o.data)})} disabled={busy}/></PanelSectionRow>
    <PanelSectionRow><div style={muted}>Запас изображений и режим вывода применяются через пересоздание swapchain. Если игра его не обрабатывает, меняйте эти параметры до запуска.</div></PanelSectionRow>
@@ -88,6 +88,8 @@ function Content(){
     <Detail label="GPU на пару" value={fmt(live?.gpu_pair_ms,2)+' мс'}/>
     <Detail label="Ожидание GPU и очереди" value={fmt(live?.queue_delay_ms,2)+' мс'}/>
     <Detail label="Заданий в очереди" value={String(live?.queue_depth??'—')}/>
+    <Detail label="Доступная глубина очереди" value={live?.queue_effective===undefined?'—':String(live.queue_effective)+' / '+String(live.queue_capacity??'—')}/>
+    <Detail label="Запас времени на вывод" value={fmt(live?.playout_delay_ms,1)+' мс'}/>
     <Detail label="Ожидание WSI-изображения" value={fmt(live?.output_acquire_ms,2)+' мс'}/>
     <Detail label="GPU-копия на вывод" value={fmt(live?.output_copy_gpu_ms,2)+' мс'}/>
     <Detail label="Отклонено до GPU" value={String(live?.budget_skipped_synthetic??'—')}/>

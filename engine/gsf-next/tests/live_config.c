@@ -11,12 +11,14 @@ int main(void)
     char path[]="/tmp/gsf-control-XXXXXX";int fd=mkstemp(path);assert(fd>=0);(void)close(fd);
     assert(setenv("GSF_NEXT_CONTROL",path,1)==0);
     const char *rows[]={"", "GSF_NEXT_CONTROL_V1\n9 1 4 90 2 2 3 0 1\n", "GSF_NEXT_CONTROL_V1\n10 0 0 60 1 1 5 1 0\n",
-        "GSF_NEXT_CONTROL_V1\n11 1 1 90 2 2 3 0 1\n", "GSF_NEXT_CONTROL_V1\n12 1 4 90 2 99 3 0 1\n", "GSF_NEXT_CONTROL_V1\n13 1 4 90 2 2 3 0 1\nextra", "GSF_NEXT_CONTROL_V1\n14 1 4"};
+        "GSF_NEXT_CONTROL_V1\n11 1 1 90 2 2 3 0 1\n", "GSF_NEXT_CONTROL_V1\n12 1 4 90 2 99 3 0 1\n", "GSF_NEXT_CONTROL_V1\n13 1 4 90 2 2 3 0 1\nextra", "GSF_NEXT_CONTROL_V1\n14 1 4", "GSF_NEXT_CONTROL_V1\n15 1 4 120 2 0 5 0 1\n", "GSF_NEXT_CONTROL_V1\n16 1 4 90 2 8 5 0 1\n", "GSF_NEXT_CONTROL_V1\n17 1 4 90 2 9 5 0 1\n"};
     for(unsigned k=0;k<sizeof rows/sizeof rows[0];k++) {
         FILE *out=fopen(path,"w");assert(out!=NULL);assert(fputs(rows[k],out)>=0);assert(fclose(out)==0);
         struct afmf_config cfg=gsf_live_config();
         if(k==1) assert(cfg.revision==9 && cfg.enabled && cfg.multiplier==4 && cfg.diagnostics);
         else if(k==2) assert(cfg.revision==10 && !cfg.enabled && cfg.refresh_hz==60 && cfg.extra_images==5);
+        else if(k==7) assert(cfg.revision==15 && cfg.max_in_flight==0 && cfg.refresh_hz==120);
+        else if(k==8) assert(cfg.revision==16 && cfg.max_in_flight==8);
         else assert(cfg.revision==0 && cfg.multiplier==2 && cfg.enabled);
     }
     assert(unlink(path)==0);assert(gsf_live_config().multiplier==2);

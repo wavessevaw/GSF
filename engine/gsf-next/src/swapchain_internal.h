@@ -26,7 +26,8 @@
 #define AFMF_MAX_APP_WAITS 8u
 /* Presents queued for the presentation thread; bounded by the images in flight in practice. */
 #define AFMF_MAX_JOBS 16u
-#define GSF_NEXT_RING_IMAGES (3u * GSF_NEXT_MAX_OUTPUTS)
+#define GSF_NEXT_MAX_QUEUE 8u
+#define GSF_NEXT_RING_IMAGES (GSF_NEXT_MAX_QUEUE * GSF_NEXT_MAX_OUTPUTS)
 /* The application's acquire is run in slices of this length under the swapchain lock, so the
  * presentation thread is never held off for longer than one slice. */
 #define AFMF_ACQUIRE_SLICE_NS 1000000ull
@@ -64,7 +65,11 @@ struct afmf_present_job {
     uint64_t source_period_ns;
     uint64_t ordinal;         /* this present's number, for the governor's one-in-n cadence */
     struct timespec arrival;
-    VkFence done;             /* the layer's submission for this frame: signalled once the generated frame is ready */
+    VkFence done;             /* generation completion: distinct from real ingest */
+    VkFence ingest_done;      /* private snapshot complete; game WSI image returned to PRESENT_SRC */
+    uint64_t ingest_ready_ns; /* observed real-input fence: not screen scanout */
+    uint64_t synthetic_ready_ns; /* observed optical-flow fence: optional */
+    bool early_real;          /* two GPU submits: real is safe before optional reconstruction */
     bool have_present_id;
     uint64_t present_id;
     bool present_id_v2;   /* VK_KHR_present_id2 carried the id (same shape, its own sType) */
@@ -91,8 +96,11 @@ struct afmf_frame_job {
  * reused. */
 struct afmf_slot {
     VkCommandBuffer cmd;
+    VkCommandBuffer ingest_cmd;
     VkFence fence;
+    VkFence ingest_fence;
     bool pending;
+    bool ingest_pending;
 };
 
 struct afmf_swapchain {
@@ -163,7 +171,7 @@ struct afmf_swapchain {
     uint32_t wsi_extra_images;
     enum afmf_present_mode wsi_present_mode;
     uint64_t last_target_ns, last_output_ns, last_status_ns, ready_synthetic, late_pairs;
-    uint64_t last_present_gap_ns, paced_presents;
+    uint64_t last_present_gap_ns, paced_presents, last_playout_delay_ns;
     uint64_t present_count;
     uint64_t generated;
     uint64_t accepted_real, accepted_synthetic;

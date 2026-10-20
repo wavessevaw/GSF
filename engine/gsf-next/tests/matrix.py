@@ -64,6 +64,8 @@ def main():
       ('auto-compact',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_RENDERER='auto',GSF_NEXT_PROFILE_DETAIL='0',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('queue1',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='1'),3),
       ('queue3-validation-first',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_MAX_IN_FLIGHT='3',GSF_TEST_VALIDATION_FIRST='1'),2),
+      ('queue8-deep',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='8',AFMF_EXTRA_IMAGES='5'),3),
+      ('queue-auto-high-refresh',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_MAX_IN_FLIGHT='0',GSF_NEXT_REFRESH_HZ='144',AFMF_EXTRA_IMAGES='5'),3),
       ('pan',dict(AFMF_TEST_PAN='1'),0),
       ('hud',dict(AFMF_TEST_HUD_BAR='1'),0),
       ('recreate',dict(AFMF_TEST_RECREATE='6'),None),

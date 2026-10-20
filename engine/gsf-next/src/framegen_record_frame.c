@@ -104,9 +104,9 @@ static void record_dump(struct afmf_device *dev, struct afmf_framegen *fg, VkCom
     fg->dump_frame = fg->frame_index;
 }
 
-void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
+static void afmf_framegen_record_parts(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
                           uint32_t slot, VkImage current, uint32_t current_index,
-                          const VkImage *targets, const uint32_t *indices, const float *phases, uint32_t count)
+                          const VkImage *targets, const uint32_t *indices, const float *phases, uint32_t count, int part)
 {
     const struct afmf_framegen_pipelines *pl = dev->framegen_pipelines;
     uint32_t levels = fg->levels;
@@ -126,6 +126,7 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
         return;
     }
 
+    if(part != 2) {
     if (!fg->initialized)
         afmf_framegen_initialize(dev, fg, cmd);
     afmf_framegen_write_constants(fg, slot, levels);
@@ -178,6 +179,13 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
                       fg->sets[p][SET_DOWNSAMPLE], NULL, 0, (w + 7) / 8, (h + 7) / 8, 1);
     }
     if(fg->detailed) afmf_framegen_profiler_mark(dev, fg, cmd, slot, STAGE_INGEST);
+    } else {
+        /* Cross-command-buffer memory visibility: the ingest write was
+         * submitted earlier on this same queue and must complete before
+         * the optical-flow reader starts. */
+        afmf_sync(dev, cmd);
+    }
+    if(part == 1) return;
 
     /* 2. Optical flow and interpolation: the pre-recorded part. */
     execute_flow(dev, fg, cmd, slot, p, levels, companion);
@@ -211,6 +219,31 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
     }
 
     fg->frame_index++;
+}
+
+/* Full record is the production baseline. Split records are optional and
+ * preserve the original GPU pass order on the same queue while exposing an
+ * early, independent real-input retirement submission. */
+void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
+                                uint32_t slot, VkImage current, uint32_t current_index,
+                                const VkImage *targets, const uint32_t *indices,
+                                const float *phases, uint32_t count)
+{
+    afmf_framegen_record_parts(dev,fg,cmd,slot,current,current_index,targets,indices,phases,count,0);
+}
+
+void afmf_framegen_record_ingest(struct afmf_device *dev,struct afmf_framegen *fg,
+                                VkCommandBuffer cmd,uint32_t slot,VkImage current,uint32_t current_index,
+                                const VkImage *targets,const uint32_t *indices,const float *phases,uint32_t count)
+{
+    afmf_framegen_record_parts(dev,fg,cmd,slot,current,current_index,targets,indices,phases,count,1);
+}
+
+void afmf_framegen_record_reconstruct(struct afmf_device *dev,struct afmf_framegen *fg,
+                                     VkCommandBuffer cmd,uint32_t slot,VkImage current,uint32_t current_index,
+                                     const VkImage *targets,const uint32_t *indices,const float *phases,uint32_t count)
+{
+    afmf_framegen_record_parts(dev,fg,cmd,slot,current,current_index,targets,indices,phases,count,2);
 }
 
 void afmf_framegen_record(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,

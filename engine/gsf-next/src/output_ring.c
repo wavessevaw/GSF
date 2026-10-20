@@ -2,18 +2,25 @@
 #include "swapchain_internal.h"
 
 /* Synthetic storage is independent of acquired WSI images. Only the presenter
- * acquires an output image, immediately before copying a ready synthetic to it.
- * Nine resident images cover three bounded jobs with up to three outputs. */
+ * acquires WSI images immediately before copying ready synthetic output.
+ * Scale ring slots with swapchain and a bounded GPU memory budget. */
 VkResult afmf_sc_output_init(struct afmf_device *dev,struct afmf_swapchain *sc)
 {
     const struct afmf_device_fns *f=&dev->fns;
-    sc->output_capacity=sc->image_count<3u ? sc->image_count : 3u;
+    sc->output_format=afmf_framegen_output_format(sc->format);
+    if(sc->output_format==VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    uint32_t capacity=sc->image_count<GSF_NEXT_MAX_QUEUE ? sc->image_count:GSF_NEXT_MAX_QUEUE;
+    uint64_t bpp=sc->output_format==VK_FORMAT_R16G16B16A16_SFLOAT ? 8u:4u;
+    uint64_t per_slot=(uint64_t)sc->extent.width*sc->extent.height*bpp*GSF_NEXT_MAX_OUTPUTS;
+    /* 256 MiB soft limit: preserve the pre-existing 3-slot minimum for
+     * large resolutions, but never allocate unbounded GPU output history. */
+    while(capacity>3u && per_slot*capacity>256ull*1024ull*1024ull)
+        capacity--;
+    sc->output_capacity=capacity;
     VkMemoryRequirements reqs[GSF_NEXT_RING_IMAGES];
     VkDeviceSize offsets[GSF_NEXT_RING_IMAGES],bytes=0;
     uint32_t types=UINT32_MAX,count=sc->output_capacity*GSF_NEXT_MAX_OUTPUTS;
     enum gsf_renderer requested=gsf_renderer_requested();
-    sc->output_format=afmf_framegen_output_format(sc->format);
-    if(sc->output_format==VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
     sc->output_storage=afmf_framegen_can_write_direct(dev,sc->output_format) &&
                        requested!=GSF_RENDER_COPY;
     for(uint32_t k=0;k<count;k++) {

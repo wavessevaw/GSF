@@ -63,6 +63,17 @@ void afmf_framegen_record_multi(struct afmf_device *dev, struct afmf_framegen *f
                           uint32_t slot, VkImage current, uint32_t current_index,
                           const VkImage *targets, const uint32_t *indices, const float *phases, uint32_t count);
 
+/* Two-part recording for experimental early-real output. The first command
+ * fully snapshots the game image and restores its PRESENT_SRC layout; the
+ * second reads only private images. Must execute in that order on the same
+ * compute queue. No generated output can touch the game's original image. */
+void afmf_framegen_record_ingest(struct afmf_device *dev,struct afmf_framegen *fg,
+                                VkCommandBuffer cmd,uint32_t slot,VkImage current,uint32_t current_index,
+                                const VkImage *targets,const uint32_t *indices,const float *phases,uint32_t count);
+void afmf_framegen_record_reconstruct(struct afmf_device *dev,struct afmf_framegen *fg,
+                                     VkCommandBuffer cmd,uint32_t slot,VkImage current,uint32_t current_index,
+                                     const VkImage *targets,const uint32_t *indices,const float *phases,uint32_t count);
+
 void afmf_framegen_record(struct afmf_device *dev, struct afmf_framegen *fg, VkCommandBuffer cmd,
                           uint32_t slot, VkImage current, uint32_t current_index, VkImage target,
                           uint32_t target_index);
