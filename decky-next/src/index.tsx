@@ -89,6 +89,7 @@ function Content(){
     <Detail label="Ожидание GPU и очереди" value={fmt(live?.queue_delay_ms,2)+' мс'}/>
     <Detail label="Заданий в очереди" value={String(live?.queue_depth??'—')}/>
     <Detail label="Доступная глубина очереди" value={live?.queue_effective===undefined?'—':String(live.queue_effective)+' / '+String(live.queue_capacity??'—')}/>
+    <Detail label="Запас времени на вывод" value={fmt(live?.playout_delay_ms,1)+' мс'}/>
     <Detail label="Ожидание WSI-изображения" value={fmt(live?.output_acquire_ms,2)+' мс'}/>
     <Detail label="GPU-копия на вывод" value={fmt(live?.output_copy_gpu_ms,2)+' мс'}/>
     <Detail label="Отклонено до GPU" value={String(live?.budget_skipped_synthetic??'—')}/>
