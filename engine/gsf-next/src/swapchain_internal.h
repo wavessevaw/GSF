@@ -64,7 +64,9 @@ struct afmf_present_job {
     uint64_t source_period_ns;
     uint64_t ordinal;         /* this present's number, for the governor's one-in-n cadence */
     struct timespec arrival;
-    VkFence done;             /* the layer's submission for this frame: signalled once the generated frame is ready */
+    VkFence done;             /* generation completion: distinct from real ingest */
+    VkFence ingest_done;      /* private snapshot complete; game WSI image returned to PRESENT_SRC */
+    bool early_real;          /* two GPU submits: real is safe before optional reconstruction */
     bool have_present_id;
     uint64_t present_id;
     bool present_id_v2;   /* VK_KHR_present_id2 carried the id (same shape, its own sType) */
@@ -91,8 +93,11 @@ struct afmf_frame_job {
  * reused. */
 struct afmf_slot {
     VkCommandBuffer cmd;
+    VkCommandBuffer ingest_cmd;
     VkFence fence;
+    VkFence ingest_fence;
     bool pending;
+    bool ingest_pending;
 };
 
 struct afmf_swapchain {
