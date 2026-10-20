@@ -64,6 +64,7 @@ VkResult afmf_sc_frame_generate(struct afmf_device *dev, struct afmf_swapchain *
     lag_ticks=gsf_queue_playout_ticks(lag_ticks,effective_queue);
     job->buffer_delay_ns=lag_ticks*tick;
     if(job->buffer_delay_ns>100000000ull) job->buffer_delay_ns=100000000ull;
+    sc->last_playout_delay_ns=job->buffer_delay_ns;
     /* Backpressure already spent future output slots. Do not turn the slower
      * observed source period into an order for MORE synthetic work. Return those
      * slots to real-frame progress before recording any GPU reconstruction. */
