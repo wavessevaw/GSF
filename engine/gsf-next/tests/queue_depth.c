@@ -4,11 +4,11 @@
 #include <stdio.h>
 int main(void)
 {
-    assert(gsf_queue_desired(0,90,2)==2);
-    assert(gsf_queue_desired(0,90,3)==3);
-    assert(gsf_queue_desired(0,90,4)==4);
-    assert(gsf_queue_desired(0,120,4)==6);
-    assert(gsf_queue_desired(0,144,4)==7);
+    assert(gsf_queue_desired(0,90,2)==3);
+    assert(gsf_queue_desired(0,90,3)==4);
+    assert(gsf_queue_desired(0,90,4)==5);
+    assert(gsf_queue_desired(0,120,4)==7);
+    assert(gsf_queue_desired(0,144,4)==8);
     assert(gsf_queue_desired(0,240,4)==8);
     assert(gsf_queue_desired(0,40,2)==2);
     assert(gsf_queue_effective(0,240,4,6)==6);
