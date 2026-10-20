@@ -11,6 +11,11 @@ int main(void)
     assert(gsf_queue_desired(0,144,4)==8);
     assert(gsf_queue_desired(0,240,4)==8);
     assert(gsf_queue_desired(0,40,2)==2);
+    assert(gsf_queue_playout_ticks(1,3)==4);
+    assert(gsf_queue_playout_ticks(1,5)==6);
+    assert(gsf_queue_playout_ticks(2,7)==8);
+    assert(gsf_queue_playout_ticks(12,8)==9);
+    assert(gsf_queue_playout_ticks(6,2)==6);
     assert(gsf_queue_effective(0,240,4,6)==6);
     assert(gsf_queue_effective(8,90,2,3)==3);
     assert(gsf_queue_effective(1,240,4,8)==1);
