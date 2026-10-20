@@ -54,7 +54,7 @@ enum stage {
 #define AFMF_CB_PER_SLOT (AFMF_LEVELS + 2u) /* one per pyramid level, one for the downsampler, one for the detector */
 #define AFMF_CB_SCD (AFMF_LEVELS + 1u)      /* the scene change detector's: level-0 luma, level 0 */
 #define AFMF_MIN_EXTENT 128u
-#define AFMF_MAX_IMAGES 16u /* swapchain images the direct paths keep a view and a set for */
+#define AFMF_MAX_IMAGES 32u /* source WSI images or up to 8 × 3 private synthetic images */
 /* Pixels between frames beyond which the flow is not believed: half of what the search reaches
  * at half resolution (five levels, +-256 on screen). Lower, and a fast pan falls back to the
  * blind blend over most of the picture, which is a double image. */
