@@ -36,7 +36,7 @@ def run(build, out, name, patch, frames=24):
     assert 'VUID-' not in result.stdout and 'validation:' not in result.stdout,(name,result.stdout[-5000:])
     totals=re.findall(r'GSF_NEXT_SUMMARY real=(\d+) built=(\d+) accepted_real=(\d+) accepted_synthetic=(\d+)',result.stdout)
     assert sum(int(r[2]) for r in totals)==frames,(name,totals)
-    if name=='deadline-priority':
+    if name in ('deadline-priority','early-real','early-real-no-synth'):
         assert all(int(r[1])>=int(r[3]) for r in totals),(name,'constructed/accepted inverted',totals)
     else:
         assert all(r[1]==r[3] for r in totals),(name,'lost constructed output',totals)
@@ -50,7 +50,7 @@ def run(build, out, name, patch, frames=24):
         records.extend(json.loads(line) for line in path.read_text().splitlines())
     records.sort(key=lambda r:r['submit_ns'])
     assert len(records)==sum(int(r[2])+int(r[3]) for r in totals),(name,'trace missing API calls')
-    if name!='deadline-priority':
+    if name not in ('deadline-priority','early-real','early-real-no-synth'):
         assert any(not r['real'] for r in records),(name,'no synthetic')
     for before,after in zip(records,records[1:]):
         if after['enabled']:
@@ -68,6 +68,13 @@ def run(build, out, name, patch, frames=24):
         assert [r['t'] for r in pair]==sorted(set(r['t'] for r in pair)),(name,'phase order',pair)
         if pair[0]['enabled']:
             assert len(pair)<=pair[0]['multiplier'],(name,'extra output',pair)
+    if name in ('early-real','early-real-no-synth'):
+        assert len([r for r in records if r['real']])==frames,(name,'lost early-real WSI presents')
+        assert all(r.get('early_real') for r in records),(name,'not on split-ingest path')
+        assert all(r.get('ingest_ready_ns',0)>0 for r in records),(name,'ingest fence not observed')
+        assert all(r['submit_ns']>=r['ingest_ready_ns'] for r in records),(name,'real before ingest')
+        if name=='early-real-no-synth':
+            assert all(r['real'] for r in records),(name,'forced late GPU still presented synth')
     if name=='deadline-priority':
         snapshots=[json.loads(path.read_text()) for path in directory.glob('*.json')]
         skipped=max((int(s.get('expired_synthetic',0))+int(s.get('superseded_synthetic',0))
@@ -97,6 +104,10 @@ def main():
     args=parser.parse_args();build=args.build.resolve();out=(args.out or build/'Testing/live-pacing').resolve()
     summaries=[run(build,out,'cap90-x3',{}),
                run(build,out,'late90-x4',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_TEST_READY_DELAY_MS='45')),
+               run(build,out,'early-real',dict(GSF_NEXT_MULTIPLIER='3',
+                   GSF_NEXT_EARLY_REAL_INGEST='1')),
+               run(build,out,'early-real-no-synth',dict(GSF_NEXT_MULTIPLIER='3',
+                   GSF_NEXT_EARLY_REAL_INGEST='1',GSF_NEXT_TEST_FORCE_SYNTH_LATE='1')),
                run(build,out,'deadline-priority',dict(GSF_NEXT_MULTIPLIER='4',
                    GSF_NEXT_REAL_PRIORITY_PACING='1',GSF_NEXT_TEST_READY_DELAY_MS='45')),
                run(build,out,'live',dict(GSF_TEST_LIVE='1'),56),
