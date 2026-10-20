@@ -56,6 +56,12 @@ def main():
       ('direct-no-profile',dict(GSF_NEXT_RENDERER='direct',GSF_NEXT_MULTIPLIER='4',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('batch-no-profile',dict(GSF_NEXT_MULTIPLIER='4',GSF_NEXT_WARP_BATCH='1',AFMF_PROFILE='0',AFMF_LOG='2',GSF_TEST_SYNC_VALIDATION='1'),3),
       ('unorm-ingest',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),3),
+      # Economy is not inferred from nominal ×2/×4. Require real GPU
+      # shader pass, distinct output pixels, golden motion and validation.
+      ('economy-x2',dict(GSF_NEXT_MULTIPLIER='2',AFMF_PERFORMANCE_MODE='economy'),1),
+      ('economy-x4',dict(GSF_NEXT_MULTIPLIER='4',AFMF_PERFORMANCE_MODE='economy'),3),
+      ('economy-unorm-ingest',dict(GSF_NEXT_MULTIPLIER='2',
+          AFMF_PERFORMANCE_MODE='economy',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3'),1),
       ('batch-unorm-hud',dict(GSF_NEXT_MULTIPLIER='4',GSF_TEST_UNORM='1',AFMF_EXTRA_IMAGES='3',GSF_NEXT_WARP_BATCH='1',AFMF_TEST_HUD_BAR='1'),0),
       ('auto-x2',dict(GSF_NEXT_MULTIPLIER='2',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),1),
       ('auto-x3',dict(GSF_NEXT_MULTIPLIER='3',GSF_NEXT_RENDERER='auto',GSF_TEST_SYNC_VALIDATION='1'),2),
