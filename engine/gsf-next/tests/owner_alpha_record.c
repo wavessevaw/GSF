@@ -122,6 +122,20 @@ int main(void) {
         assert(barriers==2u*count);
         assert(invalid_source_writes==0);
     }
+    /* Compact owner x3 has precisely two targets per work slot. A
+     * third output would overwrite the next slot: reject that job. */
+    f.stride=2;f.targets=8;f.batched=1;
+    clear();expected_direct=1;
+    struct gsf_owner_alpha_pair x3=pair(2);
+    x3.indices[0]=x3.slot*2u;
+    x3.indices[1]=x3.slot*2u+1u;
+    assert(gsf_owner_alpha_record(&d,&f,in,out,&x3)==VK_SUCCESS);
+    assert(barriers==4u && !invalid_source_writes);
+    clear();
+    x3.count=3u;x3.indices[2]=x3.slot*2u+2u;
+    assert(gsf_owner_alpha_record(&d,&f,in,out,&x3)==VK_ERROR_FEATURE_NOT_PRESENT);
+    assert(!begin_count && !end_count);
+    f.stride=3;f.targets=12;
     f.batched=0;f.direct=0;f.ingest=0;
     for(unsigned count=0;count<=3;count++) {
         clear();expected_direct=0;
