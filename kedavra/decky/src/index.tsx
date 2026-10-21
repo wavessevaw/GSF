@@ -19,7 +19,16 @@ const rpc = {
   start: callable<[string], Capture>('start_capture'),
   stop: callable<[], Report>('stop_capture'),
   logs: callable<[], string>('get_logs'),
+  diagnose: callable<[], Diagnose>('diagnose'),
+  report: callable<[], {path: string}>('save_report'),
+  install: callable<[], {message: string; needs_reboot: boolean}>('install'),
+  uninstall: callable<[], {message: string; needs_reboot: boolean}>('uninstall'),
+  reboot: callable<[], unknown>('reboot'),
+  bench: callable<[], Bench>('run_bench'),
 };
+type Check = {key: string; ok: boolean; text: string; detail: string};
+type Diagnose = {checks: Check[]; ok: boolean};
+type Bench = {ok: boolean; correct?: boolean; analysis_ms?: number; two_outputs_ms?: number; device?: string; log: string; json: string};
 
 const stateText: Record<string, string> = {
   off: 'выключено (кадры игры без изменений)',
@@ -34,7 +43,13 @@ function Content() {
   const [message, setMessage] = useState('');
   const [report, setReport] = useState<Report>();
   const [logs, setLogs] = useState('');
+  const [diag, setDiag] = useState<Diagnose>();
+  const [needsReboot, setNeedsReboot] = useState(false);
+  const [benchRes, setBenchRes] = useState<Bench>();
   const lock = useRef(false);
+
+  const refreshDiag = async () => {try {setDiag(await rpc.diagnose());} catch (e) {setMessage(String(e));}};
+  useEffect(() => {void refreshDiag();}, []);
 
   useEffect(() => {
     let gone = false;
@@ -65,7 +80,37 @@ function Content() {
   const total = (status?.real ?? 0) + (status?.gen ?? 0) + (status?.repeat ?? 0);
   const repeatPct = total ? 100 * (status?.repeat ?? 0) / total : 0;
 
-  return <PanelSection title="KEDAVRA · генерация кадров">
+  const installed = diag?.checks.some(c => c.key === 'installed' && c.ok);
+  return <>
+  <PanelSection title="KEDAVRA · установка">
+    {diag?.checks.map((c, i) => <PanelSectionRow key={c.key + i}><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
+      {c.ok ? '✓' : '✗'} {c.text}{c.detail && <div style={{fontSize: 10, opacity: 0.8, whiteSpace: 'pre-wrap'}}>{c.detail}</div>}
+    </div></PanelSectionRow>)}
+    <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      await refreshDiag(); return 'Проверка обновлена';
+    })}>Проверить систему</ButtonItem></PanelSectionRow>
+    <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
+    })}>{installed ? 'Переустановить Gamescope KEDAVRA' : 'Установить Gamescope KEDAVRA'}</ButtonItem></PanelSectionRow>
+    {needsReboot && <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      await rpc.reboot(); return 'Перезагрузка…';
+    })}>Перезагрузить Deck сейчас</ButtonItem></PanelSectionRow>}
+    <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      const b = await rpc.bench(); setBenchRes(b);
+      return b.ok ? `Бенчмарк: анализ ${b.analysis_ms?.toFixed(2)} мс, два кадра ${b.two_outputs_ms?.toFixed(2)} мс` : 'Бенчмарк не прошёл';
+    })}>Бенчмарк GPU (ничего не меняет)</ButtonItem></PanelSectionRow>
+    {benchRes && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
+      {benchRes.device} · корректность: {benchRes.correct ? 'PASS' : 'FAIL'} · анализ {benchRes.analysis_ms?.toFixed(2)} мс · два промежуточных кадра {benchRes.two_outputs_ms?.toFixed(2)} мс<br/>Файл: {benchRes.json}
+    </div></PanelSectionRow>}
+    <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      return 'Отчёт сохранён: ' + (await rpc.report()).path;
+    })}>Сохранить отчёт диагностики</ButtonItem></PanelSectionRow>
+    {installed && <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
+      const r = await rpc.uninstall(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
+    })}>Удалить и вернуть стоковый Gamescope</ButtonItem></PanelSectionRow>}
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>Системный образ не меняется. Если игровой режим не запустился: удерживайте кнопку питания и перезагрузите, следующая загрузка вернёт стоковый Gamescope автоматически.</div></PanelSectionRow>
+  </PanelSection>
+  <PanelSection title="KEDAVRA · генерация кадров">
     <PanelSectionRow><div style={{fontSize: 13}}>
       {running ? <>Движок: <b>работает</b> в Gamescope{hz ? <> · {hz.toFixed(1)} Гц</> : null}<br/>
         Состояние: {stateText[status?.state ?? 'off'] ?? status?.state}</> :
@@ -112,8 +157,9 @@ function Content() {
     })}>Показать журнал</ButtonItem></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.1.0 · экспериментально. Работает только с Gamescope KEDAVRA (kedavra/deck/install.sh). Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
-  </PanelSection>;
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.2.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
+  </PanelSection>
+  </>;
 }
 
 export default definePlugin(() => ({name: 'KEDAVRA', titleView: <div className={staticClasses.Title}>KEDAVRA</div>,

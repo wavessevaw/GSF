@@ -28,6 +28,9 @@ class Control:
         self.run = runner
         self.clock = clock
         self.capture = None  # {"path": str, "started": float, "mult": int}
+        self.uid = uid
+        # The KEDAVRA gamescopectl speaks the same protocol; prefer it once installed.
+        self.ctl_candidates = [Path("/var/lib/kedavra/runtime/bin/gamescopectl")]
 
     # ------------------------------------------------------------ gamescopectl
 
@@ -38,7 +41,7 @@ class Control:
         return env
 
     def _ctl(self, *args):
-        exe = shutil.which("gamescopectl") or "/usr/bin/gamescopectl"
+        exe = next((str(p) for p in self.ctl_candidates if p.exists()), None) or shutil.which("gamescopectl") or "gamescopectl"
         r = self.run([exe, *map(str, args)], env=self._env(), capture_output=True, text=True, timeout=5)
         if r.returncode != 0:
             raise RuntimeError(f"gamescopectl {' '.join(map(str, args))}: {(r.stderr or r.stdout).strip() or r.returncode}")
@@ -82,6 +85,12 @@ class Control:
         if self.capture:
             raise RuntimeError("capture already running")
         self.captures.mkdir(parents=True, exist_ok=True)
+        # Gamescope runs as the user and writes the trace itself.
+        for d in (self.data, self.captures):
+            try:
+                os.chown(d, self.uid, self.uid)
+            except OSError:
+                pass
         stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime(self.clock()))
         safe = "".join(c for c in str(label) if c.isalnum() or c in "-_")[:40] or "run"
         path = self.captures / f"{stamp}-{safe}.csv"

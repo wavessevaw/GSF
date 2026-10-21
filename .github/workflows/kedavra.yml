@@ -75,7 +75,7 @@ jobs:
             wayland wayland-protocols libx11 libxcomposite libxdamage libxext libxfixes libxkbcommon \
             libxmu libxrender libxres libxtst libxxf86vm libxcursor libxi libdrm libinput seatd sdl2 \
             libdecor luajit libavif libcap pipewire libei hwdata lcms2 glm benchmark pixman \
-            vulkan-icd-loader xcb-util-errors xcb-util-wm xorg-xwayland libdisplay-info libliftoff python
+            vulkan-icd-loader xcb-util-errors xcb-util-wm xorg-xwayland libdisplay-info libliftoff python patchelf
       - uses: actions/checkout@v4
       - name: Gamescope at the pinned commit
         run: |
@@ -96,13 +96,42 @@ jobs:
         run: |
           /tmp/gamescope/build/src/gamescope --version || true
           nm -C /tmp/gamescope/build/src/gamescope | grep -c 'kfg::'
-      - name: Collect binaries
+      - name: Bundle with its libraries
         run: |
-          mkdir -p gamescope-kedavra
-          cp /tmp/gamescope/build/src/gamescope gamescope-kedavra/
-          cp /tmp/gamescope/build/src/gamescopectl gamescope-kedavra/ 2>/dev/null || true
-          cp kedavra/deck/*.sh kedavra/tools/kfg_pacing.py gamescope-kedavra/
+          sh kedavra/gamescope/bundle.sh /tmp/gamescope/build gamescope-runtime "kedavra-${GITHUB_SHA::7}"
+          cat gamescope-runtime/LIBS
+      - name: Bundled runtime resolves from its install location
+        run: |
+          mkdir -p /var/lib/kedavra
+          cp -a gamescope-runtime /var/lib/kedavra/runtime
+          ldd /var/lib/kedavra/runtime/bin/gamescope | tee /tmp/ldd.txt
+          if grep -q 'not found' /tmp/ldd.txt; then exit 1; fi
+          grep -c '/var/lib/kedavra/runtime/lib/' /tmp/ldd.txt
+          /var/lib/kedavra/runtime/bin/gamescope --version
       - uses: actions/upload-artifact@v4
         with:
-          name: gamescope-kedavra-archlinux
-          path: gamescope-kedavra
+          name: gamescope-runtime
+          path: gamescope-runtime
+
+  plugin:
+    needs: [model-and-engine, gamescope]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          name: gamescope-runtime
+          path: gamescope-runtime
+      - uses: actions/download-artifact@v4
+        with:
+          name: kedavra-deck-bench
+          path: deck-bench
+      - name: Plugin zip with runtime and bench
+        run: sh kedavra/decky/package.sh "$PWD/KEDAVRA.zip" "$PWD/gamescope-runtime" "$PWD/deck-bench"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KEDAVRA-plugin
+          path: KEDAVRA.zip
