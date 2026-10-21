@@ -32,7 +32,7 @@ typedef struct scene {
 	bool cut;
 } scene;
 
-enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS, S_CAMERA, S_DOLLY, S_DOLLY_STAIRS, S_NEAR };
+enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS, S_CAMERA, S_DOLLY, S_DOLLY_STAIRS, S_NEAR, S_CLIMB };
 
 static const scene SCENES[] = {
 	{ "pan", S_PAN, 24, 6, true, false },
@@ -45,6 +45,7 @@ static const scene SCENES[] = {
 	{ "dolly", S_DOLLY, 0, 0, true, false },
 	{ "dolly_stairs", S_DOLLY_STAIRS, 0, 0, true, false },
 	{ "near_object", S_NEAR, 12, 0, true, false },
+	{ "climb", S_CLIMB, 0, 0, true, false },
 };
 
 static double hash2(int x, int y, int seed)
@@ -162,6 +163,27 @@ static void scene_pixel(const scene *s, double t, double x, double y, int w, int
 			stairs(cx + (x - cx) / k, cy + (y - cy) / k, rgb);
 		else
 			background(cx + (x - cx) / k, cy + (y - cy) / k, 3, rgb);
+		return;
+	}
+	case S_CLIMB: {
+		// Climbing wide stone steps: a ground plane in perspective under a far wall. Pale
+		// treads and dark risers, almost flat, so only their edges carry motion; the camera
+		// moves forward an eighth of a step per frame (walking pace at 40 FPS): 12 px at the
+		// bottom edge (96 px steps), 1.5 px where the steps start (y = 380, 12 px steps).
+		const double hor = 150, K = 8802;
+		if (y < 380) {  // the far wall, above the steps
+			background(x, y, 9, rgb);
+			return;
+		}
+		const double z = K / (y - hor) + 0.25 * t, u = (x - 640) * z / K;
+		double ph = fmod(z, 2.0);
+		if (ph < 0)
+			ph += 2.0;
+		const double n = 0.04 * vnoise(u * 40.0, z * 6.0, 21) + 0.03 * vnoise(u * 160.0, z * 25.0, 22);
+		const double v = ph < 1.55 ? 0.82 : (ph < 1.7 ? 0.55 : 0.16);
+		rgb[0] = v + n;
+		rgb[1] = 0.97 * v + n;
+		rgb[2] = 0.92 * v + n;
 		return;
 	}
 	case S_NEAR: {
@@ -320,7 +342,7 @@ typedef struct engine {
 	kfg_vk_image luma[KFG_RING][KFG_LEVELS + 1];
 	kfg_vk_image flow[KFG_RING][KFG_LEVELS + 1];
 	kfg_vk_image stats[KFG_RING];
-	kfg_vk_image select;
+	kfg_vk_image select[2];
 	kfg_vk_image output;
 } engine;
 
@@ -332,7 +354,7 @@ static const kfg_vk_image *resolve(void *user, kfg_image_ref r)
 	case KFG_ROLE_LUMA: return &e->luma[r.ring][r.level];
 	case KFG_ROLE_FLOW: return &e->flow[r.ring][r.level];
 	case KFG_ROLE_STATS: return &e->stats[r.ring];
-	case KFG_ROLE_SELECT: return &e->select;
+	case KFG_ROLE_SELECT: return &e->select[r.ring & 1];
 	case KFG_ROLE_OUTPUT: return &e->output;
 	default: return NULL;
 	}
@@ -360,8 +382,9 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h)
 	}
 	uint32_t bs[2];
 	kfg_select_size(w, h, bs);
-	if (kfg_vk_image_create(vk, &e->select, kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
-		return -1;
+	for (int i = 0; i < 2; i++)
+		if (kfg_vk_image_create(vk, &e->select[i], kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
+			return -1;
 	return kfg_vk_image_create(vk, &e->output, kfg_vk_format(KFG_FORMAT_RGBA8), w, h);
 }
 
@@ -375,7 +398,8 @@ static void engine_destroy(engine *e)
 		}
 		kfg_vk_image_destroy(e->vk, &e->stats[r]);
 	}
-	kfg_vk_image_destroy(e->vk, &e->select);
+	kfg_vk_image_destroy(e->vk, &e->select[0]);
+	kfg_vk_image_destroy(e->vk, &e->select[1]);
 	kfg_vk_image_destroy(e->vk, &e->output);
 }
 
@@ -485,21 +509,42 @@ int main(int argc, char **argv)
 				free(fl);
 			}
 		}
-		if (getenv("KFG_VERBOSE") && (s->kind == S_DOLLY || s->kind == S_DOLLY_STAIRS)) {
+		if (getenv("KFG_VERBOSE") && (s->kind == S_DOLLY || s->kind == S_DOLLY_STAIRS || s->kind == S_CLIMB)) {
 			// Share of blocks whose forward vector is within 2 / 8 pixels of the true zoom field.
 			for (int l = KFG_LEVELS; l >= 2; l--) {
 				const kfg_vk_image *fi = &e.flow[1][l];
 				float *fl = malloc((size_t)fi->width * fi->height * 4 * sizeof(float));
 				kfg_vk_download_rgba16f(&vk, fi, fl);
-				int ok2 = 0, ok8 = 0, n = (int)(fi->width * fi->height);
+				int ok2 = 0, ok8 = 0, n = 0;
+				const int nb = (int)(fi->width * fi->height);
 				const double bs = (double)(1 << l);
-				for (int i = 0; i < n; i++) {
+				double band_v[20] = {0}, band_t[20] = {0};
+				int band_n[20] = {0};
+				for (int i = 0; i < nb; i++) {
 					double px = (i % fi->width + 0.5) * bs, py = (i / fi->width + 0.5) * bs;
-					double d = hypot(fl[i * 4] - 0.05 * (px - 640), fl[i * 4 + 1] - 0.05 * (py - 300));
+					double tx = 0.05 * (px - 640), ty = 0.05 * (py - 300);
+					if (s->kind == S_CLIMB) {
+						if (py < 380) continue;
+						const double z0 = 8802 / (py - 150), z1 = z0 - 0.25;
+						tx = (px - 640) * z0 / z1 - (px - 640);
+						ty = 150 + 8802 / z1 - py;
+					}
+					// On the steps only the vertical motion is observable (horizontal bands).
+					double d = s->kind == S_CLIMB ? fabs(fl[i * 4 + 1] - ty) : hypot(fl[i * 4] - tx, fl[i * 4 + 1] - ty);
 					ok2 += d < 2.0;
 					ok8 += d < 8.0;
+					n++;
+					const int b = (int)(py / 40.0);
+					if (b < 20) { band_v[b] += fl[i * 4 + 1]; band_t[b] += ty; band_n[b]++; }
 				}
-				printf("  dolly level %d: %.0f%% within 2 px, %.0f%% within 8 px\n", l, 100.0 * ok2 / n, 100.0 * ok8 / n);
+				printf("  %s level %d: %.0f%% within 2 px, %.0f%% within 8 px\n", s->name, l, 100.0 * ok2 / n, 100.0 * ok8 / n);
+				if (l == 2) {
+					printf("    rows: mean vy / true vy:");
+					for (int b = 0; b < 20; b++)
+						if (band_n[b])
+							printf(" %d:%.1f/%.1f", b * 40, band_v[b] / band_n[b], band_t[b] / band_n[b]);
+					printf("\n");
+				}
 				free(fl);
 			}
 		}
@@ -565,10 +610,13 @@ int main(int argc, char **argv)
 			} else {
 				if (maxd > 1) { ok = false; why = "static scene changed"; }
 			}
-			if (!ok)
+			// The climb (big steps under perspective, as in the 1.1.1 report) is an open
+			// problem: measured and reported, not yet a gate.
+			const bool known = s->kind == S_CLIMB;
+			if (!ok && !known)
 				failures++;
 			printf("  t=%.3f gen=%.2fdB blend=%.2fdB dup=%.2fdB region gen/blend/dup=%.2f/%.2f/%.2f |G-A|=%.2f |G-B|=%.2f hud=%.2f %s%s\n",
-			       t, pg, pl, pd, og, ol, od, ma, mb, hud_err, ok ? "PASS" : "FAIL: ", why);
+			       t, pg, pl, pd, og, ol, od, ma, mb, hud_err, ok ? "PASS" : known ? "OPEN (not gated): " : "FAIL: ", why);
 			if (js)
 				fprintf(js, "   {\"t\": %.6f, \"psnr_gen\": %.3f, \"psnr_blend\": %.3f, \"psnr_dup\": %.3f, \"region_gen\": %.3f, \"region_blend\": %.3f, \"region_dup\": %.3f, \"mean_abs_vs_A\": %.3f, \"mean_abs_vs_B\": %.3f, \"hud_err\": %.3f, \"pass\": %s}%s\n",
 					t, pg, pl, pd, og, ol, od, ma, mb, hud_err, ok ? "true" : "false", pi < 2 ? "," : "");
@@ -727,10 +775,19 @@ int main(int argc, char **argv)
 		free(O); free(Op); free(Tp); free(Dp);
 	}
 
-	// Temporal stability on the stairs: 7 frames at x3, every output compared with the one
-	// before it. Informative: printed and written to the JSON for tuning.
-	{
-		const scene *s = &SCENES[6];
+	// Temporal stability: 7 frames at x3, every output compared with the one before it, on the
+	// stairs and on slow turns (where shimmer of fine texture shows most). Informative: printed
+	// and written to the JSON for tuning.
+	static const scene TEMPORAL[] = {
+		{ "stairs", S_STAIRS, 18, 10, true, false },
+		{ "slow_pan", S_PAN, 2.6, 0.8, true, false },
+		{ "slow_stairs", S_STAIRS, 3.1, 1.4, true, false },
+		{ "climb", S_CLIMB, 0, 0, true, false },
+	};
+	for (size_t ti = 0; ti < sizeof(TEMPORAL) / sizeof(TEMPORAL[0]); ti++) {
+		const scene *s = &TEMPORAL[ti];
+		if (only && strcmp(only, s->name))
+			continue;
 		uint8_t *O = malloc(nbytes), *Op = malloc(nbytes), *Tp = malloc(nbytes), *Dp = malloc(nbytes);
 		double te_gen = 0, te_dup = 0, ps_gen = 0, ps_dup = 0;
 		int n_te = 0, n_ps = 0;
@@ -754,6 +811,13 @@ int main(int argc, char **argv)
 					kfg_plan_generate(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, (float)t, 0);
 					run_plan(&e, &p, NULL, NULL);
 					kfg_vk_download_rgba8(&vk, &e.output, O);
+					if (f == 3 && j == 1) {
+						char name[128];
+						snprintf(name, sizeof(name), "%s_seq_gen", s->name);
+						write_ppm(out_dir, name, O, w, h);
+						snprintf(name, sizeof(name), "%s_seq_truth", s->name);
+						write_ppm(out_dir, name, T, w, h);
+					}
 					ps_gen += psnr_region(O, T, w, h, 0, 0, w, h);
 					ps_dup += psnr_region(D, T, w, h, 0, 0, w, h);
 					n_ps++;
@@ -769,11 +833,11 @@ int main(int argc, char **argv)
 				have_prev = true;
 			}
 		}
-		printf("stairs temporal: gen %.3f, duplicate %.3f (mean |change error| per channel); psnr gen %.2f dB, dup %.2f dB\n",
-		       te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
+		printf("%s temporal: gen %.3f, duplicate %.3f (mean |change error| per channel); psnr gen %.2f dB, dup %.2f dB\n",
+		       s->name, te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
 		if (js)
-			fprintf(js, " \"stairs_temporal\": {\"gen\": %.4f, \"dup\": %.4f, \"psnr_gen\": %.3f, \"psnr_dup\": %.3f},\n",
-				te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
+			fprintf(js, " \"%s_temporal\": {\"gen\": %.4f, \"dup\": %.4f, \"psnr_gen\": %.3f, \"psnr_dup\": %.3f},\n",
+				s->name, te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
 		free(O); free(Op); free(Tp); free(Dp);
 	}
 

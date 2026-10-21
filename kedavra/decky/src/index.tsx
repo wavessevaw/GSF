@@ -3,7 +3,7 @@ import {callable, definePlugin, toaster} from '@decky/api';
 import {CSSProperties, Fragment, ReactNode, useEffect, useRef, useState} from 'react';
 import {LOGO} from './logo';
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 
 type Summary = {pass?: boolean; p95_ms?: number; p99_ms?: number; missed_pct?: number; rows?: number; checks?: Record<string, boolean>};
 type Report = {trace: string; report: string; ok: boolean; log: string; summary?: Summary};
@@ -47,7 +47,13 @@ const C = {
   yellow: '#e3c04a', red: '#ff8a7a', redBg: '#3a1d1a',
   text: '#f2f6f3', muted: '#a9b5ae', label: '#8e9b93',
 };
-const card: CSSProperties = {background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 12, boxSizing: 'border-box'};
+// One grid for the whole panel: cards share the row's edges, everything inside a card starts
+// 14 px in, rows are 10 px apart, corners are 14 px.
+const INSET = 14;
+// Cards: a faint top-left light on near-black, like GFG Extreme's panels.
+const CARD_BG = 'linear-gradient(160deg, #131c16 0%, #0b100d 60%, #090d0b 100%)';
+const card: CSSProperties = {background: CARD_BG, border: `1px solid ${C.line}`, borderRadius: 14, padding: INSET, boxSizing: 'border-box'};
+const glow = (hex: string, r = 8) => `drop-shadow(0 0 ${r}px ${hex}66)`;
 const caps: CSSProperties = {fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: C.label};
 
 function Ring({size, width, frac, color, children}: {size: number; width: number; frac: number; color: string; children?: ReactNode}) {
@@ -55,10 +61,10 @@ function Ring({size, width, frac, color, children}: {size: number; width: number
   const len = 2 * Math.PI * r;
   const f = Math.max(0, Math.min(1, frac));
   return <div style={{position: 'relative', width: size, height: size, flex: 'none'}}>
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{overflow: 'visible'}}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.track} strokeWidth={width}/>
       {f > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round"
-        strokeDasharray={`${f * len} ${len}`} transform={`rotate(-90 ${size / 2} ${size / 2})`}/>}
+        strokeDasharray={`${f * len} ${len}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{filter: glow(color, width)}}/>}
     </svg>
     <div style={{position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>{children}</div>
   </div>;
@@ -66,7 +72,7 @@ function Ring({size, width, frac, color, children}: {size: number; width: number
 
 function Back({onClick, title}: {onClick: () => void; title: string}) {
   return <PanelSectionRow><Focusable style={{display: 'flex', alignItems: 'center', gap: 10}}>
-    <DialogButton onClick={onClick} style={{minWidth: 0, width: 40, height: 36, padding: 0, borderRadius: 10, background: C.card, border: `1px solid ${C.line}`}}>‹</DialogButton>
+    <DialogButton onClick={onClick} className="gsf-row" style={{minWidth: 0, width: 40, height: 36, padding: 0, borderRadius: 10, background: C.card, border: `1px solid ${C.line}`}}>‹</DialogButton>
     <div style={{fontSize: 18, fontWeight: 800}}>{title}</div>
   </Focusable></PanelSectionRow>;
 }
@@ -77,20 +83,43 @@ const flat: CSSProperties = {minWidth: 0, border: 'none', boxShadow: 'none'};
 const primary: CSSProperties = {...flat, background: '#52d64a', color: '#04120a', fontWeight: 800, borderRadius: 12, padding: '11px 12px'};
 const secondary: CSSProperties = {...flat, background: '#0d1210', color: '#f2f6f3', fontWeight: 700, borderRadius: 12, padding: '10px 12px', border: '1px solid #1c261f'};
 
-function Segment({selected, onClick, disabled, label}: {selected: boolean; onClick: () => void; disabled?: boolean; label: string}) {
-  return <DialogButton onClick={onClick} disabled={disabled} style={{...flat, flex: 1, padding: '8px 2px', borderRadius: 10, fontSize: 12, fontWeight: 700,
-    background: selected ? C.green : 'transparent', color: selected ? '#04120a' : C.text}}>{label}</DialogButton>;
+// Simple line icons (24 px grid, stroke = currentColor) for the tiles.
+const ICONS: Record<string, string> = {
+  off: 'M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0',
+  auto: 'M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z',
+  cap: 'M4 7h10M18 7h2M4 17h4M12 17h8M16 4v6M10 14v6',
+  pace: 'M3 12h4l2-6 4 12 2-6h6',
+  setup: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+  log: 'M6 3h9l4 4v14H6zM9 11h7M9 15h7M9 7h3',
+  info: 'M12 8v.5M12 11v6M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+  warn: 'M12 3l10 18H2zM12 10v5M12 18v.5',
+};
+const Icon = ({name, size = 20}: {name: string; size?: number}) =>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+    style={{display: 'block', flex: 'none'}}><path d={ICONS[name]}/></svg>;
+
+// A big tile with an icon, as in GFG Extreme: modes and the Pace / Setup / Log row.
+function Tile({selected, onClick, disabled, label, icon, dot}: {selected?: boolean; onClick: () => void; disabled?: boolean; label: string; icon: string; dot?: boolean}) {
+  return <DialogButton onClick={onClick} disabled={disabled} className={'gsf-tile' + (selected ? ' gsf-on' : '')}
+    style={{...flat, flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+      height: 66, padding: '8px 2px', borderRadius: 14, boxSizing: 'border-box', fontSize: 12, fontWeight: 700,
+      background: selected ? 'linear-gradient(180deg, #74ec6a 0%, #45c83d 100%)' : CARD_BG, color: selected ? '#04120a' : C.text,
+      border: `1px solid ${selected ? C.green : C.line}`, boxShadow: selected ? '0 0 16px rgba(82, 214, 74, 0.35)' : 'none'}}>
+    <Icon name={icon}/>{label}
+    {dot && <span style={{position: 'absolute', top: 8, right: 10, width: 7, height: 7, borderRadius: 4, background: C.red}}/>}
+  </DialogButton>;
 }
 
-function Stat({label, value, ok}: {label: string; value: string; ok?: boolean}) {
-  return <div style={{flex: 1, minWidth: 0, padding: '7px 8px', borderRadius: 10, background: C.ground}}>
-    <div style={{...caps, fontSize: 8}}>{label}</div>
-    <div style={{fontSize: 13, fontWeight: 800, marginTop: 2, color: ok ? C.text : C.yellow}}>{value}</div>
+// A small card with a ring, as GFG's REAL / POWER / LEFT row.
+function Mini({label, value, frac, color}: {label: string; value: string; frac: number; color: string}) {
+  return <div style={{...card, flex: 1, minWidth: 0, padding: '10px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6}}>
+    <Ring size={44} width={4} frac={frac} color={color}><div style={{fontSize: value.length > 3 ? 11 : 12, fontWeight: 800}}>{value}</div></Ring>
+    <div style={{...caps, fontSize: 9}}>{label}</div>
   </div>;
 }
 
 function ListButton({title, sub, onClick, warn}: {title: string; sub?: string; onClick: () => void; warn?: boolean}) {
-  return <DialogButton onClick={onClick} style={{...flat, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 14px',
+  return <DialogButton onClick={onClick} className="gsf-row" style={{...flat, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 14px',
     borderRadius: 12, background: C.card, border: `1px solid ${C.line}`, color: C.text}}>
     <span style={{flex: 1, minWidth: 0}}>
       <span style={{display: 'block', fontSize: 13, fontWeight: 700}}>{title}</span>
@@ -155,10 +184,17 @@ function Content() {
   const gameFps = status?.base_fps || status?.cap_fps || 0;
   const ratio = gameFps ? hz / gameFps : mult;
   const installed = diag?.checks.some(c => c.key === 'installed' && c.ok);
+  // Auto's caps (kfg_auto.h): refresh / 3, steps of 5, refresh / 2. 90 Hz: 30 / 35 / 40 / 45.
+  const autoCaps = (() => {
+    const r = Math.round(hz), lo = Math.ceil(r / 3), hi = Math.floor(r / 2), c = [lo];
+    for (let x = (Math.floor(lo / 5) + 1) * 5; x < hi; x += 5) c.push(x);
+    if (hi > lo) c.push(hi);
+    return c.join(' / ');
+  })();
 
   const setMode = (m: Mode, b = base) => void act(async () => {
     await rpc.setMode(m, b);
-    return m === 'off' ? 'Generation off' : m === 'auto' ? 'Auto: the engine holds the game at 30 or 45 and picks ×3 or ×2'
+    return m === 'off' ? 'Generation off' : m === 'auto' ? `Auto: the game is held at the highest of ${autoCaps} it keeps steady, ×3 at most`
       : `Base FPS ${b}: the game is held at ${b}, generation fills up to ${Math.round(hz)}`;
   });
   const onBase = (v: number) => {
@@ -176,7 +212,8 @@ function Content() {
   else if (status?.state === 'degraded') note = 'Paused: frame analysis cannot keep up. Retrying in 2 s.';
   else if (mode === 'cap' && live?.real !== null && live?.real !== undefined && live.real < 0.95 * (status?.base_fps ?? 0))
     note = `The game runs below its cap of ${status?.base_fps}. Lower the cap or use Auto for steadier motion.`;
-  else if (mode === 'auto') note = mult === 3 ? 'Tries ×2 by itself when the game has headroom.' : 'Drops to ×3 by itself if the game falls behind.';
+  else if (mode === 'auto') note = (status?.cap_fps ?? 0) >= Math.floor(hz / 2) ? 'Holds the top cap; drops by itself if the game falls behind.'
+    : 'Raises the cap by itself when the game has headroom.';
 
   const allOk = diag?.checks.every(c => c.ok);
   const failed = diag?.checks.filter(c => !c.ok) ?? [];
@@ -184,7 +221,7 @@ function Content() {
 
   if (view === 'setup') return <PanelSection>
     <Back onClick={() => setView('main')} title="Setup"/>
-    <PanelSectionRow><DialogButton onClick={() => setShowChecks(!showChecks)} style={{...card, ...flat, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left'}}>
+    <PanelSectionRow><DialogButton onClick={() => setShowChecks(!showChecks)} className="gsf-row" style={{...card, ...flat, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left'}}>
       <span style={{width: 30, height: 30, borderRadius: 15, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: allOk ? C.greenBg : C.redBg, color: allOk ? C.greenText : C.red, fontWeight: 900}}>{allOk ? '✓' : '!'}</span>
       <span style={{flex: 1, minWidth: 0}}>
@@ -202,10 +239,10 @@ function Content() {
     <div style={gap}/>
     <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} style={primary}>{busy ? 'Working…' : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
+    })} className="gsf-btn" style={primary}>{busy ? 'Working…' : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
     {needsReboot && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       await rpc.reboot(); return 'Rebooting…';
-    })} style={secondary}>Reboot the Deck now</DialogButton></PanelSectionRow>}
+    })} className="gsf-btn" style={secondary}>Reboot the Deck now</DialogButton></PanelSectionRow>}
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.label, padding: '0 2px'}}>
       Mounted over the stock Gamescope from /var/lib/kedavra; the SteamOS image is not changed. If Gaming Mode fails to start, the next boot uses the stock one.</div></PanelSectionRow>
     <div style={gap}/>
@@ -222,12 +259,12 @@ function Content() {
     {message && <PanelSectionRow><div style={{fontSize: 11, color: C.muted, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap'}}>{message}</div></PanelSectionRow>}
     {installed && <><div style={gap}/><PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.uninstall(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} style={{...flat, background: 'transparent', color: C.red, fontSize: 12, padding: '8px 0'}}>Remove and restore stock Gamescope</DialogButton></PanelSectionRow></>}
+    })} className="gsf-btn" style={{...flat, background: 'transparent', color: C.red, fontSize: 12, padding: '8px 0'}}>Remove and restore stock Gamescope</DialogButton></PanelSectionRow></>}
   </PanelSection>;
 
   if (view === 'log') return <PanelSection>
     <Back onClick={() => setView('main')} title="Log"/>
-    <PanelSectionRow><DialogButton disabled={busy} style={secondary} onClick={() => void act(async () => {setLogs(await rpc.logs()); return 'Log updated';})}>Refresh</DialogButton></PanelSectionRow>
+    <PanelSectionRow><DialogButton disabled={busy} className="gsf-btn" style={secondary} onClick={() => void act(async () => {setLogs(await rpc.logs()); return 'Log updated';})}>Refresh</DialogButton></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{...card, fontSize: 9, whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto', margin: 0}}>{logs}</pre></PanelSectionRow>}
   </PanelSection>;
 
@@ -240,11 +277,11 @@ function Content() {
         const r = await rpc.stop(); setReport(r);
         const s = r.summary;
         return s ? `Trace: P95 ${s.p95_ms?.toFixed(3)} ms, P99 ${s.p99_ms?.toFixed(3)} ms, missed ${s.missed_pct?.toFixed(2)}% → ${s.pass ? 'PASS' : 'FAIL'}` : 'Trace saved, analysis failed';
-      })} style={{...primary, background: C.text}}>■  Stop recording · {status.capture.elapsed_s.toFixed(0)} s</DialogButton> :
+      })} className="gsf-btn" style={{...primary, background: C.text}}>■  Stop recording · {status.capture.elapsed_s.toFixed(0)} s</DialogButton> :
       <DialogButton disabled={busy || !running} onClick={() => void act(async () => {
         const label = mode === 'cap' ? `cap${status?.base_fps}` : `${status?.auto ? 'auto-' : ''}x${mult}`;
         const c = await rpc.start(label); return 'Recording KMS flip trace: ' + (c?.path ?? '');
-      })} style={primary}>●  Record pacing trace</DialogButton>}
+      })} className="gsf-btn" style={primary}>●  Record pacing trace</DialogButton>}
     </PanelSectionRow>
     {report?.summary && <PanelSectionRow><Focusable style={{display: 'flex', gap: 8}}>
       {[['P95', `${report.summary.p95_ms?.toFixed(2)} ms`, '≤ 1 ms', (report.summary.p95_ms ?? 9) <= 1],
@@ -266,47 +303,62 @@ function Content() {
 
   const fpsColor = !generating ? C.green : (live?.fps ?? 0) >= 0.97 * hz ? C.green : (live?.fps ?? 0) >= 0.85 * hz ? C.yellow : C.red;
   const mult_text = Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}` : `×${ratio.toFixed(1)}`;
+  const gpuMs = status?.timestamps ? (status?.gpu_us_avg ?? 0) / 1000 : undefined;
+  const budget = 1000 / hz;
+  const [badge, badgeColor] = !running ? ['ENGINE DOWN', C.red] : status?.steam_ui ? ['STEAM MENU', C.yellow]
+    : status?.state === 'degraded' ? ['PAUSED', C.yellow] : generating ? ['GENERATING', C.greenText] : ['OFF', C.label];
+  const warnNote = !running || (live?.unsupported ?? 0) > 1 || status?.state === 'degraded' || note.startsWith('The game runs below');
+  const space: CSSProperties = {height: 10};
   return <PanelSection>
-    <style>{GREEN_CONTROLS}</style>
-    <PanelSectionRow><div style={{...card, padding: 16}}>
-      <div style={{display: 'flex', alignItems: 'center', gap: 16}}>
-        <Ring size={96} width={8} frac={(live?.fps ?? 0) / hz} color={fpsColor}>
-          <div style={{fontSize: 32, fontWeight: 900, lineHeight: 1}}>{fmt(live?.fps)}</div>
-          <div style={{...caps, marginTop: 3}}>FPS</div>
-        </Ring>
-        <div style={{display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0}}>
-          <div style={caps}>GAME</div>
-          <div style={{fontSize: 26, fontWeight: 800, lineHeight: 1}}>{fmt(live?.real)}{generating && <span style={{color: C.green, fontSize: 20}}> {mult_text}</span>}</div>
-          <div style={{fontSize: 11, color: C.muted}}>{mode === 'cap' ? `Custom · cap ${status?.base_fps}` : mode === 'auto' ? `Auto · cap ${status?.cap_fps ?? '—'}` : running ? 'Generation off' : 'Engine not running'}</div>
-        </div>
+        <PanelSectionRow><div style={{...card, display: 'flex', alignItems: 'center', gap: 16,
+      background: `radial-gradient(circle at ${INSET + 54}px 50%, ${fpsColor}26 0%, transparent 62px), ${CARD_BG}`}}>
+      <Ring size={108} width={8} frac={(live?.fps ?? 0) / hz} color={fpsColor}>
+        <div style={{fontSize: 34, fontWeight: 900, lineHeight: 1, textShadow: `0 0 14px ${fpsColor}55`}}>{fmt(live?.fps)}</div>
+        <div style={{...caps, marginTop: 4}}>FPS</div>
+      </Ring>
+      <div style={{display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0}}>
+        <div style={caps}>GAME</div>
+        <div style={{fontSize: 26, fontWeight: 800, lineHeight: 1}}>{fmt(live?.real)}{generating && <span style={{color: C.green, fontSize: 20, textShadow: `0 0 10px ${C.green}66`}}> {mult_text}</span>}</div>
+        <div style={{fontSize: 11, color: C.muted}}>{mode === 'cap' ? `Custom · cap ${status?.base_fps}` : mode === 'auto' ? `Auto · cap ${status?.cap_fps ?? '—'}` : running ? 'Generation off' : 'Engine not running'}</div>
+        <div style={{alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 12,
+          background: C.ground, border: `1px solid ${C.line}`, color: badgeColor, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em'}}>
+          <span style={{width: 7, height: 7, borderRadius: 4, background: badgeColor, boxShadow: `0 0 6px ${badgeColor}`}}/>{badge}</div>
       </div>
-      {generating && <div style={{display: 'flex', gap: 8, marginTop: 14}}>
-        <Stat label="PACE" value={pace === null || pace === undefined ? '—' : `${Math.min(99.9, 100 * pace).toFixed(1)}%`} ok={paceOk}/>
-        <Stat label="GPU" value={status?.timestamps ? `${((status?.gpu_us_avg ?? 0) / 1000).toFixed(1)} ms` : '—'} ok/>
-        <Stat label="DISPLAY" value={`${Math.round(hz)} Hz`} ok/>
-      </div>}
     </div></PanelSectionRow>
-
-    {note && <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.muted, padding: '0 2px'}}>{note}</div></PanelSectionRow>}
-    <div style={gap}/>
-    <PanelSectionRow><div style={caps}>MODE</div></PanelSectionRow>
-    <PanelSectionRow><Focusable style={{display: 'flex', gap: 4, padding: 4, borderRadius: 14, background: C.card, border: `1px solid ${C.line}`}} flow-children="horizontal">
-      <Segment selected={mode === 'off'} disabled={busy || !running} label="Off" onClick={() => setMode('off')}/>
-      <Segment selected={mode === 'auto'} disabled={busy || !running} label="Auto" onClick={() => setMode('auto')}/>
-      <Segment selected={mode === 'cap'} disabled={busy || !running} label={mode === 'cap' ? `Custom ${base}` : 'Custom'} onClick={() => setMode('cap')}/>
+    <div style={space}/>
+    <PanelSectionRow><div style={{display: 'flex', gap: 8}}>
+      <Mini label="PACE %" value={generating && pace !== null && pace !== undefined ? (100 * pace).toFixed(0) : '—'}
+        frac={generating ? pace ?? 0 : 0} color={paceOk ? C.green : C.yellow}/>
+      <Mini label="GPU MS" value={generating && gpuMs !== undefined ? gpuMs.toFixed(1) : '—'} frac={generating && gpuMs !== undefined ? gpuMs / budget : 0}
+        color={(gpuMs ?? 0) < 0.6 * budget ? C.green : C.yellow}/>
+      <Mini label="HZ" value={`${Math.round(hz)}`} frac={1} color={C.green}/>
+    </div></PanelSectionRow>
+    {note && <><div style={space}/><PanelSectionRow><div style={{...card, display: 'flex', alignItems: 'center', gap: 12, padding: `10px ${INSET}px`}}>
+      <span style={{width: 34, height: 34, borderRadius: 10, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: warnNote ? C.redBg : C.greenBg, color: warnNote ? C.red : C.greenText}}><Icon name={warnNote ? 'warn' : 'info'} size={18}/></span>
+      <div style={{fontSize: 12, lineHeight: 1.4, color: C.text}}>{note}</div>
+    </div></PanelSectionRow></>}
+    <div style={space}/>
+    <PanelSectionRow><Focusable style={{display: 'flex', gap: 8}} flow-children="horizontal">
+      <Tile selected={mode === 'off'} disabled={busy || !running} label="Off" icon="off" onClick={() => setMode('off')}/>
+      <Tile selected={mode === 'auto'} disabled={busy || !running} label="Auto" icon="auto" onClick={() => setMode('auto')}/>
+      <Tile selected={mode === 'cap'} disabled={busy || !running} label={mode === 'cap' ? `Custom ${base}` : 'Custom'} icon="cap" onClick={() => setMode('cap')}/>
     </Focusable></PanelSectionRow>
-    {mode === 'cap' && <PanelSectionRow><div className="gsf-green"><SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue
-      disabled={busy || !running} onChange={onBase}/></div></PanelSectionRow>}
-    <PanelSectionRow><div className="gsf-green"><ToggleField label="In-game HUD" checked={hud} disabled={busy}
-      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/></div></PanelSectionRow>
-    <div style={gap}/>
-    <PanelSectionRow><Focusable style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-      <ListButton title="Pace" sub="Record and check frame pacing" onClick={() => setView('pace')}/>
-      <ListButton title="Setup" sub={!diag ? 'Checking…' : allOk ? 'System ready' : `${failed.length} check${failed.length > 1 ? 's' : ''} failed`} warn={diag && !allOk} onClick={() => setView('setup')}/>
-      <ListButton title="Log" onClick={() => setView('log')}/>
+    <div style={space}/>
+    <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
+      {mode === 'cap' && <SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue bottomSeparator="standard"
+        disabled={busy || !running} onChange={onBase}/>}
+      <ToggleField label="In-game HUD" checked={hud} disabled={busy} bottomSeparator="none"
+        onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/>
+    </div></PanelSectionRow>
+    <div style={space}/>
+    <PanelSectionRow><Focusable style={{display: 'flex', gap: 8}} flow-children="horizontal">
+      <Tile label="Pace" icon="pace" onClick={() => setView('pace')}/>
+      <Tile label="Setup" icon="setup" dot={!!diag && !allOk} onClick={() => setView('setup')}/>
+      <Tile label="Log" icon="log" onClick={() => setView('log')}/>
     </Focusable></PanelSectionRow>
-    {message && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 4}}>GSF {VERSION} · KEDAVRA</div></PanelSectionRow>
+    {message && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere', padding: `0 ${INSET}px`}}>{message}</div></PanelSectionRow>}
+    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 6}}>GSF {VERSION} · KEDAVRA</div></PanelSectionRow>
   </PanelSection>;
 }
 
@@ -316,13 +368,22 @@ const GREEN_CONTROLS = `.gsf-green .${gamepadSliderClasses.SliderTrack}, .gsf-gr
   filter: hue-rotate(-91deg) saturate(0.6) brightness(1.25);
 }`;
 
+// Steam marks the element under the stick / D-pad cursor with .gpfocus, but our inline
+// backgrounds hid its highlight. The focused tile turns light, as in GFG Extreme.
+const FOCUS = `
+.gsf-tile.gpfocus, .gsf-tile:focus-visible { background: linear-gradient(180deg, #ffffff 0%, #d9e4dc 100%) !important; color: #04120a !important; border-color: ${C.text} !important; box-shadow: 0 0 16px rgba(242, 246, 243, 0.35) !important; }
+.gsf-tile.gsf-on.gpfocus, .gsf-tile.gsf-on:focus-visible { background: linear-gradient(180deg, #b4f7a6 0%, #7fe56f 100%) !important; box-shadow: 0 0 0 2px ${C.text}, 0 0 18px rgba(143, 240, 122, 0.5) !important; }
+.gsf-btn.gpfocus, .gsf-btn:focus-visible { box-shadow: 0 0 0 2px ${C.text} !important; }
+.gsf-row.gpfocus, .gsf-row:focus-visible { background: #18251c !important; border-color: ${C.green} !important; }
+`;
+
 export default definePlugin(() => ({
-  name: 'KEDAVRA',
+  name: 'GSF Kedavra',
   titleView: <div className={staticClasses.Title} style={{display: 'flex', alignItems: 'center', gap: 8}}>
     <img src={LOGO} width={26} height={26} alt=""/>
     <span style={{fontWeight: 800, letterSpacing: '0.18em'}}>GSF<span style={{color: C.green}}>·</span>KEDAVRA</span>
   </div>,
-  content: <div style={{background: C.ground}}><Content/></div>,
+  content: <div style={{background: C.ground}}><style>{GREEN_CONTROLS + FOCUS}</style><Content/></div>,
   icon: <img src={LOGO} width={20} height={20} alt=""/>,
   onDismount() {},
 }));

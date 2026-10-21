@@ -1,6 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Builds the KEDAVRA Decky plugin zip:
+# Builds the GSF Kedavra Decky plugin zip (top folder stays KEDAVRA, so a new zip
+# installs over the old one in place):
 #   package.sh OUT.zip [RUNTIME_DIR [BENCH_DIR]]
 # RUNTIME_DIR: bundled Gamescope runtime (bin/, lib/, VERSION; see kedavra/gamescope/bundle.sh).
 # BENCH_DIR: kfg_vktest and the SPIR-V shaders. Without them the zip holds the panel only.

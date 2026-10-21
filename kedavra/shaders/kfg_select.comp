@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Per-output motion selection at block resolution (one texel = 4x4 pixels).
 // Slots: 0 = luma A (level 1), 1 = luma B (level 1), 2 = flow (level 2), 3 = stats (texel 1: global motion).
+// With KFG_FLAG_REPAIR slot 2 is a selection field instead and one repair round runs (see repair()).
 // Output: xy = chosen motion A->B in pixels, z = weight of B, w = match error.
 #version 450
 #extension GL_GOOGLE_include_directive : require
@@ -15,13 +16,18 @@ float cost(vec2 c1, vec2 v)
 	// c1: block centre in level-1 texels; v: candidate motion in pixels.
 	vec2 pa = c1 - u_t * v * 0.5;
 	vec2 pb = c1 + (1.0 - u_t) * v * 0.5;
+	// A window 3 texels wide and 7 tall at level 1 (6 x 14 pixels): tall enough to reach a
+	// thin horizontal edge (a stair riser) next to a flat block, so a vector that steps over
+	// the edge and matches flat to flat on both sides no longer looks perfect. Sampled with
+	// 2 x 5 bilinear taps between texel centres instead of 21 point taps.
+	const float ys[5] = float[5](-3.0, -1.5, 0.0, 1.5, 3.0);
 	float e = 0.0;
-	for (int y = -1; y <= 1; y++)
-		for (int x = -1; x <= 1; x++) {
-			vec2 o = vec2(x, y);
+	for (int y = 0; y < 5; y++)
+		for (int x = 0; x < 2; x++) {
+			vec2 o = vec2(x == 0 ? -0.5 : 0.5, ys[y]);
 			e += abs(kfg_tap(0, pa + o, lsize).r - kfg_tap(1, pb + o, lsize).r);
 		}
-	return e * (1.0 / 9.0);
+	return e * 0.1;
 }
 
 vec4 flow_at(vec2 pix, ivec2 fsize)
@@ -30,12 +36,78 @@ vec4 flow_at(vec2 pix, ivec2 fsize)
 	return texelFetch(s_samplers[2], q, 0);
 }
 
+float consistency(vec2 cpix, vec2 v, ivec2 fsize)
+{
+	float da = length(flow_at(cpix - u_t * v, fsize).xy - v);
+	float db = length(-flow_at(cpix + (1.0 - u_t) * v, fsize).zw - v);
+	// One side may be occluded: the better side counts.
+	return 0.003 * min(min(da, db), 10.0);
+}
+
+// Repair round (KFG_FLAG_REPAIR, slot 2 = selection field). Each block keeps its vector or
+// takes one of its eight neighbours', whichever minimises match error plus disagreement with
+// the neighbourhood (a robust, capped L1 term). A lone wrong block (a square artifact) costs
+// eight disagreements and is replaced by its neighbours' vector as soon as that matches
+// about as well; a real motion edge keeps its vectors, since the other side's vector does
+// not match there. Static blocks (HUD) stay static: their zero vector matches far better.
+void repair(ivec2 p, vec2 c1)
+{
+	ivec2 bsize = u_dstSize;
+	vec4 nb[9];
+	float spread = 0.0;
+	for (int i = 0; i < 9; i++) {
+		nb[i] = texelFetch(s_samplers[2], clamp(p + ivec2(i % 3 - 1, i / 3 - 1), ivec2(0), bsize - 1), 0);
+		spread = max(spread, length(nb[i].xy - nb[4].xy));
+	}
+	// Most blocks agree with their neighbourhood, and a well matched block needs no repair
+	// (this also keeps a HUD static next to moving content): copy them through, so the
+	// rounds cost little beyond reading the field.
+	if (spread <= 1.0 || nb[4].w < 0.02) {
+		imageStore(dst, p, nb[4]);
+		return;
+	}
+	vec4 best = nb[4];
+	float best_e = 1e9;
+	// Own vector first (4, 5, ..., 8, 0, ..., 3).
+	for (int n = 0; n < 9; n++) {
+		int i = (n + 4) % 9;
+		vec2 v = nb[i].xy;
+		// One evaluation per distinct vector: neighbours on the same side of an edge mostly
+		// share one.
+		bool seen = false;
+		for (int m = 0; m < 9; m++)
+			seen = seen || (m < n && length(nb[(m + 4) % 9].xy - v) < 0.5);
+		if (seen)
+			continue;
+		float smooth_e = 0.0;
+		for (int j = 0; j < 9; j++)
+			smooth_e += j == 4 ? 0.0 : min(length(v - nb[j].xy), 4.0);
+		// The block's own vector already won the full search: its stored error stands, and
+		// a small bonus keeps ties stable.
+		float c = i == 4 ? nb[4].w : cost(c1, v);
+		float e = c + 0.0015 * smooth_e - (i == 4 ? 0.003 : 0.0);
+		if (e < best_e) {
+			best_e = e;
+			best = vec4(v, nb[i].z, c);
+		}
+	}
+	if (best.xy != nb[4].xy)
+		best.z = mix(best.z, u_t < 0.5 ? 0.0 : 1.0, smoothstep(0.10, 0.20, best.w));
+	else
+		best = nb[4];
+	imageStore(dst, p, best);
+}
+
 void main()
 {
 	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
 	if (any(greaterThanEqual(p, u_dstSize)))
 		return;
 	lsize = u_srcSize;
+	if ((u_flags & KFG_FLAG_REPAIR) != 0) {
+		repair(p, vec2(2 * p) + vec2(0.5));
+		return;
+	}
 	ivec2 fsize = u_dstSize;
 	vec2 cpix = vec2(4 * p) + vec2(1.5);   // block centre in pixels
 	vec2 c1 = vec2(2 * p) + vec2(0.5);     // same point in level-1 texels
@@ -54,16 +126,34 @@ void main()
 	cand[8] = -texelFetch(s_samplers[2], clamp(p + ivec2(2, 0), ivec2(0), fsize - 1), 0).zw;
 	cand[9] = kfg_global_at(3, cpix).xy;  // camera motion
 
+	// A candidate must also agree with the motion field where it lands in either source. On
+	// flat bands (stair treads) a wrong vector can match pale to pale on both sides, stepping
+	// over a thin dark edge (a riser) and erasing it; the field there, estimated over a wider
+	// window, still knows where the edge went.
 	vec2 best = vec2(0.0);
-	float best_cost = cost(c1, vec2(0.0)) - 0.004; // static pixels (HUD) stay static on ties
+	float best_cost = cost(c1, vec2(0.0)) - 0.004 + consistency(cpix, vec2(0.0), fsize); // static pixels (HUD) stay static on ties
 	for (int i = 1; i < 10; i++) {
 		// The camera motion pays a flat fee instead of its distance from the block's vector,
 		// so static content (HUD) keeps winning ties against it.
-		float c = cost(c1, cand[i]) + (i == 9 ? 0.002 : 0.0005 * length(cand[i] - f.xy));
+		float c = cost(c1, cand[i]) + (i == 9 ? 0.002 : 0.0005 * length(cand[i] - f.xy)) + consistency(cpix, cand[i], fsize);
 		if (c < best_cost) {
 			best_cost = c;
 			best = cand[i];
 		}
+	}
+
+	// Sub-pixel refinement: the search ends on a 2-pixel grid (half a level-2 texel), so a slow
+	// turn would step between neighbouring grid vectors from one block and one frame to the
+	// next and fine texture would shimmer. Fit a parabola to the cost one pixel either side of
+	// the best vector, per axis, and move to its minimum.
+	// Not for the zero vector: static content (HUD, a paused scene) must stay exactly static.
+	if (best_cost < 0.2 && best != vec2(0.0)) {
+		float cxm = cost(c1, best - vec2(1.0, 0.0)), cxp = cost(c1, best + vec2(1.0, 0.0));
+		float cym = cost(c1, best - vec2(0.0, 1.0)), cyp = cost(c1, best + vec2(0.0, 1.0));
+		float c0 = cost(c1, best);
+		float dx = cxm - 2.0 * c0 + cxp, dy = cym - 2.0 * c0 + cyp;
+		vec2 sub = vec2(dx > 1e-5 ? 0.5 * (cxm - cxp) / dx : 0.0, dy > 1e-5 ? 0.5 * (cym - cyp) / dy : 0.0);
+		best += clamp(sub, vec2(-1.0), vec2(1.0));
 	}
 
 	// Visibility: forward/backward consistency at both source positions.

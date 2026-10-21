@@ -76,6 +76,14 @@ class HudTest(unittest.TestCase):
         self.assertEqual(items[1]["label"], "CAP 40")
         self.assertEqual(items[1]["text"], "x2.2")
 
+    def test_auto_fractional_cap(self):
+        # Auto at 35 fps on 90 Hz fills x2.6 (the scheduler's multiplier says 3).
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, cap_fps=35), None)
+        self.assertEqual(items[1]["label"], "AUTO")
+        self.assertEqual(items[1]["text"], "x2.6")
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, cap_fps=30), None)
+        self.assertEqual(items[1]["text"], "x3")
+
     def test_publishes_bitmap_and_hides(self):
         self.hud.tick(True, status(1_000_000_000, 90, 30, 30, 60, 0))
         self.hud.tick(True, status(2_000_000_000, 180, 60, 60, 120, 0))

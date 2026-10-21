@@ -1,0 +1,81 @@
+{
+  "checks": {
+    "missed_below_0.5pct": true,
+    "no_oscillation": true,
+    "no_reorder": true,
+    "p95_interval_error": true,
+    "p99_interval_error": true,
+    "uniform_content_steps": false
+  },
+  "compose_late": 0,
+  "content_step_irregular_fraction": 0.006439055605177907,
+  "content_steps": {
+    "1": 74528,
+    "14": 1,
+    "2": 434,
+    "3": 26,
+    "4": 16,
+    "5": 1,
+    "7": 1,
+    "8": 2,
+    "9": 2
+  },
+  "duration_s": 839.928753,
+  "generated_per_interval": {
+    "1": 463,
+    "2": 24659,
+    "3": 61,
+    "4": 4,
+    "5": 1
+  },
+  "generated_per_locked_interval": {},
+  "interval_error_ms": {
+    "max": 99.999383,
+    "p50": 0.000617,
+    "p95": 0.001617,
+    "p99": 0.002617
+  },
+  "kinds": {
+    "gen": 49988,
+    "real": 25024,
+    "repeat": 202
+  },
+  "latency_drift_ms": null,
+  "latency_ms": null,
+  "locked_interval_fraction": null,
+  "missed_fraction": 0.0026856702209695003,
+  "origin": "unlabelled",
+  "oscillation_fraction": 0.0,
+  "pass": false,
+  "phases": {
+    "1/2": 240,
+    "1/3": 24716,
+    "1/4": 52,
+    "1/5": 4,
+    "1/6": 1,
+    "2/3": 24717,
+    "2/4": 93,
+    "2/5": 6,
+    "2/6": 1,
+    "3/4": 89,
+    "3/5": 4,
+    "3/6": 10,
+    "4/5": 5,
+    "4/6": 20,
+    "4/8": 1,
+    "5/6": 20,
+    "5/8": 2,
+    "6/8": 2,
+    "7/8": 2
+  },
+  "refresh_hz": 90.0040024779902,
+  "reorders": 0,
+  "repeat_reasons": {
+    "cadence": 11,
+    "me_late": 138,
+    "source_late": 51,
+    "warmup": 2
+  },
+  "rows": 75214,
+  "skips": 477
+}

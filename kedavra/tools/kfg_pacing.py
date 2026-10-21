@@ -54,9 +54,15 @@ def median(values):
 
 
 def load_trace(path):
+    """Rows of a trace. A row cut short (the device lost power or the file was copied while
+    recording; seen as a run of NUL bytes) is dropped instead of failing the analysis."""
     rows = []
-    with open(path, newline="") as f:
-        for r in csv.DictReader(f):
+    with open(path, newline="", errors="replace") as f:
+        for r in csv.DictReader(line.replace("\0", "") for line in f):
+            try:
+                int(r["vblank"]), float(r["flip_ns"]), float(r["refresh_ns"])
+            except (TypeError, ValueError, KeyError):
+                continue
             rows.append(r)
     return rows
 
