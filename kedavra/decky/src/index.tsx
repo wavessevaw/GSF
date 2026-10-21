@@ -20,6 +20,8 @@ const modeName = (m: number) => m === 1 ? 'Авто' : `x${m}`;
 const rpc = {
   status: callable<[], Status>('get_status'),
   setMultiplier: callable<[number], {multiplier: number}>('set_multiplier'),
+  getHud: callable<[], {hud: boolean}>('get_hud'),
+  setHud: callable<[boolean], {hud: boolean}>('set_hud'),
   start: callable<[string], Capture>('start_capture'),
   stop: callable<[], Report>('stop_capture'),
   logs: callable<[], string>('get_logs'),
@@ -43,6 +45,8 @@ const stateText: Record<string, string> = {
 function Content() {
   const [status, setStatus] = useState<Status>();
   const [mult, setMult] = useState(1);
+  const [hud, setHud] = useState(true);
+  useEffect(() => {rpc.getHud().then(r => setHud(r.hud)).catch(() => {});}, []);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [report, setReport] = useState<Report>();
@@ -133,6 +137,9 @@ function Content() {
         await rpc.setMultiplier(v ? mult : 0);
         return v ? `Включено: ${modeName(mult)}. Лимит FPS игры движок ставит сам.` : 'Выключено';
       })}/></PanelSectionRow>
+    <PanelSectionRow><ToggleField label="HUD на экране (реальный FPS)" checked={hud} disabled={busy}
+      description="Кольца FPS поверх игры: кадры, которые реально выходят на экран, и FPS самой игры"
+      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD включён' : 'HUD выключен';})}/></PanelSectionRow>
     <PanelSectionRow><SliderField label="Режим" value={mult} min={1} max={3} step={1} notchCount={3}
       notchLabels={[{notchIndex: 0, label: 'Авто'}, {notchIndex: 1, label: 'x2'}, {notchIndex: 2, label: 'x3'}]} disabled={busy || !running}
       onChange={v => {setMult(v); if (on) void act(async () => {await rpc.setMultiplier(v); return `Режим ${modeName(v)}`;});}}/></PanelSectionRow>
@@ -169,7 +176,7 @@ function Content() {
     })}>Показать журнал</ButtonItem></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.3.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.4.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
   </PanelSection>
   </>;
 }

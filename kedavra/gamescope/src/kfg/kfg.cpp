@@ -5,14 +5,19 @@
 #include "kfg.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <deque>
 #include <mutex>
 #include <string>
 #include <vector>
+
+#include <sys/stat.h>
 
 #include "convar.h"
 #include "log.hpp"
@@ -125,6 +130,143 @@ namespace kfg
 	static std::mutex g_TraceMutex;
 	static std::deque<TraceRow_t> g_InFlight;
 	static std::vector<TraceRow_t> g_Flipped;
+	// Every KMS page flip of the output (KMS thread), for the displayed frame rate.
+	static std::atomic<uint64_t> g_ulFlips{ 0 };
+
+	// ---------------------------------------------------------------- on-screen HUD
+	//
+	// The Decky plugin renders the HUD (rings with the displayed and the game's frame
+	// rate) into a BGRA bitmap and publishes it atomically. Gamescope shows it as one
+	// more layer of every composited frame, so it counts what reaches the screen,
+	// generated frames included. File: 8 x u32 header {magic 'KFGH', version 1, width,
+	// height, corner 0-3 (TL, TR, BL, BR), margin px, sequence, 0}, then w*h*4 bytes.
+
+	gamescope::ConVar<std::string> cv_kfg_hud{ "kfg_hud", "/dev/shm/kedavra-hud.raw", "KEDAVRA HUD bitmap written by the Decky plugin; empty = no HUD." };
+
+	struct Hud_t
+	{
+		gamescope::OwningRc<CVulkanTexture> pTex;
+		std::vector<uint8_t> pixels;
+		uint32_t uWidth = 0, uHeight = 0, uCorner = 0, uMargin = 12;
+		uint64_t ulLastPollNs = 0;
+		int64_t nMtimeNs = -1;
+		bool bVisible = false;
+		bool bUpload = false;  // pixels changed, copy them in the next composite
+	};
+	static Hud_t g_Hud;
+	static constexpr uint32_t k_uHudMagic = 0x4847464b;  // "KFGH"
+	static constexpr uint32_t k_uHudMaxBytes = 1024u * 1024u;
+	static constexpr int k_nHudZpos = 4;  // with the cursor, above the game and overlays
+
+	static void HudPoll( uint64_t ulNow )
+	{
+		Hud_t &h = g_Hud;
+		if ( ulNow - h.ulLastPollNs < 200'000'000ull )
+			return;
+		h.ulLastPollNs = ulNow;
+		const std::string &sPath = cv_kfg_hud.Get();
+		struct stat st;
+		if ( sPath.empty() || stat( sPath.c_str(), &st ) != 0 )
+		{
+			h.bVisible = false;
+			return;
+		}
+		const int64_t nMtime = int64_t( st.st_mtim.tv_sec ) * 1'000'000'000ll + st.st_mtim.tv_nsec;
+		struct timespec now;
+		clock_gettime( CLOCK_REALTIME, &now );
+		const int64_t nNow = int64_t( now.tv_sec ) * 1'000'000'000ll + now.tv_nsec;
+		if ( nNow - nMtime > 5'000'000'000ll )
+		{
+			h.bVisible = false;  // the plugin stopped refreshing it
+			return;
+		}
+		if ( nMtime == h.nMtimeNs )
+			return;
+		h.nMtimeNs = nMtime;
+
+		FILE *f = fopen( sPath.c_str(), "rb" );
+		if ( !f )
+			return;
+		uint32_t hdr[ 8 ] = {};
+		bool bOk = fread( hdr, sizeof( hdr ), 1, f ) == 1 && hdr[ 0 ] == k_uHudMagic && hdr[ 1 ] == 1;
+		const uint64_t ulBytes = uint64_t( hdr[ 2 ] ) * hdr[ 3 ] * 4u;
+		if ( bOk && ( hdr[ 2 ] == 0 || hdr[ 3 ] == 0 ) )
+		{
+			fclose( f );
+			h.bVisible = false;
+			return;
+		}
+		bOk = bOk && ulBytes <= k_uHudMaxBytes && hdr[ 2 ] <= 2048 && hdr[ 3 ] <= 2048;
+		std::vector<uint8_t> px;
+		if ( bOk )
+		{
+			px.resize( ulBytes );
+			bOk = fread( px.data(), 1, ulBytes, f ) == ulBytes;
+		}
+		fclose( f );
+		if ( !bOk )
+			return;
+		if ( !h.pTex || h.uWidth != hdr[ 2 ] || h.uHeight != hdr[ 3 ] )
+		{
+			CVulkanTexture::createFlags flags;
+			flags.bSampled = true;
+			flags.bTransferDst = true;
+			gamescope::OwningRc<CVulkanTexture> pTex = new CVulkanTexture();
+			if ( !pTex->BInit( hdr[ 2 ], hdr[ 3 ], 1u, DRM_FORMAT_ARGB8888, flags ) )
+			{
+				h.bVisible = false;
+				return;
+			}
+			h.pTex = std::move( pTex );
+			h.uWidth = hdr[ 2 ];
+			h.uHeight = hdr[ 3 ];
+		}
+		h.pixels = std::move( px );
+		h.uCorner = hdr[ 4 ] & 3u;
+		h.uMargin = std::min( hdr[ 5 ], 200u );
+		h.bUpload = true;
+		h.bVisible = true;
+	}
+
+	static void HudPushLayer( FrameInfo_t *pFrameInfo )
+	{
+		Hud_t &h = g_Hud;
+		if ( !h.bVisible || !h.pTex || !pFrameInfo->layers.count() || pFrameInfo->layers.count() >= k_nMaxLayers )
+			return;
+		// Placed in output pixels, from the size of the composite target.
+		const FrameInfo_t::Layer_t &base = pFrameInfo->layers.get( 0 );
+		const float flOutW = base.tex ? float( base.tex->width() ) / base.scale.x : 1280.0f;
+		const float flOutH = base.tex ? float( base.tex->height() ) / base.scale.y : 800.0f;
+		const float flX = ( h.uCorner & 1u ) ? flOutW - float( h.uWidth + h.uMargin ) : float( h.uMargin );
+		const float flY = ( h.uCorner & 2u ) ? flOutH - float( h.uHeight + h.uMargin ) : float( h.uMargin );
+
+		FrameInfo_t::Layer_t *layer = pFrameInfo->layers.push();
+		if ( !layer )
+			return;
+		layer->tex = h.pTex.get();
+		layer->zpos = k_nHudZpos;
+		layer->opacity = 1.0f;
+		layer->scale = vec2_t{ 1.0f, 1.0f };
+		layer->offset = vec2_t{ -flX, -flY };
+		layer->filter = GamescopeUpscaleFilter::NEAREST;
+		layer->blackBorder = false;
+		layer->applyColorMgmt = false;
+		layer->ctm = nullptr;
+		layer->hdr_metadata_blob = nullptr;
+		layer->colorspace = GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
+		layer->eAlphaBlendingMode = ALPHA_BLENDING_MODE_COVERAGE;
+	}
+
+	static void HudRecordUpload( CVulkanCmdBuffer *pCmd )
+	{
+		Hud_t &h = g_Hud;
+		if ( !h.bUpload || !h.pTex || h.pixels.size() != size_t( h.uWidth ) * h.uHeight * 4u )
+			return;
+		h.bUpload = false;
+		auto [ pDst, uOffset ] = g_device.uploadBufferData( uint32_t( h.pixels.size() ) );
+		memcpy( pDst, h.pixels.data(), h.pixels.size() );
+		pCmd->copyBufferToImage( g_device.uploadBuffer(), uOffset, 0, h.pTex.get() );
+	}
 
 	static ShaderType ShaderFor( kfg_shader eShader )
 	{
@@ -469,7 +611,7 @@ namespace kfg
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
-			"\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
+			"\"flips\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -477,6 +619,7 @@ namespace kfg
 			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
+			g_ulFlips.load( std::memory_order_relaxed ),
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
@@ -516,6 +659,8 @@ namespace kfg
 
 		WriteTrace( s );
 		WriteStatus( s, ulNow );
+		HudPoll( ulNow );
+		HudPushLayer( pFrameInfo );
 
 		const uint32_t uMult = RequestedMultiplier();
 		if ( !s.bInit )
@@ -623,6 +768,7 @@ namespace kfg
 	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo )
 	{
 		State_t &s = g_State;
+		HudRecordUpload( pCmd );
 		if ( !s.bPending || s.bApplied || !pFrameInfo->layers.count() )
 			return;
 		s.bApplied = true;
@@ -776,6 +922,7 @@ namespace kfg
 	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence )
 	{
 		(void) uSequence;
+		g_ulFlips.fetch_add( 1, std::memory_order_relaxed );
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.empty() )
 			return;
