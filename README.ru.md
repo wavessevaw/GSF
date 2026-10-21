@@ -12,15 +12,15 @@ GSF (GPU Synthetic Frames) создаёт промежуточные кадры 
 
 [**Скачать 1.0.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.0.0) · [Установка](#установка) · [Режимы](#режимы) · [Измерение темпа](#измерение-темпа) · [Как это работает](#как-это-работает)
 
-![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)
-![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)
-![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)
-![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)
-![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)
+[![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
+[![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
+[![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)](https://decky.xyz/)
+[![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)](#известные-ограничения)
+[![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
 
-<img src="docs/img/hud.png" alt="HUD GSF Kedavra в игре: 90 FPS на экране, 30 реальных, x3 авто, темп 100" width="460">
+<img src="docs/img/interface.png" alt="Интерфейс GSF Kedavra: панель Decky с кольцом 90 FPS при лимите 30, HUD в игре, разделы Pace и Setup" width="900">
 
-<sub>Настоящая картинка HUD из плагина с примерными значениями. Это не измерение.</sub>
+<sub>Собственный код интерфейса и HUD плагина, отрисованный с примерными значениями. Это не измерение.</sub>
 
 </div>
 
@@ -60,6 +60,8 @@ GSF (GPU Synthetic Frames) создаёт промежуточные кадры 
 Генерации нужно несколько миллисекунд GPU на каждый кадр игры для анализа движения. Если игра уже занимает весь GPU, снизьте базовый FPS.
 
 ## HUD в игре
+
+<img src="docs/img/hud.png" alt="HUD в игре: 90 FPS на экране, 30 реальных, x3, темп 100" width="320">
 
 HUD по желанию рисует поверх игры три кольца, в стиле [GFG Extreme](https://github.com/wavessevaw/GFG-Extreme):
 

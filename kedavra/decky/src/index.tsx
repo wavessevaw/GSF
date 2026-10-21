@@ -255,7 +255,7 @@ function Content() {
       </Ring>
       <div style={{display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0}}>
         <div style={caps}>GAME × GSF</div>
-        <div style={{fontSize: 24, fontWeight: 800, lineHeight: 1}}>{fmt(live?.real)}{generating && <span style={{color: C.green}}> ×{Number.isInteger(ratio) ? ratio : ratio.toFixed(1)}</span>}</div>
+        <div style={{fontSize: 24, fontWeight: 800, lineHeight: 1}}>{fmt(live?.real)}{generating && <span style={{color: C.green}}> ×{Math.abs(ratio - Math.round(ratio)) < 0.05 ? Math.round(ratio) : ratio.toFixed(1)}</span>}</div>
         <div style={caps}>{mode === 'cap' ? `CAP ${status?.base_fps}` : mode === 'auto' ? `AUTO · CAP ${status?.cap_fps ?? '—'}` : 'OFF'}</div>
         {generating && pace !== undefined && <Chip ok={paceOk}>{paceOk ? '✓ PACE STEADY' : 'PACE DROPPED'}</Chip>}
       </div>
