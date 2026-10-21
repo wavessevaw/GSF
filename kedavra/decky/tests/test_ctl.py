@@ -76,6 +76,19 @@ class ControlTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.ctl.set_multiplier(4)
 
+    def test_base_fps_goes_through_gamescopectl(self):
+        self.ctl.set_base_fps(40)
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_base_fps", "40"])
+        self.ctl.set_base_fps(0)
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_base_fps", "0"])
+        with self.assertRaises(ValueError):
+            self.ctl.set_base_fps(10)
+
+    def test_base_fps_refused_by_old_engine(self):
+        (self.ctl.runtime / "kedavra-status.json").write_text(json.dumps({"engine": "kedavra-gamescope", "auto": False}))
+        with self.assertRaises(RuntimeError):
+            self.ctl.set_base_fps(30)
+
     def test_capture_runs_analyzer(self):
         c = self.ctl.start_capture("x3 test")
         self.assertEqual(self.rec.calls[-1][-2], "kfg_trace")

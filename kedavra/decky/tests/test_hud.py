@@ -43,6 +43,31 @@ class HudTest(unittest.TestCase):
         self.assertEqual(items[1]["text"], "x3")
         self.assertEqual(items[1]["label"], "AUTO")
 
+    def test_off_shows_game_frames_not_flips(self):
+        # Gamescope flips at the refresh rate for the Steam menu alone; with generation off
+        # the ring must show the game's 25 fps, not 90.
+        r = kedavra_hud.Rates()
+        off = dict(state="off", auto=False, multiplier=1)
+        r.update(status(1_000_000_000, 90, 25, 0, 0, 0, **off))
+        rates = r.update(status(2_000_000_000, 180, 50, 0, 0, 0, **off))
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, **off), rates)
+        self.assertEqual(items[0]["text"], "25")
+        self.assertEqual(items[0]["sub"], "25 REAL")
+        self.assertEqual(items[1]["text"], "OFF")
+
+    def test_active_counts_new_frames_not_repeats(self):
+        r = kedavra_hud.Rates()
+        r.update(status(1_000_000_000, 90, 30, 30, 60, 0))
+        rates = r.update(status(2_000_000_000, 180, 60, 55, 110, 15))
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0), rates)
+        self.assertEqual(items[0]["text"], "75")
+        self.assertEqual(items[2]["label"], "PACE")
+
+    def test_base_cap_label(self):
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, base_fps=40, auto=False), None)
+        self.assertEqual(items[1]["label"], "CAP 40")
+        self.assertEqual(items[1]["text"], "x2.2")
+
     def test_publishes_bitmap_and_hides(self):
         self.hud.tick(True, status(1_000_000_000, 90, 30, 30, 60, 0))
         self.hud.tick(True, status(2_000_000_000, 180, 60, 60, 120, 0))

@@ -23,11 +23,13 @@ class Plugin:
         self.health = loop.create_task(self._health())
         self.hud_task = loop.create_task(self._hud())
 
+    DEFAULTS = {"hud": True, "base_fps": 30}
+
     def _load_settings(self):
         try:
-            return {"hud": True, **json.loads(self.settings_path.read_text())}
+            return {**self.DEFAULTS, **json.loads(self.settings_path.read_text())}
         except (OSError, ValueError):
-            return {"hud": True}
+            return dict(self.DEFAULTS)
 
     def _save_settings(self):
         try:
@@ -76,8 +78,27 @@ class Plugin:
         await asyncio.to_thread(self._save_settings)
         return {"hud": self.settings["hud"]}
 
+    async def get_settings(self):
+        return {"hud": bool(self.settings.get("hud")), "base_fps": int(self.settings.get("base_fps") or 30)}
+
+    async def set_mode(self, mode: str, base_fps: int = 0):
+        """off | auto | cap (the game is held at base_fps, generation fills the refresh)."""
+        if mode not in ("off", "auto", "cap"):
+            raise ValueError(f"unknown mode {mode}")
+        async with self.lock:
+            if mode == "cap":
+                self.settings["base_fps"] = int(base_fps)
+                await asyncio.to_thread(self._save_settings)
+                await asyncio.to_thread(self.ctl.set_base_fps, int(base_fps))
+            elif mode == "auto":
+                await asyncio.to_thread(self.ctl.set_base_fps, 0)
+            await asyncio.to_thread(self.ctl.set_multiplier, 0 if mode == "off" else 1)
+            return {"mode": mode, "base_fps": int(base_fps) if mode == "cap" else 0}
+
     async def get_status(self):
-        return await asyncio.to_thread(self.ctl.status)
+        st = await asyncio.to_thread(self.ctl.status)
+        st["live"] = self.hud.live  # rates from the once-a-second HUD loop
+        return st
 
     async def set_multiplier(self, mult: int):
         async with self.lock:

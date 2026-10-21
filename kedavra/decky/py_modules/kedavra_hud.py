@@ -6,10 +6,13 @@ KEDAVRA Gamescope draws it as a layer of every composited frame (kfg_hud). The n
 from the engine's status file, so they count real KMS page flips, generated frames included,
 not what the game submits.
 
-Rings (the look follows GFG Extreme's ring HUD: dark rounded panel, thin track, coloured arc,
-number in the middle, label below):
-  FPS   frames on screen per second; arc = share of the refresh rate; below: the game's own fps
-  x2/x3 the current multiplier; arc = share of generated frames; label AUTO in auto mode
+Rings (the look follows GFG Extreme's ring HUD, in the KEDAVRA green: dark rounded panel with
+the logo, thin track, coloured arc, number in the middle, label below):
+  FPS   new frames on screen per second (real + generated; with generation off, the game's own
+        frames). Not the KMS flip rate: Gamescope also flips for the Steam menu and overlays,
+        which made the ring read 90 while the game ran at 25. Below: the game's own fps.
+  x2/x3 the current multiplier; arc = share of generated frames; label AUTO in auto mode, CAP
+        and the base cap with a fixed base frame rate (x2.3 for 40 at 90 Hz)
   PACE  share of vblanks that showed a new frame (not a repeat); green when above 99.5%
 
 File: 8 x u32 header {magic 'KFGH', version 1, width, height, corner, margin, sequence, 0},
@@ -33,15 +36,15 @@ HEADER = struct.Struct("<8I")
 CORNERS = {"top-left": 0, "top-right": 1, "bottom-left": 2, "bottom-right": 3}
 DEFAULT_PATH = Path("/dev/shm/kedavra-hud.raw")
 
-PANEL = (14, 14, 17)
+PANEL = (6, 9, 7)
 TRACK = (255, 255, 255)
-TRACK_ALPHA = 0.16
-RED = (251, 13, 0)
-GREEN = (46, 200, 110)
-YELLOW = (230, 185, 40)
-GREY = (92, 92, 102)
-WHITE = (245, 245, 247)
-LABEL = (205, 205, 212)
+TRACK_ALPHA = 0.14
+RED = (255, 90, 74)
+GREEN = (82, 214, 74)
+YELLOW = (227, 192, 74)
+GREY = (111, 125, 117)
+WHITE = (242, 246, 243)
+LABEL = (207, 214, 209)
 
 Rgb = Tuple[int, int, int]
 
@@ -50,6 +53,16 @@ Rgb = Tuple[int, int, int]
 def _atlas() -> Dict[str, Any]:
     from kedavra_hud_font import DATA
     return json.loads(zlib.decompress(base64.b64decode("".join(DATA))))
+
+
+@lru_cache(maxsize=4)
+def _logo(scale: float) -> Optional[Tuple[int, bytes]]:
+    try:
+        from kedavra_hud_logo import LOGO
+        px, data = LOGO[f"{scale:.1f}"]
+        return px, zlib.decompress(base64.b64decode(data))
+    except (ImportError, KeyError, ValueError, zlib.error):
+        return None
 
 
 @lru_cache(maxsize=1024)
@@ -103,6 +116,14 @@ class Canvas:
                     for px, py in caps:
                         arc = max(arc, max(0.0, min(1.0, half + 0.5 - math.hypot(dx - px, dy - py))))
                 self.blend(x, y, rgb, arc)
+
+    def image(self, x0: int, y0: int, size: int, rgba: bytes) -> None:
+        for y in range(size):
+            for x in range(size):
+                i = (y * size + x) * 4
+                a = rgba[i + 3]
+                if a:
+                    self.blend(x0 + x, y0 + y, (rgba[i], rgba[i + 1], rgba[i + 2]), a / 255.0)
 
     def text_width(self, text: str, style: str) -> float:
         font = _atlas()[style]
@@ -173,22 +194,46 @@ class Rates:
         return out
 
 
+def _rate_color(v: float, target: float) -> Rgb:
+    return GREEN if v >= 0.97 * target else (YELLOW if v >= 0.85 * target else RED)
+
+
+def live_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> Dict[str, Any]:
+    """What the HUD and the panel show: fps on screen, the game's fps, pace, generated share."""
+    active = st.get("state") == "active"
+    if not rates:
+        return {"fps": None, "real": None, "pace": None, "gen_share": None}
+    real = rates["sources"]
+    shown = rates["real"] + rates["gen"] + rates["repeat"]
+    # New frames per second, never more than the flips that carried them.
+    fps = min(rates["flips"], rates["real"] + rates["gen"]) if active else min(rates["flips"], real)
+    return {"fps": fps, "real": real,
+            "pace": 1.0 - rates["repeat"] / shown if active and shown > 0 else None,
+            "gen_share": rates["gen"] / shown if active and shown > 0 else 0.0}
+
+
 def items_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> List[Dict[str, Any]]:
     refresh = 1e9 / st["refresh_ns"] if _num(st.get("refresh_ns")) else 90.0
     active = st.get("state") == "active"
-    fps = rates["flips"] if rates else None
-    real = rates["sources"] if rates else None
+    lv = live_for(st, rates)
+    real, fps = lv["real"], lv["fps"]
     shown = (rates["real"] + rates["gen"] + rates["repeat"]) if rates else 0.0
+    base = st.get("base_fps") if isinstance(st.get("base_fps"), int) else 0
     items = [{
-        "size": 52, "w": 4.5, "frac": (fps or 0) / refresh, "rgb": RED,
+        "size": 52, "w": 4.5, "frac": (fps or 0) / refresh,
+        "rgb": _rate_color(fps or 0, refresh) if active else GREEN,
         "text": str(round(fps)) if fps is not None else "—", "style": "fps",
         "sub": f"{round(real)} REAL" if real is not None else None, "label": "FPS"}]
     mult = st.get("multiplier") if isinstance(st.get("multiplier"), int) else 1
     gen_share = rates["gen"] / shown if rates and shown > 0 else 0.0
+    if active and base and round(refresh) % base:
+        text = f"x{round(refresh) / base:.1f}"
+    else:
+        text = f"x{mult}" if active and mult > 1 else "OFF"
+    label = f"CAP {base}" if base else ("AUTO" if st.get("auto") else "GEN")
     items.append({
         "size": 46, "w": 4, "frac": gen_share if active else 0.0, "rgb": GREEN if active else GREY,
-        "text": f"x{mult}" if active and mult > 1 else "OFF", "style": "val",
-        "label": "AUTO" if st.get("auto") else "GEN"})
+        "text": text, "style": "val", "label": label})
     if active and rates and shown > 0:
         new = 1.0 - rates["repeat"] / shown
         rgb = GREEN if new >= 0.995 else (YELLOW if new >= 0.97 else RED)
@@ -203,11 +248,16 @@ def render(st: Dict[str, Any], rates: Optional[Dict[str, float]], scale: float =
     items = items_for(st, rates)
     pad_x, pad_y, gap, col, lab_h = 8 * s, 6 * s, 8 * s, 52 * s, 11 * s
     widths = [it["size"] * s for it in items]
-    w = math.ceil(2 * pad_x + sum(widths) + gap * (len(items) - 1))
+    logo = _logo(s)
+    lw = logo[0] + gap if logo else 0
+    w = math.ceil(2 * pad_x + lw + sum(widths) + gap * (len(items) - 1))
     h = math.ceil(2 * pad_y + col + 2 * s + lab_h)
     cv = Canvas(w, h, 12 * s)
     atlas = _atlas()
     x = pad_x
+    if logo:
+        cv.image(round(pad_x), round(pad_y + (col - logo[0]) / 2), logo[0], logo[1])
+        x += lw
     for it, iw in zip(items, widths):
         cx, cy = x + iw / 2.0, pad_y + col / 2.0
         cv.ring(cx, cy, it["size"] * s, it["w"] * s, it["frac"], it["rgb"])
@@ -254,17 +304,20 @@ class Hud:
         self.seq = 0
         self.last_key: Optional[str] = None
         self.shown = False
+        self.live: Dict[str, Any] = live_for({}, None)
 
     def tick(self, enabled: bool, status: Optional[Dict[str, Any]]) -> bool:
         fresh = bool(status) and status.get("engine") == "running"
-        if not enabled or not fresh:
+        rates = self.rates.update(status) if fresh else None
+        if not fresh:
             self.rates.prev = None
+        self.live = live_for(status or {}, rates)
+        if not enabled or not fresh:
             if self.shown or self.last_key is None:
                 self.shown = False
                 self.last_key = ""
                 return publish(self.path, 0, 0, b"", seq=self.seq)
             return True
-        rates = self.rates.update(status)
         scale = scale_for(int(status.get("height") or 800))
         items = items_for(status, rates)
         key = json.dumps([scale, items], sort_keys=True, default=str)

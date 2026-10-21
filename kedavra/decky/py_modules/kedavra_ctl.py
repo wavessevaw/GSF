@@ -2,7 +2,7 @@
 """KEDAVRA control backend for the Decky plugin.
 
 The engine runs inside the patched Gamescope. This module only:
-  * sets Gamescope convars with gamescopectl (kfg_multiplier, kfg_trace);
+  * sets Gamescope convars with gamescopectl (kfg_multiplier, kfg_base_fps, kfg_trace);
   * reads the status file the engine rewrites every second, and reports the
     engine as running only while that file is fresh (never from settings alone);
   * starts and stops KMS-flip trace captures and analyses them with kfg_pacing.
@@ -81,6 +81,18 @@ class Control:
                                    "нажмите «Переустановить Gamescope KEDAVRA» и перезагрузите Deck.")
         self._ctl("kfg_multiplier", mult)
         return {"multiplier": mult}
+
+    def set_base_fps(self, fps):
+        """Base frame cap the engine forces on the game before generation; 0 = automatic."""
+        fps = int(fps)
+        if fps != 0 and not 20 <= fps <= 240:
+            raise ValueError("base fps must be 0 (auto) or 20..240")
+        st = self.status()
+        if st.get("fresh") and "base_fps" not in st:
+            raise RuntimeError("Установленный Gamescope KEDAVRA старше плагина и не знает «Базовый FPS»: "
+                               "нажмите «Переустановить Gamescope KEDAVRA» и перезагрузите Deck.")
+        self._ctl("kfg_base_fps", fps)
+        return {"base_fps": fps}
 
     # ------------------------------------------------------------ capture
 
