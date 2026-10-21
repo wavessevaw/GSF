@@ -80,7 +80,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 | Missed refreshes | < 0.5% |
 | Oscillation, latency drift | none |
 
-Save the diagnostics report (**Setup → Report**) and attach it with the trace when you report a problem.
+Press **Setup → Report** when you report a problem: it saves one zip on the Desktop (`~/Desktop/GSF-report-….zip`) with the diagnostics, the latest pacing traces and the benchmark.
 
 ## How it works
 
