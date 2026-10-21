@@ -32,7 +32,7 @@ typedef struct scene {
 	bool cut;
 } scene;
 
-enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS, S_CAMERA };
+enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS, S_CAMERA, S_DOLLY, S_DOLLY_STAIRS, S_NEAR };
 
 static const scene SCENES[] = {
 	{ "pan", S_PAN, 24, 6, true, false },
@@ -42,6 +42,9 @@ static const scene SCENES[] = {
 	{ "static", S_STATIC, 0, 0, false, false },
 	{ "scene_cut", S_CUT, 0, 0, false, true },
 	{ "stairs", S_STAIRS, 18, 10, true, false },
+	{ "dolly", S_DOLLY, 0, 0, true, false },
+	{ "dolly_stairs", S_DOLLY_STAIRS, 0, 0, true, false },
+	{ "near_object", S_NEAR, 12, 0, true, false },
 };
 
 static double hash2(int x, int y, int seed)
@@ -149,6 +152,29 @@ static void scene_pixel(const scene *s, double t, double x, double y, int w, int
 	case S_STAIRS:
 		stairs(x - s->vx * t, y - s->vy * t, rgb);
 		return;
+	case S_DOLLY:
+	case S_DOLLY_STAIRS: {
+		// Walking forward (up the stairs): the image grows by 5% per frame about a point above
+		// the centre, so what is near the camera (bottom, sides) moves fastest and leaves the
+		// frame.
+		const double cx = 640, cy = 300, k = 1.0 + 0.05 * t;
+		if (s->kind == S_DOLLY_STAIRS)
+			stairs(cx + (x - cx) / k, cy + (y - cy) / k, rgb);
+		else
+			background(cx + (x - cx) / k, cy + (y - cy) / k, 3, rgb);
+		return;
+	}
+	case S_NEAR: {
+		// A character close to the camera crossing fast, cut off by the bottom of the frame,
+		// over a slower background.
+		const double ox = 700 - 70 * t, oy = 640;
+		const double dx = (x - ox) / 170.0, dy = (y - oy) / 260.0;
+		if (dx * dx + dy * dy < 1.0)
+			background(x - ox + 3000, y - oy, 13, rgb);
+		else
+			background(x - s->vx * t, y - s->vy * t, 1, rgb);
+		return;
+	}
 	case S_STATIC:
 		background(x, y, 1, rgb);
 		return;
@@ -329,7 +355,7 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h)
 			if (l >= 2 && kfg_vk_image_create(vk, &e->flow[r][l], kfg_vk_format(KFG_FORMAT_RGBA16F), sz[0], sz[1]))
 				return -1;
 		}
-		if (kfg_vk_image_create(vk, &e->stats[r], kfg_vk_format(KFG_FORMAT_RGBA16F), 2, 1))
+		if (kfg_vk_image_create(vk, &e->stats[r], kfg_vk_format(KFG_FORMAT_RGBA16F), 4, 1))
 			return -1;
 	}
 	uint32_t bs[2];
@@ -429,7 +455,7 @@ int main(int argc, char **argv)
 		run_plan(&e, &p, NULL, NULL);
 		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, -1, &tune); // pair A(0)->B(1), pair ring 1
 		run_plan(&e, &p, NULL, NULL);
-		float st[8];  // stats is 2x1
+		float st[16];  // stats is 4x1
 		kfg_vk_download_rgba16f(&vk, &e.stats[1], st);
 		if (getenv("KFG_FLOWDUMP")) {
 			// Tuning aid: the most common forward vectors per level (pixels, rounded).
@@ -459,10 +485,28 @@ int main(int argc, char **argv)
 				free(fl);
 			}
 		}
+		if (getenv("KFG_VERBOSE") && (s->kind == S_DOLLY || s->kind == S_DOLLY_STAIRS)) {
+			// Share of blocks whose forward vector is within 2 / 8 pixels of the true zoom field.
+			for (int l = KFG_LEVELS; l >= 2; l--) {
+				const kfg_vk_image *fi = &e.flow[1][l];
+				float *fl = malloc((size_t)fi->width * fi->height * 4 * sizeof(float));
+				kfg_vk_download_rgba16f(&vk, fi, fl);
+				int ok2 = 0, ok8 = 0, n = (int)(fi->width * fi->height);
+				const double bs = (double)(1 << l);
+				for (int i = 0; i < n; i++) {
+					double px = (i % fi->width + 0.5) * bs, py = (i / fi->width + 0.5) * bs;
+					double d = hypot(fl[i * 4] - 0.05 * (px - 640), fl[i * 4 + 1] - 0.05 * (py - 300));
+					ok2 += d < 2.0;
+					ok8 += d < 8.0;
+				}
+				printf("  dolly level %d: %.0f%% within 2 px, %.0f%% within 8 px\n", l, 100.0 * ok2 / n, 100.0 * ok8 / n);
+				free(fl);
+			}
+		}
 		if (js)
 			fprintf(js, "  {\"scene\": \"%s\", \"dynamic\": %s, \"cut_flag\": %.0f, \"bad_fraction\": %.4f, \"phases\": [\n",
 				s->name, s->dynamic ? "true" : "false", st[0], st[1]);
-		printf("%-12s cut=%.0f bad=%.3f mc=%.4f zero=%.4f global=(%.1f,%.1f)\n", s->name, st[0], st[1], st[2], st[3], st[4], st[5]);
+		printf("%-12s cut=%.0f bad=%.3f mc=%.4f zero=%.4f global=(%.1f,%.1f) grad=(%.1f,%.1f;%.1f,%.1f)\n", s->name, st[0], st[1], st[2], st[3], st[4], st[5], st[8], st[9], st[10], st[11]);
 		if (s->cut && st[0] < 0.5) {
 			printf("  FAIL: scene cut not detected\n");
 			failures++;
@@ -497,6 +541,15 @@ int main(int argc, char **argv)
 				og = psnr_region(G, T, w, h, 280, 240, 520, 440);
 				ol = psnr_region(L, T, w, h, 280, 240, 520, 440);
 				od = psnr_region(D, T, w, h, 280, 240, 520, 440);
+			}
+			else if (s->kind == S_DOLLY) {
+				og = psnr_region(G, T, w, h, 0, 600, w, h);
+				ol = psnr_region(L, T, w, h, 0, 600, w, h);
+				od = psnr_region(D, T, w, h, 0, 600, w, h);
+			} else if (s->kind == S_NEAR) {
+				og = psnr_region(G, T, w, h, 380, 380, 900, h);
+				ol = psnr_region(L, T, w, h, 380, 380, 900, h);
+				od = psnr_region(D, T, w, h, 380, 380, 900, h);
 			}
 			double hud_err = s->kind == S_OBJECTS ? mean_abs(G, T, w, h, 40, 30, 360, 70) : 0.0;
 			int maxd = max_abs(G, s->cut ? D : A, nbytes);
@@ -588,7 +641,7 @@ int main(int argc, char **argv)
 			run_plan(&e, &p, NULL, NULL);
 			if (f == 0)
 				continue;
-			float st[8];  // stats is 2x1
+			float st[16];  // stats is 4x1
 			kfg_vk_download_rgba16f(&vk, &e.stats[fb], st);
 			if (st[0] > 0.5)
 				cuts++;

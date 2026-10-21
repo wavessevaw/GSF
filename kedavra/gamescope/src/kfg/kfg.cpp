@@ -388,7 +388,7 @@ namespace kfg
 				if ( !f.pLuma[ l ] || ( l >= 2 && !f.pFlow[ l ] ) )
 					return false;
 			}
-			f.pStats = CreateImage( 2, 1, KFG_FORMAT_RGBA16F );  // cut test, global motion
+			f.pStats = CreateImage( 4, 1, KFG_FORMAT_RGBA16F );  // cut test, camera motion
 			if ( !f.pStats )
 				return false;
 		}

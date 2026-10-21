@@ -155,7 +155,7 @@ void main()
 			pf[i] = f.xy / scale;
 			pb[i] = f.zw / scale;
 		}
-		vec4 g = texelFetch(s_samplers[3], KFG_GLOBAL_TEXEL, 0);
+		vec4 g = kfg_global_at(3, (q + 0.5) * scale);
 		pf[5] = g.xy / scale;
 		pb[5] = g.zw / scale;
 		npred = 6;
@@ -168,7 +168,7 @@ void main()
 			pf[i] = f.xy / scale;
 			pb[i] = f.zw / scale;
 		}
-		vec4 g = texelFetch(s_samplers[3], KFG_GLOBAL_TEXEL, 0);
+		vec4 g = kfg_global_at(3, (q + 0.5) * scale);
 		pf[5] = g.xy / scale;
 		pb[5] = g.zw / scale;
 		npred = 6;

@@ -52,7 +52,7 @@ void main()
 	}
 	cand[7] = -texelFetch(s_samplers[2], clamp(p + ivec2(-2, 0), ivec2(0), fsize - 1), 0).zw;
 	cand[8] = -texelFetch(s_samplers[2], clamp(p + ivec2(2, 0), ivec2(0), fsize - 1), 0).zw;
-	cand[9] = texelFetch(s_samplers[3], KFG_GLOBAL_TEXEL, 0).xy;  // camera motion
+	cand[9] = kfg_global_at(3, cpix).xy;  // camera motion
 
 	vec2 best = vec2(0.0);
 	float best_cost = cost(c1, vec2(0.0)) - 0.004; // static pixels (HUD) stay static on ties

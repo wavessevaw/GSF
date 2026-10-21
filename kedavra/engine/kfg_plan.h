@@ -52,7 +52,7 @@ enum kfg_role {
 	KFG_ROLE_COLOR,     // source colour of a frame (host-owned, e.g. a compositor commit)
 	KFG_ROLE_LUMA,      // luma pyramid of a frame; level 1..4
 	KFG_ROLE_FLOW,      // bidirectional flow of a pair; level 2..4
-	KFG_ROLE_STATS,     // 2x1 pair statistics: texel 0 cut test, texel 1 global motion
+	KFG_ROLE_STATS,     // 4x1 pair statistics: texel 0 cut test, texels 1-3 camera motion (affine)
 	KFG_ROLE_SELECT,    // per-output selection field (transient)
 	KFG_ROLE_OUTPUT,    // generated output (host-owned)
 };
@@ -90,7 +90,7 @@ typedef struct kfg_params {
 #define KFG_FLAG_LUMA_INPUT 4
 #define KFG_FLAG_TENT 8        // reduce: 4x4 tent instead of 2x2 box (coarse search levels)
 #define KFG_FLAG_TEMPORAL 16   // me (coarsest): slot 2 holds the previous pair's flow, slot 3 its stats
-#define KFG_FLAG_GLOBAL 32     // stats: dominant (camera) motion of the coarsest flow into stats texel 1
+#define KFG_FLAG_GLOBAL 32     // stats: camera motion (affine) of the coarsest flow into stats texels 1-3
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -221,14 +221,16 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 		x->params.lambda = tune->lambda;
 		kfg_set_domain(x, sz[l], 8, 8);
 		if (l == KFG_LEVELS) {
-			// Dominant motion of the coarsest field: the camera, as a candidate for every block.
+			// Camera motion of the coarsest field (turns and walking), a candidate for every block.
 			x = kfg_plan_add(p, KFG_SHADER_STATS, kfg_ref(KFG_ROLE_STATS, pr, 0), "global");
 			x->slots[0] = kfg_ref(KFG_ROLE_FLOW, pr, l);
 			x->nslots = 1;
 			x->params.src_size[0] = (int32_t)sz[l][0];
 			x->params.src_size[1] = (int32_t)sz[l][1];
+			x->params.full_size[0] = (int32_t)w;
+			x->params.full_size[1] = (int32_t)h;
 			x->params.flags = KFG_FLAG_GLOBAL;
-			x->params.dst_size[0] = 2;
+			x->params.dst_size[0] = 4;
 			x->params.dst_size[1] = 1;
 			x->groups[0] = 1;
 			x->groups[1] = 1;

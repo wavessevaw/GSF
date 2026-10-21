@@ -35,8 +35,10 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 #define KFG_FLAG_TEMPORAL 16
 #define KFG_FLAG_GLOBAL 32
 
-// Pair statistics image (2x1): texel 0 = cut and match statistics, texel 1 = global motion
-// (xy forward, zw backward, pixels).
+// Pair statistics image (4x1): texel 0 = cut and match statistics; texels 1 to 3 = camera
+// motion as affine fields over normalised image coordinates: texel 1 = motion at the image
+// centre (xy forward, zw backward, pixels), texels 2 and 3 = forward and backward gradients
+// (x: xy, y: zw, pixels per half image).
 #define KFG_GLOBAL_TEXEL ivec2(1, 0)
 
 float kfg_luma(vec3 c)
@@ -49,4 +51,15 @@ vec4 kfg_tap(int slot, vec2 texel_pos, ivec2 size)
 {
 	vec2 uv = (texel_pos + 0.5) / vec2(size);
 	return textureLod(s_samplers[slot], uv, 0.0);
+}
+
+// Camera motion at a full-resolution pixel position: xy forward, zw backward, pixels.
+vec4 kfg_global_at(int slot, vec2 pix)
+{
+	vec2 h = 0.5 * vec2(u_fullSize);
+	vec2 u = (pix - h) / h;
+	vec4 c = texelFetch(s_samplers[slot], KFG_GLOBAL_TEXEL, 0);
+	vec4 mf = texelFetch(s_samplers[slot], KFG_GLOBAL_TEXEL + ivec2(1, 0), 0);
+	vec4 mb = texelFetch(s_samplers[slot], KFG_GLOBAL_TEXEL + ivec2(2, 0), 0);
+	return c + vec4(dot(mf.xy, u), dot(mf.zw, u), dot(mb.xy, u), dot(mb.zw, u));
 }
