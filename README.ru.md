@@ -18,7 +18,7 @@ GSF (GPU Synthetic Frames) создаёт промежуточные кадры 
 [![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)](#известные-ограничения)
 [![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
 
-<img src="docs/img/interface.png" alt="Интерфейс GSF Kedavra: панель Decky с кольцом 90 FPS при лимите 30, HUD в игре, разделы Pace и Setup" width="900">
+<img src="docs/img/interface-1.1.png" alt="Интерфейс GSF Kedavra: панель Decky в режиме Custom с базовым FPS 40 и зелёным ползунком, HUD в игре, разделы Pace и Setup" width="900">
 
 <sub>Собственный код интерфейса и HUD плагина, отрисованный с примерными значениями. Это не измерение.</sub>
 
