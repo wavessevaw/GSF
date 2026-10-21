@@ -84,6 +84,9 @@ namespace kfg
 
 		// Paint in progress.
 		bool bPending = false;
+		// Motion analysis of the newest source, submitted after this paint's composite.
+		kfg_plan analysisPlan = {};
+		bool bAnalysisQueued = false;
 		bool bApplied = false;
 		bool bNewSource = false;
 		uint64_t ulPendingID = 0;
@@ -156,7 +159,8 @@ namespace kfg
 
 	static bool SupportedSource( const FrameInfo_t::Layer_t &layer )
 	{
-		if ( !layer.tex || layer.isYcbcr() )
+		// SDR only: an HDR layer (PQ, scRGB) passes through untouched.
+		if ( !layer.tex || layer.isYcbcr() || ColorspaceIsHDR( layer.colorspace ) )
 			return false;
 		switch ( layer.tex->format() )
 		{
@@ -177,6 +181,7 @@ namespace kfg
 		s.pSelect = nullptr;
 		s.pOutput[ 0 ] = s.pOutput[ 1 ] = nullptr;
 		s.pLastShown = nullptr;
+		s.bAnalysisQueued = false;
 		s.uWidth = s.uHeight = 0;
 	}
 
@@ -339,7 +344,7 @@ namespace kfg
 			{
 				CVulkanTexture *pTex = slot < pass.nslots ? ResolveRef( r, pass.slots[ slot ] ) : nullptr;
 				pCmd->bindTexture( slot, pTex );
-				pCmd->setTextureSrgb( slot, false );
+				pCmd->setTextureSrgb( slot, true );  // raw values, see RecordCopy
 				pCmd->setSamplerNearest( slot, false );
 				pCmd->setSamplerUnnormalized( slot, false );
 			}
@@ -358,7 +363,13 @@ namespace kfg
 		p.src_size[ 1 ] = p.dst_size[ 1 ];
 		pCmd->bindPipeline( g_device.pipeline( SHADER_TYPE_KFG_COPY ) );
 		pCmd->bindTexture( 0, std::move( pSrc ) );
-		pCmd->setTextureSrgb( 0, false );
+		// Gamescope's naming is inverted: setTextureSrgb( true ) binds the UNORM view
+		// ("srgbView", the raw encoded values) and false the _SRGB view, which decodes
+		// to linear. The ring must keep the raw values: the composite reuses the game
+		// layer's colorspace and decodes them itself. With false the ring held linear
+		// values that got decoded twice (dark, high contrast, flicker against
+		// passthrough frames; seen on the Deck).
+		pCmd->setTextureSrgb( 0, true );
 		pCmd->setSamplerNearest( 0, true );
 		pCmd->setSamplerUnnormalized( 0, false );
 		for ( uint32_t slot = 1; slot < KFG_MAX_SLOTS; slot++ )
@@ -559,8 +570,9 @@ namespace kfg
 			s.ulLastCommitID = ulBaseCommitID;
 			s.ulSources++;
 			kfg_sched_on_latch( &s.sched, ulBaseCommitID, nVBlank );
-			// Analysis is recorded ahead of generation in this paint's composite.
-			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank, true, false );
+			// Analysis runs in its own submission after this paint's composite (see
+			// SubmitAnalysis), so the pair is usable from the next vblank.
+			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 1, true, false );
 		}
 
 		s.pending = kfg_sched_decide( &s.sched, nVBlank );
@@ -622,8 +634,10 @@ namespace kfg
 			cur.ulPrevID = pPrev ? pPrev->ulID : 0;
 			const uint32_t fb = FrameIndex( s, &cur );
 			const uint32_t fa = pPrev ? FrameIndex( s, pPrev ) : fb;
-			kfg_plan_analyze( &plan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, &tune );
-			RecordPlan( pCmd, plan, r );
+			// Not recorded here: ~5 ms of analysis inside the composite made the flip miss
+			// its vblank (on the Deck a third of the vblanks had no flip).
+			kfg_plan_analyze( &s.analysisPlan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, &tune );
+			s.bAnalysisQueued = true;
 		}
 
 		const kfg_decision &d = s.pending;
@@ -685,9 +699,26 @@ namespace kfg
 		s.ulApplied++;
 	}
 
+	// The composite for this vblank is submitted and waited for; analysis goes behind it
+	// on the same queue, so it is complete before the next composite reads its results.
+	static void SubmitAnalysis( State_t &s )
+	{
+		if ( !s.bAnalysisQueued )
+			return;
+		s.bAnalysisQueued = false;
+		if ( !s.uWidth )
+			return;
+		auto pCmd = g_device.commandBuffer();
+		RecordHistoryBarrier( pCmd.get() );
+		Resolve_t r = { &s, nullptr, s.uNextOutput };
+		RecordPlan( pCmd.get(), s.analysisPlan, r );
+		g_device.submit( std::move( pCmd ) );
+	}
+
 	void OnPresented( bool bPresented )
 	{
 		State_t &s = g_State;
+		SubmitAnalysis( s );
 		if ( !s.bPending )
 			return;
 		s.bPending = false;

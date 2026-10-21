@@ -1,0 +1,40 @@
+{
+ "device": "AMD Custom GPU 0932 (RADV VANGOGH)",
+ "driver": "radv Mesa 26.0.0-devel (git-d246f60ddf)",
+ "size": [1280, 800],
+ "scenes": [
+  {"scene": "pan", "dynamic": true, "cut_flag": 0, "bad_fraction": 0.0276, "phases": [
+   {"t": 0.333333, "psnr_gen": 32.158, "psnr_blend": 17.235, "psnr_dup": 16.216, "region_gen": 32.158, "region_blend": 17.235, "region_dup": 16.216, "mean_abs_vs_A": 25.547, "mean_abs_vs_B": 33.710, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 33.087, "psnr_blend": 17.244, "psnr_dup": 16.232, "region_gen": 33.087, "region_blend": 17.244, "region_dup": 16.232, "mean_abs_vs_A": 33.649, "mean_abs_vs_B": 25.563, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 32.454, "psnr_blend": 16.583, "psnr_dup": 15.090, "region_gen": 32.454, "region_blend": 16.583, "region_dup": 15.090, "mean_abs_vs_A": 31.538, "mean_abs_vs_B": 31.643, "hud_err": 0.000, "pass": true}
+  ]},
+  {"scene": "fast_pan", "dynamic": true, "cut_flag": 0, "bad_fraction": 0.0044, "phases": [
+   {"t": 0.333333, "psnr_gen": 29.676, "psnr_blend": 17.699, "psnr_dup": 16.679, "region_gen": 29.676, "region_blend": 17.699, "region_dup": 16.679, "mean_abs_vs_A": 26.655, "mean_abs_vs_B": 29.925, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 29.097, "psnr_blend": 17.665, "psnr_dup": 16.647, "region_gen": 29.097, "region_blend": 17.665, "region_dup": 16.647, "mean_abs_vs_A": 29.547, "mean_abs_vs_B": 26.739, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 29.478, "psnr_blend": 17.500, "psnr_dup": 16.189, "region_gen": 29.478, "region_blend": 17.500, "region_dup": 16.189, "mean_abs_vs_A": 28.851, "mean_abs_vs_B": 29.054, "hud_err": 0.000, "pass": true}
+  ]},
+  {"scene": "objects_hud", "dynamic": true, "cut_flag": 0, "bad_fraction": 0.0022, "phases": [
+   {"t": 0.333333, "psnr_gen": 35.226, "psnr_blend": 30.097, "psnr_dup": 29.196, "region_gen": 24.643, "region_blend": 19.331, "region_dup": 18.212, "mean_abs_vs_A": 0.999, "mean_abs_vs_B": 1.289, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 34.923, "psnr_blend": 30.084, "psnr_dup": 29.155, "region_gen": 24.791, "region_blend": 19.417, "region_dup": 18.280, "mean_abs_vs_A": 1.262, "mean_abs_vs_B": 1.013, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 35.058, "psnr_blend": 29.669, "psnr_dup": 28.198, "region_gen": 24.739, "region_blend": 19.253, "region_dup": 17.704, "mean_abs_vs_A": 1.164, "mean_abs_vs_B": 1.188, "hud_err": 0.000, "pass": true}
+  ]},
+  {"scene": "occlusion", "dynamic": true, "cut_flag": 0, "bad_fraction": 0.0037, "phases": [
+   {"t": 0.333333, "psnr_gen": 35.400, "psnr_blend": 20.615, "psnr_dup": 19.280, "region_gen": 24.475, "region_blend": 19.138, "region_dup": 17.994, "mean_abs_vs_A": 16.315, "mean_abs_vs_B": 20.778, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 35.685, "psnr_blend": 20.598, "psnr_dup": 19.263, "region_gen": 24.726, "region_blend": 19.003, "region_dup": 17.836, "mean_abs_vs_A": 20.792, "mean_abs_vs_B": 16.268, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 37.714, "psnr_blend": 20.238, "psnr_dup": 18.500, "region_gen": 25.042, "region_blend": 18.816, "region_dup": 17.149, "mean_abs_vs_A": 18.943, "mean_abs_vs_B": 18.905, "hud_err": 0.000, "pass": true}
+  ]},
+  {"scene": "static", "dynamic": false, "cut_flag": 0, "bad_fraction": 0.0000, "phases": [
+   {"t": 0.333333, "psnr_gen": 99.000, "psnr_blend": 99.000, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 99.000, "region_dup": 99.000, "mean_abs_vs_A": 0.000, "mean_abs_vs_B": 0.000, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 99.000, "psnr_blend": 99.000, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 99.000, "region_dup": 99.000, "mean_abs_vs_A": 0.000, "mean_abs_vs_B": 0.000, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 99.000, "psnr_blend": 99.000, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 99.000, "region_dup": 99.000, "mean_abs_vs_A": 0.000, "mean_abs_vs_B": 0.000, "hud_err": 0.000, "pass": true}
+  ]},
+  {"scene": "scene_cut", "dynamic": false, "cut_flag": 1, "bad_fraction": 0.0767, "phases": [
+   {"t": 0.333333, "psnr_gen": 99.000, "psnr_blend": 27.636, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 27.636, "region_dup": 99.000, "mean_abs_vs_A": 0.000, "mean_abs_vs_B": 24.595, "hud_err": 0.000, "pass": true},
+   {"t": 0.666667, "psnr_gen": 99.000, "psnr_blend": 27.636, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 27.636, "region_dup": 99.000, "mean_abs_vs_A": 24.595, "mean_abs_vs_B": 0.000, "hud_err": 0.000, "pass": true},
+   {"t": 0.500000, "psnr_gen": 99.000, "psnr_blend": 24.114, "psnr_dup": 99.000, "region_gen": 99.000, "region_blend": 24.114, "region_dup": 99.000, "mean_abs_vs_A": 24.595, "mean_abs_vs_B": 0.000, "hud_err": 0.000, "pass": true}
+  ]}
+ ],
+ "sequence_bad_outputs": 0,
+ "bench": {"reps": 200, "passes": [{"pass": "reduce", "median_ms": 0.0719, "p99_ms": 0.2069}, {"pass": "reduce", "median_ms": 0.0074, "p99_ms": 0.0434}, {"pass": "reduce", "median_ms": 0.0036, "p99_ms": 0.0138}, {"pass": "reduce", "median_ms": 0.0028, "p99_ms": 0.0060}, {"pass": "me", "median_ms": 1.5516, "p99_ms": 2.4206}, {"pass": "me", "median_ms": 0.5899, "p99_ms": 1.0032}, {"pass": "me", "median_ms": 2.3582, "p99_ms": 3.4644}, {"pass": "stats", "median_ms": 0.1876, "p99_ms": 0.4163}, {"pass": "g1:select", "median_ms": 0.2325, "p99_ms": 0.4106}, {"pass": "g1:warp", "median_ms": 0.2774, "p99_ms": 1.1138}, {"pass": "g2:select", "median_ms": 0.2105, "p99_ms": 0.3650}, {"pass": "g2:warp", "median_ms": 0.2704, "p99_ms": 1.0495}], "analysis_ms": 4.7731, "two_outputs_ms": 0.9907},
+ "failures": 0
+}
