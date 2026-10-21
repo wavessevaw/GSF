@@ -360,14 +360,15 @@ static const kfg_vk_image *resolve(void *user, kfg_image_ref r)
 	}
 }
 
-static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h)
+// color_fmt: the colour ring and the output (R8G8B8A8_UNORM for SDR, R16G16B16A16_SFLOAT for HDR).
+static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h, VkFormat color_fmt)
 {
 	memset(e, 0, sizeof(*e));
 	e->vk = vk;
 	e->w = w;
 	e->h = h;
 	for (uint32_t r = 0; r < KFG_RING; r++) {
-		if (kfg_vk_image_create(vk, &e->color[r], VK_FORMAT_R8G8B8A8_UNORM, w, h))
+		if (kfg_vk_image_create(vk, &e->color[r], color_fmt, w, h))
 			return -1;
 		for (uint32_t l = 1; l <= KFG_LEVELS; l++) {
 			uint32_t sz[2];
@@ -385,7 +386,7 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h)
 	for (int i = 0; i < 2; i++)
 		if (kfg_vk_image_create(vk, &e->select[i], kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
 			return -1;
-	return kfg_vk_image_create(vk, &e->output, kfg_vk_format(KFG_FORMAT_RGBA8), w, h);
+	return kfg_vk_image_create(vk, &e->output, color_fmt, w, h);
 }
 
 static void engine_destroy(engine *e)
@@ -413,6 +414,188 @@ static int run_plan(engine *e, const kfg_plan *p, double *times, uint32_t *ntime
 	if (times && ntimes)
 		*ntimes = kfg_vk_pass_times(e->vk, times, KFG_MAX_PASSES);
 	return 0;
+}
+
+// ---- HDR ----------------------------------------------------------------------------------
+// The scenes again as HDR games present them: the SDR picture as display light (gamma 2.2,
+// white = 600 nits), encoded as HDR10 PQ code values or as linear scRGB (1.0 = 80 nits, white
+// = 7.5), in float colour frames as Gamescope keeps them for HDR. Outputs are compared in a
+// perceptual 0..255 scale (PQ, 1000 nits = 255).
+#define HDR_WHITE_NITS 600.0
+
+static double pq_encode(double y)  // y in units of 10000 nits
+{
+	const double m1 = 0.1593017578125, m2 = 78.84375, c1 = 0.8359375, c2 = 18.8515625, c3 = 18.6875;
+	const double p = pow(y < 0 ? 0 : y > 1 ? 1 : y, m1);
+	return pow((c1 + c2 * p) / (1.0 + c3 * p), m2);
+}
+
+static uint16_t float_to_half(float f)
+{
+	uint32_t x;
+	memcpy(&x, &f, 4);
+	const uint32_t s = (x >> 16) & 0x8000u;
+	int e = (int)((x >> 23) & 0xff) - 127 + 15;
+	uint32_t m = x & 0x7fffffu;
+	if (e <= 0)
+		return (uint16_t)s;  // flush tiny values
+	if (e >= 31)
+		return (uint16_t)(s | 0x7c00u);
+	m += 0x1000u;  // round to nearest
+	if (m & 0x800000u) {
+		m = 0;
+		if (++e >= 31)
+			return (uint16_t)(s | 0x7c00u);
+	}
+	return (uint16_t)(s | ((uint32_t)e << 10) | (m >> 13));
+}
+
+static float half_round(float f)  // the value a half-float image stores for f
+{
+	const uint16_t h = float_to_half(f);
+	const uint32_t s = (uint32_t)(h >> 15) << 31, e = (h >> 10) & 0x1fu, m = h & 0x3ffu;
+	if (e == 0)
+		return 0.0f;
+	const uint32_t x = s | ((e + 112u) << 23) | (m << 13);
+	float out;
+	memcpy(&out, &x, 4);
+	return out;
+}
+
+// SDR 8-bit picture -> HDR float RGBA (encoded as the transfer stores it, rounded to half floats
+// so references equal what the colour frames hold).
+static void to_hdr(const uint8_t *sdr, float *out, size_t npx, int transfer)
+{
+	for (size_t i = 0; i < npx; i++) {
+		for (int c = 0; c < 3; c++) {
+			const double nits = pow(sdr[4 * i + c] / 255.0, 2.2) * HDR_WHITE_NITS;
+			out[4 * i + c] = half_round((float)(transfer == KFG_TRANSFER_PQ ? pq_encode(nits / 10000.0) : nits / 80.0));
+		}
+		out[4 * i + 3] = 1.0f;
+	}
+}
+
+// HDR float -> perceptual 8-bit (PQ code, 1000 nits = 255) for PSNR-style comparisons.
+static void hdr_view(const float *in, uint8_t *out, size_t npx, int transfer)
+{
+	for (size_t i = 0; i < npx; i++) {
+		for (int c = 0; c < 3; c++) {
+			const double pq = transfer == KFG_TRANSFER_PQ ? in[4 * i + c] : pq_encode(in[4 * i + c] * 80.0 / 10000.0);
+			const double v = pq / 0.7518 * 255.0 + 0.5;
+			out[4 * i + c] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v);
+		}
+		out[4 * i + 3] = 255;
+	}
+}
+
+static int upload_hdr(kfg_vk *vk, kfg_vk_image *img, const float *rgba, uint16_t *tmp)
+{
+	const size_t n = (size_t)img->width * img->height * 4;
+	for (size_t i = 0; i < n; i++)
+		tmp[i] = float_to_half(rgba[i]);
+	return kfg_vk_upload_raw(vk, img, tmp, n * 2);
+}
+
+// Same gates as the SDR scenes; also: static HDR values (above 1.0 in scRGB) come back exactly.
+static int hdr_checks(kfg_vk *vk, int w, int h, int transfer, FILE *js)
+{
+	engine e;
+	if (engine_init(&e, vk, (uint32_t)w, (uint32_t)h, VK_FORMAT_R16G16B16A16_SFLOAT)) {
+		printf("hdr %s: engine init failed\n", kfg_transfer_names[transfer]);
+		return 1;
+	}
+	const size_t npx = (size_t)w * h, nbytes = npx * 4;
+	uint8_t *A8 = malloc(nbytes), *B8 = malloc(nbytes), *T8 = malloc(nbytes);
+	uint8_t *A = malloc(nbytes), *B = malloc(nbytes), *T = malloc(nbytes), *G = malloc(nbytes), *L = malloc(nbytes), *D = malloc(nbytes);
+	float *Af = malloc(nbytes * sizeof(float)), *Bf = malloc(nbytes * sizeof(float)), *Gf = malloc(nbytes * sizeof(float));
+	uint16_t *tmp = malloc(nbytes * 2);
+	kfg_tuning tune = kfg_default_tuning();
+	tune.transfer = transfer;
+	const int32_t flags = kfg_transfer_flags(transfer);
+	static const int kinds[] = { 0, 2, 3, 4, 5 };  // pan, objects_hud, occlusion, static, scene_cut
+	int failures = 0;
+	double worst_gain = 1e9, static_float_err = 0;
+	if (js)
+		fprintf(js, " \"hdr_%s\": {\"scenes\": [", kfg_transfer_names[transfer]);
+	for (size_t k = 0; k < sizeof(kinds) / sizeof(kinds[0]); k++) {
+		const scene *s = &SCENES[kinds[k]];
+		render(s, 0.0, w, h, A8);
+		render(s, 1.0, w, h, B8);
+		to_hdr(A8, Af, npx, transfer);
+		to_hdr(B8, Bf, npx, transfer);
+		hdr_view(Af, A, npx, transfer);
+		hdr_view(Bf, B, npx, transfer);
+		upload_hdr(vk, &e.color[0], Af, tmp);
+		upload_hdr(vk, &e.color[1], Bf, tmp);
+		kfg_plan p;
+		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 1, 0, 0, 0, -1, &tune);
+		run_plan(&e, &p, NULL, NULL);
+		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, -1, &tune);
+		run_plan(&e, &p, NULL, NULL);
+		float st[16];
+		kfg_vk_download_rgba16f(vk, &e.stats[1], st);
+		bool ok = true;
+		const char *why = "";
+		if (s->cut != (st[0] > 0.5)) {
+			ok = false;
+			why = s->cut ? "scene cut not detected" : "false scene cut";
+		}
+		double gain = 99;
+		for (int pi = 0; pi < 2; pi++) {
+			const double t = (pi + 1) / 3.0;
+			kfg_plan_generate(&p, (uint32_t)w, (uint32_t)h, 0, 1, 1, (float)t, flags);
+			run_plan(&e, &p, NULL, NULL);
+			kfg_vk_download_rgba16f(vk, &e.output, Gf);
+			hdr_view(Gf, G, npx, transfer);
+			render(s, t, w, h, T8);
+			float *Tf = Gf;  // reuse after G is taken
+			to_hdr(T8, Tf, npx, transfer);
+			hdr_view(Tf, T, npx, transfer);
+			for (size_t i = 0; i < nbytes; i++) {
+				L[i] = (uint8_t)lrint((1 - t) * A[i] + t * B[i]);
+				D[i] = t < 0.5 ? A[i] : B[i];
+			}
+			const double pg = psnr_region(G, T, w, h, 0, 0, w, h), pl = psnr_region(L, T, w, h, 0, 0, w, h),
+				     pd = psnr_region(D, T, w, h, 0, 0, w, h);
+			if (s->dynamic) {
+				const double g = fmin(pg - pl, pg - pd);
+				if (g < gain)
+					gain = g;
+				if (g < 3.0) { ok = false; why = "not better than blend/duplicate by 3 dB"; }
+			} else if (s->cut) {
+				if (max_abs(G, D, nbytes) > 0) { ok = false; why = "scene cut blended"; }
+			} else {
+				if (max_abs(G, A, nbytes) > 1) { ok = false; why = "static scene changed"; }
+				// The float values themselves, highlights above 1.0 included (scRGB).
+				kfg_vk_download_rgba16f(vk, &e.output, Gf);
+				for (size_t i = 0; i < nbytes; i++) {
+					if ((i & 3) == 3)
+						continue;
+					const double d = fabs(Gf[i] - Af[i]) / fmax(1.0, fabs(Af[i]));
+					if (d > static_float_err)
+						static_float_err = d;
+				}
+				if (static_float_err > 2e-3) { ok = false; why = "static HDR values changed"; }
+			}
+		}
+		if (s->dynamic && gain < worst_gain)
+			worst_gain = gain;
+		if (!ok)
+			failures++;
+		printf("hdr %-5s %-12s cut=%.0f %s%s%s\n", kfg_transfer_names[transfer], s->name, st[0], ok ? "PASS" : "FAIL: ", why,
+		       s->dynamic ? "" : "");
+		if (s->dynamic)
+			printf("          worst gain over blend/duplicate %.2f dB\n", gain);
+		if (js)
+			fprintf(js, "%s{\"scene\": \"%s\", \"cut_flag\": %.0f, \"gain_db\": %.3f, \"pass\": %s}", k ? ", " : "", s->name, st[0],
+				s->dynamic ? gain : 0.0, ok ? "true" : "false");
+	}
+	if (js)
+		fprintf(js, "], \"worst_gain_db\": %.3f, \"static_rel_err\": %.6f, \"failures\": %d},\n", worst_gain, static_float_err, failures);
+	free(A8); free(B8); free(T8); free(A); free(B); free(T); free(G); free(L); free(D);
+	free(Af); free(Bf); free(Gf); free(tmp);
+	engine_destroy(&e);
+	return failures;
 }
 
 static int cmp_double(const void *a, const void *b)
@@ -448,7 +631,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	engine e;
-	if (engine_init(&e, &vk, (uint32_t)w, (uint32_t)h)) {
+	if (engine_init(&e, &vk, (uint32_t)w, (uint32_t)h, VK_FORMAT_R8G8B8A8_UNORM)) {
 		fprintf(stderr, "engine init failed\n");
 		return 1;
 	}
@@ -839,6 +1022,11 @@ int main(int argc, char **argv)
 			fprintf(js, " \"%s_temporal\": {\"gen\": %.4f, \"dup\": %.4f, \"psnr_gen\": %.3f, \"psnr_dup\": %.3f},\n",
 				s->name, te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
 		free(O); free(Op); free(Tp); free(Dp);
+	}
+
+	if (!only || !strncmp(only, "hdr", 3)) {
+		failures += hdr_checks(&vk, w, h, KFG_TRANSFER_PQ, js);
+		failures += hdr_checks(&vk, w, h, KFG_TRANSFER_SCRGB, js);
 	}
 
 	// Benchmark: analysis of one pair + two generated outputs (x3), GPU timestamps per pass.

@@ -72,6 +72,7 @@ namespace kfg
 	// revision; the status file echoes the revision with the values in force, so the
 	// controller knows its whole policy arrived.
 	gamescope::ConVar<int> cv_kfg_auto_floor{ "kfg_auto_floor", 0, "Lowest base cap Auto may use, in fps: 0 = refresh / 3 (x3); down to refresh / 3.75 (24 at 90 Hz, x3.75)." };
+	gamescope::ConVar<bool> cv_kfg_hdr{ "kfg_hdr", true, "Generate and filter HDR games too (HDR10 PQ and scRGB, in float frames). false = HDR games pass through untouched." };
 	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
 	// Frames kept on the GPU. The scheduler may show content up to max_delay vblanks
@@ -116,6 +117,7 @@ namespace kfg
 		uint64_t ulLastCommitID = 0;
 		uint32_t uLastAppID = 0;
 		uint32_t uWidth = 0, uHeight = 0;
+		int nTransfer = KFG_TRANSFER_SDR;  // of the ring and outputs (enum kfg_transfer)
 
 		Frame_t frames[ k_uRing ];
 		uint32_t uNextFrame = 0;
@@ -170,6 +172,8 @@ namespace kfg
 		gamescope::OwningRc<CVulkanTexture> pSmaaArea, pSmaaSearch;  // constant, uploaded once
 		bool bSmaaUploaded = false;
 		uint32_t uPostWidth = 0, uPostHeight = 0;
+		int nPostTransfer = KFG_TRANSFER_SDR;  // of the post images
+		bool bPostLimited = false;  // HDR frame: colour looks left out (last filtered frame)
 		uint64_t ulPostFrames = 0, ulPostSkipped = 0;
 		double flPostUsLast = 0, flPostUsSum = 0;
 		uint64_t ulPostSamples = 0;
@@ -312,7 +316,10 @@ namespace kfg
 		layer->offset = vec2_t{ -flX, -flY };
 		layer->filter = GamescopeUpscaleFilter::NEAREST;
 		layer->blackBorder = false;
-		layer->applyColorMgmt = false;
+		// On an HDR output the HUD is SDR content: with colour management it is mapped to SDR
+		// brightness like Steam's overlays (a scanout plane without it would show sRGB values
+		// as PQ). SDR keeps the behaviour the HUD always had.
+		layer->applyColorMgmt = ColorspaceIsHDR( base.colorspace ) && base.applyColorMgmt;
 		layer->ctm = nullptr;
 		layer->hdr_metadata_blob = nullptr;
 		layer->colorspace = GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
@@ -369,12 +376,25 @@ namespace kfg
 		return pTex;
 	}
 
-	static bool SupportedSource( const FrameInfo_t::Layer_t &layer )
+	// Transfer function of a game layer generation and filters can take, or -1. HDR layers
+	// keep their encoded values in float frames (kfg_color_format); the composite decodes
+	// generated frames with the layer's own colorspace, exactly like the game's frames.
+	static int SourceTransfer( const FrameInfo_t::Layer_t &layer )
 	{
-		// SDR only: an HDR layer (PQ, scRGB) passes through untouched.
-		if ( !layer.tex || layer.isYcbcr() || ColorspaceIsHDR( layer.colorspace ) )
-			return false;
-		switch ( layer.tex->format() )
+		if ( !layer.tex || layer.isYcbcr() )
+			return -1;
+		const VkFormat eFormat = layer.tex->format();
+		if ( layer.colorspace == GAMESCOPE_APP_TEXTURE_COLORSPACE_HDR10_PQ )
+		{
+			if ( !cv_kfg_hdr )
+				return -1;
+			const bool bOk = eFormat == VK_FORMAT_A2R10G10B10_UNORM_PACK32 || eFormat == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ||
+				eFormat == VK_FORMAT_R16G16B16A16_SFLOAT;
+			return bOk ? KFG_TRANSFER_PQ : -1;
+		}
+		if ( layer.colorspace == GAMESCOPE_APP_TEXTURE_COLORSPACE_SCRGB )
+			return cv_kfg_hdr && eFormat == VK_FORMAT_R16G16B16A16_SFLOAT ? KFG_TRANSFER_SCRGB : -1;
+		switch ( eFormat )
 		{
 			case VK_FORMAT_B8G8R8A8_UNORM:
 			case VK_FORMAT_B8G8R8A8_SRGB:
@@ -384,10 +404,15 @@ namespace kfg
 			// raw view samples them like the 8-bit ones; the ring keeps 8 bits per channel.
 			case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
 			case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-				return true;
+				return KFG_TRANSFER_SDR;
 			default:
-				return false;
+				return -1;
 		}
+	}
+
+	static bool SupportedSource( const FrameInfo_t::Layer_t &layer )
+	{
+		return SourceTransfer( layer ) >= 0;
 	}
 
 	static void ReleaseImages( State_t &s )
@@ -408,7 +433,7 @@ namespace kfg
 		ReleaseImages( s );
 		for ( Frame_t &f : s.frames )
 		{
-			f.pColor = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+			f.pColor = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
 			if ( !f.pColor )
 				return false;
 			for ( uint32_t l = 1; l <= KFG_LEVELS; l++ )
@@ -429,13 +454,13 @@ namespace kfg
 		kfg_select_size( uWidth, uHeight, bs );
 		s.pSelect[ 0 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pSelect[ 1 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
-		s.pOutput[ 0 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
-		s.pOutput[ 1 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+		s.pOutput[ 0 ] = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
+		s.pOutput[ 1 ] = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
 		if ( !s.pSelect[ 0 ] || !s.pSelect[ 1 ] || !s.pOutput[ 0 ] || !s.pOutput[ 1 ] )
 			return false;
 		s.uWidth = uWidth;
 		s.uHeight = uHeight;
-		kfg_log.infof( "ring of %u frames at %ux%u allocated", k_uRing, uWidth, uHeight );
+		kfg_log.infof( "ring of %u frames at %ux%u allocated (%s)", k_uRing, uWidth, uHeight, kfg_transfer_names[ s.nTransfer ] );
 		return true;
 	}
 
@@ -656,13 +681,14 @@ namespace kfg
 		}
 	}
 
-	static bool EnsurePostImages( State_t &s, uint32_t uWidth, uint32_t uHeight, bool bSmaa )
+	static bool EnsurePostImages( State_t &s, uint32_t uWidth, uint32_t uHeight, bool bSmaa, int nTransfer )
 	{
-		if ( s.uPostWidth != uWidth || s.uPostHeight != uHeight || !s.pPost[ 0 ] )
+		if ( s.uPostWidth != uWidth || s.uPostHeight != uHeight || !s.pPost[ 0 ] || s.nPostTransfer != nTransfer )
 		{
 			s.pSmaaEdges = s.pSmaaWeights = nullptr;
-			s.pPost[ 0 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
-			s.pPost[ 1 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+			s.nPostTransfer = nTransfer;
+			s.pPost[ 0 ] = CreateImage( uWidth, uHeight, kfg_color_format( nTransfer ) );
+			s.pPost[ 1 ] = CreateImage( uWidth, uHeight, kfg_color_format( nTransfer ) );
 			if ( !s.pPost[ 0 ] || !s.pPost[ 1 ] )
 			{
 				s.pPost[ 0 ] = s.pPost[ 1 ] = nullptr;
@@ -715,23 +741,46 @@ namespace kfg
 	// Filters layer 0 (the real or generated frame of this vblank) into the post images and
 	// shows the result instead. Runs after generation, so the HUD and overlays (other
 	// layers) and the motion analysis (ring frames) never see filtered pixels.
+	// What of the filters runs on a frame of this transfer. The filters work on code values in
+	// 0..1. HDR10 PQ code values are perceptual like sRGB ones, so sharpening, antialiasing and
+	// the finish effects (vignette, grain, chromatic aberration) work on them; the colour
+	// looks are SDR grades and would wreck HDR colour and brightness, so they are left out.
+	// scRGB is linear with values above 1.0: no filter is made for it, shown unfiltered.
+	static kfg_post_cfg PostFor( const kfg_post_cfg &cfg, int nTransfer )
+	{
+		kfg_post_cfg c = cfg;
+		if ( nTransfer == KFG_TRANSFER_SCRGB )
+			c = kfg_post_cfg{};
+		else if ( nTransfer == KFG_TRANSFER_PQ )
+			c.grade = 0;
+		return c;
+	}
+
 	static void RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0 )
 	{
 		const uint32_t uWidth = layer0.tex->width(), uHeight = layer0.tex->height();
-		if ( !EnsurePostImages( s, uWidth, uHeight, s.post.aa == KFG_AA_SMAA ) )
+		const int nTransfer = SourceTransfer( layer0 );
+		const kfg_post_cfg post = PostFor( s.post, nTransfer );
+		s.bPostLimited = nTransfer != KFG_TRANSFER_SDR && post.grade != s.post.grade;
+		if ( !kfg_post_active( &post ) )
+		{
+			s.ulPostSkipped++;
+			return;
+		}
+		if ( !EnsurePostImages( s, uWidth, uHeight, post.aa == KFG_AA_SMAA, nTransfer ) )
 		{
 			s.ulPostSkipped++;
 			s.pszLastProblem = "post_allocation_failed";
 			return;
 		}
-		if ( s.post.aa == KFG_AA_SMAA )
+		if ( post.aa == KFG_AA_SMAA )
 			RecordSmaaUpload( pCmd, s );
 		RecordHistoryBarrier( pCmd );  // the post images were last written by the previous composite
 		// Film grain moves with time, like SweetFX's Timer * 0.0022337 (Timer in ms).
 		const double flMs = double( get_time_in_nanos() ) / 1e6;
 		const float flPhase = float( std::fmod( flMs * 0.0022337, 1.0 ) );
 		kfg_plan plan;
-		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &s.post, flPhase );
+		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &post, flPhase );
 		if ( nRing < 0 )
 			return;
 		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
@@ -864,7 +913,8 @@ namespace kfg
 			"\"last_problem\":\"%s\",\"trace\":\"%s\","
 			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
-			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f}\n",
+			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,"
+			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
 			s.ulPaints, s.ulApplied, s.ulBypass, s.ulRingMiss, s.ulUnsupported,
@@ -879,7 +929,8 @@ namespace kfg
 			s.bAutoInit ? s.autoc.levels[0] : 0u,
 			JsonSafe( s.sPostSpec ).c_str(), kfg_post_active( &s.post ) ? "true" : "false", JsonSafe( s.sPostError ).c_str(),
 			s.ulPostFrames, s.ulPostSkipped,
-			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0 );
+			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
+			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false" );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
 	}
@@ -983,9 +1034,11 @@ namespace kfg
 		// Filters apply to the game's frames whether generation is on or not.
 		if ( kfg_post_active( &s.post ) )
 		{
-			s.bPostPending = pFrameInfo->layers.count() && SupportedSource( pFrameInfo->layers.get( 0 ) );
+			const int nTransfer = pFrameInfo->layers.count() ? SourceTransfer( pFrameInfo->layers.get( 0 ) ) : -1;
+			const kfg_post_cfg post = PostFor( s.post, nTransfer );
+			s.bPostPending = nTransfer >= 0 && kfg_post_active( &post );
 			if ( !s.bPostPending )
-				s.ulPostSkipped++;  // HDR or an unusual format: shown unfiltered
+				s.ulPostSkipped++;  // scRGB, kfg_hdr off or an unusual format: shown unfiltered
 		}
 		const bool bNewCommit = ulBaseCommitID != 0 && ulBaseCommitID != s.ulLastCommitID;
 		if ( bNewCommit )
@@ -1075,6 +1128,15 @@ namespace kfg
 		}
 
 		const FrameInfo_t::Layer_t &layer0 = pFrameInfo->layers.get( 0 );
+		const int nTransfer = SourceTransfer( layer0 );
+		if ( nTransfer != s.nTransfer )
+		{
+			// SDR <-> HDR (the game or Steam switched HDR): frames of the old encoding must
+			// not be blended with the new one, and the ring changes format.
+			ResetHistory( s, "transfer change" );
+			ReleaseImages( s );
+			s.nTransfer = nTransfer;
+		}
 		if ( layer0.tex->width() != s.uWidth || layer0.tex->height() != s.uHeight )
 		{
 			ResetHistory( s, "size change" );
@@ -1113,7 +1175,8 @@ namespace kfg
 		RecordHistoryBarrier( pCmd );
 
 		Resolve_t r = { &s, layer0.tex, s.uNextOutput };
-		const kfg_tuning tune = kfg_default_tuning();
+		kfg_tuning tune = kfg_default_tuning();
+		tune.transfer = s.nTransfer;
 		kfg_plan plan;
 
 		if ( s.bNewSource )
@@ -1172,7 +1235,8 @@ namespace kfg
 				if ( pA && pB && pB->ulPrevID == pA->ulID )
 				{
 					kfg_plan_generate( &plan, s.uWidth, s.uHeight, FrameIndex( s, pA ), FrameIndex( s, pB ), FrameIndex( s, pB ),
-						float( d.phase_num ) / float( d.phase_den ), cv_kfg_debug_marker ? KFG_FLAG_DEBUG_MARKER : 0 );
+						float( d.phase_num ) / float( d.phase_den ),
+						kfg_transfer_flags( s.nTransfer ) | ( cv_kfg_debug_marker ? KFG_FLAG_DEBUG_MARKER : 0 ) );
 					RecordPlan( pCmd, plan, r );
 					pShow = s.pOutput[ s.uNextOutput ].get();
 					s.uNextOutput ^= 1u;
@@ -1221,7 +1285,8 @@ namespace kfg
 		FrameInfo_t::Layer_t &layer0 = pFrameInfo->layers.get( 0 );
 		if ( !SupportedSource( layer0 ) )
 			return;
-		const bool bSizeOk = layer0.tex->width() == s.uWidth && layer0.tex->height() == s.uHeight;
+		const bool bSizeOk = layer0.tex->width() == s.uWidth && layer0.tex->height() == s.uHeight &&
+			SourceTransfer( layer0 ) == s.nTransfer;
 		if ( !bPost && !bSizeOk )
 			return;
 

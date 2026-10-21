@@ -35,6 +35,8 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 #define KFG_FLAG_TEMPORAL 16
 #define KFG_FLAG_GLOBAL 32
 #define KFG_FLAG_REPAIR 64
+#define KFG_FLAG_PQ 128
+#define KFG_FLAG_SCRGB 256
 
 // Pair statistics image (4x1): texel 0 = cut and match statistics; texels 1 to 3 = camera
 // motion as affine fields over normalised image coordinates: texel 1 = motion at the image
@@ -45,6 +47,30 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 float kfg_luma(vec3 c)
 {
 	return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
+
+// SMPTE ST 2084 (PQ) encoding of linear light in units of 10000 nits.
+float kfg_pq_encode(float y)
+{
+	const float m1 = 0.1593017578125, m2 = 78.84375;
+	const float c1 = 0.8359375, c2 = 18.8515625, c3 = 18.6875;
+	float p = pow(clamp(y, 0.0, 1.0), m1);
+	return pow((c1 + c2 * p) / (1.0 + c3 * p), m2);
+}
+
+// Luma of an HDR colour for motion analysis, 0..1 like SDR luma: PQ code value of the
+// luminance, normalised so 1000 nits is 1.0 (brighter highlights clip; they carry little
+// motion detail and would compress everything else). PQ input is already encoded and is
+// weighted with BT.2020 coefficients; scRGB is linear BT.709 with 1.0 = 80 nits.
+#define KFG_PQ_1000_NITS 0.7518
+float kfg_hdr_luma(vec3 c, int flags)
+{
+	float pq;
+	if ((flags & KFG_FLAG_SCRGB) != 0)
+		pq = kfg_pq_encode(max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 0.0) * (80.0 / 10000.0));
+	else
+		pq = dot(c, vec3(0.2627, 0.6780, 0.0593));
+	return clamp(pq * (1.0 / KFG_PQ_1000_NITS), 0.0, 1.0);
 }
 
 // Sample a texture at a texel-space position with the sampler's (linear) filter.

@@ -70,6 +70,19 @@ enum kfg_role {
 	KFG_ROLE_SMAA_SEARCH,   // constant lookup texture, R8 64x16, sampled nearest
 };
 
+// Transfer function of the source colour. The ring and the outputs keep the source's encoded
+// values unchanged, so the compositor decodes generated frames exactly like the game's own.
+// Only the luma pyramid is derived differently, so motion analysis sees similar contrast
+// for SDR and HDR. HDR needs float colour images (KFG_FORMAT_RGBA16F): 8 bits per channel
+// would band PQ and clip scRGB above 1.0.
+enum kfg_transfer {
+	KFG_TRANSFER_SDR = 0,   // sRGB / gamma 2.2 code values, 8 or 10 bit
+	KFG_TRANSFER_PQ,        // HDR10: SMPTE ST 2084 code values (BT.2020)
+	KFG_TRANSFER_SCRGB,     // linear BT.709, 1.0 = 80 nits, above 1.0 and below 0.0 allowed
+};
+
+static const char *const kfg_transfer_names[3] = { "sdr", "pq", "scrgb" };
+
 // Formats requested for internal roles (hosts translate to their own enums).
 enum kfg_format {
 	KFG_FORMAT_R8 = 0,         // luma
@@ -105,6 +118,9 @@ typedef struct kfg_params {
 #define KFG_FLAG_TEMPORAL 16   // me (coarsest): slot 2 holds the previous pair's flow, slot 3 its stats
 #define KFG_FLAG_GLOBAL 32     // stats: camera motion (affine) of the coarsest flow into stats texels 1-3
 #define KFG_FLAG_REPAIR 64     // select: clean up the selection field in slot 2 (one smoothing round)
+#define KFG_FLAG_PQ 128        // reduce (from colour): HDR10 PQ code values, luma normalised to 0..1000 nits
+#define KFG_FLAG_SCRGB 256     // reduce: linear scRGB, luma taken in PQ like KFG_FLAG_PQ; warp: keep
+                               // negative values (colours outside BT.709)
 #define KFG_REPAIR_ROUNDS 2    // select -> repair -> repair -> warp; even, so warp reads field 0
 
 typedef struct kfg_pass {
@@ -128,6 +144,7 @@ typedef struct kfg_tuning {
 	int32_t radius_refine;     // texels at levels 3 and 2
 	float lambda;
 	float cut_threshold;       // fraction of badly explained blocks
+	int32_t transfer;          // enum kfg_transfer of the colour frames
 } kfg_tuning;
 
 static inline kfg_tuning kfg_default_tuning(void)
@@ -137,7 +154,20 @@ static inline kfg_tuning kfg_default_tuning(void)
 	t.radius_refine = 1;
 	t.lambda = 0.02f;
 	t.cut_threshold = 0.5f;
+	t.transfer = KFG_TRANSFER_SDR;
 	return t;
+}
+
+// Flags a pass that reads colour needs for this transfer.
+static inline int32_t kfg_transfer_flags(int32_t transfer)
+{
+	return transfer == KFG_TRANSFER_PQ ? KFG_FLAG_PQ : transfer == KFG_TRANSFER_SCRGB ? KFG_FLAG_SCRGB : 0;
+}
+
+// Format of the colour ring, the generated outputs and the filter images for a transfer.
+static inline enum kfg_format kfg_color_format(int32_t transfer)
+{
+	return transfer == KFG_TRANSFER_SDR ? KFG_FORMAT_RGBA8 : KFG_FORMAT_RGBA16F;
 }
 
 static inline uint32_t kfg_div_up(uint32_t a, uint32_t b) { return (a + b - 1u) / b; }
@@ -209,7 +239,7 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 		x->nslots = 1;
 		x->params.src_size[0] = (int32_t)sz[l - 1][0];
 		x->params.src_size[1] = (int32_t)sz[l - 1][1];
-		x->params.flags = l == 1 ? 0 : KFG_FLAG_LUMA_INPUT | (l >= 3 ? KFG_FLAG_TENT : 0);
+		x->params.flags = l == 1 ? kfg_transfer_flags(tune->transfer) : KFG_FLAG_LUMA_INPUT | (l >= 3 ? KFG_FLAG_TENT : 0);
 		kfg_set_domain(x, sz[l], 8, 8);
 	}
 	if (!have_prev)
@@ -267,6 +297,7 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 }
 
 // One generated output at phase t in (0, 1) between frames fa and fb of pair pr.
+// flags: KFG_FLAG_DEBUG_MARKER and kfg_transfer_flags() of the colour frames.
 static inline void kfg_plan_generate(kfg_plan *p, uint32_t w, uint32_t h, uint32_t fa, uint32_t fb, uint32_t pr,
 				     float t, int32_t flags)
 {

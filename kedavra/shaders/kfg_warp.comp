@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Full-resolution synthesis of one generated frame at phase u_t.
 // Slots: 0 = colour A, 1 = colour B, 2 = selected motion (4x4 blocks), 3 = stats.
-// Colour is interpolated in the source's stored encoding.
+// Colour is interpolated in the source's stored encoding (sRGB, PQ or linear scRGB).
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "kfg_common.glsl"
@@ -30,7 +30,10 @@ vec4 tap_sharp(int slot, vec2 pos, ivec2 size)
 	       + textureLod(s_samplers[slot], vec2(p3.x, p12.y), 0.0) * (w3.x * w12.y)
 	       + textureLod(s_samplers[slot], vec2(p12.x, p3.y), 0.0) * (w12.x * w3.y);
 	float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
-	return max(r / wsum, vec4(0.0));
+	r /= wsum;
+	// Catmull-Rom overshoots below zero at edges. scRGB keeps negative values: they are
+	// colours outside BT.709, not overshoot, and clamping them would shift wide-gamut colour.
+	return (u_flags & KFG_FLAG_SCRGB) != 0 ? r : max(r, vec4(0.0));
 }
 
 void main()

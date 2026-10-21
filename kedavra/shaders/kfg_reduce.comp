@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Half-resolution luma: slot 0 is either colour (full resolution) or the previous
 // luma level. One bilinear tap at the shared corner of each 2x2 block is their mean.
+// HDR colour (KFG_FLAG_PQ, KFG_FLAG_SCRGB) becomes 0..1 luma like SDR (kfg_hdr_luma).
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "kfg_common.glsl"
@@ -25,7 +26,12 @@ void main()
 			    kfg_tap(0, corner + vec2(-1.0, 1.0), u_srcSize).r + kfg_tap(0, corner + vec2(1.0, 1.0), u_srcSize).r);
 	} else {
 		vec4 c = kfg_tap(0, corner, u_srcSize);
-		y = (u_flags & KFG_FLAG_LUMA_INPUT) != 0 ? c.r : kfg_luma(c.rgb);
+		if ((u_flags & KFG_FLAG_LUMA_INPUT) != 0)
+			y = c.r;
+		else if ((u_flags & (KFG_FLAG_PQ | KFG_FLAG_SCRGB)) != 0)
+			y = kfg_hdr_luma(c.rgb, u_flags);
+		else
+			y = kfg_luma(c.rgb);
 	}
 	imageStore(dst, p, vec4(y, 0.0, 0.0, 1.0));
 }
