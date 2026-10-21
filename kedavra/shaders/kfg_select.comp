@@ -130,15 +130,27 @@ void main()
 	// flat bands (stair treads) a wrong vector can match pale to pale on both sides, stepping
 	// over a thin dark edge (a riser) and erasing it; the field there, estimated over a wider
 	// window, still knows where the edge went.
+	// Neighbouring blocks mostly carry the same vector: each distinct candidate is matched
+	// once (raw[] keeps its match error, match[] that plus consistency; the fees differ).
+	float raw[10], match[10];
+	raw[0] = cost(c1, vec2(0.0));
+	match[0] = raw[0] + consistency(cpix, vec2(0.0), fsize);
 	vec2 best = vec2(0.0);
-	float best_cost = cost(c1, vec2(0.0)) - 0.004 + consistency(cpix, vec2(0.0), fsize); // static pixels (HUD) stay static on ties
+	float best_cost = match[0] - 0.004; // static pixels (HUD) stay static on ties
+	float best_raw = raw[0];
 	for (int i = 1; i < 10; i++) {
+		int same = -1;
+		for (int m = 0; m < i; m++)
+			same = (same < 0 && cand[m] == cand[i]) ? m : same;
+		raw[i] = same >= 0 ? raw[same] : cost(c1, cand[i]);
+		match[i] = same >= 0 ? match[same] : raw[i] + consistency(cpix, cand[i], fsize);
 		// The camera motion pays a flat fee instead of its distance from the block's vector,
 		// so static content (HUD) keeps winning ties against it.
-		float c = cost(c1, cand[i]) + (i == 9 ? 0.002 : 0.0005 * length(cand[i] - f.xy)) + consistency(cpix, cand[i], fsize);
+		float c = match[i] + (i == 9 ? 0.002 : 0.0005 * length(cand[i] - f.xy));
 		if (c < best_cost) {
 			best_cost = c;
 			best = cand[i];
+			best_raw = raw[i];
 		}
 	}
 
@@ -150,7 +162,7 @@ void main()
 	if (best_cost < 0.2 && best != vec2(0.0)) {
 		float cxm = cost(c1, best - vec2(1.0, 0.0)), cxp = cost(c1, best + vec2(1.0, 0.0));
 		float cym = cost(c1, best - vec2(0.0, 1.0)), cyp = cost(c1, best + vec2(0.0, 1.0));
-		float c0 = cost(c1, best);
+		float c0 = best_raw;
 		float dx = cxm - 2.0 * c0 + cxp, dy = cym - 2.0 * c0 + cyp;
 		vec2 sub = vec2(dx > 1e-5 ? 0.5 * (cxm - cxp) / dx : 0.0, dy > 1e-5 ? 0.5 * (cym - cyp) / dy : 0.0);
 		best += clamp(sub, vec2(-1.0), vec2(1.0));

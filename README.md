@@ -10,7 +10,7 @@
 
 GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
 
-[**Download 1.1.1**](https://github.com/wavessevaw/GSF/releases/tag/v1.1.1) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
+[**Download 1.1.2**](https://github.com/wavessevaw/GSF/releases/tag/v1.1.2) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
@@ -24,7 +24,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 </div>
 
-> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.1.1. Earlier builds measured on the Deck did not meet them; see [the Deck evidence](docs/kedavra/evidence/deck-20261021/README.md).
+> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.1.2. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
 
 ## Why GSF Kedavra
 
@@ -40,7 +40,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8.
 
-1. Download [**GSF-Kedavra-1.1.1.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.1.1/GSF-Kedavra-1.1.1.zip).
+1. Download [**GSF-Kedavra-1.1.2.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.1.2/GSF-Kedavra-1.1.2.zip).
 2. In Decky: **Settings → Developer → Install plugin from zip**, pick the file. Upgrading over an older KEDAVRA plugin keeps your settings.
 3. Open the plugin, go to **Setup** and press **Install Gamescope KEDAVRA**. Reboot when asked.
 4. After the reboot every check in **Setup** is green, with no line saying the installed Gamescope differs from the one in the plugin.
@@ -71,7 +71,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 
 ## Measuring pacing
 
-**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.1.1 targets are:
+**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.1.2 targets are:
 
 | Metric | Target |
 | --- | --- |
@@ -97,6 +97,7 @@ More detail: [architecture](docs/kedavra/PHASE_B_ARCHITECTURE.md), [Deck test pr
 - SDR output only. HDR games pass through without generation.
 - Built and tested for Steam Deck OLED at 90 Hz. Other refresh rates work in the model and tests but have not been measured on hardware.
 - Fine repeating detail (stairs, fences, grilles) is the hardest case for any motion estimator. 1.0.0 reduced the shimmer, 1.1.0 follows walking forward better and 1.1.1 checks motion over a taller window so step edges are no longer erased, but steps can still break up at low base FPS.
+- Stopping a Pace recording has restarted Gaming Mode on the Deck. 1.1.2 moves the trace file off the compositor, but the cause is not confirmed. If it happens, press **Setup → Save report to Desktop** right after: the report now includes the crash record.
 
 ## Building from source
 

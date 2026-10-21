@@ -14,22 +14,31 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // SAD window: 5x5 texels on the coarse levels, 3x3 on the finest searched level (2),
 // where a texel is already a 4x4 pixel block and the window cost dominated the
 // analysis on the Deck (2.4 of 4.8 ms). Constant bounds keep both loops unrolled.
+// The block's own window does not move with the candidate: it is read once per search
+// (g_win) and only the displaced window is sampled per candidate, half the taps.
 bool g_small = false;
+float g_win[25];
 
-float sad_w(int sa, int sb, vec2 q, vec2 d, ivec2 size, const int W)
+void load_window(int sa, vec2 q, ivec2 size)
+{
+	const int W = g_small ? 1 : 2;
+	for (int y = -W; y <= W; y++)
+		for (int x = -W; x <= W; x++)
+			g_win[(y + 2) * 5 + x + 2] = kfg_tap(sa, q + vec2(x, y), size).r;
+}
+
+float sad_w(int sb, vec2 q, vec2 d, ivec2 size, const int W)
 {
 	float e = 0.0;
 	for (int y = -W; y <= W; y++)
-		for (int x = -W; x <= W; x++) {
-			vec2 o = vec2(x, y);
-			e += abs(kfg_tap(sa, q + o, size).r - kfg_tap(sb, q + o + d, size).r);
-		}
+		for (int x = -W; x <= W; x++)
+			e += abs(g_win[(y + 2) * 5 + x + 2] - kfg_tap(sb, q + vec2(x, y) + d, size).r);
 	return e * (1.0 / float((2 * W + 1) * (2 * W + 1)));
 }
 
 float sad(int sa, int sb, vec2 q, vec2 d, ivec2 size)
 {
-	return g_small ? sad_w(sa, sb, q, d, size, 1) : sad_w(sa, sb, q, d, size, 2);
+	return g_small ? sad_w(sb, q, d, size, 1) : sad_w(sb, q, d, size, 2);
 }
 
 // Coarsest level: exhaustive search on a 2-texel lattice, then +-1 around the best lattice
@@ -83,6 +92,7 @@ vec2 search(int sa, int sb, vec2 q, ivec2 size, vec2 preds[6], int npred, bool c
 	vec2 best = vec2(0.0);
 	float best_cost = 1e9;
 	vec2 base = preds[0];
+	load_window(sa, q, size);
 	if (coarsest) {
 		best = search_coarsest(sa, sb, q, size, preds, npred, best_cost);
 		base = best;
