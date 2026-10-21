@@ -11,6 +11,11 @@ on:
   pull_request:
     paths: ['kedavra/**', '.github/workflows/kedavra.yml']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Publish the plugin to the release of this existing tag (e.g. v1.1.0); empty = build only'
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -169,9 +174,11 @@ jobs:
           path: KEDAVRA.zip
 
   # A pushed version tag (v1.0.0) publishes the plugin zip built above as a GitHub release,
-  # with the notes in docs/releases/<tag>.md.
+  # with the notes in docs/releases/<tag>.md. A release already made on github.com with a new
+  # tag gets the zip and the notes added. Run by hand with a tag, it publishes to that tag's
+  # release from the branch it runs on (for a release whose tag run failed).
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
     needs: plugin
     runs-on: ubuntu-24.04
     permissions:
@@ -185,10 +192,16 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           v=${TAG#v}
           cp out/KEDAVRA.zip "GSF-Kedavra-$v.zip"
           sha256sum "GSF-Kedavra-$v.zip" > "GSF-Kedavra-$v.zip.sha256"
-          gh release create "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" \
-            --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --verify-tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # The release was created on github.com together with the tag: fill it in.
+            gh release upload "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" --clobber
+            gh release edit "$TAG" --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md"
+          else
+            gh release create "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" \
+              --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --verify-tag
+          fi
