@@ -132,6 +132,8 @@ namespace kfg
 		// Counters (status file).
 		uint64_t ulPaints = 0, ulApplied = 0, ulBypass = 0, ulRingMiss = 0, ulUnsupported = 0;
 		uint64_t ulOverBudget = 0, ulSources = 0, ulLastSourceNs = 0;
+		bool bSteamUI = false;  // the Steam client is the base plane (its menus, not the game)
+		uint32_t uPaintAppID = 0;  // app id of the base plane at the last paint (diagnostics)
 		int nLayer0Format = 0, nLayer0Colorspace = 0;  // last layer 0 that generation could not take
 		const char *pszLastProblem = "none";
 		double flGpuUsLast = 0, flGpuUsMax = 0, flGpuUsSum = 0;
@@ -646,7 +648,7 @@ namespace kfg
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
-			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
+			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,\"steam_ui\":%s,\"app_id\":%u,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -657,7 +659,7 @@ namespace kfg
 			g_ulFlips.load( std::memory_order_relaxed ), BaseCapFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
-			s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
+			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
 	}
@@ -725,6 +727,21 @@ namespace kfg
 		// the plugin must show what the game really delivers, not the display's flip rate
 		// (the Steam menu alone repaints at the refresh rate).
 		s.bNewSource = false;
+		// The Steam client is exempt from the frame limiter and repaints at the refresh rate
+		// while its own UI is the base plane: those commits are not game frames, and frames
+		// generated over them would be wrong. The game's state (app id, Auto) is kept for
+		// when it comes back.
+		constexpr uint32_t k_uSteamAppID = 769;
+		const bool bSteamUI = uAppID == k_uSteamAppID;
+		s.uPaintAppID = uAppID;
+		if ( bSteamUI != s.bSteamUI )
+		{
+			s.bSteamUI = bSteamUI;
+			if ( bSteamUI )
+				ResetHistory( s, "steam ui" );
+		}
+		if ( bSteamUI )
+			return;
 		const bool bNewCommit = ulBaseCommitID != 0 && ulBaseCommitID != s.ulLastCommitID;
 		if ( bNewCommit )
 		{

@@ -205,7 +205,8 @@ def _rate_color(v: float, target: float) -> Rgb:
 def live_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> Dict[str, Any]:
     """What the HUD and the panel show: fps on screen, the game's fps, pace, generated share."""
     active = st.get("state") == "active"
-    if not rates:
+    if not rates or st.get("steam_ui") is True:
+        # No rates yet, or Steam's own UI is on screen: its repaints are not game frames.
         return {"fps": None, "real": None, "pace": None, "gen_share": None, "unsupported": 0.0}
     real = rates["sources"]
     shown = rates["real"] + rates["gen"] + rates["repeat"]
