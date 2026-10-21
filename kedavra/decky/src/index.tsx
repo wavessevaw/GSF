@@ -1,4 +1,4 @@
-import {DialogButton, Focusable, PanelSection, PanelSectionRow, SliderField, ToggleField, staticClasses} from '@decky/ui';
+import {DialogButton, Focusable, PanelSection, PanelSectionRow, SliderField, ToggleField, gamepadDialogClasses, gamepadSliderClasses, staticClasses} from '@decky/ui';
 import {callable, definePlugin, toaster} from '@decky/api';
 import {CSSProperties, Fragment, ReactNode, useEffect, useRef, useState} from 'react';
 import {LOGO} from './logo';
@@ -267,6 +267,7 @@ function Content() {
   const fpsColor = !generating ? C.green : (live?.fps ?? 0) >= 0.97 * hz ? C.green : (live?.fps ?? 0) >= 0.85 * hz ? C.yellow : C.red;
   const mult_text = Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}` : `×${ratio.toFixed(1)}`;
   return <PanelSection>
+    <style>{GREEN_CONTROLS}</style>
     <PanelSectionRow><div style={{...card, padding: 16}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16}}>
         <Ring size={96} width={8} frac={(live?.fps ?? 0) / hz} color={fpsColor}>
@@ -294,10 +295,10 @@ function Content() {
       <Segment selected={mode === 'auto'} disabled={busy || !running} label="Auto" onClick={() => setMode('auto')}/>
       <Segment selected={mode === 'cap'} disabled={busy || !running} label={mode === 'cap' ? `Custom ${base}` : 'Custom'} onClick={() => setMode('cap')}/>
     </Focusable></PanelSectionRow>
-    {mode === 'cap' && <PanelSectionRow><SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue
-      disabled={busy || !running} onChange={onBase}/></PanelSectionRow>}
-    <PanelSectionRow><ToggleField label="In-game HUD" checked={hud} disabled={busy}
-      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/></PanelSectionRow>
+    {mode === 'cap' && <PanelSectionRow><div className="gsf-green"><SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue
+      disabled={busy || !running} onChange={onBase}/></div></PanelSectionRow>}
+    <PanelSectionRow><div className="gsf-green"><ToggleField label="In-game HUD" checked={hud} disabled={busy}
+      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/></div></PanelSectionRow>
     <div style={gap}/>
     <PanelSectionRow><Focusable style={{display: 'flex', flexDirection: 'column', gap: 6}}>
       <ListButton title="Pace" sub="Record and check frame pacing" onClick={() => setView('pace')}/>
@@ -308,6 +309,12 @@ function Content() {
     <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 4}}>GSF {VERSION} · KEDAVRA</div></PanelSectionRow>
   </PanelSection>;
 }
+
+// Steam's slider and toggle are blue; turn their filled rails green (the white handles stay
+// white). A filter on Steam's own classes, so it does not depend on how Steam draws the fill.
+const GREEN_CONTROLS = `.gsf-green .${gamepadSliderClasses.SliderTrack}, .gsf-green .${gamepadDialogClasses.ToggleRail} {
+  filter: hue-rotate(-91deg) saturate(0.6) brightness(1.25);
+}`;
 
 export default definePlugin(() => ({
   name: 'KEDAVRA',
