@@ -63,6 +63,14 @@ class HudTest(unittest.TestCase):
         self.assertEqual(items[0]["text"], "75")
         self.assertEqual(items[2]["label"], "PACE")
 
+    def test_steam_ui_is_not_game_frames(self):
+        # The Steam client as the base plane repaints at the refresh rate, uncapped: no game
+        # FPS is shown for it.
+        lv = kedavra_hud.live_for(status(0, 0, 0, 0, 0, 0, steam_ui=True),
+                                  {"flips": 90.0, "sources": 90.0, "real": 0.0, "gen": 0.0, "repeat": 0.0})
+        self.assertIsNone(lv["real"])
+        self.assertIsNone(lv["fps"])
+
     def test_base_cap_label(self):
         items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, base_fps=40, auto=False), None)
         self.assertEqual(items[1]["label"], "CAP 40")

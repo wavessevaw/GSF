@@ -10,7 +10,7 @@
 
 GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
 
-[**Download 1.0.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.0.0) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
+[**Download 1.1.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.1.0) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
@@ -24,7 +24,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 </div>
 
-> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.0.0. Earlier builds measured on the Deck did not meet them; see [the Deck evidence](docs/kedavra/evidence/deck-20261021/README.md).
+> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.1.0. Earlier builds measured on the Deck did not meet them; see [the Deck evidence](docs/kedavra/evidence/deck-20261021/README.md).
 
 ## Why GSF Kedavra
 
@@ -40,7 +40,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8.
 
-1. Download [**GSF-Kedavra-1.0.0.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.0.0/GSF-Kedavra-1.0.0.zip).
+1. Download [**GSF-Kedavra-1.1.0.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.1.0/GSF-Kedavra-1.1.0.zip).
 2. In Decky: **Settings → Developer → Install plugin from zip**, pick the file. Upgrading over an older KEDAVRA plugin keeps your settings.
 3. Open the plugin, go to **Setup** and press **Install Gamescope KEDAVRA**. Reboot when asked.
 4. After the reboot every check in **Setup** is green, with no line saying the installed Gamescope differs from the one in the plugin.
@@ -53,9 +53,9 @@ To remove it, press **Remove and restore stock Gamescope** in **Setup**, then re
 | --- | --- |
 | **Off** | The game runs untouched. The ring shows the game's own frame rate. |
 | **Auto** | The engine limits the game to 30 FPS (x3) or 45 FPS (x2) at 90 Hz. It starts at x3, tries x2 after a clean stretch and returns to x3 as soon as the game cannot keep 45. |
-| **Custom FPS** | The engine holds the game at the base FPS you set (20 to 90) and generation fills the rest of the refresh. Rates that divide the refresh (30, 45 at 90 Hz) are the smoothest. Others, like 40, work with a 2-2-3 cadence. |
+| **Custom** | The engine holds the game at the base FPS you set (20 to 90) and generation fills the rest of the refresh. Rates that divide the refresh (30, 45 at 90 Hz) are the smoothest. Others, like 40, work with a 2-2-3 cadence. |
 
-**For the most stable result, lock the frame rate in the game's own settings** (30 or 45) and choose the same value as **Custom FPS**. A game that paces its own frames gives the generator evenly spaced inputs. No Steam FPS limit is needed: GSF sets the limit itself while generation is on and gives Steam's back when it is off.
+**For the most stable result, lock the frame rate in the game's own settings** (30 or 45) and choose the same value in **Custom**. A game that paces its own frames gives the generator evenly spaced inputs. No Steam FPS limit is needed: GSF sets the limit itself while generation is on and gives Steam's back when it is off.
 
 Generation needs at least a few milliseconds of GPU time per game frame for motion analysis. If the game already uses all of the GPU, lower the base FPS.
 
@@ -71,7 +71,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 
 ## Measuring pacing
 
-**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.0.0 targets are:
+**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.1.0 targets are:
 
 | Metric | Target |
 | --- | --- |
@@ -80,7 +80,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 | Missed refreshes | < 0.5% |
 | Oscillation, latency drift | none |
 
-Press **Setup → Report** when you report a problem: it saves one zip on the Desktop (`~/Desktop/GSF-report-….zip`) with the diagnostics, the latest pacing traces and the benchmark.
+Press **Setup → Save report to Desktop** when you report a problem: it saves one zip on the Desktop (`~/Desktop/GSF-report-….zip`) with the diagnostics, the latest pacing traces and the benchmark.
 
 ## How it works
 
@@ -96,7 +96,7 @@ More detail: [architecture](docs/kedavra/PHASE_B_ARCHITECTURE.md), [Deck test pr
 
 - SDR output only. HDR games pass through without generation.
 - Built and tested for Steam Deck OLED at 90 Hz. Other refresh rates work in the model and tests but have not been measured on hardware.
-- Fine repeating detail (stairs, fences, grilles) is the hardest case for any motion estimator. 1.0.0 reduces the shimmer it caused, but it can still show at very low base FPS.
+- Fine repeating detail (stairs, fences, grilles) is the hardest case for any motion estimator. 1.0.0 reduced the shimmer and 1.1.0 follows walking forward and up stairs better, but fine steps can still break up at low base FPS.
 
 ## Building from source
 

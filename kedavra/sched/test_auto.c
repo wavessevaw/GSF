@@ -136,7 +136,8 @@ int main(void)
 	r = run(fps38, 600, 0.10);
 	printf("native 38:  x2 %.1f%%, switches %llu, late %.3f%%\n", 100 * r.x2_fraction, (unsigned long long)r.switches, 100 * r.late_fraction);
 	CHECK(r.x2_fraction < 0.05, "a 38 fps game should stay at x3");
-	CHECK(r.switches <= 12, "x2 trials must back off (%llu switches)", (unsigned long long)r.switches);
+	// Retries back off to one every 32 s at most (a trial and its fallback are two switches).
+	CHECK(r.switches <= 2 * 600 / 32 + 6, "x2 trials must back off (%llu switches)", (unsigned long long)r.switches);
 	CHECK(r.late_fraction < 0.01, "x3 at 30 fps should be clean for a 38 fps game");
 
 	r = run(fps44, 600, 0.05);
@@ -147,7 +148,7 @@ int main(void)
 	g_lock_fps = 30;
 	r = run(fps60, 600, 0.10);
 	printf("lock 30:    x2 %.2f%% of the run, switches %llu, late %.3f%%, uneven motion %.2f%%\n", 100 * r.x2_all, (unsigned long long)r.switches, 100 * r.late_fraction, 100 * r.uneven);
-	CHECK(r.x2_all < 0.002, "x2 trials on a game locked at 30 must be short (%.3f%% of the run)", 100 * r.x2_all);
+	CHECK(r.x2_all < 0.005, "x2 trials on a game locked at 30 must be short (%.3f%% of the run)", 100 * r.x2_all);
 	CHECK(r.late_fraction < 0.005, "a game locked at 30 is not late at x3 (%.3f%%)", 100 * r.late_fraction);
 	CHECK(r.uneven < 0.005, "a game locked at 30 must move evenly at x3 (%.2f%% uneven)", 100 * r.uneven);
 

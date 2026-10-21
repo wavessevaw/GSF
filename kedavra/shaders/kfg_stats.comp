@@ -3,6 +3,8 @@
 // Slots: 0 = luma A (level 2), 1 = luma B (level 2), 2 = flow (level 2).
 // Output: x = cut (0/1), y = fraction of blocks badly explained by motion,
 //         z = mean motion-compensated error, w = mean zero-motion error.
+// With KFG_FLAG_GLOBAL: slot 0 = coarsest flow; writes the forward and backward camera
+// motion as affine fields (see camera() and kfg_global_at) to texels 1 to 3.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "kfg_common.glsl"
@@ -13,9 +15,141 @@ shared float s_bad[256];
 shared float s_mc[256];
 shared float s_zero[256];
 
+#define GBINS 64          // 8-pixel bins, +-256 pixels
+shared uint s_hist[GBINS * GBINS];
+shared uint s_best[256];
+shared vec3 s_acc[256];
+
+// Dominant translation: the mode of an 8-pixel histogram, refined by mean shift.
+vec2 dominant(uint lid, ivec2 size, bool backward)
+{
+	for (uint i = lid; i < uint(GBINS * GBINS); i += 256u)
+		s_hist[i] = 0u;
+	barrier();
+	for (int i = int(lid); i < size.x * size.y; i += 256) {
+		vec4 f = texelFetch(s_samplers[0], ivec2(i % size.x, i / size.x), 0);
+		vec2 v = backward ? f.zw : f.xy;
+		ivec2 b = ivec2(floor(v / 8.0 + 0.5)) + GBINS / 2;
+		if (all(greaterThanEqual(b, ivec2(0))) && all(lessThan(b, ivec2(GBINS))))
+			atomicAdd(s_hist[b.y * GBINS + b.x], 1u);
+	}
+	barrier();
+	// Arg-max: count in the high bits, bin index in the low 12.
+	uint best = 0u;
+	for (uint i = lid; i < uint(GBINS * GBINS); i += 256u)
+		best = max(best, (s_hist[i] << 12) | i);
+	s_best[lid] = best;
+	barrier();
+	for (uint s = 128u; s > 0u; s >>= 1) {
+		if (lid < s)
+			s_best[lid] = max(s_best[lid], s_best[lid + s]);
+		barrier();
+	}
+	uint bin = s_best[0] & 4095u;
+	vec2 centre = (vec2(float(bin % uint(GBINS)), float(bin / uint(GBINS))) - float(GBINS / 2)) * 8.0;
+	barrier();
+	// Two mean-shift steps with a shrinking window: an aliased match on repeating texture
+	// sits a period away and must not pull the mean.
+	vec2 r = centre;
+	for (int it = 0; it < 2; it++) {
+		float win = it == 0 ? 6.0 : 3.0;
+		vec3 acc = vec3(0.0);
+		for (int i = int(lid); i < size.x * size.y; i += 256) {
+			vec4 f = texelFetch(s_samplers[0], ivec2(i % size.x, i / size.x), 0);
+			vec2 v = backward ? f.zw : f.xy;
+			if (all(lessThanEqual(abs(v - r), vec2(win))))
+				acc += vec3(v, 1.0);
+		}
+		s_acc[lid] = acc;
+		barrier();
+		for (uint s = 128u; s > 0u; s >>= 1) {
+			if (lid < s)
+				s_acc[lid] += s_acc[lid + s];
+			barrier();
+		}
+		if (s_acc[0].z > 0.0)
+			r = s_acc[0].xy / s_acc[0].z;
+		barrier();
+	}
+	return r;
+}
+
+// Camera motion as a translation plus a zoom, v(d) = c + s d over the offset d from the
+// image centre: a turn is mostly the translation, walking forward or up stairs is the zoom,
+// where the steps near the camera move fastest. One zoom for both axes keeps it measurable
+// on slanted, repeating texture (steps), where a free affine field follows the aliases.
+// Grown from the dominant translation by refitting to the vectors within a shrinking distance
+// of the current model, so objects, the HUD and aliased matches stay outliers. The histogram
+// is free by now and holds the 7 sums per thread. Stored as an affine field (see
+// kfg_global_at): centre motion c, gradient (s h.x, 0, 0, s h.y) per half image.
+#define NSUM 7u
+void camera(uint lid, ivec2 size, bool backward, out vec2 c, out vec4 m)
+{
+	c = dominant(lid, size, backward);
+	float zoom = 0.0;
+	const vec2 half_size = 0.5 * vec2(u_fullSize);
+	const vec2 scale = vec2(u_fullSize) / vec2(size);
+	const float wins[4] = float[4](8.0, 6.0, 4.0, 3.0);
+	for (int it = 0; it < 4; it++) {
+		float a[NSUM];
+		for (uint k = 0u; k < NSUM; k++)
+			a[k] = 0.0;
+		for (int i = int(lid); i < size.x * size.y; i += 256) {
+			ivec2 q = ivec2(i % size.x, i / size.x);
+			vec4 f = texelFetch(s_samplers[0], q, 0);
+			vec2 v = backward ? f.zw : f.xy;
+			vec2 d = (vec2(q) + 0.5) * scale - half_size;
+			if (any(greaterThan(abs(v - c - zoom * d), vec2(wins[it]))))
+				continue;
+			d /= half_size.x;  // keep the sums in range
+			a[0] += 1.0; a[1] += d.x; a[2] += d.y; a[3] += dot(d, d);
+			a[4] += v.x; a[5] += v.y; a[6] += dot(d, v);
+		}
+		for (uint k = 0u; k < NSUM; k++)
+			s_hist[lid * NSUM + k] = floatBitsToUint(a[k]);
+		barrier();
+		for (uint s = 128u; s > 0u; s >>= 1) {
+			if (lid < s)
+				for (uint k = 0u; k < NSUM; k++)
+					s_hist[lid * NSUM + k] = floatBitsToUint(uintBitsToFloat(s_hist[lid * NSUM + k]) + uintBitsToFloat(s_hist[(lid + s) * NSUM + k]));
+			barrier();
+		}
+		float t[NSUM];
+		for (uint k = 0u; k < NSUM; k++)
+			t[k] = uintBitsToFloat(s_hist[k]);
+		barrier();
+		const float n = t[0];
+		if (n < 0.1 * float(size.x * size.y))
+			break;  // too few blocks follow the camera: keep the last model
+		mat3 g = mat3(n, 0.0, t[1], 0.0, n, t[2], t[1], t[2], t[3]);
+		// The inliers must spread around their mean for a zoom to be measurable.
+		if (t[3] - (t[1] * t[1] + t[2] * t[2]) / n > 0.02 * n) {
+			vec3 r = inverse(g) * vec3(t[4], t[5], t[6]);
+			c = r.xy;
+			zoom = clamp(r.z / half_size.x, -0.25, 0.25);  // at most 25% per frame
+		} else {
+			c = vec2(t[4], t[5]) / n;
+			zoom = 0.0;
+		}
+	}
+	m = vec4(zoom * half_size.x, 0.0, 0.0, zoom * half_size.y);
+}
+
 void main()
 {
 	uint lid = gl_LocalInvocationID.x;
+	if ((u_flags & KFG_FLAG_GLOBAL) != 0) {
+		vec2 cf, cb;
+		vec4 mf, mb;
+		camera(lid, u_srcSize, false, cf, mf);
+		camera(lid, u_srcSize, true, cb, mb);
+		if (lid == 0u) {
+			imageStore(dst, KFG_GLOBAL_TEXEL, vec4(cf, cb));
+			imageStore(dst, KFG_GLOBAL_TEXEL + ivec2(1, 0), mf);
+			imageStore(dst, KFG_GLOBAL_TEXEL + ivec2(2, 0), mb);
+		}
+		return;
+	}
 	ivec2 size = u_srcSize;
 	float bad = 0.0, mc = 0.0, zero = 0.0, n = 0.0;
 	for (int i = int(lid); i < size.x * size.y; i += 256) {
@@ -47,7 +181,7 @@ void main()
 		float mean_mc = s_mc[0] / total, mean_zero = s_zero[0] / total;
 		// A cut is a pair that motion does not explain: many blocks stay badly matched, or
 		// the best motion removes little of the frame difference.
-		bool unexplained = mean_mc > 0.015 && mean_mc > 0.35 * mean_zero;
+		bool unexplained = mean_mc > 0.015 && mean_mc > 0.26 * mean_zero;
 		float cut = (frac_bad > u_cutThreshold || unexplained) ? 1.0 : 0.0;
 		imageStore(dst, ivec2(0, 0), vec4(cut, frac_bad, s_mc[0] / total, s_zero[0] / total));
 	}

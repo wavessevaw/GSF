@@ -8,7 +8,7 @@
 // game actually delivers:
 //
 //   * it starts at x3 (source = refresh / 3), the cadence most games can hold;
-//   * after a window with no late source frame it tries x2 (source = refresh / 2);
+//   * after a 1 s window with no late source frame it tries x2 (source = refresh / 2);
 //   * as soon as more than late_limit of a window's expected source frames came late
 //     it drops back to x3 (without waiting for the window to end); a failed x2 trial doubles the wait before the next one
 //     (up to backoff_max), a passed one resets it.
@@ -56,10 +56,13 @@ static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
 	a->last_latch = -1;
 	a->prev_latch = -1;
 	a->pending = false;
-	a->window_vbl = 2u * refresh_hz;   // 2 s
-	a->probe_vbl = 20u * refresh_hz;   // 20 s
+	// Short memory: decisions rest on the last second only, and a failed x2 trial is retried
+	// after 8 s, at most 32 s after repeated failures, so a scene that gets lighter is used
+	// within seconds instead of minutes.
+	a->window_vbl = refresh_hz;        // 1 s
+	a->probe_vbl = 8u * refresh_hz;    // 8 s
 	a->backoff = 1;
-	a->backoff_max = 8;
+	a->backoff_max = 4;
 	a->probe_at = 0;                   // first clean window may try x2
 	a->trial = false;
 	a->late_limit = 0.03;
