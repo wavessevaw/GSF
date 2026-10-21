@@ -3,6 +3,8 @@
 // Slots: 0 = luma A (level 2), 1 = luma B (level 2), 2 = flow (level 2).
 // Output: x = cut (0/1), y = fraction of blocks badly explained by motion,
 //         z = mean motion-compensated error, w = mean zero-motion error.
+// With KFG_FLAG_GLOBAL: slot 0 = coarsest flow; writes the dominant forward and backward
+// motion (the camera) to texel 1: the mode of an 8-pixel histogram, refined by mean shift.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "kfg_common.glsl"
@@ -13,9 +15,73 @@ shared float s_bad[256];
 shared float s_mc[256];
 shared float s_zero[256];
 
+#define GBINS 64          // 8-pixel bins, +-256 pixels
+shared uint s_hist[GBINS * GBINS];
+shared uint s_best[256];
+shared vec3 s_acc[256];
+
+vec2 dominant(uint lid, ivec2 size, bool backward)
+{
+	for (uint i = lid; i < uint(GBINS * GBINS); i += 256u)
+		s_hist[i] = 0u;
+	barrier();
+	for (int i = int(lid); i < size.x * size.y; i += 256) {
+		vec4 f = texelFetch(s_samplers[0], ivec2(i % size.x, i / size.x), 0);
+		vec2 v = backward ? f.zw : f.xy;
+		ivec2 b = ivec2(floor(v / 8.0 + 0.5)) + GBINS / 2;
+		if (all(greaterThanEqual(b, ivec2(0))) && all(lessThan(b, ivec2(GBINS))))
+			atomicAdd(s_hist[b.y * GBINS + b.x], 1u);
+	}
+	barrier();
+	// Arg-max: count in the high bits, bin index in the low 12.
+	uint best = 0u;
+	for (uint i = lid; i < uint(GBINS * GBINS); i += 256u)
+		best = max(best, (s_hist[i] << 12) | i);
+	s_best[lid] = best;
+	barrier();
+	for (uint s = 128u; s > 0u; s >>= 1) {
+		if (lid < s)
+			s_best[lid] = max(s_best[lid], s_best[lid + s]);
+		barrier();
+	}
+	uint bin = s_best[0] & 4095u;
+	vec2 centre = (vec2(float(bin % uint(GBINS)), float(bin / uint(GBINS))) - float(GBINS / 2)) * 8.0;
+	// Two mean-shift steps with a shrinking window: an aliased match on repeating texture
+	// sits a period away and must not pull the mean.
+	vec2 r = centre;
+	for (int it = 0; it < 2; it++) {
+		float win = it == 0 ? 6.0 : 3.0;
+		vec3 acc = vec3(0.0);
+		for (int i = int(lid); i < size.x * size.y; i += 256) {
+			vec4 f = texelFetch(s_samplers[0], ivec2(i % size.x, i / size.x), 0);
+			vec2 v = backward ? f.zw : f.xy;
+			if (all(lessThanEqual(abs(v - r), vec2(win))))
+				acc += vec3(v, 1.0);
+		}
+		s_acc[lid] = acc;
+		barrier();
+		for (uint s = 128u; s > 0u; s >>= 1) {
+			if (lid < s)
+				s_acc[lid] += s_acc[lid + s];
+			barrier();
+		}
+		if (s_acc[0].z > 0.0)
+			r = s_acc[0].xy / s_acc[0].z;
+		barrier();
+	}
+	return r;
+}
+
 void main()
 {
 	uint lid = gl_LocalInvocationID.x;
+	if ((u_flags & KFG_FLAG_GLOBAL) != 0) {
+		vec2 gf = dominant(lid, u_srcSize, false);
+		vec2 gb = dominant(lid, u_srcSize, true);
+		if (lid == 0u)
+			imageStore(dst, KFG_GLOBAL_TEXEL, vec4(gf, gb));
+		return;
+	}
 	ivec2 size = u_srcSize;
 	float bad = 0.0, mc = 0.0, zero = 0.0, n = 0.0;
 	for (int i = int(lid); i < size.x * size.y; i += 256) {
@@ -47,7 +113,7 @@ void main()
 		float mean_mc = s_mc[0] / total, mean_zero = s_zero[0] / total;
 		// A cut is a pair that motion does not explain: many blocks stay badly matched, or
 		// the best motion removes little of the frame difference.
-		bool unexplained = mean_mc > 0.015 && mean_mc > 0.35 * mean_zero;
+		bool unexplained = mean_mc > 0.015 && mean_mc > 0.26 * mean_zero;
 		float cut = (frac_bad > u_cutThreshold || unexplained) ? 1.0 : 0.0;
 		imageStore(dst, ivec2(0, 0), vec4(cut, frac_bad, s_mc[0] / total, s_zero[0] / total));
 	}

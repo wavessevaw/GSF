@@ -52,7 +52,7 @@ enum kfg_role {
 	KFG_ROLE_COLOR,     // source colour of a frame (host-owned, e.g. a compositor commit)
 	KFG_ROLE_LUMA,      // luma pyramid of a frame; level 1..4
 	KFG_ROLE_FLOW,      // bidirectional flow of a pair; level 2..4
-	KFG_ROLE_STATS,     // 1x1 pair statistics
+	KFG_ROLE_STATS,     // 2x1 pair statistics: texel 0 cut test, texel 1 global motion
 	KFG_ROLE_SELECT,    // per-output selection field (transient)
 	KFG_ROLE_OUTPUT,    // generated output (host-owned)
 };
@@ -89,6 +89,8 @@ typedef struct kfg_params {
 #define KFG_FLAG_DEBUG_MARKER 2
 #define KFG_FLAG_LUMA_INPUT 4
 #define KFG_FLAG_TENT 8        // reduce: 4x4 tent instead of 2x2 box (coarse search levels)
+#define KFG_FLAG_TEMPORAL 16   // me (coarsest): slot 2 holds the previous pair's flow, slot 3 its stats
+#define KFG_FLAG_GLOBAL 32     // stats: dominant (camera) motion of the coarsest flow into stats texel 1
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -172,8 +174,11 @@ static inline void kfg_set_domain(kfg_pass *x, const uint32_t dst[2], uint32_t g
 
 // Analysis of the pair (frame ring fa -> frame ring fb), written to pair ring pr.
 // have_prev = 0 for the first frame after a reset: only the pyramid of B is built.
+// prev_pair = pair ring of the previous pair (the one ending at frame A) when its flow is
+// valid, else -1. Its coarse flow seeds the coarsest search, so a camera that keeps turning
+// is tracked beyond the search radius and the vectors stay steady from pair to pair.
 static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_t fa, uint32_t fb, uint32_t pr,
-				    int have_prev, const kfg_tuning *tune)
+				    int have_prev, int prev_pair, const kfg_tuning *tune)
 {
 	p->n = 0;
 	uint32_t sz[KFG_LEVELS + 1][2];
@@ -197,17 +202,37 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 		kfg_pass *x = kfg_plan_add(p, KFG_SHADER_ME, kfg_ref(KFG_ROLE_FLOW, pr, l), "me");
 		x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, l);
 		x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, l);
-		x->slots[2] = l == KFG_LEVELS ? kfg_ref(KFG_ROLE_NONE, 0, 0) : kfg_ref(KFG_ROLE_FLOW, pr, l + 1);
-		x->nslots = 3;
+		// Coarsest level: slots 2 and 3 are the previous pair's flow at this level and its
+		// global motion (temporal seeds). Finer levels: the coarser flow and this pair's
+		// global motion.
+		const int temporal = l == KFG_LEVELS && prev_pair >= 0;
+		x->slots[2] = l < KFG_LEVELS ? kfg_ref(KFG_ROLE_FLOW, pr, l + 1)
+			: temporal ? kfg_ref(KFG_ROLE_FLOW, (uint32_t)prev_pair, l) : kfg_ref(KFG_ROLE_NONE, 0, 0);
+		x->slots[3] = l < KFG_LEVELS ? kfg_ref(KFG_ROLE_STATS, pr, 0)
+			: temporal ? kfg_ref(KFG_ROLE_STATS, (uint32_t)prev_pair, 0) : kfg_ref(KFG_ROLE_NONE, 0, 0);
+		x->nslots = 4;
 		x->params.src_size[0] = (int32_t)sz[l][0];
 		x->params.src_size[1] = (int32_t)sz[l][1];
 		x->params.full_size[0] = (int32_t)w;
 		x->params.full_size[1] = (int32_t)h;
 		x->params.level = (int32_t)l;
 		x->params.radius = l == KFG_LEVELS ? tune->radius_coarsest : tune->radius_refine;
-		x->params.flags = l == KFG_LEVELS ? KFG_FLAG_COARSEST : 0;
+		x->params.flags = l == KFG_LEVELS ? KFG_FLAG_COARSEST | (temporal ? KFG_FLAG_TEMPORAL : 0) : 0;
 		x->params.lambda = tune->lambda;
 		kfg_set_domain(x, sz[l], 8, 8);
+		if (l == KFG_LEVELS) {
+			// Dominant motion of the coarsest field: the camera, as a candidate for every block.
+			x = kfg_plan_add(p, KFG_SHADER_STATS, kfg_ref(KFG_ROLE_STATS, pr, 0), "global");
+			x->slots[0] = kfg_ref(KFG_ROLE_FLOW, pr, l);
+			x->nslots = 1;
+			x->params.src_size[0] = (int32_t)sz[l][0];
+			x->params.src_size[1] = (int32_t)sz[l][1];
+			x->params.flags = KFG_FLAG_GLOBAL;
+			x->params.dst_size[0] = 2;
+			x->params.dst_size[1] = 1;
+			x->groups[0] = 1;
+			x->groups[1] = 1;
+		}
 	}
 	kfg_pass *x = kfg_plan_add(p, KFG_SHADER_STATS, kfg_ref(KFG_ROLE_STATS, pr, 0), "stats");
 	x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 2);

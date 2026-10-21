@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Per-output motion selection at block resolution (one texel = 4x4 pixels).
-// Slots: 0 = luma A (level 1), 1 = luma B (level 1), 2 = flow (level 2), 3 = stats.
+// Slots: 0 = luma A (level 1), 1 = luma B (level 1), 2 = flow (level 2), 3 = stats (texel 1: global motion).
 // Output: xy = chosen motion A->B in pixels, z = weight of B, w = match error.
 #version 450
 #extension GL_GOOGLE_include_directive : require
@@ -41,7 +41,7 @@ void main()
 	vec2 c1 = vec2(2 * p) + vec2(0.5);     // same point in level-1 texels
 
 	vec4 f = texelFetch(s_samplers[2], p, 0);
-	vec2 cand[9];
+	vec2 cand[10];
 	cand[0] = vec2(0.0);
 	cand[1] = f.xy;
 	cand[2] = -f.zw;
@@ -52,11 +52,14 @@ void main()
 	}
 	cand[7] = -texelFetch(s_samplers[2], clamp(p + ivec2(-2, 0), ivec2(0), fsize - 1), 0).zw;
 	cand[8] = -texelFetch(s_samplers[2], clamp(p + ivec2(2, 0), ivec2(0), fsize - 1), 0).zw;
+	cand[9] = texelFetch(s_samplers[3], KFG_GLOBAL_TEXEL, 0).xy;  // camera motion
 
 	vec2 best = vec2(0.0);
 	float best_cost = cost(c1, vec2(0.0)) - 0.004; // static pixels (HUD) stay static on ties
-	for (int i = 1; i < 9; i++) {
-		float c = cost(c1, cand[i]) + 0.0005 * length(cand[i] - f.xy);
+	for (int i = 1; i < 10; i++) {
+		// The camera motion pays a flat fee instead of its distance from the block's vector,
+		// so static content (HUD) keeps winning ties against it.
+		float c = cost(c1, cand[i]) + (i == 9 ? 0.002 : 0.0005 * length(cand[i] - f.xy));
 		if (c < best_cost) {
 			best_cost = c;
 			best = cand[i];

@@ -32,6 +32,12 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 
 #define KFG_FLAG_COARSEST 1
 #define KFG_FLAG_DEBUG_MARKER 2
+#define KFG_FLAG_TEMPORAL 16
+#define KFG_FLAG_GLOBAL 32
+
+// Pair statistics image (2x1): texel 0 = cut and match statistics, texel 1 = global motion
+// (xy forward, zw backward, pixels).
+#define KFG_GLOBAL_TEXEL ivec2(1, 0)
 
 float kfg_luma(vec3 c)
 {

@@ -21,6 +21,9 @@
 
 #include "kfg_vk.h"
 
+// KFG_NO_TEMPORAL=1 disables the temporal seed (A/B comparisons).
+static int g_temporal = 1;
+
 typedef struct scene {
 	const char *name;
 	int kind;
@@ -29,7 +32,7 @@ typedef struct scene {
 	bool cut;
 } scene;
 
-enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS };
+enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS, S_CAMERA };
 
 static const scene SCENES[] = {
 	{ "pan", S_PAN, 24, 6, true, false },
@@ -110,9 +113,39 @@ static void stairs(double x, double y, double rgb[3])
 	rgb[2] = 0.85 * v + n;
 }
 
+// Camera sequence: a pan that speeds up to 140 pixels per source frame and slows down again,
+// with fractional speeds and a vertical drift, under a static HUD (an active camera in a game).
+// Position is piecewise linear in time, so the true intermediate frame is well defined.
+static const double CAM_VX[] = { 12.3, 31.7, 55.2, 78.9, 101.4, 124.6, 140.1, 118.3, 84.7, 47.5, 20.2 };
+#define CAM_FRAMES ((int)(sizeof(CAM_VX) / sizeof(CAM_VX[0])))
+
+static void camera_pos(double t, double *cx, double *cy)
+{
+	double x = 0, y = 0;
+	int f = (int)floor(t);
+	for (int i = 0; i < f && i < CAM_FRAMES; i++) {
+		x += CAM_VX[i];
+		y += 0.18 * CAM_VX[i] * sin(i * 1.3);
+	}
+	if (f >= 0 && f < CAM_FRAMES) {
+		x += CAM_VX[f] * (t - f);
+		y += 0.18 * CAM_VX[f] * sin(f * 1.3) * (t - f);
+	}
+	*cx = x;
+	*cy = y;
+}
+
 static void scene_pixel(const scene *s, double t, double x, double y, int w, int h, double rgb[3])
 {
 	switch (s->kind) {
+	case S_CAMERA: {
+		if (hud(x, y, w, h, rgb))
+			return;
+		double cx, cy;
+		camera_pos(t, &cx, &cy);
+		background(x + cx, y + cy, 1, rgb);
+		return;
+	}
 	case S_STAIRS:
 		stairs(x - s->vx * t, y - s->vy * t, rgb);
 		return;
@@ -296,7 +329,7 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h)
 			if (l >= 2 && kfg_vk_image_create(vk, &e->flow[r][l], kfg_vk_format(KFG_FORMAT_RGBA16F), sz[0], sz[1]))
 				return -1;
 		}
-		if (kfg_vk_image_create(vk, &e->stats[r], kfg_vk_format(KFG_FORMAT_RGBA16F), 1, 1))
+		if (kfg_vk_image_create(vk, &e->stats[r], kfg_vk_format(KFG_FORMAT_RGBA16F), 2, 1))
 			return -1;
 	}
 	uint32_t bs[2];
@@ -353,8 +386,9 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--size") && i + 1 < argc) sscanf(argv[++i], "%dx%d", &w, &h);
 		else if (!strcmp(argv[i], "--bench") && i + 1 < argc) bench = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--scene") && i + 1 < argc) only = argv[++i];
+		else if (!strcmp(argv[i], "--no-temporal")) g_temporal = 0;
 		else {
-			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME]\n");
+			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal]\n");
 			return 2;
 		}
 	}
@@ -380,7 +414,10 @@ int main(int argc, char **argv)
 
 	const double phases[] = { 1.0 / 3.0, 2.0 / 3.0, 0.5 };
 	for (size_t si = 0; si < sizeof(SCENES) / sizeof(SCENES[0]); si++) {
-		const scene *s = &SCENES[si];
+		scene sc = SCENES[si];
+		if (getenv("KFG_PANV") && sc.kind == S_PAN)
+			sscanf(getenv("KFG_PANV"), "%lf,%lf", &sc.vx, &sc.vy);  // tuning aid: pan speed override
+		const scene *s = &sc;
 		if (only && strcmp(only, s->name))
 			continue;
 		render(s, 0.0, w, h, A);
@@ -388,11 +425,11 @@ int main(int argc, char **argv)
 		kfg_vk_upload_rgba8(&vk, &e.color[0], A);
 		kfg_vk_upload_rgba8(&vk, &e.color[1], B);
 		kfg_plan p;
-		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 1, 0, 0, 0, &tune); // pyramid of A (ring 0)
+		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 1, 0, 0, 0, -1, &tune); // pyramid of A (ring 0)
 		run_plan(&e, &p, NULL, NULL);
-		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, &tune); // pair A(0)->B(1), pair ring 1
+		kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, -1, &tune); // pair A(0)->B(1), pair ring 1
 		run_plan(&e, &p, NULL, NULL);
-		float st[4];
+		float st[8];  // stats is 2x1
 		kfg_vk_download_rgba16f(&vk, &e.stats[1], st);
 		if (getenv("KFG_FLOWDUMP")) {
 			// Tuning aid: the most common forward vectors per level (pixels, rounded).
@@ -425,7 +462,7 @@ int main(int argc, char **argv)
 		if (js)
 			fprintf(js, "  {\"scene\": \"%s\", \"dynamic\": %s, \"cut_flag\": %.0f, \"bad_fraction\": %.4f, \"phases\": [\n",
 				s->name, s->dynamic ? "true" : "false", st[0], st[1]);
-		printf("%-12s cut=%.0f bad=%.3f mc=%.4f zero=%.4f\n", s->name, st[0], st[1], st[2], st[3]);
+		printf("%-12s cut=%.0f bad=%.3f mc=%.4f zero=%.4f global=(%.1f,%.1f)\n", s->name, st[0], st[1], st[2], st[3], st[4], st[5]);
 		if (s->cut && st[0] < 0.5) {
 			printf("  FAIL: scene cut not detected\n");
 			failures++;
@@ -511,7 +548,7 @@ int main(int argc, char **argv)
 			render(s, (double)f, w, h, B);
 			kfg_vk_upload_rgba8(&vk, &e.color[fb], B);
 			kfg_plan p;
-			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, &tune);
+			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, f > 1 && g_temporal ? (int)fa : -1, &tune);
 			run_plan(&e, &p, NULL, NULL);
 			if (f == 0)
 				continue;
@@ -533,6 +570,110 @@ int main(int argc, char **argv)
 			fprintf(js, " \"sequence_bad_outputs\": %d,\n", seq_fail);
 	}
 
+	// Active camera: the accelerating pan under a HUD, x3 outputs per pair, every output
+	// compared with the truth and with the one before it. Informative: printed and in the JSON.
+	if (!only || !strcmp(only, "camera")) {
+		const scene cam = { "camera", S_CAMERA, 0, 0, true, false };
+		const scene *s = &cam;
+		uint8_t *O = malloc(nbytes), *Op = malloc(nbytes), *Tp = malloc(nbytes), *Dp = malloc(nbytes);
+		double te_gen = 0, te_dup = 0, ps_gen = 0, ps_dup = 0, worst = 1e9, hud_max = 0;
+		int n_te = 0, n_ps = 0, cuts = 0;
+		bool have_prev = false;
+		for (int f = 0; f <= CAM_FRAMES; f++) {
+			uint32_t fb = (uint32_t)f % KFG_RING, fa = (uint32_t)(f + KFG_RING - 1) % KFG_RING;
+			render(s, (double)f, w, h, B);
+			kfg_vk_upload_rgba8(&vk, &e.color[fb], B);
+			kfg_plan p;
+			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, f > 1 && g_temporal ? (int)fa : -1, &tune);
+			run_plan(&e, &p, NULL, NULL);
+			if (f == 0)
+				continue;
+			float st[8];  // stats is 2x1
+			kfg_vk_download_rgba16f(&vk, &e.stats[fb], st);
+			if (st[0] > 0.5)
+				cuts++;
+			if (getenv("KFG_VERBOSE"))
+				printf("  camera f%02d stats cut=%.0f bad=%.3f mc/zero=%.3f global=(%.1f,%.1f)\n", f, st[0], st[1], st[2] / (st[3] + 1e-9), st[4], st[5]);
+			if (getenv("KFG_VERBOSE")) {
+				// Share of blocks whose forward vector is within 2 / 8 pixels of the camera motion.
+				double tx = -CAM_VX[f - 1], ty = -0.18 * CAM_VX[f - 1] * sin((f - 1) * 1.3);
+				for (int l = KFG_LEVELS; l >= 2; l--) {
+					const kfg_vk_image *fi = &e.flow[fb][l];
+					float *fl = malloc((size_t)fi->width * fi->height * 4 * sizeof(float));
+					kfg_vk_download_rgba16f(&vk, fi, fl);
+					int ok2 = 0, ok8 = 0, n = (int)(fi->width * fi->height);
+					for (int i = 0; i < n; i++) {
+						double d = hypot(fl[i * 4] - tx, fl[i * 4 + 1] - ty);
+						ok2 += d < 2.0;
+						ok8 += d < 8.0;
+					}
+					printf("  camera f%02d level %d: %.0f%% within 2 px, %.0f%% within 8 px\n", f, l, 100.0 * ok2 / n, 100.0 * ok8 / n);
+					if (l == KFG_LEVELS || l == 2) {
+						static int hb[51][51];
+						memset(hb, 0, sizeof(hb));
+						for (int i = 0; i < n; i++) {
+							int bx = (int)lrint(fl[i * 4] / 8.0) + 25, by = (int)lrint(fl[i * 4 + 1] / 8.0) + 25;
+							if (bx >= 0 && bx <= 50 && by >= 0 && by <= 50)
+								hb[by][bx]++;
+						}
+						printf("    truth (%.0f,%.0f); top:", tx, ty);
+						for (int k = 0; k < 4; k++) {
+							int m = 0, mx = 0, my = 0;
+							for (int y = 0; y <= 50; y++)
+								for (int x = 0; x <= 50; x++)
+									if (hb[y][x] > m) { m = hb[y][x]; mx = x; my = y; }
+							printf(" (%d,%d) %.0f%%", (mx - 25) * 8, (my - 25) * 8, 100.0 * m / n);
+							hb[my][mx] = 0;
+						}
+						printf("\n");
+					}
+					free(fl);
+				}
+			}
+			for (int j = 0; j < 3; j++) {
+				double t = j / 3.0;
+				render(s, f - 1 + t, w, h, T);
+				render(s, f - 1 + (t < 0.5 ? 0.0 : 1.0), w, h, D);
+				if (j == 0) {
+					render(s, f - 1, w, h, O);
+				} else {
+					kfg_plan_generate(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, (float)t, 0);
+					run_plan(&e, &p, NULL, NULL);
+					kfg_vk_download_rgba8(&vk, &e.output, O);
+					double pg = psnr_region(O, T, w, h, 0, 0, w, h);
+					ps_gen += pg;
+					ps_dup += psnr_region(D, T, w, h, 0, 0, w, h);
+					if (pg < worst)
+						worst = pg;
+					if (getenv("KFG_VERBOSE"))
+						printf("  camera f%02d v=%.1f t=%d/3 gen %.2f dB\n", f, CAM_VX[f - 1], j, pg);
+					double he = mean_abs(O, T, w, h, 40, 30, 360, 70);
+					if (he > hud_max)
+						hud_max = he;
+					n_ps++;
+					char name[64];
+					snprintf(name, sizeof(name), "camera_f%02d_t%d_gen", f, j);
+					write_ppm(out_dir, name, O, w, h);
+				}
+				if (have_prev) {
+					te_gen += temporal_err(O, Op, T, Tp, w, h);
+					te_dup += temporal_err(D, Dp, T, Tp, w, h);
+					n_te++;
+				}
+				memcpy(Op, O, nbytes);
+				memcpy(Tp, T, nbytes);
+				memcpy(Dp, D, nbytes);
+				have_prev = true;
+			}
+		}
+		printf("camera: psnr gen %.2f dB (worst %.2f), dup %.2f dB; temporal gen %.3f, dup %.3f; cuts %d of %d; hud max %.2f\n",
+		       ps_gen / n_ps, worst, ps_dup / n_ps, te_gen / n_te, te_dup / n_te, cuts, CAM_FRAMES, hud_max);
+		if (js)
+			fprintf(js, " \"camera\": {\"psnr_gen\": %.3f, \"psnr_worst\": %.3f, \"psnr_dup\": %.3f, \"temporal_gen\": %.4f, \"temporal_dup\": %.4f, \"cuts\": %d, \"hud_max\": %.3f},\n",
+				ps_gen / n_ps, worst, ps_dup / n_ps, te_gen / n_te, te_dup / n_te, cuts, hud_max);
+		free(O); free(Op); free(Tp); free(Dp);
+	}
+
 	// Temporal stability on the stairs: 7 frames at x3, every output compared with the one
 	// before it. Informative: printed and written to the JSON for tuning.
 	{
@@ -546,7 +687,7 @@ int main(int argc, char **argv)
 			render(s, (double)f, w, h, B);
 			kfg_vk_upload_rgba8(&vk, &e.color[fb], B);
 			kfg_plan p;
-			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, &tune);
+			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, f > 1 && g_temporal ? (int)fa : -1, &tune);
 			run_plan(&e, &p, NULL, NULL);
 			if (f == 0)
 				continue;
@@ -596,7 +737,7 @@ int main(int argc, char **argv)
 		kfg_vk_upload_rgba8(&vk, &e.color[1], B);
 		for (int r = 0; r < reps + 3; r++) {
 			kfg_plan pa, g1, g2;
-			kfg_plan_analyze(&pa, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, &tune);
+			kfg_plan_analyze(&pa, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1, g_temporal ? 0 : -1, &tune);
 			kfg_plan_generate(&g1, (uint32_t)w, (uint32_t)h, 0, 1, 1, 1.0f / 3.0f, 0);
 			kfg_plan_generate(&g2, (uint32_t)w, (uint32_t)h, 0, 1, 1, 2.0f / 3.0f, 0);
 			kfg_vk_begin(&vk);

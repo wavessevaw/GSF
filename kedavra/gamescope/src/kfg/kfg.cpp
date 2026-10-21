@@ -184,7 +184,7 @@ namespace kfg
 		bool bUpload = false;  // pixels changed, copy them in the next composite
 	};
 	static Hud_t g_Hud;
-	static constexpr uint32_t k_uAnalysisSplit = KFG_LEVELS + 2;  // reduce x4, motion levels 4 and 3
+	static constexpr uint32_t k_uAnalysisSplit = KFG_LEVELS + 3;  // reduce x4, motion level 4, global, motion level 3
 	static constexpr uint32_t k_uHudMagic = 0x4847464b;  // "KFGH"
 	static constexpr uint32_t k_uHudMaxBytes = 1024u * 1024u;
 	static constexpr int k_nHudZpos = 4;  // with the cursor, above the game and overlays
@@ -386,7 +386,7 @@ namespace kfg
 				if ( !f.pLuma[ l ] || ( l >= 2 && !f.pFlow[ l ] ) )
 					return false;
 			}
-			f.pStats = CreateImage( 1, 1, KFG_FORMAT_RGBA16F );
+			f.pStats = CreateImage( 2, 1, KFG_FORMAT_RGBA16F );  // cut test, global motion
 			if ( !f.pStats )
 				return false;
 		}
@@ -898,7 +898,9 @@ namespace kfg
 			const uint32_t fa = pPrev ? FrameIndex( s, pPrev ) : fb;
 			// Not recorded here: ~5 ms of analysis inside the composite made the flip miss
 			// its vblank (on the Deck a third of the vblanks had no flip).
-			kfg_plan_analyze( &s.analysisPlan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, &tune );
+			// The previous pair (ending at A) seeds the coarse search when A had its own pair.
+			const int prevPair = pPrev && pPrev->ulPrevID ? int( fa ) : -1;
+			kfg_plan_analyze( &s.analysisPlan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, prevPair, &tune );
 			s.bAnalysisQueued = true;
 			s.uAnalysisNext = 0;
 		}
