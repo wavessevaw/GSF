@@ -171,6 +171,7 @@ class Rates:
     """Per-second rates from consecutive engine status snapshots (cumulative counters)."""
 
     KEYS = ("flips", "sources", "real", "gen", "repeat")
+    OPTIONAL = ("unsupported", "degrade")
 
     def __init__(self) -> None:
         self.prev: Optional[Dict[str, Any]] = None
@@ -191,6 +192,9 @@ class Rates:
             if a is None or b is None or b < a:
                 return None
             out[k] = (b - a) / dt
+        for k in self.OPTIONAL:
+            a, b = _num(prev.get(k)), _num(st.get(k))
+            out[k] = (b - a) / dt if a is not None and b is not None and b >= a else 0.0
         return out
 
 
@@ -202,14 +206,16 @@ def live_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> Dict[str,
     """What the HUD and the panel show: fps on screen, the game's fps, pace, generated share."""
     active = st.get("state") == "active"
     if not rates:
-        return {"fps": None, "real": None, "pace": None, "gen_share": None}
+        return {"fps": None, "real": None, "pace": None, "gen_share": None, "unsupported": 0.0}
     real = rates["sources"]
     shown = rates["real"] + rates["gen"] + rates["repeat"]
     # New frames per second, never more than the flips that carried them.
     fps = min(rates["flips"], rates["real"] + rates["gen"]) if active else min(rates["flips"], real)
     return {"fps": fps, "real": real,
             "pace": 1.0 - rates["repeat"] / shown if active and shown > 0 else None,
-            "gen_share": rates["gen"] / shown if active and shown > 0 else 0.0}
+            "gen_share": rates["gen"] / shown if active and shown > 0 else 0.0,
+            # Paints per second whose game frame generation could not take (format, HDR).
+            "unsupported": rates.get("unsupported", 0.0)}
 
 
 def items_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> List[Dict[str, Any]]:

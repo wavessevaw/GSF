@@ -132,6 +132,7 @@ namespace kfg
 		// Counters (status file).
 		uint64_t ulPaints = 0, ulApplied = 0, ulBypass = 0, ulRingMiss = 0, ulUnsupported = 0;
 		uint64_t ulOverBudget = 0, ulSources = 0, ulLastSourceNs = 0;
+		int nLayer0Format = 0, nLayer0Colorspace = 0;  // last layer 0 that generation could not take
 		const char *pszLastProblem = "none";
 		double flGpuUsLast = 0, flGpuUsMax = 0, flGpuUsSum = 0;
 		uint64_t ulGpuSamples = 0;
@@ -344,6 +345,10 @@ namespace kfg
 			case VK_FORMAT_B8G8R8A8_SRGB:
 			case VK_FORMAT_R8G8B8A8_UNORM:
 			case VK_FORMAT_R8G8B8A8_SRGB:
+			// Many games (DXVK, vkd3d-proton, native Vulkan) present 10-bit SDR swapchains. The
+			// raw view samples them like the 8-bit ones; the ring keeps 8 bits per channel.
+			case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+			case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
 				return true;
 			default:
 				return false;
@@ -641,7 +646,7 @@ namespace kfg
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
-			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
+			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -649,7 +654,7 @@ namespace kfg
 			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
-			g_ulFlips.load( std::memory_order_relaxed ), BaseCapFPS( RefreshHz() ), s.ulLastSourceNs,
+			g_ulFlips.load( std::memory_order_relaxed ), BaseCapFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
@@ -756,6 +761,11 @@ namespace kfg
 		{
 			s.ulUnsupported++;
 			s.pszLastProblem = "unsupported_layer0";
+			if ( pFrameInfo->layers.count() && pFrameInfo->layers.get( 0 ).tex )
+			{
+				s.nLayer0Format = int( pFrameInfo->layers.get( 0 ).tex->format() );
+				s.nLayer0Colorspace = int( pFrameInfo->layers.get( 0 ).colorspace );
+			}
 			ResetHistory( s, "unsupported layer 0" );
 			return;
 		}

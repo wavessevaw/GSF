@@ -8,7 +8,7 @@ const VERSION = '1.0.0';
 type Summary = {pass?: boolean; p95_ms?: number; p99_ms?: number; missed_pct?: number; rows?: number; checks?: Record<string, boolean>};
 type Report = {trace: string; report: string; ok: boolean; log: string; summary?: Summary};
 type Capture = {path: string; started: number; label: string; elapsed_s: number} | null;
-type Live = {fps: number | null; real: number | null; pace: number | null; gen_share: number | null};
+type Live = {fps: number | null; real: number | null; pace: number | null; gen_share: number | null; unsupported?: number};
 type Status = {
   engine: 'running' | 'stale' | 'absent'; fresh: boolean; message?: string; capture: Capture; live?: Live;
   multiplier?: number; state?: string; refresh_ns?: number; width?: number; height?: number;
@@ -16,6 +16,7 @@ type Status = {
   applied?: number; bypass?: number; ring_miss?: number; unsupported?: number;
   gpu_us_last?: number; gpu_us_avg?: number; gpu_us_max?: number; over_budget?: number; timestamps?: boolean; last_problem?: string;
   auto?: boolean; auto_switches?: number; source_late?: number; cap_fps?: number; base_fps?: number;
+  unsupported_format?: number; unsupported_colorspace?: number;
 };
 type Mode = 'off' | 'auto' | 'cap';
 type View = 'main' | 'setup' | 'pace' | 'log';
@@ -160,6 +161,7 @@ function Content() {
   let note: string;
   if (!running) note = status?.message ?? 'Проверяю движок…';
   else if (mode === 'off') note = `Генерация выключена. Игра сейчас: ${fmt(live?.real)} FPS.`;
+  else if ((live?.unsupported ?? 0) > 1) note = `Кадры этой игры генерация не берёт (формат Vulkan ${status?.unsupported_format}, цветовое пространство ${status?.unsupported_colorspace}): игра идёт без генерации. Сохраните отчёт и пришлите его.`;
   else if (status?.state === 'degraded') note = 'Приостановлено: анализ кадров не успевает. Движок попробует снова через 2 с.';
   else if (mode === 'cap') note = `Игра ограничена до ${status?.base_fps} FPS, генерация доводит до ${Math.round(hz)}. ` +
     (live?.real !== null && live?.real !== undefined && live.real < 0.95 * (status?.base_fps ?? 0) ? 'Игра не успевает за этим лимитом: снизьте его.' : 'Игра держит лимит.');
