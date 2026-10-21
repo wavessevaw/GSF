@@ -90,7 +90,7 @@ jobs:
       - name: Build
         run: |
           cd /tmp/gamescope
-          meson setup build --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false
+          meson setup build --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false -Denable_tests=false
           ninja -C build
       - name: Smoke
         run: |
