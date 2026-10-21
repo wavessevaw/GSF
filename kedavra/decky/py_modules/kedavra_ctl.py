@@ -21,7 +21,7 @@ STATUS_STALE_S = 3.0
 
 
 class Control:
-    def __init__(self, home, plugin_dir, uid=1000, runner=subprocess.run, clock=time.time):
+    def __init__(self, home, plugin_dir, uid=1000, runner=subprocess.run, clock=time.time, sleep=time.sleep):
         self.home = Path(home)
         self.plugin_dir = Path(plugin_dir)
         self.runtime = Path(f"/run/user/{uid}")
@@ -29,6 +29,7 @@ class Control:
         self.captures = self.data / "captures"
         self.run = runner
         self.clock = clock
+        self.sleep = sleep
         self.capture = None  # {"path": str, "started": float, "mult": int}
         self.uid = uid
         # The KEDAVRA gamescopectl speaks the same protocol; prefer it once installed.
@@ -123,10 +124,13 @@ class Control:
             raise RuntimeError("no capture running")
         cap = self.capture
         self.capture = None
-        try:
-            self._ctl("kfg_trace", "")
-        finally:
-            pass
+        self._ctl("kfg_trace", "")
+        # Gamescope closes the file on its trace thread and then drops it from the status
+        # (rewritten once a second): analyse only after that, so the last rows are in.
+        for _ in range(30):
+            if self.status().get("trace") != cap["path"]:
+                break
+            self.sleep(0.1)
         return self.analyze(cap["path"])
 
     def analyze(self, path):
