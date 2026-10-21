@@ -49,7 +49,7 @@ static result run(double (*native_fps)(double), double seconds, double jitter)
 			rendering = false;
 			kfg_sched_on_latch(&s, ++id, k);
 			kfg_auto_on_latch(&a, k);
-			kfg_sched_on_me(&s, id, k + 1, true, false);
+			kfg_sched_on_me(&s, id, k + 2, true, false);
 		}
 		// Limiter: one frame callback per mult vblanks.
 		if (k % mult == 0)

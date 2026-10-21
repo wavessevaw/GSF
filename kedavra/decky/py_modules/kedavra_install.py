@@ -270,6 +270,9 @@ class Installer:
 
         inst = self.installed_version()
         add("installed", inst is not None, f"Установлено: {inst}" if inst else "Не установлено")
+        if inst and inst != self.bundled_version():
+            add("outdated", False, f"Установлен Gamescope {inst}, в плагине {self.bundled_version()}: "
+                "нажмите «Переустановить» и перезагрузите")
         if inst:
             missing = self._missing_libs(self.runtime)
             add("installed_libs", not missing, "Установленный Gamescope находит свои библиотеки" if not missing

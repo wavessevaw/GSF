@@ -34,8 +34,31 @@ namespace kfg
 	static LogScope kfg_log( "kfg" );
 
 	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 1 = auto (x2 or x3 from the game's frame rate), 2 = x2, 3 = x3." };
-	gamescope::ConVar<std::string> cv_kfg_trace{ "kfg_trace", "", "CSV trace of every KMS flip while frame generation is on (kedavra/tools/kfg_pacing.py). Empty = off." };
-	gamescope::ConVar<std::string> cv_kfg_status{ "kfg_status", "", "JSON status file, rewritten once per second. Empty = $XDG_RUNTIME_DIR/kedavra-status.json." };
+
+	// String convars are set by gamescopectl on the Wayland server thread while the
+	// compositor thread reads them; assigning a std::string under a concurrent reader is
+	// a use-after-free (stopping a trace crashed the session on the Deck). The callback
+	// copies each new value under a lock and the compositor reads only that copy.
+	static std::mutex g_CvarMutex;
+	static std::string g_sTracePath, g_sStatusPath, g_sHudPath = "/dev/shm/kedavra-hud.raw";
+
+	static std::string CvarCopy( const std::string &s )
+	{
+		std::scoped_lock lock( g_CvarMutex );
+		return s;
+	}
+
+	static auto CopyTo( std::string &dst )
+	{
+		return [&dst]( gamescope::ConVar<std::string> &cv )
+		{
+			std::scoped_lock lock( g_CvarMutex );
+			dst = cv.Get();
+		};
+	}
+
+	gamescope::ConVar<std::string> cv_kfg_trace{ "kfg_trace", "", "CSV trace of every KMS flip while frame generation is on (kedavra/tools/kfg_pacing.py). Empty = off.", CopyTo( g_sTracePath ) };
+	gamescope::ConVar<std::string> cv_kfg_status{ "kfg_status", "", "JSON status file, rewritten once per second. Empty = $XDG_RUNTIME_DIR/kedavra-status.json.", CopyTo( g_sStatusPath ) };
 	gamescope::ConVar<bool> cv_kfg_debug_marker{ "kfg_debug_marker", false, "Mark generated frames with a corner square, for camera checks." };
 	gamescope::ConVar<int> cv_kfg_budget_us{ "kfg_budget_us", 4000, "GPU time of KEDAVRA passes per composite above which a frame counts as over budget." };
 
@@ -91,8 +114,11 @@ namespace kfg
 		// Paint in progress.
 		bool bPending = false;
 		// Motion analysis of the newest source, submitted after this paint's composite.
+		// It is split in two submissions on consecutive vblanks (k_uAnalysisSplit), so no
+		// single one holds the queue long enough to delay the next composite.
 		kfg_plan analysisPlan = {};
 		bool bAnalysisQueued = false;
+		uint32_t uAnalysisNext = 0;  // first pass not yet submitted
 		// Multiplier picked from the game's own frame rate (kfg_multiplier 1).
 		kfg_auto autoc = {};
 		bool bAutoInit = false;
@@ -141,7 +167,7 @@ namespace kfg
 	// generated frames included. File: 8 x u32 header {magic 'KFGH', version 1, width,
 	// height, corner 0-3 (TL, TR, BL, BR), margin px, sequence, 0}, then w*h*4 bytes.
 
-	gamescope::ConVar<std::string> cv_kfg_hud{ "kfg_hud", "/dev/shm/kedavra-hud.raw", "KEDAVRA HUD bitmap written by the Decky plugin; empty = no HUD." };
+	gamescope::ConVar<std::string> cv_kfg_hud{ "kfg_hud", "/dev/shm/kedavra-hud.raw", "KEDAVRA HUD bitmap written by the Decky plugin; empty = no HUD.", CopyTo( g_sHudPath ) };
 
 	struct Hud_t
 	{
@@ -154,6 +180,7 @@ namespace kfg
 		bool bUpload = false;  // pixels changed, copy them in the next composite
 	};
 	static Hud_t g_Hud;
+	static constexpr uint32_t k_uAnalysisSplit = KFG_LEVELS + 2;  // reduce x4, motion levels 4 and 3
 	static constexpr uint32_t k_uHudMagic = 0x4847464b;  // "KFGH"
 	static constexpr uint32_t k_uHudMaxBytes = 1024u * 1024u;
 	static constexpr int k_nHudZpos = 4;  // with the cursor, above the game and overlays
@@ -164,7 +191,7 @@ namespace kfg
 		if ( ulNow - h.ulLastPollNs < 200'000'000ull )
 			return;
 		h.ulLastPollNs = ulNow;
-		const std::string &sPath = cv_kfg_hud.Get();
+		const std::string sPath = CvarCopy( g_sHudPath );
 		struct stat st;
 		if ( sPath.empty() || stat( sPath.c_str(), &st ) != 0 )
 		{
@@ -481,9 +508,9 @@ namespace kfg
 		}
 	}
 
-	static void RecordPlan( CVulkanCmdBuffer *pCmd, const kfg_plan &plan, Resolve_t &r )
+	static void RecordPlan( CVulkanCmdBuffer *pCmd, const kfg_plan &plan, Resolve_t &r, uint32_t uFirst = 0, uint32_t uEnd = ~0u )
 	{
-		for ( uint32_t i = 0; i < plan.n; i++ )
+		for ( uint32_t i = uFirst; i < std::min( plan.n, uEnd ); i++ )
 		{
 			const kfg_pass &pass = plan.pass[ i ];
 			pCmd->bindPipeline( g_device.pipeline( ShaderFor( pass.shader ) ) );
@@ -551,7 +578,7 @@ namespace kfg
 			rows.swap( g_Flipped );
 		}
 
-		const std::string &sPath = cv_kfg_trace.Get();
+		const std::string sPath = CvarCopy( g_sTracePath );
 		if ( sPath != s.sTracePath )
 		{
 			if ( s.pTrace )
@@ -592,7 +619,7 @@ namespace kfg
 			return;
 		s.ulLastStatusNs = ulNow;
 
-		std::string sPath = cv_kfg_status.Get();
+		std::string sPath = CvarCopy( g_sStatusPath );
 		if ( sPath.empty() )
 		{
 			const char *pszRuntime = getenv( "XDG_RUNTIME_DIR" );
@@ -751,8 +778,8 @@ namespace kfg
 			if ( s.bAutoInit )
 				kfg_auto_on_latch( &s.autoc, nVBlank );
 			// Analysis runs in its own submission after this paint's composite (see
-			// SubmitAnalysis), so the pair is usable from the next vblank.
-			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 1, true, false );
+			// SubmitAnalysis), in two parts, so the pair is usable two vblanks later.
+			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 2, true, false );
 		}
 
 		s.pending = kfg_sched_decide( &s.sched, nVBlank );
@@ -809,6 +836,13 @@ namespace kfg
 			if ( pPrev == &cur )
 				pPrev = nullptr;
 
+			// A source faster than the cap can arrive before the previous analysis is fully
+			// submitted: its rest goes into this composite, ahead of the new frame's.
+			if ( s.bAnalysisQueued )
+			{
+				RecordPlan( pCmd, s.analysisPlan, r, s.uAnalysisNext );
+				s.bAnalysisQueued = false;
+			}
 			RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
 			cur.ulID = s.ulPendingID;
 			cur.bValid = true;
@@ -819,6 +853,7 @@ namespace kfg
 			// its vblank (on the Deck a third of the vblanks had no flip).
 			kfg_plan_analyze( &s.analysisPlan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, &tune );
 			s.bAnalysisQueued = true;
+			s.uAnalysisNext = 0;
 		}
 
 		const kfg_decision &d = s.pending;
@@ -886,14 +921,22 @@ namespace kfg
 	{
 		if ( !s.bAnalysisQueued )
 			return;
-		s.bAnalysisQueued = false;
 		if ( !s.uWidth )
+		{
+			s.bAnalysisQueued = false;
 			return;
+		}
+		// Part 1: luma pyramid and the two coarse motion levels (~1.6 ms on the Deck);
+		// part 2, one vblank later: the finest motion level and the cut statistics.
+		const uint32_t uEnd = s.uAnalysisNext == 0 ? std::min( s.analysisPlan.n, k_uAnalysisSplit ) : s.analysisPlan.n;
 		auto pCmd = g_device.commandBuffer();
 		RecordHistoryBarrier( pCmd.get() );
 		Resolve_t r = { &s, nullptr, s.uNextOutput };
-		RecordPlan( pCmd.get(), s.analysisPlan, r );
+		RecordPlan( pCmd.get(), s.analysisPlan, r, s.uAnalysisNext, uEnd );
 		g_device.submit( std::move( pCmd ) );
+		s.uAnalysisNext = uEnd;
+		if ( uEnd >= s.analysisPlan.n )
+			s.bAnalysisQueued = false;
 	}
 
 	void OnPresented( bool bPresented )
@@ -911,7 +954,7 @@ namespace kfg
 			s.ulBypass++;
 			s.pszLastProblem = "composite_bypassed";
 		}
-		if ( cv_kfg_trace.Get().empty() )
+		if ( !s.pTrace )
 			return;
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.size() > 64 )

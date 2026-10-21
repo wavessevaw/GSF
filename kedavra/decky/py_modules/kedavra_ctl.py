@@ -73,6 +73,12 @@ class Control:
         mult = int(mult)
         if mult not in (0, 1, 2, 3):
             raise ValueError("multiplier must be 0 (off), 1 (auto), 2 or 3")
+        if mult == 1:
+            st = self.status()
+            if st.get("fresh") and "auto" not in st:
+                # A Gamescope from before auto mode reads 1 as "off".
+                raise RuntimeError("Установленный Gamescope KEDAVRA старше плагина и не знает режим «Авто»: "
+                                   "нажмите «Переустановить Gamescope KEDAVRA» и перезагрузите Deck.")
         self._ctl("kfg_multiplier", mult)
         return {"multiplier": mult}
 

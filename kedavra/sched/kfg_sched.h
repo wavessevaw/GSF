@@ -121,7 +121,7 @@ static inline kfg_sched_config kfg_sched_default_config(uint32_t multiplier)
 	c.multiplier = multiplier;
 	c.catchup_streak = 90;   // 1 s at 90 Hz
 	c.max_delay = 12;
-	c.me_lag_budget = multiplier > 2 ? multiplier - 1u : 1u;
+	c.me_lag_budget = 2;  // analysis is split over two vblanks after the latch
 	c.degrade_misses = 8;
 	c.degrade_window = 32;
 	c.recover_vblanks = 180;
@@ -226,7 +226,7 @@ static inline void kfg_sched_set_multiplier(kfg_sched *s, uint32_t multiplier)
 		multiplier = KFG_MAX_MULTIPLIER;
 	s->cfg.multiplier = multiplier;
 	s->cfg.max_fill_span = 2u * multiplier + 2u;
-	s->cfg.me_lag_budget = multiplier > 2 ? multiplier - 1u : 1u;
+	s->cfg.me_lag_budget = 2;
 	s->want_on = multiplier > 1;
 	// The steady delay depends on the multiplier; rebuild it.
 	s->wall_ref = -1;

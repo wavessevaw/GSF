@@ -176,7 +176,7 @@ function Content() {
     })}>Показать журнал</ButtonItem></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.4.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.4.1 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
   </PanelSection>
   </>;
 }

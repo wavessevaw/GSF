@@ -11,9 +11,12 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-const int W = 2; // 5x5 texel window
+// SAD window: 5x5 texels on the coarse levels, 3x3 on the finest searched level (2),
+// where a texel is already a 4x4 pixel block and the window cost dominated the
+// analysis on the Deck (2.4 of 4.8 ms). Constant bounds keep both loops unrolled.
+bool g_small = false;
 
-float sad(int sa, int sb, vec2 q, vec2 d, ivec2 size)
+float sad_w(int sa, int sb, vec2 q, vec2 d, ivec2 size, const int W)
 {
 	float e = 0.0;
 	for (int y = -W; y <= W; y++)
@@ -22,6 +25,11 @@ float sad(int sa, int sb, vec2 q, vec2 d, ivec2 size)
 			e += abs(kfg_tap(sa, q + o, size).r - kfg_tap(sb, q + o + d, size).r);
 		}
 	return e * (1.0 / float((2 * W + 1) * (2 * W + 1)));
+}
+
+float sad(int sa, int sb, vec2 q, vec2 d, ivec2 size)
+{
+	return g_small ? sad_w(sa, sb, q, d, size, 1) : sad_w(sa, sb, q, d, size, 2);
 }
 
 // Best displacement (texels at this level) of block q from slot sa into slot sb.
@@ -87,6 +95,7 @@ void main()
 	float scale = float(1 << u_level); // pixels per texel
 	vec2 q = vec2(p);
 	bool coarsest = (u_flags & KFG_FLAG_COARSEST) != 0;
+	g_small = u_level <= 2;
 
 	vec2 pf[5];
 	vec2 pb[5];
