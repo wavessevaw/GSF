@@ -38,7 +38,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 ## Installation
 
-Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8. The plugin's interface is in Russian; the English names below translate its labels.
+Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8.
 
 1. Download [**GSF-Kedavra-1.0.0.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.0.0/GSF-Kedavra-1.0.0.zip).
 2. In Decky: **Settings → Developer → Install plugin from zip**, pick the file. Upgrading over an older KEDAVRA plugin keeps your settings.

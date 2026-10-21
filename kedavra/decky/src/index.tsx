@@ -128,7 +128,7 @@ function Content() {
     try {const text = await fn(); setMessage(text); toaster.toast({title: 'GSF Kedavra', body: text});}
     catch (e) {
       // Errors are shown on the panel and as a toast; a silent failure looks like a dead button.
-      const text = 'Ошибка: ' + (e instanceof Error ? e.message : String(e));
+      const text = 'Error: ' + (e instanceof Error ? e.message : String(e));
       setMessage(text); toaster.toast({title: 'GSF Kedavra', body: text});
     }
     finally {lock.current = false; setBusy(false);}
@@ -148,8 +148,8 @@ function Content() {
 
   const setMode = (m: Mode, b = base) => void act(async () => {
     await rpc.setMode(m, b);
-    return m === 'off' ? 'Генерация выключена' : m === 'auto' ? 'Авто: движок сам держит игру на 30 или 45 и выбирает ×3 или ×2'
-      : `Базовый FPS ${b}: игра ограничена до ${b}, генерация доводит до ${Math.round(hz)}`;
+    return m === 'off' ? 'Generation off' : m === 'auto' ? 'Auto: the engine holds the game at 30 or 45 and picks ×3 or ×2'
+      : `Base FPS ${b}: the game is held at ${b}, generation fills up to ${Math.round(hz)}`;
   });
   const onBase = (v: number) => {
     setBase(v);
@@ -159,89 +159,89 @@ function Content() {
   };
 
   let note: string;
-  if (!running) note = status?.message ?? 'Проверяю движок…';
-  else if (mode === 'off') note = `Генерация выключена. Игра сейчас: ${fmt(live?.real)} FPS.`;
-  else if ((live?.unsupported ?? 0) > 1) note = `Кадры этой игры генерация не берёт (формат Vulkan ${status?.unsupported_format}, цветовое пространство ${status?.unsupported_colorspace}): игра идёт без генерации. Сохраните отчёт и пришлите его.`;
-  else if (status?.state === 'degraded') note = 'Приостановлено: анализ кадров не успевает. Движок попробует снова через 2 с.';
-  else if (mode === 'cap') note = `Игра ограничена до ${status?.base_fps} FPS, генерация доводит до ${Math.round(hz)}. ` +
-    (live?.real !== null && live?.real !== undefined && live.real < 0.95 * (status?.base_fps ?? 0) ? 'Игра не успевает за этим лимитом: снизьте его.' : 'Игра держит лимит.');
-  else note = `Авто держит ×${mult}: игра ограничена до ${status?.cap_fps ?? Math.round(hz / mult)} FPS. ` +
-    (mult === 3 ? 'Если сцена станет легче, GSF сам попробует ×2.' : 'Если игра перестанет успевать, GSF перейдёт на ×3.');
+  if (!running) note = status?.message ?? 'Checking the engine…';
+  else if (mode === 'off') note = `Generation is off. The game runs at ${fmt(live?.real)} FPS.`;
+  else if ((live?.unsupported ?? 0) > 1) note = `Generation cannot use this game's frames (Vulkan format ${status?.unsupported_format}, colour space ${status?.unsupported_colorspace}), so it runs without generation. Save a report and send it.`;
+  else if (status?.state === 'degraded') note = 'Paused: frame analysis cannot keep up. The engine retries in 2 s.';
+  else if (mode === 'cap') note = `The game is held at ${status?.base_fps} FPS, generation fills up to ${Math.round(hz)}. ` +
+    (live?.real !== null && live?.real !== undefined && live.real < 0.95 * (status?.base_fps ?? 0) ? 'The game cannot keep this cap: lower it.' : 'The game holds the cap.');
+  else note = `Auto holds ×${mult}: the game is capped at ${status?.cap_fps ?? Math.round(hz / mult)} FPS. ` +
+    (mult === 3 ? 'If the scene gets lighter, GSF tries ×2 by itself.' : 'If the game falls behind, GSF moves to ×3.');
 
   const header = <PanelSectionRow><div style={{fontSize: 10, color: C.label, letterSpacing: '0.08em', textAlign: 'right'}}>
-    {running ? `Steam Deck · ${Math.round(hz)} Гц` : 'движок не запущен'}</div></PanelSectionRow>;
+    {running ? `Steam Deck · ${Math.round(hz)} Hz` : 'engine not running'}</div></PanelSectionRow>;
 
   if (view === 'setup') return <PanelSection>
-    <Back onClick={() => setView('main')} title="Установка"/>
+    <Back onClick={() => setView('main')} title="Setup"/>
     <PanelSectionRow><div style={{...card, fontSize: 11, lineHeight: 1.45, color: C.muted}}>
-      Всё ставится из плагина. Образ SteamOS не меняется: Gamescope KEDAVRA лежит в /var/lib/kedavra и подключается поверх стокового.
-      Если игровой режим не загрузится, следующая перезагрузка сама вернёт стоковый.</div></PanelSectionRow>
-    <PanelSectionRow><div style={caps}>ПРОВЕРКА СИСТЕМЫ</div></PanelSectionRow>
+      Everything installs from this plugin. The SteamOS image is not changed: Gamescope KEDAVRA lives in /var/lib/kedavra and is mounted over the stock one.
+      If Gaming Mode fails to start, the next boot returns to the stock Gamescope by itself.</div></PanelSectionRow>
+    <PanelSectionRow><div style={caps}>SYSTEM CHECK</div></PanelSectionRow>
     {diag?.checks.map((c, i) => <PanelSectionRow key={c.key + i}><div style={{display: 'flex', gap: 8, fontSize: 12, overflowWrap: 'anywhere'}}>
       <span style={{color: c.ok ? C.greenText : C.red, fontWeight: 800}}>{c.ok ? '✓' : '✗'}</span>
       <div>{c.text}{c.detail && <div style={{fontSize: 10, color: C.muted, whiteSpace: 'pre-wrap'}}>{c.detail}</div>}</div>
     </div></PanelSectionRow>)}
     <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} style={{background: C.green, color: '#04120a', fontWeight: 800}}>{busy ? 'Выполняется…' : installed ? 'Переустановить Gamescope KEDAVRA' : 'Установить Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
+    })} style={{background: C.green, color: '#04120a', fontWeight: 800}}>{busy ? 'Working…' : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
     {needsReboot && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
-      await rpc.reboot(); return 'Перезагрузка…';
-    })}>Перезагрузить Deck сейчас</DialogButton></PanelSectionRow>}
+      await rpc.reboot(); return 'Rebooting…';
+    })}>Reboot the Deck now</DialogButton></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 11, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap'}}>{message}</div></PanelSectionRow>}
     <PanelSectionRow><Focusable style={{display: 'flex', gap: 6}}>
-      <NavButton onClick={() => void act(async () => {await refreshDiag(); return 'Проверка обновлена';})}>Проверить</NavButton>
+      <NavButton onClick={() => void act(async () => {await refreshDiag(); return 'Check updated';})}>Check</NavButton>
       <NavButton onClick={() => void act(async () => {
         const b = await rpc.bench(); setBenchRes(b);
-        return b.ok ? `Бенчмарк: анализ ${b.analysis_ms?.toFixed(2)} мс, два кадра ${b.two_outputs_ms?.toFixed(2)} мс` : 'Бенчмарк не прошёл';
-      })}>Бенчмарк</NavButton>
-      <NavButton onClick={() => void act(async () => 'Отчёт сохранён: ' + (await rpc.report()).path)}>Отчёт</NavButton>
+        return b.ok ? `Benchmark: analysis ${b.analysis_ms?.toFixed(2)} ms, two frames ${b.two_outputs_ms?.toFixed(2)} ms` : 'Benchmark failed';
+      })}>Benchmark</NavButton>
+      <NavButton onClick={() => void act(async () => 'Report saved: ' + (await rpc.report()).path)}>Report</NavButton>
     </Focusable></PanelSectionRow>
     {benchRes && <PanelSectionRow><div style={{...card, display: 'flex', justifyContent: 'space-between', fontSize: 11}}>
-      <div><b style={{fontSize: 15}}>{benchRes.analysis_ms?.toFixed(1)}</b> мс<div style={{color: C.label}}>анализ</div></div>
-      <div><b style={{fontSize: 15}}>{benchRes.two_outputs_ms?.toFixed(1)}</b> мс<div style={{color: C.label}}>два кадра</div></div>
-      <div><b style={{fontSize: 15, color: benchRes.correct ? C.greenText : C.red}}>{benchRes.correct ? 'PASS' : 'FAIL'}</b><div style={{color: C.label}}>точность</div></div>
+      <div><b style={{fontSize: 15}}>{benchRes.analysis_ms?.toFixed(1)}</b> ms<div style={{color: C.label}}>analysis</div></div>
+      <div><b style={{fontSize: 15}}>{benchRes.two_outputs_ms?.toFixed(1)}</b> ms<div style={{color: C.label}}>two frames</div></div>
+      <div><b style={{fontSize: 15, color: benchRes.correct ? C.greenText : C.red}}>{benchRes.correct ? 'PASS' : 'FAIL'}</b><div style={{color: C.label}}>accuracy</div></div>
     </div></PanelSectionRow>}
     {installed && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.uninstall(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} style={{background: 'transparent', color: C.red, border: `1px solid ${C.redBg}`}}>Удалить и вернуть стоковый Gamescope</DialogButton></PanelSectionRow>}
+    })} style={{background: 'transparent', color: C.red, border: `1px solid ${C.redBg}`}}>Remove and restore stock Gamescope</DialogButton></PanelSectionRow>}
   </PanelSection>;
 
   if (view === 'pace') return <PanelSection>
-    <Back onClick={() => setView('main')} title="Темп"/>
+    <Back onClick={() => setView('main')} title="Pace"/>
     <PanelSectionRow><div style={{...card, fontSize: 11, lineHeight: 1.45, color: C.muted}}>
-      Трасса пишет время каждого переключения кадра на экране (KMS flip). Это доказательство темпа, а не счётчик FPS. Поиграйте 1–2 минуты и остановите запись.</div></PanelSectionRow>
+      The trace records the time of every frame flip on screen (KMS flip). That is the proof of pacing, not an FPS counter. Play for 1–2 minutes, then stop the recording.</div></PanelSectionRow>
     <PanelSectionRow>{status?.capture ?
       <DialogButton disabled={busy} onClick={() => void act(async () => {
         const r = await rpc.stop(); setReport(r);
         const s = r.summary;
-        return s ? `Трасса: P95 ${s.p95_ms?.toFixed(3)} мс, P99 ${s.p99_ms?.toFixed(3)} мс, пропуски ${s.missed_pct?.toFixed(2)}% → ${s.pass ? 'PASS' : 'FAIL'}` : 'Трасса сохранена, анализ не удался';
-      })} style={{background: C.text, color: '#07110a', fontWeight: 800, letterSpacing: '0.1em'}}>■ ОСТАНОВИТЬ ЗАПИСЬ ({status.capture.elapsed_s.toFixed(0)} с)</DialogButton> :
+        return s ? `Trace: P95 ${s.p95_ms?.toFixed(3)} ms, P99 ${s.p99_ms?.toFixed(3)} ms, missed ${s.missed_pct?.toFixed(2)}% → ${s.pass ? 'PASS' : 'FAIL'}` : 'Trace saved, analysis failed';
+      })} style={{background: C.text, color: '#07110a', fontWeight: 800, letterSpacing: '0.1em'}}>■ STOP RECORDING ({status.capture.elapsed_s.toFixed(0)} s)</DialogButton> :
       <DialogButton disabled={busy || !running} onClick={() => void act(async () => {
         const label = mode === 'cap' ? `cap${status?.base_fps}` : `${status?.auto ? 'auto-' : ''}x${mult}`;
-        const c = await rpc.start(label); return 'Запись трассы KMS flip: ' + (c?.path ?? '');
-      })} style={{background: C.green, color: '#04120a', fontWeight: 800}}>● Записать трассу темпа</DialogButton>}
+        const c = await rpc.start(label); return 'Recording KMS flip trace: ' + (c?.path ?? '');
+      })} style={{background: C.green, color: '#04120a', fontWeight: 800}}>● Record pacing trace</DialogButton>}
     </PanelSectionRow>
     {report?.summary && <PanelSectionRow><Focusable style={{display: 'flex', gap: 6}}>
-      {[['P95', `${report.summary.p95_ms?.toFixed(2)}`, '≤ 1 мс', (report.summary.p95_ms ?? 9) <= 1],
-        ['P99', `${report.summary.p99_ms?.toFixed(2)}`, '≤ 2 мс', (report.summary.p99_ms ?? 9) <= 2],
-        ['ПРОПУСКИ', `${report.summary.missed_pct?.toFixed(2)}%`, '< 0.5%', (report.summary.missed_pct ?? 9) < 0.5]].map(([k, v, lim, ok]) =>
+      {[['P95', `${report.summary.p95_ms?.toFixed(2)}`, '≤ 1 ms', (report.summary.p95_ms ?? 9) <= 1],
+        ['P99', `${report.summary.p99_ms?.toFixed(2)}`, '≤ 2 ms', (report.summary.p99_ms ?? 9) <= 2],
+        ['MISSED', `${report.summary.missed_pct?.toFixed(2)}%`, '< 0.5%', (report.summary.missed_pct ?? 9) < 0.5]].map(([k, v, lim, ok]) =>
         <div key={String(k)} style={{...card, flex: 1, padding: 8, display: 'flex', flexDirection: 'column', gap: 3}}>
           <div style={caps}>{k}</div><div style={{fontSize: 16, fontWeight: 800}}>{v}</div><Chip ok={Boolean(ok)}>{lim}</Chip>
         </div>)}
     </Focusable></PanelSectionRow>}
     {report && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere'}}>
       {Object.entries(report.summary?.checks ?? {}).map(([k, v]) => <div key={k}>{v ? '✓' : '✗'} {k}</div>)}
-      Отчёт: {report.report}</div></PanelSectionRow>}
+      Report: {report.report}</div></PanelSectionRow>}
     {running && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, lineHeight: 1.5}}>
-      Кадров игры {status?.sources ?? 0} · реальных {status?.real ?? 0}, сгенерированных {status?.gen ?? 0}, повторов {status?.repeat ?? 0}<br/>
-      Опозданий кадров игры {status?.source_late ?? 0} · переключений режима {status?.auto_switches ?? 0} · пересинхронизаций {status?.resync ?? 0}<br/>
-      GPU KEDAVRA: {status?.timestamps ? `${((status?.gpu_us_avg ?? 0) / 1000).toFixed(2)} мс в среднем, макс ${((status?.gpu_us_max ?? 0) / 1000).toFixed(2)}` : 'нет таймстемпов'} · проблема: {status?.last_problem ?? 'none'}
+      Game frames {status?.sources ?? 0} · real {status?.real ?? 0}, generated {status?.gen ?? 0}, repeats {status?.repeat ?? 0}<br/>
+      Late game frames {status?.source_late ?? 0} · mode switches {status?.auto_switches ?? 0} · resyncs {status?.resync ?? 0}<br/>
+      GPU KEDAVRA: {status?.timestamps ? `${((status?.gpu_us_avg ?? 0) / 1000).toFixed(2)} ms average, max ${((status?.gpu_us_max ?? 0) / 1000).toFixed(2)}` : 'no timestamps'} · problem: {status?.last_problem ?? 'none'}
     </div></PanelSectionRow>}
   </PanelSection>;
 
   if (view === 'log') return <PanelSection>
-    <Back onClick={() => setView('main')} title="Журнал"/>
-    <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {setLogs(await rpc.logs()); return 'Журнал обновлён';})}>Обновить</DialogButton></PanelSectionRow>
+    <Back onClick={() => setView('main')} title="Log"/>
+    <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {setLogs(await rpc.logs()); return 'Log updated';})}>Refresh</DialogButton></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 9, whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
   </PanelSection>;
 
@@ -254,17 +254,17 @@ function Content() {
         <div style={{...caps, marginTop: 2}}>FPS</div>
       </Ring>
       <div style={{display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0}}>
-        <div style={caps}>ИГРА × GSF</div>
+        <div style={caps}>GAME × GSF</div>
         <div style={{fontSize: 24, fontWeight: 800, lineHeight: 1}}>{fmt(live?.real)}{generating && <span style={{color: C.green}}> ×{Number.isInteger(ratio) ? ratio : ratio.toFixed(1)}</span>}</div>
-        <div style={caps}>{mode === 'cap' ? `CAP ${status?.base_fps}` : mode === 'auto' ? `АВТО · CAP ${status?.cap_fps ?? '—'}` : 'ВЫКЛ'}</div>
-        {generating && pace !== undefined && <Chip ok={paceOk}>{paceOk ? '✓ ТЕМП РОВНЫЙ' : 'ТЕМП ПРОСЕЛ'}</Chip>}
+        <div style={caps}>{mode === 'cap' ? `CAP ${status?.base_fps}` : mode === 'auto' ? `AUTO · CAP ${status?.cap_fps ?? '—'}` : 'OFF'}</div>
+        {generating && pace !== undefined && <Chip ok={paceOk}>{paceOk ? '✓ PACE STEADY' : 'PACE DROPPED'}</Chip>}
       </div>
     </div></PanelSectionRow>
 
     <PanelSectionRow><div style={{display: 'flex', gap: 6}}>
-      {[['РЕАЛ', fmt(live?.real), (live?.real ?? 0) / hz, C.green],
+      {[['REAL', fmt(live?.real), (live?.real ?? 0) / hz, C.green],
         ['PACE %', pace === null || pace === undefined ? '—' : Math.min(99.9, 100 * pace).toFixed(1), pace ?? 0, paceOk ? C.green : C.yellow],
-        ['GPU МС', status?.timestamps ? ((status?.gpu_us_avg ?? 0) / 1000).toFixed(1) : '—', (status?.gpu_us_avg ?? 0) / 11111, C.yellow]].map(([k, v, f, col]) =>
+        ['GPU MS', status?.timestamps ? ((status?.gpu_us_avg ?? 0) / 1000).toFixed(1) : '—', (status?.gpu_us_avg ?? 0) / 11111, C.yellow]].map(([k, v, f, col]) =>
         <div key={String(k)} style={{...card, flex: 1, padding: 8, display: 'flex', alignItems: 'center', gap: 6}}>
           <Ring size={26} width={3.5} frac={Number(f)} color={String(col)}/>
           <div><div style={{fontSize: 13, fontWeight: 800}}>{v}</div><div style={{...caps, fontSize: 8}}>{k}</div></div>
@@ -274,26 +274,26 @@ function Content() {
     <PanelSectionRow><div style={{...card, fontSize: 11, lineHeight: 1.4, color: C.muted}}>{note}</div></PanelSectionRow>
 
     <PanelSectionRow><Focusable style={{display: 'flex', gap: 6}} flow-children="horizontal">
-      <Tile selected={mode === 'off'} disabled={busy || !running} big="—" label="Выкл" onClick={() => setMode('off')}/>
-      <Tile selected={mode === 'auto'} disabled={busy || !running} big="A" label="Авто" onClick={() => setMode('auto')}/>
-      <Tile selected={mode === 'cap'} disabled={busy || !running} big={String(base)} label="Свой FPS" onClick={() => setMode('cap')}/>
+      <Tile selected={mode === 'off'} disabled={busy || !running} big="—" label="Off" onClick={() => setMode('off')}/>
+      <Tile selected={mode === 'auto'} disabled={busy || !running} big="A" label="Auto" onClick={() => setMode('auto')}/>
+      <Tile selected={mode === 'cap'} disabled={busy || !running} big={String(base)} label="Custom FPS" onClick={() => setMode('cap')}/>
     </Focusable></PanelSectionRow>
-    {mode !== 'auto' && <PanelSectionRow><SliderField label="Базовый FPS игры" value={base} min={20} max={90} step={1} showValue
+    {mode !== 'auto' && <PanelSectionRow><SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue
       disabled={busy || !running}
-      description="Движок ограничит игру до этого FPS, генерация доведёт до частоты экрана. 30 и 45 ровнее всего при 90 Гц."
+      description="The engine caps the game at this FPS and generation fills up to the refresh rate. 30 and 45 are the smoothest at 90 Hz."
       onChange={onBase}/></PanelSectionRow>}
 
-    <PanelSectionRow><ToggleField label="HUD на экране" checked={hud} disabled={busy}
-      description="Кольца FPS поверх игры: новые кадры на экране и FPS самой игры"
-      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD включён' : 'HUD выключен';})}/></PanelSectionRow>
+    <PanelSectionRow><ToggleField label="On-screen HUD" checked={hud} disabled={busy}
+      description="FPS rings over the game: new frames on screen and the game's own FPS"
+      onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/></PanelSectionRow>
 
     <PanelSectionRow><Focusable style={{display: 'flex', gap: 6}} flow-children="horizontal">
-      <NavButton onClick={() => setView('pace')}>Темп</NavButton>
-      <NavButton onClick={() => setView('setup')}>Установка</NavButton>
-      <NavButton onClick={() => setView('log')}>Журнал</NavButton>
+      <NavButton onClick={() => setView('pace')}>Pace</NavButton>
+      <NavButton onClick={() => setView('setup')}>Setup</NavButton>
+      <NavButton onClick={() => setView('log')}>Log</NavButton>
     </Focusable></PanelSectionRow>
     {message && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em'}}>GSF {VERSION} · KEDAVRA · экспериментально</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em'}}>GSF {VERSION} · KEDAVRA · experimental</div></PanelSectionRow>
   </PanelSection>;
 }
 

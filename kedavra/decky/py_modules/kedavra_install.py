@@ -129,11 +129,11 @@ class Installer:
     def _missing_libs(self, runtime):
         runtime = Path(runtime)
         if not (runtime / "lib" / LOADER).exists():
-            return [f"в runtime нет lib/{LOADER}: zip собран старой версией"]
+            return [f"runtime has no lib/{LOADER}: the zip was built by an old version"]
         rc, out = self.run(self._loader(runtime, "--list", runtime / "bin/gamescope"))
         missing = [l.strip() for l in out.splitlines() if "not found" in l]
         if rc != 0 and not missing:
-            missing = [out.strip()[-400:] or f"загрузчик завершился с кодом {rc}"]
+            missing = [out.strip()[-400:] or f"the loader exited with code {rc}"]
         return missing
 
     def _mounted(self):
@@ -189,9 +189,9 @@ class Installer:
 
     def install(self):
         if not (self.bundle / "bin/gamescope").exists():
-            raise RuntimeError("в zip плагина нет runtime/bin/gamescope")
+            raise RuntimeError("the plugin zip has no runtime/bin/gamescope")
         if not self.target.exists():
-            raise RuntimeError(f"{self.target} не найден: это не SteamOS Gaming Mode?")
+            raise RuntimeError(f"{self.target} not found: is this SteamOS Gaming Mode?")
         self.var.mkdir(parents=True, exist_ok=True)
         tmp = self.var / "runtime.new"
         if tmp.exists():
@@ -201,11 +201,11 @@ class Installer:
         missing = self._missing_libs(tmp)
         if missing:
             shutil.rmtree(tmp)
-            raise RuntimeError("Gamescope KEDAVRA не запустится, не хватает библиотек: " + "; ".join(missing[:6]))
+            raise RuntimeError("Gamescope KEDAVRA would not start, missing libraries: " + "; ".join(missing[:6]))
         rc, out = self.run(self._loader(tmp, tmp / "bin/gamescope", "--version"))
         if rc != 0:
             shutil.rmtree(tmp)
-            raise RuntimeError("Gamescope KEDAVRA --version завершился с ошибкой: " + out.strip()[-400:])
+            raise RuntimeError("Gamescope KEDAVRA --version failed: " + out.strip()[-400:])
         # A running KEDAVRA session keeps its open (unlinked) files; the new copy is
         # used from the next boot.
         if self.runtime.exists():
@@ -225,7 +225,7 @@ class Installer:
         if rc != 0:
             raise RuntimeError("systemctl enable: " + out.strip()[-300:])
         return {"installed": self.bundled_version(), "needs_reboot": True,
-                "message": "Установлено. Перезагрузите Deck: игровой режим запустится с Gamescope KEDAVRA."}
+                "message": "Installed. Reboot the Deck: Gaming Mode will start with Gamescope KEDAVRA."}
 
     def uninstall(self):
         self.run(["systemctl", "disable", UNIT_NAME])
@@ -235,8 +235,8 @@ class Installer:
         (self.state / "disabled").touch()
         mounted = self._mounted()
         return {"needs_reboot": mounted,
-                "message": "Удалено. Перезагрузите Deck, чтобы вернуть стоковый Gamescope." if mounted
-                else "Удалено. Стоковый Gamescope активен."}
+                "message": "Removed. Reboot the Deck to return to the stock Gamescope." if mounted
+                else "Removed. The stock Gamescope is active."}
 
     def reboot(self):
         self.run(["systemctl", "reboot"])
@@ -252,54 +252,54 @@ class Installer:
 
         rc, osr = self.run(["cat", str(self.root / "etc/os-release")])
         osv = {k: v.strip('"') for k, _, v in (l.partition("=") for l in osr.splitlines()) if k}
-        add("os", osv.get("ID") == "steamos", f"ОС: {osv.get('PRETTY_NAME', '?')} {osv.get('VERSION_ID', '')} {osv.get('BUILD_ID', '')}")
+        add("os", osv.get("ID") == "steamos", f"OS: {osv.get('PRETTY_NAME', '?')} {osv.get('VERSION_ID', '')} {osv.get('BUILD_ID', '')}")
         rc, pkg = self.run(["pacman", "-Q", "gamescope", "mesa", "vulkan-radeon"])
-        add("packages", rc == 0, "Пакеты: " + " · ".join(pkg.split("\n")[:3]))
+        add("packages", rc == 0, "Packages: " + " · ".join(pkg.split("\n")[:3]))
 
         bundled = self.bundle / "bin/gamescope"
         try:
             self._fix_modes(self.bundle)
         except OSError:
             pass
-        add("bundle", bundled.exists(), f"В плагине Gamescope KEDAVRA {self.bundled_version()}"
-            if bundled.exists() else "В zip плагина нет runtime/: соберите полный zip")
+        add("bundle", bundled.exists(), f"Plugin carries Gamescope KEDAVRA {self.bundled_version()}"
+            if bundled.exists() else "The plugin zip has no runtime/: build the full zip")
         if bundled.exists():
             missing = self._missing_libs(self.bundle)
-            add("libs", not missing, "Библиотеки на этой SteamOS: все найдены" if not missing
-                else "Не хватает библиотек", "\n".join(missing))
+            add("libs", not missing, "Libraries on this SteamOS: all found" if not missing
+                else "Missing libraries", "\n".join(missing))
 
         inst = self.installed_version()
-        add("installed", inst is not None, f"Установлено: {inst}" if inst else "Не установлено")
+        add("installed", inst is not None, f"Installed: {inst}" if inst else "Not installed")
         if inst and inst != self.bundled_version():
-            add("outdated", False, f"Установлен Gamescope {inst}, в плагине {self.bundled_version()}: "
-                "нажмите «Переустановить» и перезагрузите")
+            add("outdated", False, f"Installed Gamescope {inst}, plugin carries {self.bundled_version()}: "
+                "press Reinstall and reboot")
         if inst:
             missing = self._missing_libs(self.runtime)
-            add("installed_libs", not missing, "Установленный Gamescope находит свои библиотеки" if not missing
-                else "Установленному Gamescope не хватает библиотек", "\n".join(missing))
+            add("installed_libs", not missing, "Installed Gamescope finds its libraries" if not missing
+                else "Installed Gamescope is missing libraries", "\n".join(missing))
         rc, en = self.run(["systemctl", "is-enabled", UNIT_NAME])
-        add("unit", en.strip() == "enabled", f"Загрузочный шаг: {en.strip() or 'нет'}")
-        for f, text in (("auto_rollback", "Был автоматический откат"), ("ldd_failed", "При загрузке не хватило библиотек")):
+        add("unit", en.strip() == "enabled", f"Boot step: {en.strip() or 'none'}")
+        for f, text in (("auto_rollback", "An automatic rollback happened"), ("ldd_failed", "Libraries were missing at boot")):
             p = self.state / f
             if p.exists():
                 add(f, False, text, p.read_text()[-600:])
         if (self.state / "disabled").exists():
-            add("disabled", False, "KEDAVRA отключена до переустановки")
+            add("disabled", False, "KEDAVRA is disabled until reinstalled")
 
         mounted = self._mounted()
-        add("mounted", mounted, "Gamescope KEDAVRA подключён на эту загрузку" if mounted
-            else "Сейчас активен стоковый Gamescope (нужна перезагрузка после установки)")
+        add("mounted", mounted, "Gamescope KEDAVRA is mounted for this boot" if mounted
+            else "The stock Gamescope is active now (reboot after installing)")
         procs = self._gamescope_procs()
         if not procs:
-            add("running", False, "Процесс gamescope не найден")
+            add("running", False, "No gamescope process found")
         for p in procs:
             ours = self._ours(p)
-            add("running", ours, f"gamescope pid {p['pid']}: " + ("KEDAVRA" if ours else "стоковый"))
-            add("sys_nice", p["sys_nice"], "CAP_SYS_NICE есть (realtime-очередь GPU)" if p["sys_nice"]
-                else "Нет CAP_SYS_NICE: очередь GPU не realtime")
+            add("running", ours, f"gamescope pid {p['pid']}: " + ("KEDAVRA" if ours else "stock"))
+            add("sys_nice", p["sys_nice"], "CAP_SYS_NICE present (realtime GPU queue)" if p["sys_nice"]
+                else "No CAP_SYS_NICE: the GPU queue is not realtime")
         age = self.status_age()
-        add("status", age is not None and age < 3, "Статус движка свежий" if age is not None and age < 3
-            else ("Статус движка устарел на %.0f с" % age if age is not None else "Файла статуса движка нет"))
+        add("status", age is not None and age < 3, "Engine status is fresh" if age is not None and age < 3
+            else ("Engine status is %.0f s old" % age if age is not None else "No engine status file"))
         return {"checks": checks, "ok": all(c["ok"] for c in checks if c["key"] in ("libs", "mounted", "running", "status"))}
 
     def report(self, out_dir):
@@ -332,7 +332,7 @@ def bench(plugin_dir, out_dir, run=_run):
     try:
         (b / "kfg_vktest").chmod(0o755)  # Decky unpacks the zip without file modes
     except OSError:
-        return {"ok": False, "log": "в zip плагина нет bench/kfg_vktest", "json": ""}
+        return {"ok": False, "log": "the plugin zip has no bench/kfg_vktest", "json": ""}
     rc, text = run([str(b / "kfg_vktest"), "--spv", str(b), "--bench", "200", "--json", str(out)], timeout=600)
     summary = {"ok": rc == 0, "log": text[-3000:], "json": str(out)}
     for line in text.splitlines():

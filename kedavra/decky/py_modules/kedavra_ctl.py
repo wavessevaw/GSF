@@ -59,14 +59,14 @@ class Control:
             st = json.loads(raw)
             age = self.clock() - path.stat().st_mtime
         except (OSError, ValueError):
-            out["message"] = "KEDAVRA Gamescope не запущен: статус движка отсутствует (стоковый Gamescope или движок не установлен)."
+            out["message"] = "Gamescope KEDAVRA is not running: no engine status (stock Gamescope, or the engine is not installed)."
             return out
         out.update(st)
         out["age_s"] = round(age, 1)
         out["fresh"] = age <= STATUS_STALE_S
         out["engine"] = "running" if out["fresh"] else "stale"
         if not out["fresh"]:
-            out["message"] = "Статус движка устарел: Gamescope с KEDAVRA не отвечает."
+            out["message"] = "Engine status is stale: Gamescope KEDAVRA does not respond."
         return out
 
     def set_multiplier(self, mult):
@@ -77,8 +77,8 @@ class Control:
             st = self.status()
             if st.get("fresh") and "auto" not in st:
                 # A Gamescope from before auto mode reads 1 as "off".
-                raise RuntimeError("Установленный Gamescope KEDAVRA старше плагина и не знает режим «Авто»: "
-                                   "нажмите «Переустановить Gamescope KEDAVRA» и перезагрузите Deck.")
+                raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no Auto mode: "
+                                   "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
         self._ctl("kfg_multiplier", mult)
         return {"multiplier": mult}
 
@@ -89,8 +89,8 @@ class Control:
             raise ValueError("base fps must be 0 (auto) or 20..240")
         st = self.status()
         if st.get("fresh") and "base_fps" not in st:
-            raise RuntimeError("Установленный Gamescope KEDAVRA старше плагина и не знает «Базовый FPS»: "
-                               "нажмите «Переустановить Gamescope KEDAVRA» и перезагрузите Deck.")
+            raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no base FPS: "
+                               "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
         self._ctl("kfg_base_fps", fps)
         return {"base_fps": fps}
 
