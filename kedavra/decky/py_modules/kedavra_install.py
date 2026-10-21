@@ -64,9 +64,22 @@ WantedBy=multi-user.target
 """
 
 
-def _run(argv, timeout=20, **kw):
+# Decky's own runtime sets these for its bundled libraries (an older libstdc++ among
+# them). Inherited by our tools they override the runtime's RUNPATH: gamescopectl then
+# fails with "undefined symbol ... GLIBCXX_3.4.35".
+LOADER_VARS = ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT", "PYTHONHOME", "PYTHONPATH")
+
+
+def clean_env(env=None):
+    env = dict(os.environ if env is None else env)
+    for k in LOADER_VARS:
+        env.pop(k, None)
+    return env
+
+
+def _run(argv, timeout=20, env=None, **kw):
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, **kw)
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=clean_env(env), **kw)
         return r.returncode, (r.stdout or "") + (r.stderr or "")
     except (OSError, subprocess.TimeoutExpired) as e:
         return -1, str(e)

@@ -15,6 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+from kedavra_install import clean_env
+
 STATUS_STALE_S = 3.0
 
 
@@ -35,7 +37,7 @@ class Control:
     # ------------------------------------------------------------ gamescopectl
 
     def _env(self):
-        env = dict(os.environ)
+        env = clean_env()
         env["XDG_RUNTIME_DIR"] = str(self.runtime)
         env.setdefault("GAMESCOPE_WAYLAND_DISPLAY", "gamescope-0")
         return env

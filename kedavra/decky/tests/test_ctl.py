@@ -21,6 +21,7 @@ class Recorder:
 
     def __call__(self, argv, **kw):
         self.calls.append(argv)
+        self.envs = getattr(self, "envs", []) + [kw.get("env")]
         if argv[0].endswith("python3") or argv[0] == sys.executable:
             return subprocess.run(argv, **kw)
         return subprocess.CompletedProcess(argv, 0, "", "")
@@ -56,6 +57,18 @@ class ControlTest(unittest.TestCase):
         s = self.ctl.status()
         self.assertEqual(s["engine"], "running")
         self.assertEqual(s["multiplier"], 3)
+
+    def test_gamescopectl_does_not_inherit_decky_libraries(self):
+        os.environ["LD_LIBRARY_PATH"] = "/tmp/_MEI1234"
+        try:
+            self.ctl.set_multiplier(2)
+        except Exception:
+            pass
+        finally:
+            del os.environ["LD_LIBRARY_PATH"]
+        env = self.rec.envs[0]
+        self.assertIsNotNone(env)
+        self.assertNotIn("LD_LIBRARY_PATH", env)
 
     def test_multiplier_goes_through_gamescopectl(self):
         self.ctl.set_multiplier(3)
