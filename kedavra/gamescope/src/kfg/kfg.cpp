@@ -803,6 +803,7 @@ namespace kfg
 		if ( uAppID != s.uLastAppID )
 		{
 			s.uLastAppID = uAppID;
+			s.bAutoInit = false;  // a new game starts Auto from scratch, without the old one's history
 			ResetHistory( s, "focus change" );
 		}
 
