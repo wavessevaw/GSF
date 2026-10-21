@@ -26,7 +26,7 @@ class FakeSystem:
     def __call__(self, argv, timeout=20, **kw):
         self.calls.append(argv)
         cmd = Path(argv[0]).name
-        if cmd == "ldd":
+        if cmd == kedavra_install.LOADER and "--list" in argv:
             return 0, "".join(f"\t{m} => not found\n" for m in self.missing) + "\tlibc.so.6 => /usr/lib/libc.so.6\n"
         if cmd == "findmnt":
             return (0, "/dev/x[/var/lib/kedavra/runtime/bin/gamescope]\n") if self.mounted else (1, "")
@@ -38,7 +38,7 @@ class FakeSystem:
             if argv[1] == "is-enabled":
                 return 0, "enabled\n" if self.enabled else "disabled\n"
             return 0, ""
-        if cmd == "gamescope":
+        if cmd == kedavra_install.LOADER and "--version" in argv:
             return self.version_rc, "gamescope version kedavra\n"
         if cmd == "cat":
             try:
@@ -57,6 +57,7 @@ class InstallerTest(unittest.TestCase):
             (plugin / d).mkdir(parents=True)
         (plugin / "runtime/bin/gamescope").write_text("binary")
         (plugin / "runtime/bin/gamescopectl").write_text("binary")
+        (plugin / "runtime/lib" / kedavra_install.LOADER).write_text("loader")
         (plugin / "runtime/VERSION").write_text("kedavra-test\n")
         (self.root / "usr/bin").mkdir(parents=True)
         (self.root / "usr/bin/gamescope").write_text("stock")
@@ -88,6 +89,21 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("libstdc++", str(e.exception))
         self.assertFalse((self.root / "var/lib/kedavra/runtime").exists())
         self.assertFalse(self.sys.enabled)
+
+    def test_install_checks_with_bundled_loader(self):
+        self.inst.install()
+        lists = [c for c in self.sys.calls if "--list" in c]
+        self.assertTrue(lists and all(Path(c[0]).name == kedavra_install.LOADER for c in lists))
+        self.assertFalse(any(Path(c[0]).name == "ldd" for c in self.sys.calls))
+        boot = (self.root / "var/lib/kedavra/boot.sh").read_text()
+        self.assertIn("runtime/lib/" + kedavra_install.LOADER, boot)
+        self.assertNotIn("ldd \"$BIN\"", boot)
+
+    def test_old_bundle_without_loader_is_refused(self):
+        (self.inst.bundle / "lib" / kedavra_install.LOADER).unlink()
+        with self.assertRaises(RuntimeError) as e:
+            self.inst.install()
+        self.assertIn(kedavra_install.LOADER, str(e.exception))
 
     def test_install_refuses_broken_binary(self):
         self.sys.version_rc = 1
@@ -133,13 +149,16 @@ class InstallerTest(unittest.TestCase):
         stub = self.tmp / "stub"
         stub.mkdir()
         log = self.tmp / "mounts"
-        for name, body in (("ldd", "echo ok"), ("findmnt", "exit 1"), ("mount", f'echo "$@" >> {log}')):
+        for name, body in (("findmnt", "exit 1"), ("mount", f'echo "$@" >> {log}')):
             p = stub / name
             p.write_text(f"#!/bin/sh\n{body}\n")
             p.chmod(0o755)
         binary = self.root / "var/lib/kedavra/runtime/bin/gamescope"
         binary.write_text("#!/bin/sh\necho version\n")
         binary.chmod(0o755)
+        loader = self.root / "var/lib/kedavra/runtime/lib" / kedavra_install.LOADER
+        loader.write_text("#!/bin/sh\necho ok\n")
+        loader.chmod(0o755)
         env = dict(os.environ, PATH=f"{stub}:{os.environ['PATH']}")
         script = script.replace("/usr/bin/gamescope", str(self.root / "usr/bin/gamescope"))
         boot = self.tmp / "boot.sh"

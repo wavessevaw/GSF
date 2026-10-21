@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 UNIT_NAME = "kedavra-gamescope.service"
+LOADER = "ld-linux-x86-64.so.2"
 SYS_NICE_BIT = 23
 
 BOOT_SH = """#!/bin/sh
@@ -27,6 +28,7 @@ BOOT_SH = """#!/bin/sh
 # over /usr/bin/gamescope for this boot only, with an automatic rollback guard.
 S={state}
 BIN={runtime}/bin/gamescope
+LOADER={runtime}/lib/{loader}
 mkdir -p "$S"
 [ -f "$S/disabled" ] && exit 0
 if [ -f "$S/trial" ] && [ ! -f "$S/healthy" ]; then
@@ -37,9 +39,9 @@ if [ -f "$S/trial" ] && [ ! -f "$S/healthy" ]; then
 	exit 0
 fi
 rm -f "$S/healthy"
-[ -x "$BIN" ] || exit 0
-if ldd "$BIN" 2>&1 | grep -q 'not found'; then
-	ldd "$BIN" > "$S/ldd_failed" 2>&1
+[ -x "$BIN" ] && [ -x "$LOADER" ] || exit 0
+if ! "$LOADER" --list "$BIN" > "$S/ldd" 2>&1 || grep -q 'not found' "$S/ldd"; then
+	mv "$S/ldd" "$S/ldd_failed"
 	exit 0
 fi
 "$BIN" --version > "$S/version" 2>&1 || exit 0
@@ -96,12 +98,30 @@ class Installer:
         p = self.runtime / "VERSION"
         return p.read_text().strip() if p.exists() else None
 
-    def _missing_libs(self, binary, libdir=None):
-        # The runtime's RUNPATH points at the installed location; a copy elsewhere is
-        # checked with its own lib/ instead.
-        env = dict(os.environ, LD_LIBRARY_PATH=str(libdir)) if libdir else None
-        rc, out = self.run(["ldd", str(binary)], env=env)
-        return [l.strip() for l in out.splitlines() if "not found" in l]
+    @staticmethod
+    def _loader(runtime, *args):
+        # The runtime carries its own glibc. The system ldd would check it against the
+        # system glibc, so the bundled loader resolves it instead, from the runtime's own
+        # lib/ (its interpreter and RUNPATH name the installed location only).
+        lib = Path(runtime) / "lib"
+        return [str(lib / LOADER), "--library-path", str(lib), *map(str, args)]
+
+    @staticmethod
+    def _fix_modes(runtime):
+        # Decky unpacks the zip without file modes; the loader must be executable.
+        for d in ("bin", "lib"):
+            for f in (Path(runtime) / d).iterdir():
+                f.chmod(0o755)
+
+    def _missing_libs(self, runtime):
+        runtime = Path(runtime)
+        if not (runtime / "lib" / LOADER).exists():
+            return [f"в runtime нет lib/{LOADER}: zip собран старой версией"]
+        rc, out = self.run(self._loader(runtime, "--list", runtime / "bin/gamescope"))
+        missing = [l.strip() for l in out.splitlines() if "not found" in l]
+        if rc != 0 and not missing:
+            missing = [out.strip()[-400:] or f"загрузчик завершился с кодом {rc}"]
+        return missing
 
     def _mounted(self):
         rc, out = self.run(["findmnt", "-n", "-o", "SOURCE", str(self.target)])
@@ -164,15 +184,12 @@ class Installer:
         if tmp.exists():
             shutil.rmtree(tmp)
         shutil.copytree(self.bundle, tmp)
-        # Decky unpacks the zip without file modes.
-        for f in (tmp / "bin").iterdir():
-            f.chmod(0o755)
-        binary = tmp / "bin/gamescope"
-        missing = self._missing_libs(binary, tmp / "lib")
+        self._fix_modes(tmp)
+        missing = self._missing_libs(tmp)
         if missing:
             shutil.rmtree(tmp)
             raise RuntimeError("Gamescope KEDAVRA не запустится, не хватает библиотек: " + "; ".join(missing[:6]))
-        rc, out = self.run([str(binary), "--version"], env=dict(os.environ, LD_LIBRARY_PATH=str(tmp / "lib")))
+        rc, out = self.run(self._loader(tmp, tmp / "bin/gamescope", "--version"))
         if rc != 0:
             shutil.rmtree(tmp)
             raise RuntimeError("Gamescope KEDAVRA --version завершился с ошибкой: " + out.strip()[-400:])
@@ -187,7 +204,7 @@ class Installer:
         self.state.mkdir(parents=True, exist_ok=True)
         for f in ("disabled", "trial", "healthy", "auto_rollback", "ldd_failed"):
             (self.state / f).unlink(missing_ok=True)
-        self.boot.write_text(BOOT_SH.format(state=self.state, runtime=self.runtime))
+        self.boot.write_text(BOOT_SH.format(state=self.state, runtime=self.runtime, loader=LOADER))
         self.unit.parent.mkdir(parents=True, exist_ok=True)
         self.unit.write_text(UNIT.format(boot=self.boot))
         self.run(["systemctl", "daemon-reload"])
@@ -228,20 +245,20 @@ class Installer:
 
         bundled = self.bundle / "bin/gamescope"
         try:
-            bundled.chmod(0o755)
+            self._fix_modes(self.bundle)
         except OSError:
             pass
         add("bundle", bundled.exists(), f"В плагине Gamescope KEDAVRA {self.bundled_version()}"
             if bundled.exists() else "В zip плагина нет runtime/: соберите полный zip")
         if bundled.exists():
-            missing = self._missing_libs(bundled, self.bundle / "lib")
+            missing = self._missing_libs(self.bundle)
             add("libs", not missing, "Библиотеки на этой SteamOS: все найдены" if not missing
                 else "Не хватает библиотек", "\n".join(missing))
 
         inst = self.installed_version()
         add("installed", inst is not None, f"Установлено: {inst}" if inst else "Не установлено")
         if inst:
-            missing = self._missing_libs(self.runtime / "bin/gamescope")
+            missing = self._missing_libs(self.runtime)
             add("installed_libs", not missing, "Установленный Gamescope находит свои библиотеки" if not missing
                 else "Установленному Gamescope не хватает библиотек", "\n".join(missing))
         rc, en = self.run(["systemctl", "is-enabled", UNIT_NAME])

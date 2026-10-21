@@ -3,7 +3,7 @@
 One zip installs and controls everything. Frame generation itself runs inside the
 patched Gamescope (`kedavra/gamescope`) that the zip carries in `runtime/`.
 
-* **Install / remove** (backend runs as root): copies the runtime to
+* **Install / remove** (backend runs as root): copies the runtime (with its own glibc and loader) to
   `/var/lib/kedavra/runtime`, checks its libraries and `--version`, grants CAP_SYS_NICE
   and enables `kedavra-gamescope.service`, which bind-mounts it over `/usr/bin/gamescope`
   at boot. The system image is never modified. A boot whose KEDAVRA Gamescope never

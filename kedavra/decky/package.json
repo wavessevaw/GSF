@@ -1,6 +1,6 @@
 {
   "name": "kedavra-decky",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "KEDAVRA frame generation control (patched Gamescope)",
   "type": "module",
   "license": "GPL-3.0-or-later",

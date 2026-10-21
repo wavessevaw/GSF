@@ -70,7 +70,12 @@ function Content() {
     if (lock.current) return;
     lock.current = true; setBusy(true);
     try {const text = await fn(); setMessage(text); toaster.toast({title: 'KEDAVRA', body: text});}
-    catch (e) {setMessage(String(e));}
+    catch (e) {
+      // Errors are shown next to the button that failed and as a toast; a message only
+      // at the bottom of the panel looks like the button did nothing.
+      const text = 'Ошибка: ' + (e instanceof Error ? e.message : String(e));
+      setMessage(text); toaster.toast({title: 'KEDAVRA', body: text});
+    }
     finally {lock.current = false; setBusy(false);}
   };
 
@@ -91,7 +96,8 @@ function Content() {
     })}>Проверить систему</ButtonItem></PanelSectionRow>
     <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })}>{installed ? 'Переустановить Gamescope KEDAVRA' : 'Установить Gamescope KEDAVRA'}</ButtonItem></PanelSectionRow>
+    })}>{busy ? 'Выполняется…' : installed ? 'Переустановить Gamescope KEDAVRA' : 'Установить Gamescope KEDAVRA'}</ButtonItem></PanelSectionRow>
+    {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap'}}>{message}</div></PanelSectionRow>}
     {needsReboot && <PanelSectionRow><ButtonItem layout="below" disabled={busy} onClick={() => void act(async () => {
       await rpc.reboot(); return 'Перезагрузка…';
     })}>Перезагрузить Deck сейчас</ButtonItem></PanelSectionRow>}
@@ -157,7 +163,7 @@ function Content() {
     })}>Показать журнал</ButtonItem></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.2.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.2.1 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
   </PanelSection>
   </>;
 }

@@ -104,17 +104,48 @@ jobs:
         run: |
           mkdir -p /var/lib/kedavra
           cp -a gamescope-runtime /var/lib/kedavra/runtime
-          ldd /var/lib/kedavra/runtime/bin/gamescope | tee /tmp/ldd.txt
+          R=/var/lib/kedavra/runtime
+          readelf -l $R/bin/gamescope | grep 'interpreter: /var/lib/kedavra/runtime/lib/'
+          $R/lib/ld-linux-x86-64.so.2 --list $R/bin/gamescope | tee /tmp/ldd.txt
           if grep -q 'not found' /tmp/ldd.txt; then exit 1; fi
-          grep -c '/var/lib/kedavra/runtime/lib/' /tmp/ldd.txt
-          /var/lib/kedavra/runtime/bin/gamescope --version
+          grep -c "$R/lib/" /tmp/ldd.txt
+          $R/bin/gamescope --version
       - uses: actions/upload-artifact@v4
         with:
           name: gamescope-runtime
           path: gamescope-runtime
 
+  runtime-on-older-glibc:
+    # SteamOS ships an older glibc than the Arch build host. The runtime carries its own
+    # glibc, so it must start on a distribution whose glibc is older than SteamOS's
+    # (Debian 12: 2.36). Only the system-side libraries come from Debian here.
+    needs: gamescope
+    runs-on: ubuntu-24.04
+    container: debian:bookworm
+    steps:
+      - name: System-side libraries the runtime does not bundle
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends binutils libvulkan1 libgbm1 libegl1 libgl1 \
+            libdrm-amdgpu1 libdrm-radeon1 libudev1 libsystemd0 libasound2 libpulse0 libpipewire-0.3-0 libdbus-1-3
+          ldd --version | head -1
+      - uses: actions/download-artifact@v4
+        with:
+          name: gamescope-runtime
+          path: gamescope-runtime
+      - name: Runtime starts against the older system
+        run: |
+          R=/var/lib/kedavra/runtime
+          mkdir -p /var/lib/kedavra
+          cp -a gamescope-runtime $R
+          chmod 755 $R/bin/* $R/lib/*
+          $R/lib/ld-linux-x86-64.so.2 --list $R/bin/gamescope | tee /tmp/ldd.txt
+          if grep -q 'not found' /tmp/ldd.txt; then exit 1; fi
+          $R/bin/gamescope --version
+          $R/bin/gamescopectl --help >/dev/null 2>&1 || true
+
   plugin:
-    needs: [model-and-engine, gamescope]
+    needs: [model-and-engine, gamescope, runtime-on-older-glibc]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
