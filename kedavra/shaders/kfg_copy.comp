@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copies a compositor commit (slot 0, sampled through its non-sRGB view) into a
+// KEDAVRA ring texture. A compute copy works for imported dmabufs that lack
+// TRANSFER_SRC usage and converts BGRA/RGBA layouts to the ring format.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(p, u_dstSize)))
+		return;
+	imageStore(dst, p, texelFetch(s_samplers[0], p, 0));
+}

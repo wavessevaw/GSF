@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Hierarchical bidirectional block motion estimation, one level per dispatch.
+//
+// Slots: 0 = luma A at this level, 1 = luma B at this level, 2 = flow of the
+// coarser level (ignored on the coarsest level). Output texel = one block of
+// 2^level pixels: xy = forward motion A->B, zw = backward motion B->A, both in
+// full-resolution pixels.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// SAD window: 5x5 texels on the coarse levels, 3x3 on the finest searched level (2),
+// where a texel is already a 4x4 pixel block and the window cost dominated the
+// analysis on the Deck (2.4 of 4.8 ms). Constant bounds keep both loops unrolled.
+bool g_small = false;
+
+float sad_w(int sa, int sb, vec2 q, vec2 d, ivec2 size, const int W)
+{
+	float e = 0.0;
+	for (int y = -W; y <= W; y++)
+		for (int x = -W; x <= W; x++) {
+			vec2 o = vec2(x, y);
+			e += abs(kfg_tap(sa, q + o, size).r - kfg_tap(sb, q + o + d, size).r);
+		}
+	return e * (1.0 / float((2 * W + 1) * (2 * W + 1)));
+}
+
+float sad(int sa, int sb, vec2 q, vec2 d, ivec2 size)
+{
+	return g_small ? sad_w(sa, sb, q, d, size, 1) : sad_w(sa, sb, q, d, size, 2);
+}
+
+// Best displacement (texels at this level) of block q from slot sa into slot sb.
+vec2 search(int sa, int sb, vec2 q, ivec2 size, vec2 preds[5], int npred, bool coarsest)
+{
+	vec2 best = vec2(0.0);
+	float best_cost = 1e9;
+	vec2 base = preds[0];
+	if (coarsest) {
+		for (int y = -u_radius; y <= u_radius; y++)
+			for (int x = -u_radius; x <= u_radius; x++) {
+				vec2 d = vec2(x, y);
+				float c = sad(sa, sb, q, d, size) + u_lambda * 0.25 * (abs(d.x) + abs(d.y)) / float(u_radius + 1);
+				if (c < best_cost) {
+					best_cost = c;
+					best = d;
+				}
+			}
+	} else {
+		// Evaluate predictors from the coarser level, then refine around the best.
+		for (int i = 0; i < npred; i++) {
+			float c = sad(sa, sb, q, preds[i], size) + u_lambda * 0.1 * (abs(preds[i].x - base.x) + abs(preds[i].y - base.y));
+			if (c < best_cost) {
+				best_cost = c;
+				best = preds[i];
+			}
+		}
+		vec2 centre = best;
+		for (int y = -u_radius; y <= u_radius; y++)
+			for (int x = -u_radius; x <= u_radius; x++) {
+				if (x == 0 && y == 0)
+					continue;
+				vec2 d = centre + vec2(x, y);
+				float c = sad(sa, sb, q, d, size) + u_lambda * 0.1 * (abs(d.x - base.x) + abs(d.y - base.y));
+				if (c < best_cost) {
+					best_cost = c;
+					best = d;
+				}
+			}
+	}
+	// Half-texel refinement with bilinear taps.
+	vec2 centre = best;
+	for (int y = -1; y <= 1; y++)
+		for (int x = -1; x <= 1; x++) {
+			if (x == 0 && y == 0)
+				continue;
+			vec2 d = centre + 0.5 * vec2(x, y);
+			float c = sad(sa, sb, q, d, size) + u_lambda * 0.1 * (abs(d.x - base.x) + abs(d.y - base.y));
+			if (c < best_cost) {
+				best_cost = c;
+				best = d;
+			}
+		}
+	return best;
+}
+
+void main()
+{
+	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(p, u_dstSize)))
+		return;
+	ivec2 size = u_srcSize;            // luma size at this level == flow grid size
+	float scale = float(1 << u_level); // pixels per texel
+	vec2 q = vec2(p);
+	bool coarsest = (u_flags & KFG_FLAG_COARSEST) != 0;
+	g_small = u_level <= 2;
+
+	vec2 pf[5];
+	vec2 pb[5];
+	int npred = 0;
+	if (!coarsest) {
+		ivec2 csize = (u_dstSize + 1) / 2;
+		ivec2 cp = p / 2;
+		ivec2 offs[5] = ivec2[5](ivec2(0, 0), ivec2(-1, 0), ivec2(1, 0), ivec2(0, -1), ivec2(0, 1));
+		for (int i = 0; i < 5; i++) {
+			ivec2 c = clamp(cp + offs[i], ivec2(0), csize - 1);
+			vec4 f = texelFetch(s_samplers[2], c, 0);
+			pf[i] = f.xy / scale;
+			pb[i] = f.zw / scale;
+		}
+		npred = 5;
+	} else {
+		for (int i = 0; i < 5; i++) {
+			pf[i] = vec2(0.0);
+			pb[i] = vec2(0.0);
+		}
+	}
+	vec2 fwd = search(0, 1, q, size, pf, npred, coarsest);
+	vec2 bwd = search(1, 0, q, size, pb, npred, coarsest);
+	imageStore(dst, p, vec4(fwd * scale, bwd * scale));
+}

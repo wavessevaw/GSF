@@ -1,0 +1,74 @@
+{
+  "checks": {
+    "missed_below_0.5pct": true,
+    "no_oscillation": true,
+    "no_reorder": true,
+    "p95_interval_error": false,
+    "p99_interval_error": false,
+    "uniform_content_steps": false
+  },
+  "compose_late": 0,
+  "content_step_irregular_fraction": 0.24385201305767137,
+  "content_steps": {
+    "1": 6949,
+    "1313": 1,
+    "1928": 1,
+    "2": 1809,
+    "3": 402,
+    "4": 27,
+    "5": 1
+  },
+  "duration_s": 168.060093,
+  "generated_per_interval": {
+    "1": 1714,
+    "2": 1846,
+    "3": 206,
+    "4": 6
+  },
+  "generated_per_locked_interval": {},
+  "interval_error_ms": {
+    "max": 44.444383,
+    "p50": 0.000617,
+    "p95": 11.112383,
+    "p99": 22.223383
+  },
+  "kinds": {
+    "gen": 6051,
+    "real": 3140,
+    "repeat": 14
+  },
+  "latency_drift_ms": null,
+  "latency_ms": null,
+  "locked_interval_fraction": null,
+  "missed_fraction": 0.001520912547528517,
+  "origin": "kms_flip_observed",
+  "oscillation_fraction": 0.0,
+  "pass": false,
+  "phases": {
+    "1/2": 695,
+    "1/3": 1982,
+    "1/4": 328,
+    "1/5": 20,
+    "1/7": 1,
+    "2/3": 2318,
+    "2/4": 318,
+    "2/5": 14,
+    "2/6": 1,
+    "3/4": 323,
+    "3/5": 15,
+    "3/6": 1,
+    "3/7": 1,
+    "4/5": 27,
+    "4/6": 1,
+    "4/7": 1,
+    "5/6": 1,
+    "5/7": 1
+  },
+  "refresh_hz": 90.0040024779902,
+  "reorders": 0,
+  "repeat_reasons": {
+    "me_late": 14
+  },
+  "rows": 9205,
+  "skips": 2240
+}

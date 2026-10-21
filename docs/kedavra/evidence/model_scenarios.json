@@ -1,0 +1,3186 @@
+{
+ "all_required_pass": true,
+ "note": "kfg_sim compositor model; not a hardware measurement",
+ "origin": "model",
+ "scenarios": [
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_30to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 7.433148124059242e-05,
+    "content_steps": {
+     "1": 53809,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966664092,
+    "generated_per_interval": {
+     "1": 3,
+     "2": 17934
+    },
+    "generated_per_locked_interval": {
+     "1": 3,
+     "2": 17934
+    },
+    "interval_error_ms": {
+     "max": 11.112445,
+     "p50": 0.000956,
+     "p95": 0.0027693999999999943,
+     "p99": 0.003661639999999992
+    },
+    "kinds": {
+     "gen": 35875,
+     "real": 17939,
+     "repeat": 4
+    },
+    "latency_drift_ms": -0.007329999999996062,
+    "latency_ms": {
+     "p50": 46.711834,
+     "p95": 49.858046599999994,
+     "p99": 51.010710939999996
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.432457542086291e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17937,
+     "2/3": 17934
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 53818,
+    "sim_counts": "real=17998 gen=35993 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_30to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 3,
+    "content_step_irregular_fraction": 5.57465390690328e-05,
+    "content_steps": {
+     "1": 53812,
+     "2": 3
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.977776939,
+    "generated_per_interval": {
+     "1": 2,
+     "2": 17936
+    },
+    "generated_per_locked_interval": {
+     "1": 2,
+     "2": 17936
+    },
+    "interval_error_ms": {
+     "max": 11.110725,
+     "p50": 0.000954,
+     "p95": 0.002789,
+     "p99": 0.0036768600000000005
+    },
+    "kinds": {
+     "gen": 35877,
+     "real": 17939,
+     "repeat": 3
+    },
+    "latency_drift_ms": -0.04876600000000053,
+    "latency_ms": {
+     "p50": 46.726426,
+     "p95": 49.8949153,
+     "p99": 51.04777824
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 5.574239580817184e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17938,
+     "2/3": 17936
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 3
+    },
+    "rows": 53819,
+    "sim_counts": "real=17998 gen=35995 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 3
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_30to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 2,
+    "content_step_irregular_fraction": 3.7165049986992234e-05,
+    "content_steps": {
+     "1": 53812,
+     "2": 2
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.955553838,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 17936
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 17936
+    },
+    "interval_error_ms": {
+     "max": 11.112388,
+     "p50": 0.000961,
+     "p95": 0.002783,
+     "p99": 0.0036688700000000025
+    },
+    "kinds": {
+     "gen": 35877,
+     "real": 17938,
+     "repeat": 2
+    },
+    "latency_drift_ms": -0.11689799999999906,
+    "latency_ms": {
+     "p50": 46.728448,
+     "p95": 49.88276995,
+     "p99": 51.05697136
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 3.716297824107624e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17937,
+     "2/3": 17936
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 2
+    },
+    "rows": 53817,
+    "sim_counts": "real=17998 gen=35995 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 2
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 2 --cap 45 --game-ms 14 --game-p99-ms 18 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_45to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 5,
+    "content_step_irregular_fraction": 0.0001486712506968965,
+    "content_steps": {
+     "1": 53802,
+     "2": 8
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.977777101,
+    "generated_per_interval": {
+     "1": 26906
+    },
+    "generated_per_locked_interval": {
+     "1": 26903
+    },
+    "interval_error_ms": {
+     "max": 11.11402,
+     "p50": 0.000959,
+     "p95": 0.002784,
+     "p99": 0.003684
+    },
+    "kinds": {
+     "gen": 26908,
+     "real": 26903,
+     "repeat": 8
+    },
+    "latency_drift_ms": 0.014630000000000365,
+    "latency_ms": {
+     "p50": 30.971936,
+     "p95": 33.4292691,
+     "p99": 34.374652600000005
+    },
+    "locked_interval_fraction": 0.9998885007061622,
+    "missed_fraction": 0.00014864638882179155,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 26903,
+     "2/3": 3
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 5,
+     "me_late": 3
+    },
+    "rows": 53819,
+    "sim_counts": "real=26992 gen=26997 repeat=5 skip=0 resync=0 degrade=0",
+    "skips": 8
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 2 --cap 45 --game-ms 14 --game-p99-ms 18 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_45to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 0.0001486712506968965,
+    "content_steps": {
+     "1": 53802,
+     "2": 8
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.977775712,
+    "generated_per_interval": {
+     "1": 26905
+    },
+    "generated_per_locked_interval": {
+     "1": 26901
+    },
+    "interval_error_ms": {
+     "max": 11.113195,
+     "p50": 0.000961,
+     "p95": 0.002778,
+     "p99": 0.003667459999999977
+    },
+    "kinds": {
+     "gen": 26907,
+     "real": 26904,
+     "repeat": 8
+    },
+    "latency_drift_ms": -0.032453499999999025,
+    "latency_ms": {
+     "p50": 30.956662,
+     "p95": 33.431412200000004,
+     "p99": 34.31615797
+    },
+    "locked_interval_fraction": 0.9998513287493032,
+    "missed_fraction": 0.00014864638882179155,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 26901,
+     "2/3": 4
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4,
+     "me_late": 4
+    },
+    "rows": 53819,
+    "sim_counts": "real=26993 gen=26996 repeat=6 skip=0 resync=0 degrade=0",
+    "skips": 8
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 2 --cap 45 --game-ms 14 --game-p99-ms 18 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_45to90_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 5,
+    "content_step_irregular_fraction": 9.291780490977682e-05,
+    "content_steps": {
+     "1": 53806,
+     "2": 5
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.955554618,
+    "generated_per_interval": {
+     "1": 26907
+    },
+    "generated_per_locked_interval": {
+     "1": 26907
+    },
+    "interval_error_ms": {
+     "max": 11.111616,
+     "p50": 0.000952,
+     "p95": 0.002766,
+     "p99": 0.0036259000000000013
+    },
+    "kinds": {
+     "gen": 26909,
+     "real": 26903,
+     "repeat": 5
+    },
+    "latency_drift_ms": -0.026073000000000235,
+    "latency_ms": {
+     "p50": 30.969226,
+     "p95": 33.41667679999999,
+     "p99": 34.351010439999996
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 9.29074456026906e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 26907
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 5
+    },
+    "rows": 53817,
+    "sim_counts": "real=26993 gen=26998 repeat=2 skip=0 resync=0 degrade=0",
+    "skips": 5
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 60 --mult 2 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_30to60_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 0.00011150136589173217,
+    "content_steps": {
+     "1": 35870,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966664941,
+    "generated_per_interval": {
+     "1": 17937
+    },
+    "generated_per_locked_interval": {
+     "1": 17937
+    },
+    "interval_error_ms": {
+     "max": 16.669084,
+     "p50": 0.000961,
+     "p95": 0.002777,
+     "p99": 0.0036762699999999967
+    },
+    "kinds": {
+     "gen": 17939,
+     "real": 17936,
+     "repeat": 4
+    },
+    "latency_drift_ms": 0.0006879999999966913,
+    "latency_ms": {
+     "p50": 46.721177,
+     "p95": 49.83917025,
+     "p99": 51.08299960000001
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.00011148582736419633,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 17937
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 35879,
+    "sim_counts": "real=17995 gen=17998 repeat=2 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 60 --mult 2 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_30to60_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 0.0,
+    "content_steps": {
+     "1": 35876
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.933330761,
+    "generated_per_interval": {
+     "1": 17937
+    },
+    "generated_per_locked_interval": {
+     "1": 17937
+    },
+    "interval_error_ms": {
+     "max": 0.005847,
+     "p50": 0.000959,
+     "p95": 0.002765,
+     "p99": 0.00361125
+    },
+    "kinds": {
+     "gen": 17939,
+     "real": 17938
+    },
+    "latency_drift_ms": -0.028513000000003785,
+    "latency_ms": {
+     "p50": 46.725945,
+     "p95": 49.8544643,
+     "p99": 50.983745
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 17937
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 35877,
+    "sim_counts": "real=17998 gen=17998 repeat=2 skip=0 resync=0 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 60 --mult 2 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_30to60_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 3,
+    "content_step_irregular_fraction": 8.362602441879912e-05,
+    "content_steps": {
+     "1": 35871,
+     "2": 3
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.949999766,
+    "generated_per_interval": {
+     "1": 17937
+    },
+    "generated_per_locked_interval": {
+     "1": 17937
+    },
+    "interval_error_ms": {
+     "max": 16.667172,
+     "p50": 0.00095,
+     "p95": 0.002758,
+     "p99": 0.003624539999999994
+    },
+    "kinds": {
+     "gen": 17939,
+     "real": 17936,
+     "repeat": 3
+    },
+    "latency_drift_ms": -0.023772499999999752,
+    "latency_ms": {
+     "p50": 46.714429499999994,
+     "p95": 49.85023925,
+     "p99": 51.04465850000001
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 8.361670104242154e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 17937
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 3
+    },
+    "rows": 35878,
+    "sim_counts": "real=17996 gen=17998 repeat=2 skip=0 resync=0 degrade=0",
+    "skips": 3
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 80 --mult 2 --cap 40 --game-ms 16 --game-p99-ms 20 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_40to80_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 0.00010453471597917669,
+    "content_steps": {
+     "1": 47826,
+     "2": 5
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.949997821,
+    "generated_per_interval": {
+     "1": 23916
+    },
+    "generated_per_locked_interval": {
+     "1": 23915
+    },
+    "interval_error_ms": {
+     "max": 12.502417,
+     "p50": 0.000956,
+     "p95": 0.002776,
+     "p99": 0.003671
+    },
+    "kinds": {
+     "gen": 23918,
+     "real": 23914,
+     "repeat": 5
+    },
+    "latency_drift_ms": -0.025784000000001583,
+    "latency_ms": {
+     "p50": 34.360751,
+     "p95": 36.850000650000005,
+     "p99": 37.83102699999999
+    },
+    "locked_interval_fraction": 0.9999581869877906,
+    "missed_fraction": 0.00010452160461567407,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 23915,
+     "2/3": 1
+    },
+    "refresh_hz": 80.0,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4,
+     "me_late": 1
+    },
+    "rows": 47837,
+    "sim_counts": "real=23994 gen=23997 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 5
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 80 --mult 2 --cap 40 --game-ms 16 --game-p99-ms 20 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_40to80_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 0.00012544165917501203,
+    "content_steps": {
+     "1": 47825,
+     "2": 6
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.962497675,
+    "generated_per_interval": {
+     "1": 23916
+    },
+    "generated_per_locked_interval": {
+     "1": 23914
+    },
+    "interval_error_ms": {
+     "max": 12.500657,
+     "p50": 0.000962,
+     "p95": 0.002779,
+     "p99": 0.003658699999999997
+    },
+    "kinds": {
+     "gen": 23918,
+     "real": 23914,
+     "repeat": 6
+    },
+    "latency_drift_ms": 0.02290299999999945,
+    "latency_ms": {
+     "p50": 34.360324,
+     "p95": 36.90138575,
+     "p99": 37.83092751
+    },
+    "locked_interval_fraction": 0.9999163739755812,
+    "missed_fraction": 0.00012542330364981815,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 23914,
+     "2/3": 2
+    },
+    "refresh_hz": 80.0,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4,
+     "me_late": 2
+    },
+    "rows": 47838,
+    "sim_counts": "real=23994 gen=23997 repeat=4 skip=0 resync=0 degrade=0",
+    "skips": 6
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 80 --mult 2 --cap 40 --game-ms 16 --game-p99-ms 20 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x2_40to80_stable",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 8.362427612735977e-05,
+    "content_steps": {
+     "1": 47829,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.962499311,
+    "generated_per_interval": {
+     "1": 23917
+    },
+    "generated_per_locked_interval": {
+     "1": 23917
+    },
+    "interval_error_ms": {
+     "max": 12.500505,
+     "p50": 0.00095,
+     "p95": 0.0027574000000000014,
+     "p99": 0.0036216800000000004
+    },
+    "kinds": {
+     "gen": 23919,
+     "real": 23915,
+     "repeat": 4
+    },
+    "latency_drift_ms": -0.017468999999998402,
+    "latency_ms": {
+     "p50": 34.362675,
+     "p95": 36.8683154,
+     "p99": 37.8432217
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 8.361553576654542e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 23917
+    },
+    "refresh_hz": 80.0,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 47838,
+    "sim_counts": "real=23995 gen=23998 repeat=2 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0",
+   "duration_s": 1800,
+   "informative": false,
+   "name": "x3_30to90_30min",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 7,
+    "content_step_irregular_fraction": 4.326061430072307e-05,
+    "content_steps": {
+     "1": 161803,
+     "2": 7
+    },
+    "degraded_rows": 0,
+    "duration_s": 1797.966663026,
+    "generated_per_interval": {
+     "1": 6,
+     "2": 53931
+    },
+    "generated_per_locked_interval": {
+     "1": 6,
+     "2": 53931
+    },
+    "interval_error_ms": {
+     "max": 11.112445,
+     "p50": 0.0009575,
+     "p95": 0.002777,
+     "p99": 0.003658
+    },
+    "kinds": {
+     "gen": 107872,
+     "real": 53939,
+     "repeat": 7
+    },
+    "latency_drift_ms": -0.03556400000000082,
+    "latency_ms": {
+     "p50": 46.703927,
+     "p95": 49.8692803,
+     "p99": 51.07713966000003
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 4.325847557132087e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 53937,
+     "2/3": 53931
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 7
+    },
+    "rows": 161818,
+    "sim_counts": "real=53998 gen=107990 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 7
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 2 --cap 45 --game-ms 14 --game-p99-ms 18 --spike-prob 0",
+   "duration_s": 1800,
+   "informative": false,
+   "name": "x2_45to90_30min",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x2_intermediates_99.5pct": true
+    },
+    "compose_late": 9,
+    "content_step_irregular_fraction": 0.00012979307275828823,
+    "content_steps": {
+     "1": 161775,
+     "2": 21
+    },
+    "degraded_rows": 0,
+    "duration_s": 1797.966666859,
+    "generated_per_interval": {
+     "1": 80901
+    },
+    "generated_per_locked_interval": {
+     "1": 80889
+    },
+    "interval_error_ms": {
+     "max": 11.11402,
+     "p50": 0.0009545,
+     "p95": 0.002779,
+     "p99": 0.003661
+    },
+    "kinds": {
+     "gen": 80903,
+     "real": 80894,
+     "repeat": 21
+    },
+    "latency_drift_ms": -0.005206000000001154,
+    "latency_ms": {
+     "p50": 30.9707945,
+     "p95": 33.435084249999996,
+     "p99": 34.34987859999999
+    },
+    "locked_interval_fraction": 0.9998516705603144,
+    "missed_fraction": 0.0001297754267139626,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 80889,
+     "2/3": 12
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 9,
+     "me_late": 12
+    },
+    "rows": 161818,
+    "sim_counts": "real=80983 gen=80992 repeat=14 skip=0 resync=0 degrade=0",
+    "skips": 21
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0.003 --spike-ms 40",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_game_spikes",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 3,
+    "content_step_irregular_fraction": 0.0008757220048444196,
+    "content_steps": {
+     "1": 53623,
+     "2": 3,
+     "4": 33,
+     "5": 11
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.955552875,
+    "generated_per_interval": {
+     "1": 3,
+     "2": 17886
+    },
+    "generated_per_locked_interval": {
+     "1": 3,
+     "2": 17842
+    },
+    "interval_error_ms": {
+     "max": 44.446201,
+     "p50": 0.000952,
+     "p95": 0.002799,
+     "p99": 0.0037213099999999976
+    },
+    "kinds": {
+     "gen": 35779,
+     "real": 17892,
+     "repeat": 146
+    },
+    "latency_drift_ms": -0.016410499999992112,
+    "latency_ms": {
+     "p50": 46.7109655,
+     "p95": 49.88263725,
+     "p99": 51.038752810000005
+    },
+    "locked_interval_fraction": 0.9975403879479009,
+    "missed_fraction": 0.0027128974115985657,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17845,
+     "2/3": 17842,
+     "4/6": 33,
+     "5/6": 33,
+     "5/7": 11,
+     "6/7": 11
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 3,
+     "me_late": 44,
+     "source_late": 99
+    },
+    "rows": 53817,
+    "sim_counts": "real=17951 gen=35897 repeat=146 skip=0 resync=0 degrade=0",
+    "skips": 47
+   },
+   "required": [
+    "no_reorder",
+    "no_latency_accumulation",
+    "no_oscillation"
+   ],
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0.003 --spike-ms 40",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_game_spikes",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 7,
+    "content_step_irregular_fraction": 0.0011746937405604967,
+    "content_steps": {
+     "1": 53568,
+     "2": 7,
+     "4": 44,
+     "5": 12
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.977776876,
+    "generated_per_interval": {
+     "1": 2,
+     "2": 17876
+    },
+    "generated_per_locked_interval": {
+     "1": 2,
+     "2": 17820
+    },
+    "interval_error_ms": {
+     "max": 44.446399,
+     "p50": 0.00095,
+     "p95": 0.002763,
+     "p99": 0.003682
+    },
+    "kinds": {
+     "gen": 35757,
+     "real": 17875,
+     "repeat": 187
+    },
+    "latency_drift_ms": 0.07998400000000316,
+    "latency_ms": {
+     "p50": 46.729151,
+     "p95": 49.8807543,
+     "p99": 51.06731959999999
+    },
+    "locked_interval_fraction": 0.9968676585747847,
+    "missed_fraction": 0.003474609338709378,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17822,
+     "2/3": 17820,
+     "4/6": 44,
+     "5/6": 44,
+     "5/7": 12,
+     "6/7": 12
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 7,
+     "me_late": 56,
+     "source_late": 124
+    },
+    "rows": 53819,
+    "sim_counts": "real=17934 gen=35875 repeat=183 skip=0 resync=0 degrade=0",
+    "skips": 63
+   },
+   "required": [
+    "no_reorder",
+    "no_latency_accumulation",
+    "no_oscillation"
+   ],
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0.003 --spike-ms 40",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_game_spikes",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 0.0009503577817531306,
+    "content_steps": {
+     "1": 53613,
+     "2": 4,
+     "4": 40,
+     "5": 7
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.955554121,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 17887
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 17840
+    },
+    "interval_error_ms": {
+     "max": 44.446888,
+     "p50": 0.000957,
+     "p95": 0.002771,
+     "p99": 0.0036733700000000026
+    },
+    "kinds": {
+     "gen": 35779,
+     "real": 17886,
+     "repeat": 152
+    },
+    "latency_drift_ms": 0.009622999999997717,
+    "latency_ms": {
+     "p50": 46.731346,
+     "p95": 49.9046225,
+     "p99": 51.080050250000006
+    },
+    "locked_interval_fraction": 0.9973725402504472,
+    "missed_fraction": 0.002824386346321794,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17841,
+     "2/3": 17840,
+     "4/6": 40,
+     "5/6": 40,
+     "5/7": 7,
+     "6/7": 7
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4,
+     "me_late": 47,
+     "source_late": 101
+    },
+    "rows": 53817,
+    "sim_counts": "real=17946 gen=35897 repeat=151 skip=0 resync=0 degrade=0",
+    "skips": 51
+   },
+   "required": [
+    "no_reorder",
+    "no_latency_accumulation",
+    "no_oscillation"
+   ],
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 22 --game-p99-ms 27 --me-ms 3.5 --me-p99-ms 6 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_heavy_analysis",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 7.433148124059242e-05,
+    "content_steps": {
+     "1": 53809,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966664092,
+    "generated_per_interval": {
+     "1": 3,
+     "2": 17934
+    },
+    "generated_per_locked_interval": {
+     "1": 3,
+     "2": 17934
+    },
+    "interval_error_ms": {
+     "max": 11.112445,
+     "p50": 0.000956,
+     "p95": 0.0027693999999999943,
+     "p99": 0.003661639999999992
+    },
+    "kinds": {
+     "gen": 35875,
+     "real": 17939,
+     "repeat": 4
+    },
+    "latency_drift_ms": -0.007373999999998659,
+    "latency_ms": {
+     "p50": 44.551788,
+     "p95": 47.7480873,
+     "p99": 48.93000452
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.432457542086291e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17937,
+     "2/3": 17934
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 53818,
+    "sim_counts": "real=17998 gen=35993 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 22 --game-p99-ms 27 --me-ms 3.5 --me-p99-ms 6 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_heavy_analysis",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 7,
+    "content_step_irregular_fraction": 0.00014867401364084074,
+    "content_steps": {
+     "1": 53801,
+     "2": 8
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966665871,
+    "generated_per_interval": {
+     "1": 3,
+     "2": 17934
+    },
+    "generated_per_locked_interval": {
+     "1": 3,
+     "2": 17933
+    },
+    "interval_error_ms": {
+     "max": 11.113196,
+     "p50": 0.000945,
+     "p95": 0.002777,
+     "p99": 0.003654919999999998
+    },
+    "kinds": {
+     "gen": 35875,
+     "real": 17935,
+     "repeat": 8
+    },
+    "latency_drift_ms": -0.00048150000000646287,
+    "latency_ms": {
+     "p50": 44.555614,
+     "p95": 47.7527814,
+     "p99": 48.96607656
+    },
+    "locked_interval_fraction": 0.9999442493170542,
+    "missed_fraction": 0.00014864915084172582,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17936,
+     "2/3": 17933,
+     "2/4": 1,
+     "3/4": 1
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 7,
+     "me_late": 1
+    },
+    "rows": 53818,
+    "sim_counts": "real=17994 gen=35993 repeat=4 skip=0 resync=0 degrade=0",
+    "skips": 8
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 22 --game-p99-ms 27 --me-ms 3.5 --me-p99-ms 6 --spike-prob 0",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_heavy_analysis",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 7.433148124059242e-05,
+    "content_steps": {
+     "1": 53809,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966665345,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 17936
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 17936
+    },
+    "interval_error_ms": {
+     "max": 11.112432,
+     "p50": 0.000963,
+     "p95": 0.00278,
+     "p99": 0.0036677599999999947
+    },
+    "kinds": {
+     "gen": 35877,
+     "real": 17937,
+     "repeat": 4
+    },
+    "latency_drift_ms": -0.011776000000004672,
+    "latency_ms": {
+     "p50": 44.592397,
+     "p95": 47.7642448,
+     "p99": 48.9223576
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.432457542086291e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17937,
+     "2/3": 17936
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 53818,
+    "sim_counts": "real=17996 gen=35995 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --cut-prob 0.01",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_scene_cuts",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 4,
+    "content_step_irregular_fraction": 7.433148124059242e-05,
+    "content_steps": {
+     "1": 53809,
+     "2": 4
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.966664092,
+    "generated_per_interval": {
+     "1": 3,
+     "2": 17764
+    },
+    "generated_per_locked_interval": {
+     "1": 3,
+     "2": 17764
+    },
+    "interval_error_ms": {
+     "max": 11.112445,
+     "p50": 0.000956,
+     "p95": 0.0027693999999999943,
+     "p99": 0.003661639999999992
+    },
+    "kinds": {
+     "gen": 35535,
+     "real": 18279,
+     "repeat": 4
+    },
+    "latency_drift_ms": -0.006844999999998436,
+    "latency_ms": {
+     "p50": 46.711834,
+     "p95": 50.0139267,
+     "p99": 52.34325054000003
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.432457542086291e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17767,
+     "2/3": 17764
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 4
+    },
+    "rows": 53818,
+    "sim_counts": "real=18338 gen=35653 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 4
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --cut-prob 0.01",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_scene_cuts",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 3,
+    "content_step_irregular_fraction": 5.57465390690328e-05,
+    "content_steps": {
+     "1": 53812,
+     "2": 3
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.977776939,
+    "generated_per_interval": {
+     "1": 2,
+     "2": 17751
+    },
+    "generated_per_locked_interval": {
+     "1": 2,
+     "2": 17751
+    },
+    "interval_error_ms": {
+     "max": 11.110725,
+     "p50": 0.000954,
+     "p95": 0.002789,
+     "p99": 0.0036768600000000005
+    },
+    "kinds": {
+     "gen": 35507,
+     "real": 18309,
+     "repeat": 3
+    },
+    "latency_drift_ms": -0.04977999999999838,
+    "latency_ms": {
+     "p50": 46.726426,
+     "p95": 50.061347,
+     "p99": 53.0463715999996
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 5.574239580817184e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17753,
+     "2/3": 17751
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 3
+    },
+    "rows": 53819,
+    "sim_counts": "real=18368 gen=35625 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 3
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --cut-prob 0.01",
+   "duration_s": 600,
+   "informative": false,
+   "name": "x3_scene_cuts",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 2,
+    "content_step_irregular_fraction": 3.7165049986992234e-05,
+    "content_steps": {
+     "1": 53812,
+     "2": 2
+    },
+    "degraded_rows": 0,
+    "duration_s": 597.955553838,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 17768
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 17768
+    },
+    "interval_error_ms": {
+     "max": 11.112388,
+     "p50": 0.000961,
+     "p95": 0.002783,
+     "p99": 0.0036688700000000025
+    },
+    "kinds": {
+     "gen": 35541,
+     "real": 18274,
+     "repeat": 2
+    },
+    "latency_drift_ms": -0.11296000000000106,
+    "latency_ms": {
+     "p50": 46.728448,
+     "p95": 50.0169439,
+     "p99": 52.21559121000006
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 3.716297824107624e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 17769,
+     "2/3": 17768
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 2
+    },
+    "rows": 53817,
+    "sim_counts": "real=18334 gen=35659 repeat=3 skip=0 resync=0 degrade=0",
+    "skips": 2
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:game_ms:38 --event 70:game_ms:20",
+   "duration_s": 180,
+   "informative": false,
+   "name": "x3_fps_drop",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00014251104460595695,
+    "content_steps": {
+     "1": 14032,
+     "1982": 1,
+     "2": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.955553566,
+    "generated_per_interval": {
+     "1": 2,
+     "2": 4675
+    },
+    "generated_per_locked_interval": {
+     "1": 2,
+     "2": 4675
+    },
+    "interval_error_ms": {
+     "max": 11.111951,
+     "p50": 0.000944,
+     "p95": 0.0027643999999999998,
+     "p99": 0.003637
+    },
+    "kinds": {
+     "gen": 9356,
+     "real": 4679,
+     "repeat": 1
+    },
+    "latency_drift_ms": 0.07162500000000449,
+    "latency_ms": {
+     "p50": 46.732934,
+     "p95": 49.9843234,
+     "p99": 51.205717840000005
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.124536905101169e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4676,
+     "2/3": 4676
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 14036,
+    "sim_counts": "real=5314 gen=10874 repeat=8 skip=2 resync=0 degrade=0",
+    "skips": 1
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:game_ms:38 --event 70:game_ms:20",
+   "duration_s": 180,
+   "informative": false,
+   "name": "x3_fps_drop",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00014249073810202338,
+    "content_steps": {
+     "1": 14034,
+     "1982": 1,
+     "2": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.977776292,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 4676
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 4676
+    },
+    "interval_error_ms": {
+     "max": 11.109913,
+     "p50": 0.000941,
+     "p95": 0.0027442999999999994,
+     "p99": 0.003596619999999999
+    },
+    "kinds": {
+     "gen": 9357,
+     "real": 4680,
+     "repeat": 1
+    },
+    "latency_drift_ms": -0.057579000000004044,
+    "latency_ms": {
+     "p50": 46.733785499999996,
+     "p95": 49.8691815,
+     "p99": 51.00171982
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.123521869212138e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4677,
+     "2/3": 4676
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 14038,
+    "sim_counts": "real=5315 gen=10871 repeat=11 skip=2 resync=0 degrade=0",
+    "skips": 1
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:game_ms:38 --event 70:game_ms:20",
+   "duration_s": 180,
+   "informative": false,
+   "name": "x3_fps_drop",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 7.124029351000925e-05,
+    "content_steps": {
+     "1": 14036,
+     "1981": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966665537,
+    "generated_per_interval": {
+     "2": 4678
+    },
+    "generated_per_locked_interval": {
+     "2": 4678
+    },
+    "interval_error_ms": {
+     "max": 0.005696,
+     "p50": 0.00096,
+     "p95": 0.0028157499999999997,
+     "p99": 0.0036648499999999964
+    },
+    "kinds": {
+     "gen": 9359,
+     "real": 4679
+    },
+    "latency_drift_ms": -0.07154799999999994,
+    "latency_ms": {
+     "p50": 46.775577,
+     "p95": 49.86664209999999,
+     "p99": 50.94287554
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4678,
+     "2/3": 4678
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 14038,
+    "sim_counts": "real=5317 gen=10873 repeat=9 skip=2 resync=0 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:off:0 --event 90:on:0",
+   "duration_s": 180,
+   "informative": false,
+   "name": "toggle_off_on",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00015766653527788727,
+    "content_steps": {
+     "1": 12683,
+     "2": 1,
+     "3331": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.95555189,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 4226
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 4226
+    },
+    "interval_error_ms": {
+     "max": 11.112252,
+     "p50": 0.000933,
+     "p95": 0.002718,
+     "p99": 0.0035073400000000003
+    },
+    "kinds": {
+     "gen": 8457,
+     "real": 4229,
+     "repeat": 1
+    },
+    "latency_drift_ms": 0.000664000000000442,
+    "latency_ms": {
+     "p50": 46.693685,
+     "p95": 49.882205799999994,
+     "p99": 51.08691636
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 7.882084023015685e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4227,
+     "2/3": 4226
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 12687,
+    "sim_counts": "real=5398 gen=8993 repeat=1805 skip=0 resync=0 degrade=0",
+    "skips": 1
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:off:0 --event 90:on:0",
+   "duration_s": 180,
+   "informative": false,
+   "name": "toggle_off_on",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 7.882084023015685e-05,
+    "content_steps": {
+     "1": 12686,
+     "3331": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966665146,
+    "generated_per_interval": {
+     "2": 4227
+    },
+    "generated_per_locked_interval": {
+     "2": 4227
+    },
+    "interval_error_ms": {
+     "max": 0.005894,
+     "p50": 0.0009584999999999999,
+     "p95": 0.0027947500000000004,
+     "p99": 0.0036652999999999994
+    },
+    "kinds": {
+     "gen": 8458,
+     "real": 4230
+    },
+    "latency_drift_ms": -0.0025674999999978354,
+    "latency_ms": {
+     "p50": 46.738333,
+     "p95": 49.8678878,
+     "p99": 50.96837
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4227,
+     "2/3": 4227
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 12688,
+    "sim_counts": "real=5399 gen=8995 repeat=1804 skip=0 resync=0 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:off:0 --event 90:on:0",
+   "duration_s": 180,
+   "informative": false,
+   "name": "toggle_off_on",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 7.883326763894364e-05,
+    "content_steps": {
+     "1": 12684,
+     "3332": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.955553808,
+    "generated_per_interval": {
+     "2": 4227
+    },
+    "generated_per_locked_interval": {
+     "2": 4227
+    },
+    "interval_error_ms": {
+     "max": 0.005923,
+     "p50": 0.000966,
+     "p95": 0.002788,
+     "p99": 0.00367934
+    },
+    "kinds": {
+     "gen": 8458,
+     "real": 4228
+    },
+    "latency_drift_ms": -0.05976400000000126,
+    "latency_ms": {
+     "p50": 46.764369,
+     "p95": 49.926431599999994,
+     "p99": 51.06235281
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4227,
+     "2/3": 4227
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 12686,
+    "sim_counts": "real=5399 gen=8995 repeat=1804 skip=0 resync=0 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 13 --game-p99-ms 17 --spike-prob 0 --event 60:mult:2 --event 60:cap:45 --event 120:mult:3 --event 120:cap:30",
+   "duration_s": 180,
+   "informative": false,
+   "name": "switch_x3_x2",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 2,
+    "content_step_irregular_fraction": 0.0002710761724044456,
+    "content_steps": {
+     "1": 14752,
+     "2": 2,
+     "629": 1,
+     "632": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966666444,
+    "generated_per_interval": {
+     "1": 2388,
+     "2": 3325
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 11.113529,
+     "p50": 0.000948,
+     "p95": 0.0027343499999999987,
+     "p99": 0.003677939999999999
+    },
+    "kinds": {
+     "gen": 9042,
+     "real": 5715,
+     "repeat": 2
+    },
+    "latency_drift_ms": 0.11638899999999808,
+    "latency_ms": {
+     "p50": 52.509193,
+     "p95": 56.3584098,
+     "p99": 57.3249523
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 0.00013551053594416967,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 2386,
+     "1/3": 3327,
+     "2/3": 3325
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 2
+    },
+    "rows": 14759,
+    "sim_counts": "real=6298 gen=9893 repeat=4 skip=1 resync=0 degrade=0",
+    "skips": 2
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 13 --game-p99-ms 17 --spike-prob 0 --event 60:mult:2 --event 60:cap:45 --event 120:mult:3 --event 120:cap:30",
+   "duration_s": 180,
+   "informative": false,
+   "name": "switch_x3_x2",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 0.0001355380862022228,
+    "content_steps": {
+     "1": 14754,
+     "631": 1,
+     "633": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.977775428,
+    "generated_per_interval": {
+     "1": 2384,
+     "2": 3328
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 0.005894,
+     "p50": 0.000952,
+     "p95": 0.002763,
+     "p99": 0.0036369399999999987
+    },
+    "kinds": {
+     "gen": 9043,
+     "real": 5714
+    },
+    "latency_drift_ms": -0.035201000000000704,
+    "latency_ms": {
+     "p50": 52.415589999999995,
+     "p95": 56.38724564999999,
+     "p99": 57.30024502999999
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 2384,
+     "1/3": 3328,
+     "2/3": 3328
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 14757,
+    "sim_counts": "real=6299 gen=9896 repeat=4 skip=1 resync=0 degrade=0",
+    "skips": 0
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 13 --game-p99-ms 17 --spike-prob 0 --event 60:mult:2 --event 60:cap:45 --event 120:mult:3 --event 120:cap:30",
+   "duration_s": 180,
+   "informative": false,
+   "name": "switch_x3_x2",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00020330712930333424,
+    "content_steps": {
+     "1": 14753,
+     "2": 1,
+     "630": 1,
+     "632": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966665311,
+    "generated_per_interval": {
+     "1": 2385,
+     "2": 3328
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 11.112388,
+     "p50": 0.000971,
+     "p95": 0.002784349999999999,
+     "p99": 0.0036193499999999964
+    },
+    "kinds": {
+     "gen": 9044,
+     "real": 5713,
+     "repeat": 1
+    },
+    "latency_drift_ms": -0.07687800000000067,
+    "latency_ms": {
+     "p50": 52.460076,
+     "p95": 56.353447,
+     "p99": 57.36100384
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 6.775985905949315e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 2385,
+     "1/3": 3328,
+     "2/3": 3328
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 14758,
+    "sim_counts": "real=6298 gen=9896 repeat=4 skip=1 resync=0 degrade=0",
+    "skips": 1
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:refresh:60 --event 60:mult:2",
+   "duration_s": 180,
+   "informative": false,
+   "name": "refresh_90_to_60",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 8.377314233056883e-05,
+    "content_steps": {
+     "1": 11936,
+     "482": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.961110032,
+    "generated_per_interval": {
+     "1": 3448,
+     "2": 1679
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 0.005925,
+     "p50": 0.00094,
+     "p95": 0.0027452500000000003,
+     "p99": 0.0035655499999999976
+    },
+    "kinds": {
+     "gen": 6809,
+     "real": 5129
+    },
+    "latency_drift_ms": 0.02459800000000456,
+    "latency_ms": {
+     "p50": 46.691774,
+     "p95": 49.964441599999994,
+     "p99": 50.99177124
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 3448,
+     "1/3": 1679,
+     "2/3": 1679
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 11938,
+    "sim_counts": "real=5394 gen=7190 repeat=13 skip=0 resync=1 degrade=0",
+    "skips": 0
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:refresh:60 --event 60:mult:2",
+   "duration_s": 180,
+   "informative": false,
+   "name": "refresh_90_to_60",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00016754628466113765,
+    "content_steps": {
+     "1": 11935,
+     "2": 1,
+     "482": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.972221238,
+    "generated_per_interval": {
+     "1": 3448,
+     "2": 1679
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 16.667661,
+     "p50": 0.000944,
+     "p95": 0.0027802499999999997,
+     "p99": 0.003729
+    },
+    "kinds": {
+     "gen": 6809,
+     "real": 5129,
+     "repeat": 1
+    },
+    "latency_drift_ms": 0.05027599999999666,
+    "latency_ms": {
+     "p50": 46.756182,
+     "p95": 49.8783834,
+     "p99": 50.95209572
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 8.375910880308233e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 3448,
+     "1/3": 1679,
+     "2/3": 1679
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 11939,
+    "sim_counts": "real=5393 gen=7191 repeat=13 skip=0 resync=1 degrade=0",
+    "skips": 1
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:refresh:60 --event 60:mult:2",
+   "duration_s": 180,
+   "informative": false,
+   "name": "refresh_90_to_60",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 8.377314233056883e-05,
+    "content_steps": {
+     "1": 11936,
+     "482": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.961110867,
+    "generated_per_interval": {
+     "1": 3449,
+     "2": 1679
+    },
+    "generated_per_locked_interval": {},
+    "interval_error_ms": {
+     "max": 0.005696,
+     "p50": 0.000954,
+     "p95": 0.0027802499999999997,
+     "p99": 0.003644899999999998
+    },
+    "kinds": {
+     "gen": 6810,
+     "real": 5128
+    },
+    "latency_drift_ms": -0.14391200000000026,
+    "latency_ms": {
+     "p50": 46.7420465,
+     "p95": 49.91169795,
+     "p99": 50.9910259
+    },
+    "locked_interval_fraction": null,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/2": 3449,
+     "1/3": 1679,
+     "2/3": 1679
+    },
+    "refresh_hz": 59.99999880000002,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 11938,
+    "sim_counts": "real=5393 gen=7191 repeat=15 skip=0 resync=1 degrade=0",
+    "skips": 0
+   },
+   "required": [
+    "no_reorder",
+    "missed_below_0.5pct",
+    "p95_interval_error",
+    "p99_interval_error"
+   ],
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:me_scale:20 --event 90:me_scale:1",
+   "duration_s": 180,
+   "informative": false,
+   "name": "insufficient_compute",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.00016346546791990192,
+    "content_steps": {
+     "1": 12233,
+     "2": 1,
+     "3781": 1
+    },
+    "degraded_rows": 2520,
+    "duration_s": 177.95555189,
+    "generated_per_interval": {
+     "1": 1,
+     "2": 4076
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 4076
+    },
+    "interval_error_ms": {
+     "max": 11.112252,
+     "p50": 0.000933,
+     "p95": 0.002717,
+     "p99": 0.0035096700000000003
+    },
+    "kinds": {
+     "gen": 8157,
+     "real": 4079,
+     "repeat": 1
+    },
+    "latency_drift_ms": -0.041745999999996286,
+    "latency_ms": {
+     "p50": 46.698576,
+     "p95": 49.903796400000004,
+     "p99": 51.087687859999996
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 8.171937566396992e-05,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4077,
+     "2/3": 4076
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1
+    },
+    "rows": 12237,
+    "sim_counts": "real=5370 gen=9046 repeat=1780 skip=0 resync=0 degrade=14",
+    "skips": 1
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:me_scale:20 --event 90:me_scale:1",
+   "duration_s": 180,
+   "informative": false,
+   "name": "insufficient_compute",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 8.171937566396992e-05,
+    "content_steps": {
+     "1": 12236,
+     "3781": 1
+    },
+    "degraded_rows": 2520,
+    "duration_s": 177.966665146,
+    "generated_per_interval": {
+     "2": 4077
+    },
+    "generated_per_locked_interval": {
+     "2": 4077
+    },
+    "interval_error_ms": {
+     "max": 0.005894,
+     "p50": 0.00096,
+     "p95": 0.002804,
+     "p99": 0.003671
+    },
+    "kinds": {
+     "gen": 8158,
+     "real": 4080
+    },
+    "latency_drift_ms": -0.02084400000000386,
+    "latency_ms": {
+     "p50": 46.7503125,
+     "p95": 49.8682748,
+     "p99": 50.976119090000005
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4077,
+     "2/3": 4077
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 12238,
+    "sim_counts": "real=5371 gen=9048 repeat=1779 skip=0 resync=0 degrade=14",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:me_scale:20 --event 90:me_scale:1",
+   "duration_s": 180,
+   "informative": false,
+   "name": "insufficient_compute",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 8.172605426610003e-05,
+    "content_steps": {
+     "1": 12235,
+     "3781": 1
+    },
+    "degraded_rows": 2520,
+    "duration_s": 177.955553808,
+    "generated_per_interval": {
+     "2": 4077
+    },
+    "generated_per_locked_interval": {
+     "2": 4077
+    },
+    "interval_error_ms": {
+     "max": 0.005923,
+     "p50": 0.000964,
+     "p95": 0.002792599999999999,
+     "p99": 0.003679
+    },
+    "kinds": {
+     "gen": 8158,
+     "real": 4079
+    },
+    "latency_drift_ms": -0.03992399999999918,
+    "latency_ms": {
+     "p50": 46.767396,
+     "p95": 49.931582299999995,
+     "p99": 51.058456400000004
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4077,
+     "2/3": 4077
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 12237,
+    "sim_counts": "real=5371 gen=9057 repeat=1770 skip=0 resync=0 degrade=14",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:gap:5000",
+   "duration_s": 180,
+   "informative": false,
+   "name": "suspend_resume",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 6.69478476266988e-05,
+    "content_steps": {
+     "1": 14936,
+     "1081": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966664,
+    "generated_per_interval": {
+     "2": 4977
+    },
+    "generated_per_locked_interval": {
+     "2": 4977
+    },
+    "interval_error_ms": {
+     "max": 0.005969,
+     "p50": 0.0009475,
+     "p95": 0.0027472499999999997,
+     "p99": 0.003625949999999999
+    },
+    "kinds": {
+     "gen": 9958,
+     "real": 4980
+    },
+    "latency_drift_ms": 0.07806450000000353,
+    "latency_ms": {
+     "p50": 46.7213335,
+     "p95": 50.0088514,
+     "p99": 51.2108422
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4977,
+     "2/3": 4977
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 14938,
+    "sim_counts": "real=5250 gen=10496 repeat=452 skip=0 resync=1 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:gap:5000",
+   "duration_s": 180,
+   "informative": false,
+   "name": "suspend_resume",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 6.695232994108195e-05,
+    "content_steps": {
+     "1": 14935,
+     "1082": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.966666093,
+    "generated_per_interval": {
+     "2": 4977
+    },
+    "generated_per_locked_interval": {
+     "2": 4977
+    },
+    "interval_error_ms": {
+     "max": 0.005894,
+     "p50": 0.00094,
+     "p95": 0.0027832999999999994,
+     "p99": 0.00369866
+    },
+    "kinds": {
+     "gen": 9958,
+     "real": 4979
+    },
+    "latency_drift_ms": 0.0456530000000015,
+    "latency_ms": {
+     "p50": 46.741314,
+     "p95": 49.882555499999995,
+     "p99": 50.99627446
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4977,
+     "2/3": 4977
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 14937,
+    "sim_counts": "real=5249 gen=10496 repeat=453 skip=0 resync=1 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 30 --game-ms 20 --game-p99-ms 25 --spike-prob 0 --event 60:gap:5000",
+   "duration_s": 180,
+   "informative": false,
+   "name": "suspend_resume",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": true,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 6.695232994108195e-05,
+    "content_steps": {
+     "1": 14935,
+     "1082": 1
+    },
+    "degraded_rows": 0,
+    "duration_s": 177.96666579,
+    "generated_per_interval": {
+     "2": 4977
+    },
+    "generated_per_locked_interval": {
+     "2": 4977
+    },
+    "interval_error_ms": {
+     "max": 0.005696,
+     "p50": 0.000948,
+     "p95": 0.0027872999999999995,
+     "p99": 0.003622
+    },
+    "kinds": {
+     "gen": 9958,
+     "real": 4979
+    },
+    "latency_drift_ms": 0.04946999999999946,
+    "latency_ms": {
+     "p50": 46.820233,
+     "p95": 49.98333349999999,
+     "p99": 51.075511580000004
+    },
+    "locked_interval_fraction": 1.0,
+    "missed_fraction": 0.0,
+    "oscillation_fraction": 0.0,
+    "pass": true,
+    "phases": {
+     "1/3": 4977,
+     "2/3": 4977
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {},
+    "rows": 14937,
+    "sim_counts": "real=5250 gen=10496 repeat=453 skip=0 resync=1 degrade=0",
+    "skips": 0
+   },
+   "required": "pass",
+   "seed": 3,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 0 --game-ms 25 --game-p99-ms 30 --spike-prob 0",
+   "duration_s": 120,
+   "informative": true,
+   "name": "uncapped_40fps_x3_informative",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": false,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 0.0007541478129713424,
+    "content_steps": {
+     "1": 10600,
+     "2": 8
+    },
+    "degraded_rows": 0,
+    "duration_s": 117.955553942,
+    "generated_per_interval": {
+     "1": 29,
+     "2": 3515
+    },
+    "generated_per_locked_interval": {
+     "2": 3507
+    },
+    "interval_error_ms": {
+     "max": 11.113909,
+     "p50": 0.000925,
+     "p95": 0.0027636499999999994,
+     "p99": 0.003639790000000001
+    },
+    "kinds": {
+     "gen": 7063,
+     "real": 3546,
+     "repeat": 8
+    },
+    "latency_drift_ms": 0.0676910000000035,
+    "latency_ms": {
+     "p50": 41.3092495,
+     "p95": 44.58135525,
+     "p99": 45.6107778
+    },
+    "locked_interval_fraction": 0.9895598194130926,
+    "missed_fraction": 0.0007535085240651785,
+    "oscillation_fraction": 0.0,
+    "pass": false,
+    "phases": {
+     "1/2": 29,
+     "1/3": 3507,
+     "2/3": 3507,
+     "2/4": 8,
+     "3/4": 8
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "me_late": 8
+    },
+    "rows": 10617,
+    "sim_counts": "real=3605 gen=7181 repeat=11 skip=0 resync=0 degrade=0",
+    "skips": 8
+   },
+   "required": [
+    "no_reorder"
+   ],
+   "seed": 1,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 0 --game-ms 25 --game-p99-ms 30 --spike-prob 0",
+   "duration_s": 120,
+   "informative": true,
+   "name": "uncapped_40fps_x3_informative",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": false,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 1,
+    "content_step_irregular_fraction": 0.0008484162895927602,
+    "content_steps": {
+     "1": 10599,
+     "2": 9
+    },
+    "degraded_rows": 0,
+    "duration_s": 117.966666042,
+    "generated_per_interval": {
+     "1": 24,
+     "2": 3518
+    },
+    "generated_per_locked_interval": {
+     "1": 1,
+     "2": 3510
+    },
+    "interval_error_ms": {
+     "max": 11.112105,
+     "p50": 0.000938,
+     "p95": 0.00277,
+     "p99": 0.0036539300000000005
+    },
+    "kinds": {
+     "gen": 7064,
+     "real": 3545,
+     "repeat": 9
+    },
+    "latency_drift_ms": -0.0324460000000002,
+    "latency_ms": {
+     "p50": 41.330646,
+     "p95": 44.5360522,
+     "p99": 45.530195400000004
+    },
+    "locked_interval_fraction": 0.9912478825522304,
+    "missed_fraction": 0.0008476172537200979,
+    "oscillation_fraction": 0.0,
+    "pass": false,
+    "phases": {
+     "1/2": 23,
+     "1/3": 3511,
+     "2/3": 3510,
+     "2/4": 8,
+     "3/4": 8
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "compose_late": 1,
+     "me_late": 8
+    },
+    "rows": 10618,
+    "sim_counts": "real=3604 gen=7182 repeat=11 skip=0 resync=0 degrade=0",
+    "skips": 9
+   },
+   "required": [
+    "no_reorder"
+   ],
+   "seed": 2,
+   "verdict": true
+  },
+  {
+   "args": "--refresh 90 --mult 3 --cap 0 --game-ms 25 --game-p99-ms 30 --spike-prob 0",
+   "duration_s": 120,
+   "informative": true,
+   "name": "uncapped_40fps_x3_informative",
+   "report": {
+    "all_states_reorders": 0,
+    "checks": {
+     "cadence_locked_99.5pct": false,
+     "missed_below_0.5pct": true,
+     "no_latency_accumulation": true,
+     "no_oscillation": true,
+     "no_reorder": true,
+     "p95_interval_error": true,
+     "p99_interval_error": true,
+     "uniform_content_steps": true,
+     "x3_intermediates_99.5pct": true
+    },
+    "compose_late": 0,
+    "content_step_irregular_fraction": 0.0014148273910582908,
+    "content_steps": {
+     "1": 10587,
+     "2": 15
+    },
+    "degraded_rows": 0,
+    "duration_s": 117.966665439,
+    "generated_per_interval": {
+     "1": 20,
+     "2": 3519
+    },
+    "generated_per_locked_interval": {
+     "2": 3504
+    },
+    "interval_error_ms": {
+     "max": 11.114351,
+     "p50": 0.0009565,
+     "p95": 0.002756899999999998,
+     "p99": 0.00362499
+    },
+    "kinds": {
+     "gen": 7062,
+     "real": 3541,
+     "repeat": 15
+    },
+    "latency_drift_ms": -0.1656435000000016,
+    "latency_ms": {
+     "p50": 41.37044,
+     "p95": 44.571631,
+     "p99": 45.5719522
+    },
+    "locked_interval_fraction": 0.9901102006216446,
+    "missed_fraction": 0.00141269542286683,
+    "oscillation_fraction": 0.0,
+    "pass": false,
+    "phases": {
+     "1/2": 20,
+     "1/3": 3504,
+     "2/3": 3504,
+     "2/4": 15,
+     "3/4": 15
+    },
+    "refresh_hz": 90.0000009,
+    "reorders": 0,
+    "repeat_reasons": {
+     "me_late": 15
+    },
+    "rows": 10618,
+    "sim_counts": "real=3600 gen=7180 repeat=18 skip=0 resync=0 degrade=0",
+    "skips": 15
+   },
+   "required": [
+    "no_reorder"
+   ],
+   "seed": 3,
+   "verdict": true
+  }
+ ]
+}

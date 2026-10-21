@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Pair statistics and scene-cut test, one workgroup writing one texel.
+// Slots: 0 = luma A (level 2), 1 = luma B (level 2), 2 = flow (level 2).
+// Output: x = cut (0/1), y = fraction of blocks badly explained by motion,
+//         z = mean motion-compensated error, w = mean zero-motion error.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 256) in;
+
+shared float s_bad[256];
+shared float s_mc[256];
+shared float s_zero[256];
+
+void main()
+{
+	uint lid = gl_LocalInvocationID.x;
+	ivec2 size = u_srcSize;
+	float bad = 0.0, mc = 0.0, zero = 0.0, n = 0.0;
+	for (int i = int(lid); i < size.x * size.y; i += 256) {
+		ivec2 q = ivec2(i % size.x, i / size.x);
+		vec2 f = texelFetch(s_samplers[2], q, 0).xy * 0.25; // pixels -> level-2 texels
+		float a = texelFetch(s_samplers[0], q, 0).r;
+		float e_mc = abs(a - kfg_tap(1, vec2(q) + f, size).r);
+		float e_zero = abs(a - texelFetch(s_samplers[1], q, 0).r);
+		mc += e_mc;
+		zero += e_zero;
+		bad += e_mc > 0.1 ? 1.0 : 0.0;
+		n += 1.0;
+	}
+	s_bad[lid] = bad;
+	s_mc[lid] = mc;
+	s_zero[lid] = zero;
+	barrier();
+	for (uint s = 128u; s > 0u; s >>= 1) {
+		if (lid < s) {
+			s_bad[lid] += s_bad[lid + s];
+			s_mc[lid] += s_mc[lid + s];
+			s_zero[lid] += s_zero[lid + s];
+		}
+		barrier();
+	}
+	if (lid == 0u) {
+		float total = float(size.x * size.y);
+		float frac_bad = s_bad[0] / total;
+		float mean_mc = s_mc[0] / total, mean_zero = s_zero[0] / total;
+		// A cut is a pair that motion does not explain: many blocks stay badly matched, or
+		// the best motion removes little of the frame difference.
+		bool unexplained = mean_mc > 0.015 && mean_mc > 0.35 * mean_zero;
+		float cut = (frac_bad > u_cutThreshold || unexplained) ? 1.0 : 0.0;
+		imageStore(dst, ivec2(0, 0), vec4(cut, frac_bad, s_mc[0] / total, s_zero[0] / total));
+	}
+}
