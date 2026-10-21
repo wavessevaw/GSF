@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Per-output motion selection at block resolution (one texel = 4x4 pixels).
+// Slots: 0 = luma A (level 1), 1 = luma B (level 1), 2 = flow (level 2), 3 = stats.
+// Output: xy = chosen motion A->B in pixels, z = weight of B, w = match error.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+ivec2 lsize;
+
+float cost(vec2 c1, vec2 v)
+{
+	// c1: block centre in level-1 texels; v: candidate motion in pixels.
+	vec2 pa = c1 - u_t * v * 0.5;
+	vec2 pb = c1 + (1.0 - u_t) * v * 0.5;
+	float e = 0.0;
+	for (int y = -1; y <= 1; y++)
+		for (int x = -1; x <= 1; x++) {
+			vec2 o = vec2(x, y);
+			e += abs(kfg_tap(0, pa + o, lsize).r - kfg_tap(1, pb + o, lsize).r);
+		}
+	return e * (1.0 / 9.0);
+}
+
+vec4 flow_at(vec2 pix, ivec2 fsize)
+{
+	ivec2 q = clamp(ivec2(floor(pix * 0.25)), ivec2(0), fsize - 1);
+	return texelFetch(s_samplers[2], q, 0);
+}
+
+void main()
+{
+	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(p, u_dstSize)))
+		return;
+	lsize = u_srcSize;
+	ivec2 fsize = u_dstSize;
+	vec2 cpix = vec2(4 * p) + vec2(1.5);   // block centre in pixels
+	vec2 c1 = vec2(2 * p) + vec2(0.5);     // same point in level-1 texels
+
+	vec4 f = texelFetch(s_samplers[2], p, 0);
+	vec2 cand[9];
+	cand[0] = vec2(0.0);
+	cand[1] = f.xy;
+	cand[2] = -f.zw;
+	ivec2 offs[4] = ivec2[4](ivec2(-2, 0), ivec2(2, 0), ivec2(0, -2), ivec2(0, 2));
+	for (int i = 0; i < 4; i++) {
+		vec4 g = texelFetch(s_samplers[2], clamp(p + offs[i], ivec2(0), fsize - 1), 0);
+		cand[3 + i] = g.xy;
+	}
+	cand[7] = -texelFetch(s_samplers[2], clamp(p + ivec2(-2, 0), ivec2(0), fsize - 1), 0).zw;
+	cand[8] = -texelFetch(s_samplers[2], clamp(p + ivec2(2, 0), ivec2(0), fsize - 1), 0).zw;
+
+	vec2 best = vec2(0.0);
+	float best_cost = cost(c1, vec2(0.0)) - 0.004; // static pixels (HUD) stay static on ties
+	for (int i = 1; i < 9; i++) {
+		float c = cost(c1, cand[i]) + 0.0005 * length(cand[i] - f.xy);
+		if (c < best_cost) {
+			best_cost = c;
+			best = cand[i];
+		}
+	}
+
+	// Visibility: forward/backward consistency at both source positions.
+	vec2 fa = flow_at(cpix - u_t * best, fsize).xy;
+	vec2 fb = -flow_at(cpix + (1.0 - u_t) * best, fsize).zw;
+	float da = length(fa - best);
+	float db = length(fb - best);
+	const float sigma = 4.0;
+	float wa = (1.0 - u_t) * exp(-da / sigma);
+	float wb = u_t * exp(-db / sigma);
+	float w_b = wb / max(wa + wb, 1e-6);
+	if (best_cost > 0.15)
+		w_b = u_t < 0.5 ? 0.0 : 1.0; // unreliable: show the nearer frame rather than a ghost
+	imageStore(dst, p, vec4(best, w_b, best_cost));
+}

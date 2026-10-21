@@ -1,0 +1,166 @@
+diff --git a/src/Backends/DRMBackend.cpp b/src/Backends/DRMBackend.cpp
+index c9034b7..fc6dd6f 100644
+--- a/src/Backends/DRMBackend.cpp
++++ b/src/Backends/DRMBackend.cpp
+@@ -56,6 +56,7 @@
+ #include "wlr_end.hpp"
+ 
+ #include "gamescope-control-protocol.h"
++#include "kfg/kfg.hpp"
+ 
+ extern int g_nPreferredOutputWidth;
+ extern int g_nPreferredOutputHeight;
+@@ -788,6 +789,7 @@ static void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsi
+ 	// This is the last vblank time
+ 	uint64_t vblanktime = sec * 1'000'000'000lu + usec * 1'000lu;
+ 	GetVBlankTimer().MarkVBlank( vblanktime, true );
++	kfg::OnPageFlip( vblanktime, frame );
+ 
+ 	// TODO: get the fbids_queued instance from data if we ever have more than one in flight
+ 
+@@ -3912,6 +3914,7 @@ namespace gamescope
+ 
+ 			bool bNeedsFullComposite = false;
+ 			bNeedsFullComposite |= cv_composite_force;
++			bNeedsFullComposite |= kfg::WantsEveryVBlank();
+ 			bNeedsFullComposite |= bWasFirstFrame;
+ 			bNeedsFullComposite |= pFrameInfo->useFSRLayer0;
+ 			bNeedsFullComposite |= pFrameInfo->useNISLayer0;
+diff --git a/src/meson.build b/src/meson.build
+index 498bca6..2847e62 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -73,6 +73,12 @@ shader_src = [
+   'shaders/cs_nis_hdr_linear_fp16.comp',
+   'shaders/cs_rgb_to_nv12.comp',
+   'shaders/cs_sgsr.comp',
++  'shaders/cs_kfg_copy.comp',
++  'shaders/cs_kfg_reduce.comp',
++  'shaders/cs_kfg_me.comp',
++  'shaders/cs_kfg_stats.comp',
++  'shaders/cs_kfg_select.comp',
++  'shaders/cs_kfg_warp.comp',
+ ]
+ 
+ spirv_shaders = glsl_generator.process(shader_src)
+@@ -99,6 +105,7 @@ required_wlroots_features = ['xwayland']
+ 
+ src = [
+   'Backends/HeadlessBackend.cpp',
++  'kfg/kfg.cpp',
+   'Backends/WaylandBackend.cpp',
+   'Utils/DirHelpers.cpp',
+   'Utils/TempFiles.cpp',
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 89e9494..abf9257 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -45,6 +45,13 @@
+ #include "cs_composite_rcas_1px.h"
+ #include "cs_easu.h"
+ #include "cs_easu_fp16.h"
++#include "cs_kfg_copy.h"
++#include "cs_kfg_reduce.h"
++#include "cs_kfg_me.h"
++#include "cs_kfg_stats.h"
++#include "cs_kfg_select.h"
++#include "cs_kfg_warp.h"
++#include "kfg/kfg.hpp"
+ #include "cs_gaussian_blur_horizontal.h"
+ #include "cs_nis.h"
+ #include "cs_nis_fp16.h"
+@@ -990,6 +997,12 @@ bool CVulkanDevice::createShaders()
+ 	}
+ 	SHADER(RGB_TO_NV12, cs_rgb_to_nv12);
+ 	SHADER(SGSR, cs_sgsr);
++	SHADER(KFG_COPY, cs_kfg_copy);
++	SHADER(KFG_REDUCE, cs_kfg_reduce);
++	SHADER(KFG_ME, cs_kfg_me);
++	SHADER(KFG_STATS, cs_kfg_stats);
++	SHADER(KFG_SELECT, cs_kfg_select);
++	SHADER(KFG_WARP, cs_kfg_warp);
+ #undef SHADER
+ 
+ 	for (uint32_t i = 0; i < shaderInfos.size(); i++)
+@@ -1222,6 +1235,12 @@ void CVulkanDevice::compileAllPipelines(std::stop_token st)
+ 	SHADER(NIS_HDR_LINEAR, 1, 1, 1);
+ 	SHADER(RGB_TO_NV12, 1, 1, 1);
+ 	SHADER(SGSR, 1, 1, 1);
++	SHADER(KFG_COPY, 1, 1, 1);
++	SHADER(KFG_REDUCE, 1, 1, 1);
++	SHADER(KFG_ME, 1, 1, 1);
++	SHADER(KFG_STATS, 1, 1, 1);
++	SHADER(KFG_SELECT, 1, 1, 1);
++	SHADER(KFG_WARP, 1, 1, 1);
+ #undef SHADER
+ 
+ 	for (auto& info : pipelineInfos) {
+@@ -4469,6 +4488,10 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
+ 
+ 	const std::optional<uint32_t> oTimingSlot = CompositeTimingBegin( cmdBuffer.get() );
+ 
++	// KEDAVRA: real or generated frame for this vblank replaces layer 0.
++	if ( !pOutputOverride )
++		kfg::RecordComposite( cmdBuffer.get(), frameInfo );
++
+ 	for (uint32_t i = 0; i < EOTF_Count; i++)
+ 		cmdBuffer->bindColorMgmtLuts(i, frameInfo->shaperLut[i], frameInfo->lut3D[i]);
+ 
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+index 0636ad0..256f53d 100644
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -625,6 +625,12 @@ enum ShaderType {
+ 	SHADER_TYPE_NIS_HDR_LINEAR,
+ 	SHADER_TYPE_RGB_TO_NV12,
+ 	SHADER_TYPE_SGSR,
++	SHADER_TYPE_KFG_COPY,
++	SHADER_TYPE_KFG_REDUCE,
++	SHADER_TYPE_KFG_ME,
++	SHADER_TYPE_KFG_STATS,
++	SHADER_TYPE_KFG_SELECT,
++	SHADER_TYPE_KFG_WARP,
+ 
+ 	SHADER_TYPE_COUNT
+ };
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 397a112..ac564b9 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -124,6 +124,7 @@ static const int g_nBaseCursorScale = 36;
+ 
+ #define GPUVIS_TRACE_IMPLEMENTATION
+ #include "gpuvis_trace_utils.h"
++#include "kfg/kfg.hpp"
+ 
+ LogScope xwm_log("xwm");
+ LogScope focus_log("focus");
+@@ -3505,7 +3506,16 @@ paint_all( global_focus_t *pFocus, bool async, bool bRepeatFrame )
+ 		}
+ 	}
+ 
+-	if ( pConnector && pConnector->Present( &frameInfo, async ) != 0 )
++	// KEDAVRA frame generation drives the physical output only.
++	const bool bKfgPaint = pConnector && !pFocus->pVirtualConnector;
++	if ( bKfgPaint )
++		kfg::OnPaint( &frameInfo, pFocus->ulBasePlaneCommitID, pFocus->uBasePlaneAppID,
++			g_SteamCompMgrVBlankTime.schedule.ulTargetVBlank, g_SteamCompMgrVBlankTime.schedule.ulRefreshCycle );
++
++	const bool bPresentFailed = pConnector && pConnector->Present( &frameInfo, async ) != 0;
++	if ( bKfgPaint )
++		kfg::OnPresented( !bPresentFailed );
++	if ( bPresentFailed )
+ 	{
+ 		return;
+ 	}
+@@ -10804,6 +10814,10 @@ steamcompmgr_main(int argc, char **argv)
+ 			// A false vblank value means bShouldPaint will resolve to false below, effectively ignoring this flag and losing any request
+ 			// to force a repaint. Don't clear g_bForceRepaint unless vblank is true.
+ 			const bool bForceRepaint = vblank && g_bForceRepaint.exchange(false);
++
++			// KEDAVRA: every vblank shows a real or generated frame while generation is on.
++			if ( vblank && kfg::WantsEveryVBlank() )
++				hasRepaint = true;
+ 			const bool bForceSyncFlip = bForceRepaint || is_fading_out( pPaintFocus );
+ 
+ 			// If we are compositing, always force sync flips because we currently wait

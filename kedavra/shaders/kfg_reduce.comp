@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Half-resolution luma: slot 0 is either colour (full resolution) or the previous
+// luma level. One bilinear tap at the shared corner of each 2x2 block is their mean.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#define KFG_FLAG_LUMA_INPUT 4
+
+void main()
+{
+	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(p, u_dstSize)))
+		return;
+	vec2 corner = vec2(2 * p) + vec2(0.5); // texel space of slot 0, between 4 texels
+	vec4 c = kfg_tap(0, corner, u_srcSize);
+	float y = (u_flags & KFG_FLAG_LUMA_INPUT) != 0 ? c.r : kfg_luma(c.rgb);
+	imageStore(dst, p, vec4(y, 0.0, 0.0, 1.0));
+}

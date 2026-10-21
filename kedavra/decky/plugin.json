@@ -1,0 +1,7 @@
+{
+  "name": "KEDAVRA",
+  "author": "Nikita Goev / GSF contributors",
+  "flags": [],
+  "api_version": 1,
+  "publish": {"tags": ["framegen", "gamescope", "testing"], "description": "Control and measured status of KEDAVRA x2/x3 frame generation in a patched Gamescope."}
+}

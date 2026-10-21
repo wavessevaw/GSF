@@ -1,0 +1,108 @@
+name: KEDAVRA
+# KEDAVRA frame generation: scheduler model, interpolation engine on Mesa
+# lavapipe (a CPU Vulkan driver) and a build of the patched Gamescope.
+# These jobs prove correctness and that the integration compiles; they are not
+# Steam Deck measurements.
+on:
+  push:
+    branches: [main]
+    paths: ['kedavra/**', '.github/workflows/kedavra.yml']
+  pull_request:
+    paths: ['kedavra/**', '.github/workflows/kedavra.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model-and-engine:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vulkan software device and shader tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers glslang-tools
+      - name: Build
+        run: make -C kedavra all
+      - name: Scheduler unit tests and model stress matrix
+        run: make -C kedavra test-sched
+      - name: Engine correctness on lavapipe
+        run: |
+          export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
+          make -C kedavra test-engine
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kedavra-model-engine
+          path: |
+            kedavra/build/scenarios.json
+            kedavra/build/engine.json
+      - name: Steam Deck bench bundle (engine on RADV)
+        run: |
+          mkdir -p deck-bench
+          cp kedavra/build/kfg_vktest kedavra/build/*.spv deck-bench/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kedavra-deck-bench
+          path: deck-bench
+
+  decky:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Backend tests
+        run: cd kedavra/decky && python3 -m unittest discover -s tests -v
+      - name: Type check and package
+        run: |
+          cd kedavra/decky
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+          sh package.sh "$PWD/build/KEDAVRA.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kedavra-decky
+          path: kedavra/decky/build/KEDAVRA.zip
+
+  gamescope:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - name: Toolchain and Gamescope dependencies
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git meson ninja cmake glslang vulkan-headers \
+            wayland wayland-protocols libx11 libxcomposite libxdamage libxext libxfixes libxkbcommon \
+            libxmu libxrender libxres libxtst libxxf86vm libxcursor libxi libdrm libinput seatd sdl2 \
+            libdecor luajit libavif libcap pipewire libei hwdata lcms2 glm benchmark pixman \
+            vulkan-icd-loader xcb-util-errors xcb-util-wm xorg-xwayland libdisplay-info libliftoff python
+      - uses: actions/checkout@v4
+      - name: Gamescope at the pinned commit
+        run: |
+          pin=$(sed -n 's/^GAMESCOPE_COMMIT=//p' kedavra/gamescope/apply.sh)
+          git init -q /tmp/gamescope
+          git -C /tmp/gamescope remote add origin https://github.com/ValveSoftware/gamescope.git
+          git -C /tmp/gamescope fetch -q --depth 1 origin "$pin"
+          git -C /tmp/gamescope checkout -q FETCH_HEAD
+          git -C /tmp/gamescope submodule update --init --depth 1 --recursive
+      - name: Apply KEDAVRA
+        run: sh kedavra/gamescope/apply.sh /tmp/gamescope
+      - name: Build
+        run: |
+          cd /tmp/gamescope
+          meson setup build --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false
+          ninja -C build
+      - name: Smoke
+        run: |
+          /tmp/gamescope/build/src/gamescope --version || true
+          nm -C /tmp/gamescope/build/src/gamescope | grep -c 'kfg::'
+      - name: Collect binaries
+        run: |
+          mkdir -p gamescope-kedavra
+          cp /tmp/gamescope/build/src/gamescope gamescope-kedavra/
+          cp /tmp/gamescope/build/src/gamescopectl gamescope-kedavra/ 2>/dev/null || true
+          cp kedavra/deck/*.sh kedavra/tools/kfg_pacing.py gamescope-kedavra/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gamescope-kedavra-archlinux
+          path: gamescope-kedavra
