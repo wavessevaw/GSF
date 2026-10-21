@@ -6,7 +6,7 @@
 
 # GSF Kedavra
 
-**Independent x2 / x3 frame generation for Steam Deck in Gaming Mode. No Lossless Scaling.**
+**Independent x2 / x3 frame generation for Steam Deck in Gaming Mode. No Lossless Scaling. No launch command.**
 
 GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
 
