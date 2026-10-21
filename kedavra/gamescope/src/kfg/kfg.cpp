@@ -329,12 +329,6 @@ namespace kfg
 		}
 	}
 
-	struct KfgPushData_t
-	{
-		kfg_params params;
-		explicit KfgPushData_t( const kfg_params &p ) : params( p ) {}
-	};
-
 	static void RecordPlan( CVulkanCmdBuffer *pCmd, const kfg_plan &plan, Resolve_t &r )
 	{
 		for ( uint32_t i = 0; i < plan.n; i++ )
@@ -350,7 +344,7 @@ namespace kfg
 				pCmd->setSamplerUnnormalized( slot, false );
 			}
 			pCmd->bindTarget( ResolveRef( r, pass.dst ) );
-			pCmd->uploadConstants<KfgPushData_t>( pass.params );
+			UploadParams( pCmd, pass.params );
 			pCmd->dispatch( pass.groups[ 0 ], pass.groups[ 1 ] );
 		}
 	}
@@ -370,7 +364,7 @@ namespace kfg
 		for ( uint32_t slot = 1; slot < KFG_MAX_SLOTS; slot++ )
 			pCmd->bindTexture( slot, nullptr );
 		pCmd->bindTarget( pDst );
-		pCmd->uploadConstants<KfgPushData_t>( p );
+		UploadParams( pCmd, p );
 		pCmd->dispatch( kfg_div_up( pDst->width(), 8 ), kfg_div_up( pDst->height(), 8 ) );
 	}
 

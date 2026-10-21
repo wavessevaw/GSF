@@ -18,6 +18,7 @@
 #include <cstdint>
 
 struct FrameInfo_t;
+struct kfg_params;
 class CVulkanCmdBuffer;
 
 namespace kfg
@@ -37,4 +38,7 @@ namespace kfg
 
 	// KMS thread: page flip completed at ulVBlankNs (kernel timestamp).
 	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence );
+
+	// rendervulkan.cpp: uploads pass constants (CVulkanCmdBuffer::uploadConstants lives there).
+	void UploadParams( CVulkanCmdBuffer *pCmd, const kfg_params &params );
 }

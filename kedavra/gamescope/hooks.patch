@@ -52,10 +52,10 @@ index 498bca6..2847e62 100644
    'Utils/DirHelpers.cpp',
    'Utils/TempFiles.cpp',
 diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
-index 89e9494..abf9257 100644
+index 89e9494..7311907 100644
 --- a/src/rendervulkan.cpp
 +++ b/src/rendervulkan.cpp
-@@ -45,6 +45,13 @@
+@@ -45,6 +45,14 @@
  #include "cs_composite_rcas_1px.h"
  #include "cs_easu.h"
  #include "cs_easu_fp16.h"
@@ -66,10 +66,11 @@ index 89e9494..abf9257 100644
 +#include "cs_kfg_select.h"
 +#include "cs_kfg_warp.h"
 +#include "kfg/kfg.hpp"
++#include "kfg/kfg_plan.h"
  #include "cs_gaussian_blur_horizontal.h"
  #include "cs_nis.h"
  #include "cs_nis_fp16.h"
-@@ -990,6 +997,12 @@ bool CVulkanDevice::createShaders()
+@@ -990,6 +998,12 @@ bool CVulkanDevice::createShaders()
  	}
  	SHADER(RGB_TO_NV12, cs_rgb_to_nv12);
  	SHADER(SGSR, cs_sgsr);
@@ -82,7 +83,7 @@ index 89e9494..abf9257 100644
  #undef SHADER
  
  	for (uint32_t i = 0; i < shaderInfos.size(); i++)
-@@ -1222,6 +1235,12 @@ void CVulkanDevice::compileAllPipelines(std::stop_token st)
+@@ -1222,6 +1236,12 @@ void CVulkanDevice::compileAllPipelines(std::stop_token st)
  	SHADER(NIS_HDR_LINEAR, 1, 1, 1);
  	SHADER(RGB_TO_NV12, 1, 1, 1);
  	SHADER(SGSR, 1, 1, 1);
@@ -95,7 +96,26 @@ index 89e9494..abf9257 100644
  #undef SHADER
  
  	for (auto& info : pipelineInfos) {
-@@ -4469,6 +4488,10 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
+@@ -4415,6 +4435,18 @@ namespace
+ 
+ ReshadeEffectPipeline *g_pLastReshadeEffect = nullptr;
+ 
++// uploadConstants is defined in this file, so KEDAVRA's constants are uploaded from here.
++struct KfgPushData_t
++{
++	kfg_params params;
++	explicit KfgPushData_t( const kfg_params &p ) : params( p ) {}
++};
++
++void kfg::UploadParams( CVulkanCmdBuffer *pCmd, const kfg_params &params )
++{
++	pCmd->uploadConstants<KfgPushData_t>( params );
++}
++
+ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamescope::Rc<CVulkanTexture> pPipewireTexture, bool partial, gamescope::Rc<CVulkanTexture> pOutputOverride, bool increment, std::unique_ptr<CVulkanCmdBuffer> pInCommandBuffer )
+ {
+ 	EOTF outputTF = frameInfo->outputEncodingEOTF;
+@@ -4469,6 +4501,10 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
  
  	const std::optional<uint32_t> oTimingSlot = CompositeTimingBegin( cmdBuffer.get() );
  
