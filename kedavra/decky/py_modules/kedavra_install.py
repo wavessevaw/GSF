@@ -313,8 +313,13 @@ class Installer:
         path = out_dir / f"diagnostics-{stamp}.txt"
         lines = [("OK  " if c["ok"] else "FAIL ") + c["text"] + (("\n     " + c["detail"].replace("\n", "\n     ")) if c["detail"] else "")
                  for c in d["checks"]]
+        # A Gaming Mode restart is a Gamescope (or Steam) crash: its core dump record has the
+        # stack, and the kernel log tells a GPU reset from a crash in the compositor.
         for argv in (["findmnt", "-n", str(self.target)], ["journalctl", "-b", "-u", UNIT_NAME, "--no-pager"],
-                     ["journalctl", "-b", "--no-pager", "-n", "120", "-g", "gamescope|kfg"]):
+                     ["journalctl", "-b", "--no-pager", "-n", "300", "-g", "gamescope|kfg"],
+                     ["coredumpctl", "--no-pager", "list"],
+                     ["coredumpctl", "--no-pager", "info", "gamescope"],
+                     ["journalctl", "-b", "-k", "--no-pager", "-n", "80", "-g", "amdgpu|drm|gpu|segfault"]):
             rc, out = self.run(argv)
             lines.append(f"\n$ {' '.join(argv)}\n{out[-6000:]}")
         st = self.status_file

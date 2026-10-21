@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
@@ -15,6 +17,7 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <sys/stat.h>
@@ -148,9 +151,6 @@ namespace kfg
 		uint32_t uNextQuery = 0;
 		std::deque<uint32_t> pendingQueries;
 
-		// Trace.
-		FILE *pTrace = nullptr;
-		std::string sTracePath;
 	};
 
 	static State_t g_State;
@@ -163,6 +163,12 @@ namespace kfg
 	static std::mutex g_TraceMutex;
 	static std::deque<TraceRow_t> g_InFlight;
 	static std::vector<TraceRow_t> g_Flipped;
+	// The trace file belongs to its own writer thread (TraceWriterMain): opening, writing,
+	// flushing and closing it never run on the compositor or the KMS thread, so a slow disk
+	// cannot hold a composite, and stopping a trace does no work in either of them.
+	static std::condition_variable g_TraceWake;
+	static std::atomic<bool> g_bTraceOn{ false };  // a trace file is open: record rows
+	static std::string g_sTraceOpen;                // its path (under g_TraceMutex), for status
 	// Every KMS page flip of the output (KMS thread), for the displayed frame rate.
 	static std::atomic<uint64_t> g_ulFlips{ 0 };
 
@@ -582,47 +588,80 @@ namespace kfg
 
 	// ---------------------------------------------------------------- trace and status
 
-	static void WriteTrace( State_t &s )
+	static void WriteTraceRow( FILE *pFile, const TraceRow_t &row )
 	{
+		const kfg_decision &d = row.decision;
+		const char *pszKind = row.bBypass ? "repeat" : kfg_show_name( d.show );
+		const char *pszReason = row.bBypass ? "bypass" : kfg_reason_name( d.reason );
+		fprintf( pFile, "%" PRId64 ",%" PRIu64 ",%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%" PRIu64 ",%u,0,%d\n",
+			row.nVBlank, row.ulFlipNs, pszKind, d.src_a, d.src_b, d.phase_num, d.phase_den, d.content, d.delay,
+			pszReason, kfg_state_name( d.state ), row.ulRefreshNs, row.uMultiplier, d.skipped ? 1 : 0 );
+	}
+
+	static void TraceWriterMain()
+	{
+		FILE *pFile = nullptr;
+		std::string sOpen;
 		std::vector<TraceRow_t> rows;
+		for ( ;; )
 		{
-			std::scoped_lock lock( g_TraceMutex );
-			rows.swap( g_Flipped );
-		}
-
-		const std::string sPath = CvarCopy( g_sTracePath );
-		if ( sPath != s.sTracePath )
-		{
-			if ( s.pTrace )
-				fclose( s.pTrace );
-			s.pTrace = nullptr;
-			s.sTracePath = sPath;
-			if ( !sPath.empty() )
 			{
-				s.pTrace = fopen( sPath.c_str(), "w" );
-				if ( s.pTrace )
-				{
-					fprintf( s.pTrace, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped\n" );
-					kfg_log.infof( "trace: %s", sPath.c_str() );
-				}
-				else
-					kfg_log.errorf( "trace: cannot open %s", sPath.c_str() );
+				std::unique_lock lock( g_TraceMutex );
+				g_TraceWake.wait_for( lock, std::chrono::milliseconds( 100 ) );
+				rows.clear();
+				rows.swap( g_Flipped );
 			}
-		}
-		if ( !s.pTrace )
-			return;
 
-		for ( const TraceRow_t &row : rows )
-		{
-			const kfg_decision &d = row.decision;
-			const char *pszKind = row.bBypass ? "repeat" : kfg_show_name( d.show );
-			const char *pszReason = row.bBypass ? "bypass" : kfg_reason_name( d.reason );
-			fprintf( s.pTrace, "%" PRId64 ",%" PRIu64 ",%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%" PRIu64 ",%u,0,%d\n",
-				row.nVBlank, row.ulFlipNs, pszKind, d.src_a, d.src_b, d.phase_num, d.phase_den, d.content, d.delay,
-				pszReason, kfg_state_name( d.state ), row.ulRefreshNs, row.uMultiplier, d.skipped ? 1 : 0 );
+			const std::string sPath = CvarCopy( g_sTracePath );
+			if ( sPath != sOpen )
+			{
+				// Stop recording first, so no rows for the old file arrive after it is closed.
+				g_bTraceOn.store( false, std::memory_order_relaxed );
+				if ( pFile )
+				{
+					for ( const TraceRow_t &row : rows )
+						WriteTraceRow( pFile, row );
+					rows.clear();
+					fclose( pFile );
+					kfg_log.infof( "trace: closed %s", sOpen.c_str() );
+				}
+				pFile = nullptr;
+				sOpen = sPath;
+				if ( !sPath.empty() )
+				{
+					pFile = fopen( sPath.c_str(), "w" );
+					if ( pFile )
+					{
+						fprintf( pFile, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped\n" );
+						kfg_log.infof( "trace: %s", sPath.c_str() );
+					}
+					else
+						kfg_log.errorf( "trace: cannot open %s", sPath.c_str() );
+				}
+				{
+					std::scoped_lock lock( g_TraceMutex );
+					g_sTraceOpen = pFile ? sOpen : std::string();
+					g_InFlight.clear();
+					g_Flipped.clear();
+				}
+				g_bTraceOn.store( pFile != nullptr, std::memory_order_relaxed );
+				continue;
+			}
+			if ( !pFile || rows.empty() )
+				continue;
+			for ( const TraceRow_t &row : rows )
+				WriteTraceRow( pFile, row );
+			fflush( pFile );
 		}
-		if ( !rows.empty() )
-			fflush( s.pTrace );
+	}
+
+	static void StartTraceWriter()
+	{
+		static std::once_flag s_once;
+		std::call_once( s_once, []
+		{
+			std::thread( TraceWriterMain ).detach();
+		} );
 	}
 
 	static void WriteStatus( State_t &s, uint64_t ulNow )
@@ -644,6 +683,11 @@ namespace kfg
 		if ( !f )
 			return;
 		const kfg_sched &q = s.sched;
+		std::string sTrace;
+		{
+			std::scoped_lock lock( g_TraceMutex );
+			sTrace = g_sTraceOpen;
+		}
 		fprintf( f,
 			"{\"engine\":\"kedavra-gamescope\",\"version\":1,\"time_ns\":%" PRIu64 ",\"multiplier\":%u,\"state\":\"%s\","
 			"\"refresh_ns\":%" PRIu64 ",\"width\":%u,\"height\":%u,"
@@ -661,7 +705,7 @@ namespace kfg
 			g_ulFlips.load( std::memory_order_relaxed ), ManualBaseFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
-			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
+			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, sTrace.c_str() );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
 	}
@@ -730,7 +774,7 @@ namespace kfg
 		s.bPending = false;
 		s.bApplied = false;
 
-		WriteTrace( s );
+		StartTraceWriter();
 		WriteStatus( s, ulNow );
 		HudPoll( ulNow );
 		HudPushLayer( pFrameInfo );
@@ -1034,7 +1078,7 @@ namespace kfg
 			s.ulBypass++;
 			s.pszLastProblem = "composite_bypassed";
 		}
-		if ( !s.pTrace )
+		if ( !g_bTraceOn.load( std::memory_order_relaxed ) )
 			return;
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.size() > 64 )

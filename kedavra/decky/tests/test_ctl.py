@@ -101,7 +101,17 @@ class ControlTest(unittest.TestCase):
             kind = "real" if ph == 0 else "gen"
             rows.append(f"{k},{k * period},{kind},{src},{src + 1 if ph else 0},{ph},{3 if ph else 0},{k},3,none,active,{period},3,0,0")
         Path(c["path"]).write_text("\n".join(rows) + "\n")
+        # The engine still reports the file open for a moment after the stop.
+        status = self.ctl.runtime / "kedavra-status.json"
+        status.write_text(json.dumps({"engine": "kedavra-gamescope", "trace": c["path"]}))
+        naps = []
+
+        def nap(s):
+            naps.append(s)
+            status.write_text(json.dumps({"engine": "kedavra-gamescope", "trace": ""}))
+        self.ctl.sleep = nap
         r = self.ctl.stop_capture()
+        self.assertEqual(len(naps), 1)
         self.assertEqual(self.rec.calls[-2][-2:], ["kfg_trace", ""])
         self.assertIn("summary", r, r["log"])
         self.assertLess(r["summary"]["p95_ms"], 0.01)
