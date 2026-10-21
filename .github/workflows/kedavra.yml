@@ -96,7 +96,8 @@ jobs:
       - name: Build
         run: |
           cd /tmp/gamescope
-          meson setup build --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false -Denable_tests=false
+          # --prefix=/usr: display scripts from /usr/share/gamescope/scripts (Deck OLED HDR).
+          meson setup build --prefix=/usr --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false -Denable_tests=false
           ninja -C build
       - name: Smoke
         run: |
