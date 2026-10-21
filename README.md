@@ -18,7 +18,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 [![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)](#known-limits)
 [![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
 
-<img src="docs/img/interface.png" alt="GSF Kedavra interface: the Decky panel with a 90 FPS ring at a 30 FPS cap, the in-game HUD, the Pace and Setup views" width="900">
+<img src="docs/img/interface-1.1.png" alt="GSF Kedavra interface: the Decky panel in Custom mode at a 40 FPS base with the green slider, the in-game HUD, the Pace and Setup views" width="900">
 
 <sub>The plugin's own interface code and HUD renderer, rendered with sample values. Not a measurement.</sub>
 
