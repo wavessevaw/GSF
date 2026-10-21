@@ -8,6 +8,31 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+// Catmull-Rom resampling in 5 bilinear taps (the four corner taps dropped). Bilinear softens
+// every fractional position, so generated frames came out blurrier than the real ones around
+// them and fine texture pulsed at the generation cadence during slow turns.
+vec4 tap_sharp(int slot, vec2 pos, ivec2 size)
+{
+	vec2 tc = pos + 0.5;
+	vec2 c = floor(tc - 0.5) + 0.5;
+	vec2 f = tc - c;
+	vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+	vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+	vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+	vec2 w3 = f * f * (-0.5 + 0.5 * f);
+	vec2 w12 = w1 + w2;
+	vec2 o12 = w2 / w12;
+	vec2 inv = 1.0 / vec2(size);
+	vec2 p0 = (c - 1.0) * inv, p3 = (c + 2.0) * inv, p12 = (c + o12) * inv;
+	vec4 r = textureLod(s_samplers[slot], vec2(p12.x, p0.y), 0.0) * (w12.x * w0.y)
+	       + textureLod(s_samplers[slot], vec2(p0.x, p12.y), 0.0) * (w0.x * w12.y)
+	       + textureLod(s_samplers[slot], p12, 0.0) * (w12.x * w12.y)
+	       + textureLod(s_samplers[slot], vec2(p3.x, p12.y), 0.0) * (w3.x * w12.y)
+	       + textureLod(s_samplers[slot], vec2(p12.x, p3.y), 0.0) * (w12.x * w3.y);
+	float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+	return max(r / wsum, vec4(0.0));
+}
+
 void main()
 {
 	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
@@ -55,8 +80,9 @@ void main()
 	vec2 v = sel.xy;
 	vec2 pa = vec2(p) - u_t * v;
 	vec2 pb = vec2(p) + (1.0 - u_t) * v;
-	vec4 ca = kfg_tap(0, pa, size);
-	vec4 cb = kfg_tap(1, pb, size);
+	// Whole-pixel positions (static content, integer motion) need no resampling.
+	vec4 ca = fract(pa) == vec2(0.0) ? texelFetch(s_samplers[0], clamp(ivec2(pa), ivec2(0), size - 1), 0) : tap_sharp(0, pa, size);
+	vec4 cb = fract(pb) == vec2(0.0) ? texelFetch(s_samplers[1], clamp(ivec2(pb), ivec2(0), size - 1), 0) : tap_sharp(1, pb, size);
 	// Out-of-frame samples: take the other side when only one is inside the image.
 	bool ina = all(greaterThanEqual(pa, vec2(0.0))) && all(lessThan(pa, vec2(size)));
 	bool inb = all(greaterThanEqual(pb, vec2(0.0))) && all(lessThan(pb, vec2(size)));
@@ -66,6 +92,16 @@ void main()
 	else if (inb && !ina)
 		w_b = 1.0;
 	vec3 c = mix(ca.rgb, cb.rgb, w_b);
+	// Faint motion blur on fast motion only (a turn above ~10 px per game frame): two more
+	// taps per side along the motion, up to 4 px long. Static and slow content (HUD, text,
+	// slow turns) is untouched and costs nothing.
+	const float blur = clamp((length(v) - 10.0) * 0.08, 0.0, 4.0);
+	if (blur > 0.25) {
+		vec2 o = normalize(v) * (0.5 * blur);
+		vec3 sa = kfg_tap(0, pa - o, size).rgb + kfg_tap(0, pa + o, size).rgb;
+		vec3 sb = kfg_tap(1, pb - o, size).rgb + kfg_tap(1, pb + o, size).rgb;
+		c = (2.0 * c + 0.5 * mix(sa, sb, w_b)) * (1.0 / 3.0);
+	}
 	if ((u_flags & KFG_FLAG_DEBUG_MARKER) != 0 && p.x < 24 && p.y < 24) {
 		// Optical-verification marker: brightness encodes the phase (camera tests only).
 		c = vec3(u_t);

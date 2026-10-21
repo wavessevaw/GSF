@@ -17,6 +17,7 @@
 //   stats    L2 A,B + flow L2     -> stats     (scene cut)
 // Per generated output at phase t:
 //   select   L1 A,B + flow L2 + stats -> selection (4x4 blocks)
+//   repair   x2: selection -> selection (neighbour agreement, ping-pong between two fields)
 //   warp     colour A,B + selection + stats -> output (full resolution)
 #ifndef KFG_PLAN_H
 #define KFG_PLAN_H
@@ -91,6 +92,8 @@ typedef struct kfg_params {
 #define KFG_FLAG_TENT 8        // reduce: 4x4 tent instead of 2x2 box (coarse search levels)
 #define KFG_FLAG_TEMPORAL 16   // me (coarsest): slot 2 holds the previous pair's flow, slot 3 its stats
 #define KFG_FLAG_GLOBAL 32     // stats: camera motion (affine) of the coarsest flow into stats texels 1-3
+#define KFG_FLAG_REPAIR 64     // select: clean up the selection field in slot 2 (one smoothing round)
+#define KFG_REPAIR_ROUNDS 2    // select -> repair -> repair -> warp; even, so warp reads field 0
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -271,6 +274,25 @@ static inline void kfg_plan_generate(kfg_plan *p, uint32_t w, uint32_t h, uint32
 	x->params.full_size[1] = (int32_t)h;
 	x->params.t = t;
 	kfg_set_domain(x, bs, 8, 8);
+
+	// Repair rounds: a block whose vector disagrees with its neighbours takes a neighbour's
+	// vector when that explains the block about as well. Wrong vectors were whole blocks
+	// (square artifacts); each round removes isolated ones and shrinks small clusters.
+	for (uint32_t r = 0; r < KFG_REPAIR_ROUNDS; r++) {
+		x = kfg_plan_add(p, KFG_SHADER_SELECT, kfg_ref(KFG_ROLE_SELECT, (r + 1) & 1u, 0), "repair");
+		x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 1);
+		x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, 1);
+		x->slots[2] = kfg_ref(KFG_ROLE_SELECT, r & 1u, 0);
+		x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
+		x->nslots = 4;
+		x->params.src_size[0] = (int32_t)l1[0];
+		x->params.src_size[1] = (int32_t)l1[1];
+		x->params.full_size[0] = (int32_t)w;
+		x->params.full_size[1] = (int32_t)h;
+		x->params.t = t;
+		x->params.flags = KFG_FLAG_REPAIR;
+		kfg_set_domain(x, bs, 8, 8);
+	}
 
 	x = kfg_plan_add(p, KFG_SHADER_WARP, kfg_ref(KFG_ROLE_OUTPUT, 0, 0), "warp");
 	x->slots[0] = kfg_ref(KFG_ROLE_COLOR, fa, 0);

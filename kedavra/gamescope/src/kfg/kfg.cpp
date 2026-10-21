@@ -107,7 +107,7 @@ namespace kfg
 
 		Frame_t frames[ k_uRing ];
 		uint32_t uNextFrame = 0;
-		gamescope::OwningRc<CVulkanTexture> pSelect;
+		gamescope::OwningRc<CVulkanTexture> pSelect[ 2 ];  // selection field and its repair ping-pong
 		gamescope::OwningRc<CVulkanTexture> pOutput[ 2 ];
 		uint32_t uNextOutput = 0;
 		gamescope::Rc<CVulkanTexture> pLastShown;  // what REPEAT shows again
@@ -156,6 +156,7 @@ namespace kfg
 	static State_t g_State;
 	static int RefreshHz();
 	static int BaseCapFPS( int nRefreshHz );
+	static int ManualBaseFPS( int nRefreshHz );
 
 	// Presented decisions waiting for their page flip (steamcompmgr -> KMS thread)
 	// and flipped rows waiting to be written (KMS thread -> steamcompmgr).
@@ -361,7 +362,7 @@ namespace kfg
 	{
 		for ( Frame_t &f : s.frames )
 			f = Frame_t{};
-		s.pSelect = nullptr;
+		s.pSelect[ 0 ] = s.pSelect[ 1 ] = nullptr;
 		s.pOutput[ 0 ] = s.pOutput[ 1 ] = nullptr;
 		s.pLastShown = nullptr;
 		s.bAnalysisQueued = false;
@@ -394,10 +395,11 @@ namespace kfg
 		}
 		uint32_t bs[ 2 ];
 		kfg_select_size( uWidth, uHeight, bs );
-		s.pSelect = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
+		s.pSelect[ 0 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
+		s.pSelect[ 1 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pOutput[ 0 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
 		s.pOutput[ 1 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
-		if ( !s.pSelect || !s.pOutput[ 0 ] || !s.pOutput[ 1 ] )
+		if ( !s.pSelect[ 0 ] || !s.pSelect[ 1 ] || !s.pOutput[ 0 ] || !s.pOutput[ 1 ] )
 			return false;
 		s.uWidth = uWidth;
 		s.uHeight = uHeight;
@@ -512,7 +514,7 @@ namespace kfg
 			case KFG_ROLE_LUMA:   return s.frames[ ref.ring ].pLuma[ ref.level ].get();
 			case KFG_ROLE_FLOW:   return s.frames[ ref.ring ].pFlow[ ref.level ].get();
 			case KFG_ROLE_STATS:  return s.frames[ ref.ring ].pStats.get();
-			case KFG_ROLE_SELECT: return s.pSelect.get();
+			case KFG_ROLE_SELECT: return s.pSelect[ ref.ring & 1 ].get();
 			case KFG_ROLE_OUTPUT: return s.pOutput[ r.uOutput ].get();
 			default:              return nullptr;
 		}
@@ -656,7 +658,7 @@ namespace kfg
 			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
-			g_ulFlips.load( std::memory_order_relaxed ), BaseCapFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
+			g_ulFlips.load( std::memory_order_relaxed ), ManualBaseFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
@@ -671,14 +673,24 @@ namespace kfg
 		return g_State.ulGridPeriod ? int( std::llround( 1e9 / double( g_State.ulGridPeriod ) ) ) : 90;
 	}
 
-	// Fixed base cap from kfg_base_fps, clamped to what generation can fill; 0 = none.
-	static int BaseCapFPS( int nRefreshHz )
+	// Fixed base cap from kfg_base_fps (Custom), clamped to what generation can fill; 0 = none.
+	static int ManualBaseFPS( int nRefreshHz )
 	{
 		const int nBase = cv_kfg_base_fps.Get();
 		if ( cv_kfg_multiplier.Get() == 0 || nBase <= 0 || nRefreshHz <= 0 )
 			return 0;
 		const int nMin = ( nRefreshHz + int( KFG_MAX_MULTIPLIER ) - 1 ) / int( KFG_MAX_MULTIPLIER );
 		return std::clamp( nBase, std::max( 20, nMin ), nRefreshHz );
+	}
+
+	// Base cap in force: Custom's, else the one Auto picked from the game's frame rate.
+	static int BaseCapFPS( int nRefreshHz )
+	{
+		if ( const int nBase = ManualBaseFPS( nRefreshHz ) )
+			return nBase;
+		if ( cv_kfg_multiplier.Get() == 1 && g_State.bAutoInit && nRefreshHz > 0 )
+			return std::min( int( g_State.autoc.cap ), nRefreshHz );
+		return 0;
 	}
 
 	static uint32_t RequestedMultiplier()
@@ -803,16 +815,17 @@ namespace kfg
 			nVBlank = s.nLastVBlank + 1;  // two paints for one vblank: keep indices strictly increasing
 		s.nLastVBlank = nVBlank;
 
-		if ( cv_kfg_multiplier.Get() == 1 && !BaseCapFPS( RefreshHz() ) )
+		if ( cv_kfg_multiplier.Get() == 1 && !ManualBaseFPS( RefreshHz() ) )
 		{
 			if ( !s.bAutoInit )
 			{
 				kfg_auto_init( &s.autoc, uint32_t( std::llround( 1e9 / double( ulPeriod ) ) ) );
 				s.bAutoInit = true;
 			}
-			const uint32_t uWas = s.autoc.mult;
-			if ( kfg_auto_step( &s.autoc, nVBlank ) != uWas )
-				kfg_log.infof( "auto: x%u", s.autoc.mult );
+			const uint32_t uWas = s.autoc.cap;
+			kfg_auto_step( &s.autoc, nVBlank );
+			if ( s.autoc.cap != uWas )
+				kfg_log.infof( "auto: cap %u fps (median %.1f)", s.autoc.cap, kfg_auto_median( &s.autoc ) );
 		}
 		else
 			s.bAutoInit = false;

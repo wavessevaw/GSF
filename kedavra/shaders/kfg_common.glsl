@@ -34,6 +34,7 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 #define KFG_FLAG_DEBUG_MARKER 2
 #define KFG_FLAG_TEMPORAL 16
 #define KFG_FLAG_GLOBAL 32
+#define KFG_FLAG_REPAIR 64
 
 // Pair statistics image (4x1): texel 0 = cut and match statistics; texels 1 to 3 = camera
 // motion as affine fields over normalised image coordinates: texel 1 = motion at the image

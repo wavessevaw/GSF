@@ -233,8 +233,11 @@ def items_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> List[Dic
         "sub": f"{round(real)} REAL" if real is not None else None, "label": "FPS"}]
     mult = st.get("multiplier") if isinstance(st.get("multiplier"), int) else 1
     gen_share = rates["gen"] / shown if rates and shown > 0 else 0.0
-    if active and base and round(refresh) % base:
-        text = f"x{round(refresh) / base:.1f}"
+    # Auto picks its cap too (30, 35, 40 or 45 at 90 Hz): x2.6 at 35, not the scheduler's 3.
+    cap = st.get("cap_fps") if isinstance(st.get("cap_fps"), int) else 0
+    eff = base or (cap if st.get("auto") else 0)
+    if active and eff and round(refresh) % eff:
+        text = f"x{round(refresh) / eff:.1f}"
     else:
         text = f"x{mult}" if active and mult > 1 else "OFF"
     label = f"CAP {base}" if base else ("AUTO" if st.get("auto") else "GEN")
