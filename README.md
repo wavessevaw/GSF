@@ -12,15 +12,15 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 [**Download 1.0.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.0.0) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
-![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)
-![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)
-![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)
-![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)
-![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)
+[![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
+[![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
+[![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)](https://decky.xyz/)
+[![SDR](https://img.shields.io/badge/output-SDR-0d1210?style=flat-square)](#known-limits)
+[![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
 
-<img src="docs/img/hud.png" alt="GSF Kedavra in-game HUD: 90 FPS on screen, 30 real, x3 auto, pace 100" width="460">
+<img src="docs/img/interface.png" alt="GSF Kedavra interface: the Decky panel with a 90 FPS ring at a 30 FPS cap, the in-game HUD, the Pace and Setup views" width="900">
 
-<sub>The real HUD bitmap rendered by the plugin, with sample values. Not a measurement.</sub>
+<sub>The plugin's own interface code and HUD renderer, rendered with sample values. Not a measurement.</sub>
 
 </div>
 
@@ -60,6 +60,8 @@ To remove it, press **Remove and restore stock Gamescope** in **Setup**, then re
 Generation needs at least a few milliseconds of GPU time per game frame for motion analysis. If the game already uses all of the GPU, lower the base FPS.
 
 ## In-game HUD
+
+<img src="docs/img/hud.png" alt="In-game HUD: 90 FPS on screen, 30 real, x3, pace 100" width="320">
 
 The optional HUD draws three rings over the game, in the same style as [GFG Extreme](https://github.com/wavessevaw/GFG-Extreme):
 
