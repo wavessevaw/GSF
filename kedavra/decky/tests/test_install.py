@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -132,6 +133,22 @@ class InstallerTest(unittest.TestCase):
         os.utime(st, (time.time() - 60, time.time() - 60))
         (state / "healthy").unlink()
         self.assertFalse(self.inst.mark_healthy())
+
+    def test_report_zip_lands_on_desktop(self):
+        data = self.tmp / "home/.local/share/kedavra"
+        (data / "captures").mkdir(parents=True)
+        (data / "captures/20261021-000000-x3.csv").write_text("flip_ns\n1\n")
+        (data / "captures/20261021-000000-x3.json").write_text("{}")
+        (data / "bench.json").write_text("{}")
+        r = self.inst.report(data)
+        bundle = Path(r["path"])
+        self.assertEqual(bundle.parent, self.tmp / "home/Desktop")
+        with zipfile.ZipFile(bundle) as z:
+            names = set(z.namelist())
+        self.assertIn("captures/20261021-000000-x3.csv", names)
+        self.assertIn("captures/20261021-000000-x3.json", names)
+        self.assertIn("bench.json", names)
+        self.assertTrue(any(n.startswith("diagnostics-") for n in names))
 
     def test_diagnose_reports_stock_session(self):
         d = self.inst.diagnose()

@@ -194,7 +194,7 @@ function Content() {
         const b = await rpc.bench(); setBenchRes(b);
         return b.ok ? `Benchmark: analysis ${b.analysis_ms?.toFixed(2)} ms, two frames ${b.two_outputs_ms?.toFixed(2)} ms` : 'Benchmark failed';
       })}>Benchmark</NavButton>
-      <NavButton onClick={() => void act(async () => 'Report saved: ' + (await rpc.report()).path)}>Report</NavButton>
+      <NavButton onClick={() => void act(async () => 'Report saved: ' + (await rpc.report()).path.replace(/^.*\/Desktop\//, 'Desktop/'))}>Report</NavButton>
     </Focusable></PanelSectionRow>
     {benchRes && <PanelSectionRow><div style={{...card, display: 'flex', justifyContent: 'space-between', fontSize: 11}}>
       <div><b style={{fontSize: 15}}>{benchRes.analysis_ms?.toFixed(1)}</b> ms<div style={{color: C.label}}>analysis</div></div>

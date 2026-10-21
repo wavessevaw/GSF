@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import time
+import zipfile
 from pathlib import Path
 
 UNIT_NAME = "kedavra-gamescope.service"
@@ -302,11 +303,14 @@ class Installer:
             else ("Engine status is %.0f s old" % age if age is not None else "No engine status file"))
         return {"checks": checks, "ok": all(c["ok"] for c in checks if c["key"] in ("libs", "mounted", "running", "status"))}
 
-    def report(self, out_dir):
+    def report(self, out_dir, dest_dir=None):
+        """Diagnostics text in out_dir, plus one zip for sending on the Desktop (dest_dir):
+        the diagnostics, the latest pacing traces with their analyses and the benchmark."""
         d = self.diagnose()
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        path = out_dir / time.strftime("diagnostics-%Y%m%d-%H%M%S.txt", time.gmtime())
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        path = out_dir / f"diagnostics-{stamp}.txt"
         lines = [("OK  " if c["ok"] else "FAIL ") + c["text"] + (("\n     " + c["detail"].replace("\n", "\n     ")) if c["detail"] else "")
                  for c in d["checks"]]
         for argv in (["findmnt", "-n", str(self.target)], ["journalctl", "-b", "-u", UNIT_NAME, "--no-pager"],
@@ -317,12 +321,32 @@ class Installer:
         if st.exists():
             lines.append("\nstatus: " + st.read_text())
         path.write_text("\n".join(lines) + "\n")
+        self._own(out_dir, path)
+        dest = Path(dest_dir) if dest_dir else self.home / "Desktop"
         try:
-            os.chown(out_dir, self.uid, self.uid)
-            os.chown(path, self.uid, self.uid)
+            dest.mkdir(parents=True, exist_ok=True)
+            bundle = dest / f"GSF-report-{stamp}.zip"
+            traces = sorted((out_dir / "captures").glob("*.csv"), reverse=True)[:3]
+            with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
+                z.write(path, path.name)
+                for t in traces:
+                    z.write(t, "captures/" + t.name)
+                    if t.with_suffix(".json").exists():
+                        z.write(t.with_suffix(".json"), "captures/" + t.with_suffix(".json").name)
+                if (out_dir / "bench.json").exists():
+                    z.write(out_dir / "bench.json", "bench.json")
+            self._own(dest, bundle)
         except OSError:
-            pass
-        return {"path": str(path), "diagnose": d}
+            # No Desktop folder we can write: the text report in out_dir still exists.
+            return {"path": str(path), "diagnose": d}
+        return {"path": str(bundle), "diagnose": d}
+
+    def _own(self, *paths):
+        for p in paths:
+            try:
+                os.chown(p, self.uid, self.uid)
+            except OSError:
+                pass
 
 
 def bench(plugin_dir, out_dir, run=_run):
