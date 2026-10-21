@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SMAA pass 2: blending weights. slot 0 = edges, slot 1 = area texture, slot 2 = search
+// texture (nearest); dst = weights.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_smaa.glsl"
+
+void main()
+{
+	vec2 tc, pc;
+	if (!kfg_smaa_coords(tc, pc))
+		return;
+	vec2 pixcoord;
+	vec4 offset[3];
+	SMAABlendingWeightCalculationVS(tc, pixcoord, offset);
+	vec4 w = SMAABlendingWeightCalculationPS(tc, pixcoord, offset, s_samplers[0], s_samplers[1], s_samplers[2], vec4(0.0));
+	imageStore(dst, ivec2(gl_GlobalInvocationID.xy), w);
+}

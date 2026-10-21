@@ -9,6 +9,7 @@
 #define KFG_VK_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 
@@ -36,6 +37,7 @@ typedef struct kfg_vk {
 	VkPipeline pipelines[KFG_SHADER_COUNT];
 	VkDescriptorPool dpool;
 	VkSampler sampler;
+	VkSampler sampler_nearest;  // slots in kfg_pass.nearest_mask
 	VkBuffer ubo;
 	VkDeviceMemory ubo_mem;
 	uint8_t *ubo_map;
@@ -69,6 +71,8 @@ int kfg_vk_submit_wait(kfg_vk *vk);
 uint32_t kfg_vk_pass_times(kfg_vk *vk, double *out_ns, uint32_t max);
 
 int kfg_vk_upload_rgba8(kfg_vk *vk, kfg_vk_image *img, const uint8_t *rgba);
+// Uploads tightly packed texels of the image's own format (bytes = width * height * texel size).
+int kfg_vk_upload_raw(kfg_vk *vk, kfg_vk_image *img, const void *data, size_t bytes);
 int kfg_vk_download_rgba8(kfg_vk *vk, const kfg_vk_image *img, uint8_t *rgba);
 int kfg_vk_download_rgba16f(kfg_vk *vk, const kfg_vk_image *img, float *rgba);
 

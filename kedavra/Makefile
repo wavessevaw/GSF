@@ -12,15 +12,15 @@ WARN = -Wall -Wextra -Wno-missing-field-initializers
 GLSLANG ?= glslangValidator
 PYTHON ?= python3
 
-SHADERS = kfg_copy kfg_reduce kfg_me kfg_stats kfg_select kfg_warp
+SHADERS = kfg_copy kfg_reduce kfg_me kfg_stats kfg_select kfg_warp kfg_post kfg_smaa_edge kfg_smaa_weight kfg_smaa_blend
 SPV = $(SHADERS:%=$(BUILD)/%.spv)
 
-all: $(BUILD)/kfg_sim $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_vktest $(SPV)
+all: $(BUILD)/kfg_sim $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/%.spv: shaders/%.comp shaders/kfg_common.glsl | $(BUILD)
+$(BUILD)/%.spv: shaders/%.comp shaders/kfg_common.glsl shaders/kfg_smaa.glsl shaders/smaa/SMAA.hlsl | $(BUILD)
 	$(GLSLANG) -V --target-env vulkan1.1 -Ishaders -o $@ $<
 
 $(BUILD)/kfg_sim: sched/kfg_sim.c sched/kfg_sched.h | $(BUILD)
@@ -35,18 +35,23 @@ $(BUILD)/test_auto: sched/test_auto.c sched/kfg_auto.h sched/kfg_sched.h | $(BUI
 $(BUILD)/kfg_vktest: engine/kfg_vktest.c engine/kfg_vk.c engine/kfg_vk.h engine/kfg_plan.h | $(BUILD)
 	$(CC) $(CFLAGS) $(WARN) -std=c11 -Iengine -o $@ engine/kfg_vktest.c engine/kfg_vk.c -lvulkan -lm
 
+$(BUILD)/kfg_posttest: engine/kfg_posttest.c engine/kfg_vk.c engine/kfg_vk.h engine/kfg_plan.h engine/kfg_post.h engine/kfg_smaa_tex.h | $(BUILD)
+	$(CC) $(CFLAGS) $(WARN) -std=c11 -Iengine -o $@ engine/kfg_posttest.c engine/kfg_vk.c -lvulkan -lm
+
 test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim
 	$(BUILD)/test_sched
 	$(BUILD)/test_auto
 	$(PYTHON) sched/run_scenarios.py --sim $(BUILD)/kfg_sim --seeds 3 --out $(BUILD)/scenarios.json
 
-test-engine: $(BUILD)/kfg_vktest $(SPV)
+test-engine: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 	$(BUILD)/kfg_vktest --spv $(BUILD) --json $(BUILD)/engine.json
+	$(BUILD)/kfg_posttest --spv $(BUILD)
 
 test: test-sched test-engine
 
-bench: $(BUILD)/kfg_vktest $(SPV)
+bench: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 	$(BUILD)/kfg_vktest --spv $(BUILD) --json $(BUILD)/engine-bench.json --bench 200
+	$(BUILD)/kfg_posttest --spv $(BUILD) --bench 50
 
 clean:
 	rm -rf $(BUILD)

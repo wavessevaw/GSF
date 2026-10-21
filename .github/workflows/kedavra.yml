@@ -45,7 +45,7 @@ jobs:
       - name: Steam Deck bench bundle (engine on RADV)
         run: |
           mkdir -p deck-bench
-          cp kedavra/build/kfg_vktest kedavra/build/*.spv deck-bench/
+          cp kedavra/build/kfg_vktest kedavra/build/kfg_posttest kedavra/build/*.spv deck-bench/
       - uses: actions/upload-artifact@v4
         with:
           name: kedavra-deck-bench

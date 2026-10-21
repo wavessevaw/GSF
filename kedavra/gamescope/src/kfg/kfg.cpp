@@ -27,6 +27,8 @@
 #include "rendervulkan.hpp"
 
 #include "kfg_plan.h"
+#include "kfg_post.h"
+#include "kfg_smaa_tex.h"
 #include "kfg_auto.h"
 #include "kfg_sched.h"
 
@@ -44,7 +46,7 @@ namespace kfg
 	// a use-after-free (stopping a trace crashed the session on the Deck). The callback
 	// copies each new value under a lock and the compositor reads only that copy.
 	static std::mutex g_CvarMutex;
-	static std::string g_sTracePath, g_sStatusPath, g_sHudPath = "/dev/shm/kedavra-hud.raw";
+	static std::string g_sTracePath, g_sStatusPath, g_sHudPath = "/dev/shm/kedavra-hud.raw", g_sPost;
 
 	static std::string CvarCopy( const std::string &s )
 	{
@@ -65,11 +67,17 @@ namespace kfg
 	gamescope::ConVar<std::string> cv_kfg_status{ "kfg_status", "", "JSON status file, rewritten once per second. Empty = $XDG_RUNTIME_DIR/kedavra-status.json.", CopyTo( g_sStatusPath ) };
 	gamescope::ConVar<bool> cv_kfg_debug_marker{ "kfg_debug_marker", false, "Mark generated frames with a corner square, for camera checks." };
 	gamescope::ConVar<int> cv_kfg_budget_us{ "kfg_budget_us", 4000, "GPU time of KEDAVRA passes per composite above which a frame counts as over budget." };
+	gamescope::ConVar<std::string> cv_kfg_post{ "kfg_post", "", "KEDAVRA filters on the frame each vblank shows, after generation (kfg_post.h), e.g. \"vibrance,cas=0.5,smaa\". Empty = off.", CopyTo( g_sPost ) };
+	// A controller sets kfg_multiplier, kfg_base_fps and kfg_post, then kfg_policy to a new
+	// revision; the status file echoes the revision with the values in force, so the
+	// controller knows its whole policy arrived.
+	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
 	// Frames kept on the GPU. The scheduler may show content up to max_delay vblanks
 	// behind the newest latch, which at x3 is up to five source frames.
 	static constexpr uint32_t k_uRing = 6;
 	static constexpr uint32_t k_uTimingSlots = 16;
+	static constexpr uint32_t k_uTimingQueries = 3;  // start, after generation, after filters
 
 	struct Frame_t
 	{
@@ -151,6 +159,18 @@ namespace kfg
 		uint32_t uNextQuery = 0;
 		std::deque<uint32_t> pendingQueries;
 
+		// Post-generation filters (kfg_post).
+		kfg_post_cfg post = {};
+		std::string sPostSpec, sPostError;
+		bool bPostPending = false, bPostApplied = false;
+		gamescope::OwningRc<CVulkanTexture> pPost[ 2 ];
+		gamescope::OwningRc<CVulkanTexture> pSmaaEdges, pSmaaWeights;
+		gamescope::OwningRc<CVulkanTexture> pSmaaArea, pSmaaSearch;  // constant, uploaded once
+		bool bSmaaUploaded = false;
+		uint32_t uPostWidth = 0, uPostHeight = 0;
+		uint64_t ulPostFrames = 0, ulPostSkipped = 0;
+		double flPostUsLast = 0, flPostUsSum = 0;
+		uint64_t ulPostSamples = 0;
 	};
 
 	static State_t g_State;
@@ -316,6 +336,10 @@ namespace kfg
 			case KFG_SHADER_ME:     return SHADER_TYPE_KFG_ME;
 			case KFG_SHADER_STATS:  return SHADER_TYPE_KFG_STATS;
 			case KFG_SHADER_SELECT: return SHADER_TYPE_KFG_SELECT;
+			case KFG_SHADER_POST:        return SHADER_TYPE_KFG_POST;
+			case KFG_SHADER_SMAA_EDGE:   return SHADER_TYPE_KFG_SMAA_EDGE;
+			case KFG_SHADER_SMAA_WEIGHT: return SHADER_TYPE_KFG_SMAA_WEIGHT;
+			case KFG_SHADER_SMAA_BLEND:  return SHADER_TYPE_KFG_SMAA_BLEND;
 			case KFG_SHADER_WARP:
 			default:                return SHADER_TYPE_KFG_WARP;
 		}
@@ -470,7 +494,7 @@ namespace kfg
 		{
 			.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
 			.queryType = VK_QUERY_TYPE_TIMESTAMP,
-			.queryCount = k_uTimingSlots * 2,
+			.queryCount = k_uTimingSlots * k_uTimingQueries,
 		};
 		if ( g_device.vk.CreateQueryPool( g_device.device(), &createInfo, nullptr, &s.queryPool ) != VK_SUCCESS )
 		{
@@ -485,14 +509,22 @@ namespace kfg
 		while ( !s.pendingQueries.empty() )
 		{
 			const uint32_t uSlot = s.pendingQueries.front();
-			uint64_t ulResults[ 4 ] = {};
-			VkResult res = g_device.vk.GetQueryPoolResults( g_device.device(), s.queryPool, uSlot * 2, 2, sizeof( ulResults ), ulResults,
-				2 * sizeof( uint64_t ), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT );
-			if ( res == VK_NOT_READY || !ulResults[ 1 ] || !ulResults[ 3 ] )
+			// {value, available} for start, after generation, after filters.
+			uint64_t ulResults[ 2 * k_uTimingQueries ] = {};
+			VkResult res = g_device.vk.GetQueryPoolResults( g_device.device(), s.queryPool, uSlot * k_uTimingQueries, k_uTimingQueries,
+				sizeof( ulResults ), ulResults, 2 * sizeof( uint64_t ), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT );
+			if ( res == VK_NOT_READY || !ulResults[ 1 ] || !ulResults[ 3 ] || !ulResults[ 5 ] )
 				return;
 			s.pendingQueries.pop_front();
-			const uint64_t ulTicks = ( ulResults[ 2 ] - ulResults[ 0 ] ) & s.ulValidMask;
+			const uint64_t ulTicks = ( ulResults[ 4 ] - ulResults[ 0 ] ) & s.ulValidMask;
 			const double flUs = double( ulTicks ) * s.flPeriodNs / 1000.0;
+			const double flPostUs = double( ( ulResults[ 4 ] - ulResults[ 2 ] ) & s.ulValidMask ) * s.flPeriodNs / 1000.0;
+			if ( flPostUs > 0.5 )
+			{
+				s.flPostUsLast = flPostUs;
+				s.flPostUsSum += flPostUs;
+				s.ulPostSamples++;
+			}
 			s.flGpuUsLast = flUs;
 			s.flGpuUsMax = std::max( s.flGpuUsMax, flUs );
 			s.flGpuUsSum += flUs;
@@ -509,6 +541,7 @@ namespace kfg
 		State_t *s;
 		gamescope::Rc<CVulkanTexture> pSourceColor;  // KFG_ROLE_COLOR of the frame being copied
 		uint32_t uOutput;
+		CVulkanTexture *pPostIn = nullptr;  // KFG_ROLE_POST_IN: what this vblank shows before filters
 	};
 
 	static CVulkanTexture *ResolveRef( Resolve_t &r, kfg_image_ref ref )
@@ -522,6 +555,12 @@ namespace kfg
 			case KFG_ROLE_STATS:  return s.frames[ ref.ring ].pStats.get();
 			case KFG_ROLE_SELECT: return s.pSelect[ ref.ring & 1 ].get();
 			case KFG_ROLE_OUTPUT: return s.pOutput[ r.uOutput ].get();
+			case KFG_ROLE_POST_IN:      return r.pPostIn;
+			case KFG_ROLE_POST:         return s.pPost[ ref.ring & 1 ].get();
+			case KFG_ROLE_SMAA_EDGES:   return s.pSmaaEdges.get();
+			case KFG_ROLE_SMAA_WEIGHTS: return s.pSmaaWeights.get();
+			case KFG_ROLE_SMAA_AREA:    return s.pSmaaArea.get();
+			case KFG_ROLE_SMAA_SEARCH:  return s.pSmaaSearch.get();
 			default:              return nullptr;
 		}
 	}
@@ -537,7 +576,7 @@ namespace kfg
 				CVulkanTexture *pTex = slot < pass.nslots ? ResolveRef( r, pass.slots[ slot ] ) : nullptr;
 				pCmd->bindTexture( slot, pTex );
 				pCmd->setTextureSrgb( slot, true );  // raw values, see RecordCopy
-				pCmd->setSamplerNearest( slot, false );
+				pCmd->setSamplerNearest( slot, ( pass.nearest_mask >> slot ) & 1u );
 				pCmd->setSamplerUnnormalized( slot, false );
 			}
 			pCmd->bindTarget( ResolveRef( r, pass.dst ) );
@@ -584,6 +623,131 @@ namespace kfg
 		};
 		g_device.vk.CmdPipelineBarrier( pCmd->rawBuffer(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			0, 1, &barrier, 0, nullptr, 0, nullptr );
+	}
+
+	// ---------------------------------------------------------------- post filters
+
+	// Parses kfg_post when it changed. A bad string turns the filters off and is reported.
+	static void PostUpdateConfig( State_t &s )
+	{
+		const std::string sSpec = CvarCopy( g_sPost );
+		if ( sSpec == s.sPostSpec )
+			return;
+		s.sPostSpec = sSpec;
+		char szErr[ 128 ];
+		if ( kfg_post_parse( sSpec.c_str(), &s.post, szErr, sizeof( szErr ) ) != 0 )
+		{
+			s.sPostError = szErr;
+			kfg_log.errorf( "kfg_post \"%s\": %s; filters off", sSpec.c_str(), szErr );
+		}
+		else
+		{
+			s.sPostError.clear();
+			kfg_log.infof( "filters: %s", sSpec.empty() ? "off" : sSpec.c_str() );
+		}
+		if ( !kfg_post_active( &s.post ) )
+		{
+			// Off: free the images (the SMAA tables are small and stay).
+			s.pPost[ 0 ] = s.pPost[ 1 ] = nullptr;
+			s.pSmaaEdges = s.pSmaaWeights = nullptr;
+			s.uPostWidth = s.uPostHeight = 0;
+		}
+	}
+
+	static bool EnsurePostImages( State_t &s, uint32_t uWidth, uint32_t uHeight, bool bSmaa )
+	{
+		if ( s.uPostWidth != uWidth || s.uPostHeight != uHeight || !s.pPost[ 0 ] )
+		{
+			s.pSmaaEdges = s.pSmaaWeights = nullptr;
+			s.pPost[ 0 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+			s.pPost[ 1 ] = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+			if ( !s.pPost[ 0 ] || !s.pPost[ 1 ] )
+			{
+				s.pPost[ 0 ] = s.pPost[ 1 ] = nullptr;
+				s.uPostWidth = s.uPostHeight = 0;
+				return false;
+			}
+			s.uPostWidth = uWidth;
+			s.uPostHeight = uHeight;
+		}
+		if ( !bSmaa )
+			return true;
+		if ( !s.pSmaaEdges )
+		{
+			s.pSmaaEdges = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+			s.pSmaaWeights = CreateImage( uWidth, uHeight, KFG_FORMAT_RGBA8 );
+		}
+		if ( !s.pSmaaArea )
+		{
+			CVulkanTexture::createFlags flags;
+			flags.bSampled = true;
+			flags.bTransferDst = true;
+			gamescope::OwningRc<CVulkanTexture> pArea = new CVulkanTexture();
+			gamescope::OwningRc<CVulkanTexture> pSearch = new CVulkanTexture();
+			if ( pArea->BInit( KFG_SMAA_AREA_W, KFG_SMAA_AREA_H, 1u, DRM_FORMAT_ABGR8888, flags ) &&
+				pSearch->BInit( KFG_SMAA_SEARCH_W, KFG_SMAA_SEARCH_H, 1u, DRM_FORMAT_R8, flags ) )
+			{
+				s.pSmaaArea = std::move( pArea );
+				s.pSmaaSearch = std::move( pSearch );
+				s.bSmaaUploaded = false;
+			}
+		}
+		return s.pSmaaEdges && s.pSmaaWeights && s.pSmaaArea && s.pSmaaSearch;
+	}
+
+	static void RecordSmaaUpload( CVulkanCmdBuffer *pCmd, State_t &s )
+	{
+		if ( s.bSmaaUploaded )
+			return;
+		const uint32_t uAreaBytes = KFG_SMAA_AREA_W * KFG_SMAA_AREA_H * 4u;
+		auto [ pArea, uAreaOffset ] = g_device.uploadBufferData( uAreaBytes );
+		kfg_smaa_area_rgba8( static_cast<uint8_t *>( pArea ) );
+		pCmd->copyBufferToImage( g_device.uploadBuffer(), uAreaOffset, 0, s.pSmaaArea.get() );
+		const uint32_t uSearchBytes = KFG_SMAA_SEARCH_W * KFG_SMAA_SEARCH_H;
+		auto [ pSearch, uSearchOffset ] = g_device.uploadBufferData( uSearchBytes );
+		memcpy( pSearch, kfg_smaa_search_r8(), uSearchBytes );
+		pCmd->copyBufferToImage( g_device.uploadBuffer(), uSearchOffset, 0, s.pSmaaSearch.get() );
+		s.bSmaaUploaded = true;
+	}
+
+	// Filters layer 0 (the real or generated frame of this vblank) into the post images and
+	// shows the result instead. Runs after generation, so the HUD and overlays (other
+	// layers) and the motion analysis (ring frames) never see filtered pixels.
+	static void RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0 )
+	{
+		const uint32_t uWidth = layer0.tex->width(), uHeight = layer0.tex->height();
+		if ( !EnsurePostImages( s, uWidth, uHeight, s.post.aa == KFG_AA_SMAA ) )
+		{
+			s.ulPostSkipped++;
+			s.pszLastProblem = "post_allocation_failed";
+			return;
+		}
+		if ( s.post.aa == KFG_AA_SMAA )
+			RecordSmaaUpload( pCmd, s );
+		RecordHistoryBarrier( pCmd );  // the post images were last written by the previous composite
+		// Film grain moves with time, like SweetFX's Timer * 0.0022337 (Timer in ms).
+		const double flMs = double( get_time_in_nanos() ) / 1e6;
+		const float flPhase = float( std::fmod( flMs * 0.0022337, 1.0 ) );
+		kfg_plan plan;
+		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &s.post, flPhase );
+		if ( nRing < 0 )
+			return;
+		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
+		RecordPlan( pCmd, plan, r );
+		layer0.tex = s.pPost[ nRing ].get();
+		s.ulPostFrames++;
+	}
+
+	// JSON string content: quotes, backslashes and control characters become '?'.
+	static std::string JsonSafe( const std::string &str )
+	{
+		std::string out = str;
+		for ( char &c : out )
+		{
+			if ( c == '"' || c == '\\' || static_cast<unsigned char>( c ) < 0x20 )
+				c = '?';
+		}
+		return out;
 	}
 
 	// ---------------------------------------------------------------- trace and status
@@ -695,7 +859,10 @@ namespace kfg
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
 			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,\"steam_ui\":%s,\"app_id\":%u,"
-			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
+			"\"last_problem\":\"%s\",\"trace\":\"%s\","
+			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,"
+			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
+			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
 			s.ulPaints, s.ulApplied, s.ulBypass, s.ulRingMiss, s.ulUnsupported,
@@ -705,7 +872,11 @@ namespace kfg
 			g_ulFlips.load( std::memory_order_relaxed ), ManualBaseFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
-			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, sTrace.c_str() );
+			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, JsonSafe( sTrace ).c_str(),
+			cv_kfg_policy.Get(), cv_kfg_multiplier.Get(), cv_kfg_base_fps.Get(),
+			JsonSafe( s.sPostSpec ).c_str(), kfg_post_active( &s.post ) ? "true" : "false", JsonSafe( s.sPostError ).c_str(),
+			s.ulPostFrames, s.ulPostSkipped,
+			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0 );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
 	}
@@ -767,12 +938,20 @@ namespace kfg
 		return RequestedMultiplier() > 1 || ( g_State.bInit && g_State.sched.state != KFG_STATE_OFF );
 	}
 
+	bool WantsComposite()
+	{
+		return WantsEveryVBlank() || ( kfg_post_active( &g_State.post ) && !g_State.bSteamUI );
+	}
+
 	void OnPaint( FrameInfo_t *pFrameInfo, uint64_t ulBaseCommitID, uint32_t uAppID, uint64_t ulTargetVBlankNs, uint64_t ulRefreshCycleNs )
 	{
 		State_t &s = g_State;
 		const uint64_t ulNow = get_time_in_nanos();
 		s.bPending = false;
 		s.bApplied = false;
+		s.bPostPending = false;
+		s.bPostApplied = false;
+		PostUpdateConfig( s );
 
 		StartTraceWriter();
 		WriteStatus( s, ulNow );
@@ -798,6 +977,13 @@ namespace kfg
 		}
 		if ( bSteamUI )
 			return;
+		// Filters apply to the game's frames whether generation is on or not.
+		if ( kfg_post_active( &s.post ) )
+		{
+			s.bPostPending = pFrameInfo->layers.count() && SupportedSource( pFrameInfo->layers.get( 0 ) );
+			if ( !s.bPostPending )
+				s.ulPostSkipped++;  // HDR or an unusual format: shown unfiltered
+		}
 		const bool bNewCommit = ulBaseCommitID != 0 && ulBaseCommitID != s.ulLastCommitID;
 		if ( bNewCommit )
 		{
@@ -914,30 +1100,9 @@ namespace kfg
 		pFrameInfo->bRepeatFrame = false;
 	}
 
-	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo )
+	// Generation: picks or generates the frame of this vblank and puts it in layer 0.
+	static void RecordGenerate( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0 )
 	{
-		State_t &s = g_State;
-		HudRecordUpload( pCmd );
-		if ( !s.bPending || s.bApplied || !pFrameInfo->layers.count() )
-			return;
-		s.bApplied = true;
-
-		FrameInfo_t::Layer_t &layer0 = pFrameInfo->layers.get( 0 );
-		if ( !SupportedSource( layer0 ) || layer0.tex->width() != s.uWidth || layer0.tex->height() != s.uHeight )
-			return;
-
-		const bool bTiming = TimingInit( s );
-		if ( bTiming )
-			TimingDrain( s );
-		std::optional<uint32_t> oQuery;
-		if ( bTiming && s.pendingQueries.size() < k_uTimingSlots )
-		{
-			oQuery = s.uNextQuery;
-			s.uNextQuery = ( s.uNextQuery + 1 ) % k_uTimingSlots;
-			g_device.vk.CmdResetQueryPool( pCmd->rawBuffer(), s.queryPool, *oQuery * 2, 2 );
-			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.queryPool, *oQuery * 2 );
-		}
-
 		RecordHistoryBarrier( pCmd );
 
 		Resolve_t r = { &s, layer0.tex, s.uNextOutput };
@@ -1022,12 +1187,6 @@ namespace kfg
 				break;
 		}
 
-		if ( oQuery )
-		{
-			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.queryPool, *oQuery * 2 + 1 );
-			s.pendingQueries.push_back( *oQuery );
-		}
-
 		if ( d.state == KFG_STATE_OFF || !pShow )
 		{
 			// Passthrough: the newest commit as Gamescope would show it.
@@ -1037,6 +1196,51 @@ namespace kfg
 		layer0.tex = pShow;
 		s.pLastShown = pShow;
 		s.ulApplied++;
+	}
+
+	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo )
+	{
+		State_t &s = g_State;
+		HudRecordUpload( pCmd );
+		if ( !pFrameInfo->layers.count() )
+			return;
+		const bool bGenerate = s.bPending && !s.bApplied;
+		const bool bPost = s.bPostPending && !s.bPostApplied;
+		if ( !bGenerate && !bPost )
+			return;
+		s.bApplied |= bGenerate;
+		s.bPostApplied |= bPost;
+
+		FrameInfo_t::Layer_t &layer0 = pFrameInfo->layers.get( 0 );
+		if ( !SupportedSource( layer0 ) )
+			return;
+		const bool bSizeOk = layer0.tex->width() == s.uWidth && layer0.tex->height() == s.uHeight;
+		if ( !bPost && !bSizeOk )
+			return;
+
+		const bool bTiming = TimingInit( s );
+		if ( bTiming )
+			TimingDrain( s );
+		std::optional<uint32_t> oQuery;
+		if ( bTiming && s.pendingQueries.size() < k_uTimingSlots )
+		{
+			oQuery = s.uNextQuery;
+			s.uNextQuery = ( s.uNextQuery + 1 ) % k_uTimingSlots;
+			g_device.vk.CmdResetQueryPool( pCmd->rawBuffer(), s.queryPool, *oQuery * k_uTimingQueries, k_uTimingQueries );
+			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries );
+		}
+
+		if ( bGenerate && bSizeOk )
+			RecordGenerate( pCmd, s, layer0 );
+		if ( oQuery )
+			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries + 1 );
+		if ( bPost )
+			RecordPost( pCmd, s, layer0 );
+		if ( oQuery )
+		{
+			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries + 2 );
+			s.pendingQueries.push_back( *oQuery );
+		}
 	}
 
 	// The composite for this vblank is submitted and waited for; analysis goes behind it

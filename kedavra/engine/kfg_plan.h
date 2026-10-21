@@ -40,11 +40,16 @@ enum kfg_shader {
 	KFG_SHADER_STATS,
 	KFG_SHADER_SELECT,
 	KFG_SHADER_WARP,
+	KFG_SHADER_POST,        // post-generation filters (kfg_post.h)
+	KFG_SHADER_SMAA_EDGE,
+	KFG_SHADER_SMAA_WEIGHT,
+	KFG_SHADER_SMAA_BLEND,
 	KFG_SHADER_COUNT
 };
 
 static const char *const kfg_shader_names[KFG_SHADER_COUNT] = {
 	"kfg_reduce", "kfg_me", "kfg_stats", "kfg_select", "kfg_warp",
+	"kfg_post", "kfg_smaa_edge", "kfg_smaa_weight", "kfg_smaa_blend",
 };
 
 // Image roles. Ring-indexed roles carry the ring index in kfg_image_ref.ring.
@@ -56,6 +61,13 @@ enum kfg_role {
 	KFG_ROLE_STATS,     // 4x1 pair statistics: texel 0 cut test, texels 1-3 camera motion (affine)
 	KFG_ROLE_SELECT,    // per-output selection field (transient)
 	KFG_ROLE_OUTPUT,    // generated output (host-owned)
+	// Post-generation filters (kfg_post.h), all host-owned.
+	KFG_ROLE_POST_IN,       // the frame this vblank shows, real or generated
+	KFG_ROLE_POST,          // filter ping-pong images, ring 0 or 1, RGBA8 at frame size
+	KFG_ROLE_SMAA_EDGES,    // RGBA8 at frame size
+	KFG_ROLE_SMAA_WEIGHTS,  // RGBA8 at frame size
+	KFG_ROLE_SMAA_AREA,     // constant lookup texture, RGBA8 160x560 (kfg_smaa_tex.h)
+	KFG_ROLE_SMAA_SEARCH,   // constant lookup texture, R8 64x16, sampled nearest
 };
 
 // Formats requested for internal roles (hosts translate to their own enums).
@@ -100,6 +112,7 @@ typedef struct kfg_pass {
 	kfg_image_ref dst;
 	kfg_image_ref slots[KFG_MAX_SLOTS];
 	uint32_t nslots;
+	uint32_t nearest_mask;  // slots sampled with a nearest filter (bit per slot); the rest linear
 	kfg_params params;
 	uint32_t groups[2];   // workgroup counts
 	const char *label;
@@ -314,7 +327,13 @@ static inline enum kfg_format kfg_role_format(enum kfg_role r)
 {
 	switch (r) {
 	case KFG_ROLE_LUMA: return KFG_FORMAT_R8;
-	case KFG_ROLE_OUTPUT: return KFG_FORMAT_RGBA8;
+	case KFG_ROLE_OUTPUT:
+	case KFG_ROLE_POST:
+	case KFG_ROLE_SMAA_EDGES:
+	case KFG_ROLE_SMAA_WEIGHTS:
+	case KFG_ROLE_SMAA_AREA:
+		return KFG_FORMAT_RGBA8;
+	case KFG_ROLE_SMAA_SEARCH: return KFG_FORMAT_R8;
 	default: return KFG_FORMAT_RGBA16F;
 	}
 }

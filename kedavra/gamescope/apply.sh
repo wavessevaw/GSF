@@ -27,11 +27,13 @@ else
 	exit 1
 fi
 
-mkdir -p "$G/src/kfg"
+mkdir -p "$G/src/kfg/smaa" "$G/src/shaders/smaa"
 cp "$HERE/src/kfg/kfg.cpp" "$HERE/src/kfg/kfg.hpp" "$G/src/kfg/"
-cp "$K/engine/kfg_plan.h" "$K/sched/kfg_sched.h" "$K/sched/kfg_auto.h" "$G/src/kfg/"
-cp "$K/shaders/kfg_common.glsl" "$G/src/shaders/"
-for s in copy reduce me stats select warp; do
+cp "$K/engine/kfg_plan.h" "$K/engine/kfg_post.h" "$K/engine/kfg_smaa_tex.h" "$K/sched/kfg_sched.h" "$K/sched/kfg_auto.h" "$G/src/kfg/"
+cp "$K/engine/smaa/AreaTex.h" "$K/engine/smaa/SearchTex.h" "$G/src/kfg/smaa/"
+cp "$K/shaders/kfg_common.glsl" "$K/shaders/kfg_smaa.glsl" "$G/src/shaders/"
+cp "$K/shaders/smaa/SMAA.hlsl" "$G/src/shaders/smaa/"
+for s in copy reduce me stats select warp post smaa_edge smaa_weight smaa_blend; do
 	cp "$K/shaders/kfg_$s.comp" "$G/src/shaders/cs_kfg_$s.comp"
 done
 echo "KEDAVRA sources copied into $G"

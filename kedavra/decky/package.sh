@@ -4,7 +4,7 @@
 # installs over the old one in place):
 #   package.sh OUT.zip [RUNTIME_DIR [BENCH_DIR]]
 # RUNTIME_DIR: bundled Gamescope runtime (bin/, lib/, VERSION; see kedavra/gamescope/bundle.sh).
-# BENCH_DIR: kfg_vktest and the SPIR-V shaders. Without them the zip holds the panel only.
+# BENCH_DIR: kfg_vktest, kfg_posttest and the SPIR-V shaders. Without them the zip holds the panel only.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:-$HERE/build/KEDAVRA.zip}
@@ -21,6 +21,7 @@ cp -r py_modules "$P/"
 rm -rf "$P/py_modules/__pycache__"
 cp dist/index.js "$P/dist/"
 cp ../tools/kfg_pacing.py "$P/bin/"
+cp ../../LICENSE.md ../shaders/THIRD_PARTY.md "$P/"
 if [ -n "$RUNTIME" ]; then
 	cp -a "$RUNTIME" "$P/runtime"
 	chmod +x "$P/runtime/bin/"*
@@ -29,6 +30,10 @@ if [ -n "$BENCH" ]; then
 	mkdir -p "$P/bench"
 	cp "$BENCH"/kfg_vktest "$BENCH"/*.spv "$P/bench/"
 	chmod +x "$P/bench/kfg_vktest"
+	if [ -f "$BENCH/kfg_posttest" ]; then
+		cp "$BENCH/kfg_posttest" "$P/bench/"
+		chmod +x "$P/bench/kfg_posttest"
+	fi
 fi
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"

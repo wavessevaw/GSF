@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SMAA pass 3: neighbourhood blending. slot 0 = colour, slot 1 = weights; dst = result.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_smaa.glsl"
+
+void main()
+{
+	vec2 tc, pc;
+	if (!kfg_smaa_coords(tc, pc))
+		return;
+	vec4 offset;
+	SMAANeighborhoodBlendingVS(tc, offset);
+	vec4 c = SMAANeighborhoodBlendingPS(tc, offset, s_samplers[0], s_samplers[1]);
+	imageStore(dst, ivec2(gl_GlobalInvocationID.xy), c);
+}
