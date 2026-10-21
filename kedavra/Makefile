@@ -15,7 +15,7 @@ PYTHON ?= python3
 SHADERS = kfg_copy kfg_reduce kfg_me kfg_stats kfg_select kfg_warp
 SPV = $(SHADERS:%=$(BUILD)/%.spv)
 
-all: $(BUILD)/kfg_sim $(BUILD)/test_sched $(BUILD)/kfg_vktest $(SPV)
+all: $(BUILD)/kfg_sim $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_vktest $(SPV)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -29,11 +29,15 @@ $(BUILD)/kfg_sim: sched/kfg_sim.c sched/kfg_sched.h | $(BUILD)
 $(BUILD)/test_sched: sched/test_sched.c sched/kfg_sched.h | $(BUILD)
 	$(CC) -O1 -g -fsanitize=address,undefined $(WARN) -std=c11 -o $@ sched/test_sched.c
 
+$(BUILD)/test_auto: sched/test_auto.c sched/kfg_auto.h sched/kfg_sched.h | $(BUILD)
+	$(CC) -O1 -g -fsanitize=address,undefined $(WARN) -std=c11 -o $@ sched/test_auto.c -lm
+
 $(BUILD)/kfg_vktest: engine/kfg_vktest.c engine/kfg_vk.c engine/kfg_vk.h engine/kfg_plan.h | $(BUILD)
 	$(CC) $(CFLAGS) $(WARN) -std=c11 -Iengine -o $@ engine/kfg_vktest.c engine/kfg_vk.c -lvulkan -lm
 
-test-sched: $(BUILD)/test_sched $(BUILD)/kfg_sim
+test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim
 	$(BUILD)/test_sched
+	$(BUILD)/test_auto
 	$(PYTHON) sched/run_scenarios.py --sim $(BUILD)/kfg_sim --seeds 3 --out $(BUILD)/scenarios.json
 
 test-engine: $(BUILD)/kfg_vktest $(SPV)

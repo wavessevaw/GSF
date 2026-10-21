@@ -144,7 +144,7 @@ index 0636ad0..256f53d 100644
  	SHADER_TYPE_COUNT
  };
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 397a112..ac564b9 100644
+index 397a112..5ac2430 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -124,6 +124,7 @@ static const int g_nBaseCursorScale = 36;
@@ -173,7 +173,30 @@ index 397a112..ac564b9 100644
  	{
  		return;
  	}
-@@ -10804,6 +10814,10 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10530,6 +10540,22 @@ steamcompmgr_main(int argc, char **argv)
+ 			int nRealRefreshmHz = g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh;
+ 			g_SteamCompMgrAppRefreshCycle = gamescope::mHzToRefreshCycle( nRealRefreshmHz );
+ 			g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle;
++
++			// KEDAVRA owns the game's frame limit while generation is on (refresh / multiplier,
++			// the multiplier picked automatically); Steam's own limit returns when it is off.
++			{
++				static int s_nKfgCapFPS = 0;
++				static int s_nSteamFPS = 0;
++				if ( !s_nKfgCapFPS || g_nSteamCompMgrTargetFPS != s_nKfgCapFPS )
++					s_nSteamFPS = g_nSteamCompMgrTargetFPS;  // set by Steam, not by us
++				s_nKfgCapFPS = kfg::SourceCapFPS( gamescope::ConvertmHzToHz( nRealRefreshmHz ) );
++				const int nWantFPS = s_nKfgCapFPS ? s_nKfgCapFPS : s_nSteamFPS;
++				if ( nWantFPS != g_nSteamCompMgrTargetFPS )
++				{
++					g_nSteamCompMgrTargetFPS = nWantFPS;
++					update_runtime_info();
++				}
++			}
+ 			if ( g_nSteamCompMgrTargetFPS )
+ 			{
+ 				int nRealRefreshHz = gamescope::ConvertmHzToHz( nRealRefreshmHz );
+@@ -10804,6 +10830,10 @@ steamcompmgr_main(int argc, char **argv)
  			// A false vblank value means bShouldPaint will resolve to false below, effectively ignoring this flag and losing any request
  			// to force a repaint. Don't clear g_bForceRepaint unless vblank is true.
  			const bool bForceRepaint = vblank && g_bForceRepaint.exchange(false);

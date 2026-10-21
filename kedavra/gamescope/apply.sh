@@ -29,7 +29,7 @@ fi
 
 mkdir -p "$G/src/kfg"
 cp "$HERE/src/kfg/kfg.cpp" "$HERE/src/kfg/kfg.hpp" "$G/src/kfg/"
-cp "$K/engine/kfg_plan.h" "$K/sched/kfg_sched.h" "$G/src/kfg/"
+cp "$K/engine/kfg_plan.h" "$K/sched/kfg_sched.h" "$K/sched/kfg_auto.h" "$G/src/kfg/"
 cp "$K/shaders/kfg_common.glsl" "$G/src/shaders/"
 for s in copy reduce me stats select warp; do
 	cp "$K/shaders/kfg_$s.comp" "$G/src/shaders/cs_kfg_$s.comp"

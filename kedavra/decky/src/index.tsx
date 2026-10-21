@@ -11,7 +11,11 @@ type Status = {
   sources?: number; real?: number; gen?: number; repeat?: number; skip?: number; resync?: number; degrade?: number;
   applied?: number; bypass?: number; ring_miss?: number; unsupported?: number;
   gpu_us_last?: number; gpu_us_avg?: number; gpu_us_max?: number; over_budget?: number; timestamps?: boolean; last_problem?: string;
+  auto?: boolean; auto_switches?: number; source_late?: number; cap_fps?: number;
 };
+
+// kfg_multiplier: 1 = auto (the engine caps the game and picks x2 or x3 itself), 2, 3.
+const modeName = (m: number) => m === 1 ? 'Авто' : `x${m}`;
 
 const rpc = {
   status: callable<[], Status>('get_status'),
@@ -38,7 +42,7 @@ const stateText: Record<string, string> = {
 
 function Content() {
   const [status, setStatus] = useState<Status>();
-  const [mult, setMult] = useState(3);
+  const [mult, setMult] = useState(1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [report, setReport] = useState<Report>();
@@ -58,7 +62,8 @@ function Content() {
         const s = await rpc.status();
         if (gone) return;
         setStatus(s);
-        if (s.multiplier && s.multiplier > 1) setMult(s.multiplier);
+        if (s.auto) setMult(1);
+        else if (s.multiplier && s.multiplier > 1) setMult(s.multiplier);
       } catch (e) {if (!gone) setMessage(String(e));}
     };
     void refresh();
@@ -126,13 +131,14 @@ function Content() {
     <PanelSectionRow><ToggleField label="Генерация кадров" disabled={busy || !running} checked={on}
       onChange={v => void act(async () => {
         await rpc.setMultiplier(v ? mult : 0);
-        return v ? `Включено x${mult}. Ограничьте FPS игры до ${hz ? Math.round(hz / mult) : '1/' + mult + ' частоты'}.` : 'Выключено';
+        return v ? `Включено: ${modeName(mult)}. Лимит FPS игры движок ставит сам.` : 'Выключено';
       })}/></PanelSectionRow>
-    <PanelSectionRow><SliderField label="Множитель" value={mult} min={2} max={3} step={1} notchCount={2}
-      notchLabels={[{notchIndex: 0, label: 'x2'}, {notchIndex: 1, label: 'x3'}]} disabled={busy || !running}
-      onChange={v => {setMult(v); if (on) void act(async () => {await rpc.setMultiplier(v); return `Множитель x${v}`;});}}/></PanelSectionRow>
+    <PanelSectionRow><SliderField label="Режим" value={mult} min={1} max={3} step={1} notchCount={3}
+      notchLabels={[{notchIndex: 0, label: 'Авто'}, {notchIndex: 1, label: 'x2'}, {notchIndex: 2, label: 'x3'}]} disabled={busy || !running}
+      onChange={v => {setMult(v); if (on) void act(async () => {await rpc.setMultiplier(v); return `Режим ${modeName(v)}`;});}}/></PanelSectionRow>
     <PanelSectionRow><div style={{fontSize: 12, opacity: 0.85}}>
-      x3: частота 90 Гц, лимит FPS 30 · x2: 90 Гц/45 FPS, 80 Гц/40 FPS или 60 Гц/30 FPS (лимит FPS и частота в меню «Производительность»).
+      Лимит FPS в Steam не нужен: движок сам ограничивает игру до частоты/множитель. «Авто» держит x2, пока игра успевает, и переходит на x3, когда не успевает.
+      {on && status?.cap_fps ? <><br/>Сейчас: x{status.multiplier}, игра ограничена до {status.cap_fps} FPS · опозданий кадров игры {status.source_late ?? 0} · переключений {status.auto_switches ?? 0}</> : null}
     </div></PanelSectionRow>
 
     {running && <PanelSectionRow><div style={{fontSize: 12}}>
@@ -150,7 +156,7 @@ function Content() {
         return s ? `Трасса: P95 ${s.p95_ms?.toFixed(3)} мс, P99 ${s.p99_ms?.toFixed(3)} мс, пропуски ${s.missed_pct?.toFixed(2)}% → ${s.pass ? 'PASS' : 'FAIL'}` : 'Трасса сохранена, анализ не удался';
       })}>Остановить запись ({status.capture.elapsed_s.toFixed(0)} с)</ButtonItem> :
       <ButtonItem layout="below" disabled={busy || !running} onClick={() => void act(async () => {
-        const c = await rpc.start(`x${status?.multiplier ?? 0}`); return 'Запись трассы KMS flip: ' + (c?.path ?? '');
+        const c = await rpc.start(`${status?.auto ? "auto-" : ""}x${status?.multiplier ?? 0}`); return 'Запись трассы KMS flip: ' + (c?.path ?? '');
       })}>Записать трассу темпа (KMS flip)</ButtonItem>}
     </PanelSectionRow>
     {report?.summary && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>
@@ -163,7 +169,7 @@ function Content() {
     })}>Показать журнал</ButtonItem></PanelSectionRow>
     {logs && <PanelSectionRow><pre style={{fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto'}}>{logs}</pre></PanelSectionRow>}
     {message && <PanelSectionRow><div style={{fontSize: 12, overflowWrap: 'anywhere'}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.2.3 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, opacity: 0.7}}>0.3.0 · экспериментально. Результаты на железе не подтверждены, пока нет вашей трассы.</div></PanelSectionRow>
   </PanelSection>
   </>;
 }

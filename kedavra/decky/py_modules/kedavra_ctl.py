@@ -71,8 +71,8 @@ class Control:
 
     def set_multiplier(self, mult):
         mult = int(mult)
-        if mult not in (0, 2, 3):
-            raise ValueError("multiplier must be 0, 2 or 3")
+        if mult not in (0, 1, 2, 3):
+            raise ValueError("multiplier must be 0 (off), 1 (auto), 2 or 3")
         self._ctl("kfg_multiplier", mult)
         return {"multiplier": mult}
 

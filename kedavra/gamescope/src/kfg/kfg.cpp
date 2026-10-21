@@ -19,6 +19,7 @@
 #include "rendervulkan.hpp"
 
 #include "kfg_plan.h"
+#include "kfg_auto.h"
 #include "kfg_sched.h"
 
 uint64_t get_time_in_nanos();
@@ -27,7 +28,7 @@ namespace kfg
 {
 	static LogScope kfg_log( "kfg" );
 
-	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 2 = x2, 3 = x3." };
+	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 1 = auto (x2 or x3 from the game's frame rate), 2 = x2, 3 = x3." };
 	gamescope::ConVar<std::string> cv_kfg_trace{ "kfg_trace", "", "CSV trace of every KMS flip while frame generation is on (kedavra/tools/kfg_pacing.py). Empty = off." };
 	gamescope::ConVar<std::string> cv_kfg_status{ "kfg_status", "", "JSON status file, rewritten once per second. Empty = $XDG_RUNTIME_DIR/kedavra-status.json." };
 	gamescope::ConVar<bool> cv_kfg_debug_marker{ "kfg_debug_marker", false, "Mark generated frames with a corner square, for camera checks." };
@@ -87,6 +88,9 @@ namespace kfg
 		// Motion analysis of the newest source, submitted after this paint's composite.
 		kfg_plan analysisPlan = {};
 		bool bAnalysisQueued = false;
+		// Multiplier picked from the game's own frame rate (kfg_multiplier 1).
+		kfg_auto autoc = {};
+		bool bAutoInit = false;
 		bool bApplied = false;
 		bool bNewSource = false;
 		uint64_t ulPendingID = 0;
@@ -248,6 +252,7 @@ namespace kfg
 		if ( s.bInit )
 			kfg_sched_reset_history( &s.sched );
 		s.ulLastCommitID = 0;
+		kfg_auto_reset_source( &s.autoc );
 		kfg_log.debugf( "history reset: %s", pszWhy );
 	}
 
@@ -464,6 +469,7 @@ namespace kfg
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
+			"\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -471,6 +477,8 @@ namespace kfg
 			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
+			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
+			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
@@ -481,7 +489,17 @@ namespace kfg
 	static uint32_t RequestedMultiplier()
 	{
 		const int n = cv_kfg_multiplier.Get();
+		if ( n == 1 )
+			return g_State.bAutoInit ? g_State.autoc.mult : 3u;
 		return ( n == 2 || n == 3 ) ? uint32_t( n ) : 1u;
+	}
+
+	int SourceCapFPS( int nRefreshHz )
+	{
+		const uint32_t uMult = RequestedMultiplier();
+		if ( uMult <= 1 || nRefreshHz <= 0 )
+			return 0;
+		return nRefreshHz / int( uMult );
 	}
 
 	bool WantsEveryVBlank()
@@ -538,6 +556,7 @@ namespace kfg
 			s.ulGridOrigin = ulTargetVBlankNs;
 			s.ulGridPeriod = ulPeriod;
 			s.nGridBase = s.nLastVBlank + 1;
+			s.bAutoInit = false;
 			ResetHistory( s, "refresh change" );
 		}
 		const double flSteps = ( double( int64_t( ulTargetVBlankNs - s.ulGridOrigin ) ) ) / double( s.ulGridPeriod );
@@ -545,6 +564,20 @@ namespace kfg
 		if ( nVBlank <= s.nLastVBlank )
 			nVBlank = s.nLastVBlank + 1;  // two paints for one vblank: keep indices strictly increasing
 		s.nLastVBlank = nVBlank;
+
+		if ( cv_kfg_multiplier.Get() == 1 )
+		{
+			if ( !s.bAutoInit )
+			{
+				kfg_auto_init( &s.autoc, uint32_t( std::llround( 1e9 / double( ulPeriod ) ) ) );
+				s.bAutoInit = true;
+			}
+			const uint32_t uWas = s.autoc.mult;
+			if ( kfg_auto_step( &s.autoc, nVBlank ) != uWas )
+				kfg_log.infof( "auto: x%u", s.autoc.mult );
+		}
+		else
+			s.bAutoInit = false;
 
 		if ( uAppID != s.uLastAppID )
 		{
@@ -570,6 +603,8 @@ namespace kfg
 			s.ulLastCommitID = ulBaseCommitID;
 			s.ulSources++;
 			kfg_sched_on_latch( &s.sched, ulBaseCommitID, nVBlank );
+			if ( s.bAutoInit )
+				kfg_auto_on_latch( &s.autoc, nVBlank );
 			// Analysis runs in its own submission after this paint's composite (see
 			// SubmitAnalysis), so the pair is usable from the next vblank.
 			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 1, true, false );

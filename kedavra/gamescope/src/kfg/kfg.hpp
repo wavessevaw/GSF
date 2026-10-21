@@ -24,6 +24,9 @@ class CVulkanCmdBuffer;
 namespace kfg
 {
 	// steamcompmgr: true while generation needs a composite on every vblank.
+	// Frame limit the game gets while generation is on: refresh / multiplier, so the source
+	// lands on a fixed vblank cadence without a manual FPS limit. 0 = no KEDAVRA limit.
+	int SourceCapFPS( int nRefreshHz );
 	bool WantsEveryVBlank();
 
 	// steamcompmgr paint_all, before the connector presents frameInfo. Feeds the
