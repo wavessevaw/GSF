@@ -30,6 +30,7 @@ typedef struct {
 static double g_lock_fps;
 static double g_lock_skew = 2e-4;   // game clock vs display clock
 static double g_lock_sleep = 0.4e-3; // limiter wake-up jitter, +-s
+static uint32_t g_floor;             // kfg_auto_floor (0 = x3)
 
 // native_fps(t_s) gives the game's own frame rate at time t; jitter is relative.
 static result run(double (*native_fps)(double), double seconds, double jitter)
@@ -37,7 +38,7 @@ static result run(double (*native_fps)(double), double seconds, double jitter)
 	const uint32_t hz = 90;
 	const double period = 1.0 / hz;
 	kfg_auto a;
-	kfg_auto_init(&a, hz);
+	kfg_auto_init_floor(&a, hz, g_floor);
 	kfg_sched_config cfg = kfg_sched_default_config(a.mult);
 	kfg_sched s;
 	kfg_sched_init(&s, &cfg);
@@ -132,6 +133,7 @@ static double fps44(double t) { (void)t; return 44.0; }
 static double fps38(double t) { (void)t; return 38.0; }
 static double fps33(double t) { (void)t; return 33.0; }
 static double fps22(double t) { (void)t; return 22.0; }
+static double fps27(double t) { (void)t; return 27.0; }
 static double heavy_scene(double t) { return t < 120 ? 60.0 : (t < 240 ? 36.0 : 60.0); }
 
 int main(void)
@@ -142,6 +144,14 @@ int main(void)
 	CHECK(lv.nlevels == 4 && lv.levels[0] == 30 && lv.levels[1] == 35 && lv.levels[2] == 40 && lv.levels[3] == 45, "caps at 90 Hz: 30 35 40 45");
 	kfg_auto_init(&lv, 60);
 	CHECK(lv.nlevels == 3 && lv.levels[0] == 20 && lv.levels[1] == 25 && lv.levels[2] == 30, "caps at 60 Hz: 20 25 30");
+	kfg_auto_init_floor(&lv, 90, 24);
+	CHECK(lv.nlevels == 5 && lv.levels[0] == 24 && lv.levels[1] == 30 && lv.mult == 4, "floor 24 at 90 Hz: 24 30 35 40 45, x3.75");
+	kfg_auto_init_floor(&lv, 90, 10);
+	CHECK(lv.levels[0] == 24, "the floor never goes below refresh / 3.75 (%u)", lv.levels[0]);
+	kfg_auto_init_floor(&lv, 90, 40);
+	CHECK(lv.nlevels == 4 && lv.levels[0] == 30, "a floor above refresh / 3 changes nothing");
+	kfg_auto_init_floor(&lv, 60, 16);
+	CHECK(lv.nlevels == 3 && lv.levels[0] == 20, "at 60 Hz the floor stays 20 (x3)");
 
 	r = run(fps60, 300, 0.10);
 	printf("native 60:  cap 45 %.1f%%, mean cap %.1f, switches %llu, late %.3f%%\n", 100 * r.x2_fraction, r.cap_avg, (unsigned long long)r.switches, 100 * r.late_fraction);
@@ -169,6 +179,17 @@ int main(void)
 	r = run(fps22, 300, 0.05);
 	printf("native 22:  mean cap %.1f, switches %llu\n", r.cap_avg, (unsigned long long)r.switches);
 	CHECK(r.cap_avg < 30.5, "a 22 fps game stays at the lowest cap (x3)");
+
+	// Floor 24 (x3.75, Battery): a 27 fps game cannot hold 30 and settles at 24, clean.
+	g_floor = 24;
+	r = run(fps27, 600, 0.05);
+	printf("floor 24, native 27:  mean cap %.1f, switches %llu, late %.3f%%, uneven motion %.2f%%\n", r.cap_avg, (unsigned long long)r.switches, 100 * r.late_fraction, 100 * r.uneven);
+	CHECK(r.cap_avg > 23.5 && r.cap_avg < 25.5, "a 27 fps game should hold 24 with the x3.75 floor (mean %.1f)", r.cap_avg);
+	CHECK(r.late_fraction < 0.02, "a 27 fps game at cap 24 is late %.3f%%", 100 * r.late_fraction);
+	r = run(fps60, 300, 0.10);
+	printf("floor 24, native 60:  cap 45 %.1f%%\n", 100 * r.x2_fraction);
+	CHECK(r.x2_fraction > 0.97, "the floor does not hold back a fast game (45 for %.1f%%)", 100 * r.x2_fraction);
+	g_floor = 0;
 
 	// In-game FPS lock, its phase drifting through the vblanks.
 	g_lock_fps = 30;

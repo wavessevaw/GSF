@@ -78,30 +78,35 @@ static void test_locked_x2(void)
 }
 
 // Base cap that does not divide the refresh (40 at 90 Hz): the limiter releases frames on
-// the vblanks where 40/90 steps (intervals 2 and 3). Every vblank must show a new real or
-// generated frame and content must advance by exactly one vblank per output.
+// the vblanks where cap/90 steps (intervals 2 and 3). Every vblank must show a new real or
+// generated frame and content must advance by exactly one vblank per output. 24 at 90 Hz is
+// x3.75 (intervals 3 and 4, multiplier 4), the lowest cap Auto may use (kfg_auto_floor).
 static void test_fractional_cap(void)
 {
-	kfg_sched_config cfg = kfg_sched_default_config(3);
-	kfg_sched s;
-	kfg_sched_init(&s, &cfg);
-	uint64_t id = 0;
-	int bad = 0, total = 0;
-	int64_t prev = INT64_MIN;
-	for (int64_t k = 0; k < 1800; k++) {
-		if (k == 0 || (k * 40) / 90 != ((k - 1) * 40) / 90) {
-			kfg_sched_on_latch(&s, ++id, k);
-			kfg_sched_on_me(&s, id, k + 2, true, false);
+	static const struct { int64_t cap; uint32_t mult; } caps[] = { { 40, 3 }, { 35, 3 }, { 24, 4 } };
+	for (size_t c = 0; c < sizeof caps / sizeof caps[0]; c++) {
+		const int64_t cap = caps[c].cap;
+		kfg_sched_config cfg = kfg_sched_default_config(caps[c].mult);
+		kfg_sched s;
+		kfg_sched_init(&s, &cfg);
+		uint64_t id = 0;
+		int bad = 0, total = 0;
+		int64_t prev = INT64_MIN;
+		for (int64_t k = 0; k < 1800; k++) {
+			if (k == 0 || (k * cap) / 90 != ((k - 1) * cap) / 90) {
+				kfg_sched_on_latch(&s, ++id, k);
+				kfg_sched_on_me(&s, id, k + 2, true, false);
+			}
+			kfg_decision d = kfg_sched_decide(&s, k);
+			if (k < 60)
+				continue;
+			total++;
+			if (d.show == KFG_SHOW_REPEAT || (prev != INT64_MIN && d.content != prev + 1))
+				bad++;
+			prev = d.content;
 		}
-		kfg_decision d = kfg_sched_decide(&s, k);
-		if (k < 60)
-			continue;
-		total++;
-		if (d.show == KFG_SHOW_REPEAT || (prev != INT64_MIN && d.content != prev + 1))
-			bad++;
-		prev = d.content;
+		CHECK(bad == 0, "%d fps cap at 90 Hz: %d of %d outputs repeat or skip", (int)cap, bad, total);
 	}
-	CHECK(bad == 0, "40 fps cap at 90 Hz: %d of %d outputs repeat or skip", bad, total);
 }
 
 // A late source must never be displayed out of order, and latency returns after the stall.

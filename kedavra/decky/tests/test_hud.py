@@ -74,7 +74,9 @@ class HudTest(unittest.TestCase):
     def test_base_cap_label(self):
         items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, base_fps=40, auto=False), None)
         self.assertEqual(items[1]["label"], "CAP 40")
-        self.assertEqual(items[1]["text"], "x2.2")
+        self.assertEqual(items[1]["text"], "x2.25")
+        items = kedavra_hud.items_for(status(0, 0, 0, 0, 0, 0, base_fps=24, auto=False), None)
+        self.assertEqual(items[1]["text"], "x3.75")
 
     def test_auto_fractional_cap(self):
         # Auto at 35 fps on 90 Hz fills x2.6 (the scheduler's multiplier says 3).

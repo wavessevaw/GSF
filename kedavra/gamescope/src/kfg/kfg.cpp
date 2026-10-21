@@ -38,7 +38,7 @@ namespace kfg
 {
 	static LogScope kfg_log( "kfg" );
 
-	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 1 = auto (x2 or x3 from the game's frame rate), 2 = x2, 3 = x3." };
+	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 1 = auto (x2 to x3 from the game's frame rate; to x3.75 with kfg_auto_floor), 2 = x2, 3 = x3." };
 	gamescope::ConVar<int> cv_kfg_base_fps{ "kfg_base_fps", 0, "KEDAVRA base frame cap: the game is limited to this many frames per second before generation fills the refresh (any value from 20 up; 0 = from kfg_multiplier). Needs kfg_multiplier != 0." };
 
 	// String convars are set by gamescopectl on the Wayland server thread while the
@@ -71,6 +71,7 @@ namespace kfg
 	// A controller sets kfg_multiplier, kfg_base_fps and kfg_post, then kfg_policy to a new
 	// revision; the status file echoes the revision with the values in force, so the
 	// controller knows its whole policy arrived.
+	gamescope::ConVar<int> cv_kfg_auto_floor{ "kfg_auto_floor", 0, "Lowest base cap Auto may use, in fps: 0 = refresh / 3 (x3); down to refresh / 3.75 (24 at 90 Hz, x3.75)." };
 	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
 	// Frames kept on the GPU. The scheduler may show content up to max_delay vblanks
@@ -134,6 +135,7 @@ namespace kfg
 		// Multiplier picked from the game's own frame rate (kfg_multiplier 1).
 		kfg_auto autoc = {};
 		bool bAutoInit = false;
+		int nAutoFloor = 0;       // kfg_auto_floor the Auto controller was built with
 		bool bApplied = false;
 		bool bNewSource = false;
 		uint64_t ulPendingID = 0;
@@ -860,7 +862,7 @@ namespace kfg
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
 			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,\"steam_ui\":%s,\"app_id\":%u,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\","
-			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,"
+			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
 			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
@@ -873,7 +875,8 @@ namespace kfg
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.bSteamUI ? "true" : "false", s.uPaintAppID, s.pszLastProblem, JsonSafe( sTrace ).c_str(),
-			cv_kfg_policy.Get(), cv_kfg_multiplier.Get(), cv_kfg_base_fps.Get(),
+			cv_kfg_policy.Get(), cv_kfg_multiplier.Get(), cv_kfg_base_fps.Get(), cv_kfg_auto_floor.Get(),
+			s.bAutoInit ? s.autoc.levels[0] : 0u,
 			JsonSafe( s.sPostSpec ).c_str(), kfg_post_active( &s.post ) ? "true" : "false", JsonSafe( s.sPostError ).c_str(),
 			s.ulPostFrames, s.ulPostSkipped,
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0 );
@@ -1047,9 +1050,13 @@ namespace kfg
 
 		if ( cv_kfg_multiplier.Get() == 1 && !ManualBaseFPS( RefreshHz() ) )
 		{
+			const int nFloor = std::max( 0, cv_kfg_auto_floor.Get() );
+			if ( s.bAutoInit && nFloor != s.nAutoFloor )
+				s.bAutoInit = false;  // a new floor rebuilds the cap steps
 			if ( !s.bAutoInit )
 			{
-				kfg_auto_init( &s.autoc, uint32_t( std::llround( 1e9 / double( ulPeriod ) ) ) );
+				kfg_auto_init_floor( &s.autoc, uint32_t( std::llround( 1e9 / double( ulPeriod ) ) ), uint32_t( nFloor ) );
+				s.nAutoFloor = nFloor;
 				s.bAutoInit = true;
 			}
 			const uint32_t uWas = s.autoc.cap;

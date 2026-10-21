@@ -198,6 +198,13 @@ class Rates:
         return out
 
 
+def mult_text(v: float) -> str:
+    """x2.25, x3.75 exactly (quarter steps); x2.6 for 35 at 90 Hz."""
+    if abs(v * 4 - round(v * 4)) < 0.01:
+        return "x" + f"{round(v * 4) / 4:.2f}".rstrip("0").rstrip(".")
+    return f"x{v:.1f}"
+
+
 def _rate_color(v: float, target: float) -> Rgb:
     return GREEN if v >= 0.97 * target else (YELLOW if v >= 0.85 * target else RED)
 
@@ -237,7 +244,7 @@ def items_for(st: Dict[str, Any], rates: Optional[Dict[str, float]]) -> List[Dic
     cap = st.get("cap_fps") if isinstance(st.get("cap_fps"), int) else 0
     eff = base or (cap if st.get("auto") else 0)
     if active and eff and round(refresh) % eff:
-        text = f"x{round(refresh) / eff:.1f}"
+        text = mult_text(round(refresh) / eff)
     else:
         text = f"x{mult}" if active and mult > 1 else "OFF"
     label = f"CAP {base}" if base else ("AUTO" if st.get("auto") else "GEN")

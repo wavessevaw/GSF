@@ -6,9 +6,11 @@
 // FPS limit, the engine caps the game itself (Gamescope's frame limiter, with the
 // fractional hook for caps that do not divide the refresh) and picks the cap from what the
 // game actually delivers. The caps are steps of 5 fps from refresh / 3 up to refresh / 2
-// (90 Hz: 30, 35, 40, 45, so x3, x2.6, x2.25, x2). Generation never goes above x3: a game
-// that cannot hold refresh / 3 (below 30 at 90 Hz) stays capped there and the scheduler
-// repeats frames, rather than stretching each real frame over four or more refreshes.
+// (90 Hz: 30, 35, 40, 45, so x3, x2.6, x2.25, x2). By default generation never goes above x3:
+// a game that cannot hold refresh / 3 (below 30 at 90 Hz) stays capped there and the
+// scheduler repeats frames. A controller may lower the floor (kfg_auto_floor) down to
+// refresh / 3.75 (24 at 90 Hz, x3.75: frames held 3 or 4 refreshes, never 5); the floor is then
+// the lowest cap, below the usual steps.
 //
 //   * it starts at the lowest cap, the cadence most games can hold;
 //   * after a 1 s window with no late source frame it tries the next cap up;
@@ -72,7 +74,16 @@ static inline void kfg_auto_set_level(kfg_auto *a, uint32_t level)
 	a->mult = kfg_auto_div_up(a->refresh, a->cap);
 }
 
-static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
+// Lowest floor a controller may set: refresh / 3.75 rounded up (24 at 90 Hz), and never below
+// 20 fps.
+static inline uint32_t kfg_auto_min_floor(uint32_t refresh_hz)
+{
+	const uint32_t f = kfg_auto_div_up(refresh_hz * 4u, 15u);
+	return f < 20u ? 20u : f;
+}
+
+// floor_fps: lowest cap; 0 = refresh / 3 (x3). Clamped to [kfg_auto_min_floor, refresh / 3].
+static inline void kfg_auto_init_floor(kfg_auto *a, uint32_t refresh_hz, uint32_t floor_fps)
 {
 	if (refresh_hz < 30)
 		refresh_hz = 30;
@@ -80,6 +91,13 @@ static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
 	// refresh / 3 (rounded up, so never above x3), then steps of 5 up to refresh / 2.
 	const uint32_t lo = kfg_auto_div_up(refresh_hz, 3), hi = refresh_hz / 2;
 	a->nlevels = 0;
+	if (floor_fps) {
+		const uint32_t mf = kfg_auto_min_floor(refresh_hz);
+		if (floor_fps < mf)
+			floor_fps = mf;
+		if (floor_fps < lo)
+			a->levels[a->nlevels++] = floor_fps;
+	}
 	a->levels[a->nlevels++] = lo;
 	for (uint32_t c = (lo / 5 + 1) * 5; c < hi && a->nlevels < KFG_AUTO_MAX_LEVELS - 1; c += 5)
 		a->levels[a->nlevels++] = c;
@@ -106,6 +124,11 @@ static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
 	a->trial = false;
 	a->late_limit = 0.03;
 	a->n_switch = 0;
+}
+
+static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
+{
+	kfg_auto_init_floor(a, refresh_hz, 0);
 }
 
 // A source frame was latched at vblank vbl.
