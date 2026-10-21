@@ -9,12 +9,15 @@
 //
 //   * it starts at x3 (source = refresh / 3), the cadence most games can hold;
 //   * after a window with no late source frame it tries x2 (source = refresh / 2);
-//   * a window in which more than late_limit of the expected source frames came late
-//     drops back to x3; a failed x2 trial doubles the wait before the next one
+//   * as soon as more than late_limit of a window's expected source frames came late
+//     it drops back to x3 (without waiting for the window to end); a failed x2 trial doubles the wait before the next one
 //     (up to backoff_max), a passed one resets it.
 //
 // A late source frame is a latch interval longer than `mult` vblanks: under the cap a
-// game that keeps up is latched exactly every `mult` vblanks. (The scheduler's own
+// game that keeps up is latched exactly every `mult` vblanks. Jitter around the cap is not
+// late: an interval that, with its neighbour before or after it, still fits two cap periods
+// (2 then 4, or 4 then 2, at x3) is what a game locked in its own settings looks like when
+// its presents sit near a vblank boundary, and the scheduler keeps such frames on the grid. (The scheduler's own
 // repeats are not the signal: it absorbs an irregular source by filling longer intervals
 // with more intermediates, which keeps flips regular but makes motion uneven.)
 // Self-contained C99/C++ like kfg_sched.h, so the compositor and the tests share it.
@@ -31,6 +34,7 @@ typedef struct kfg_auto {
 	uint64_t lates;          // latch intervals longer than mult
 	int64_t last_latch;      // -1 = none yet
 	int64_t prev_latch;      // the latch before last_latch; -1 = none
+	bool pending;            // the last interval was long; the next one decides if it was late
 	uint32_t window_vbl;     // vblanks per evaluation window
 	uint32_t probe_vbl;      // base wait at x3 before trying x2 again
 	uint32_t backoff;        // multiplies probe_vbl after failed trials
@@ -51,6 +55,7 @@ static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
 	a->lates = 0;
 	a->last_latch = -1;
 	a->prev_latch = -1;
+	a->pending = false;
 	a->window_vbl = 2u * refresh_hz;   // 2 s
 	a->probe_vbl = 20u * refresh_hz;   // 20 s
 	a->backoff = 1;
@@ -64,12 +69,20 @@ static inline void kfg_auto_init(kfg_auto *a, uint32_t refresh_hz)
 // A source frame was latched at vblank vbl.
 static inline void kfg_auto_on_latch(kfg_auto *a, int64_t vbl)
 {
-	// An early frame followed by a long gap (2 then 4 at x3) is jitter around the cap,
-	// not a late frame: the pair still fits two cap periods.
 	const int64_t m = (int64_t)a->mult;
-	if (a->last_latch >= 0 && vbl - a->last_latch > m &&
-	    (a->prev_latch < 0 || vbl - a->prev_latch > 2 * m))
-		a->lates++;
+	if (a->last_latch >= 0) {
+		const int64_t iv = vbl - a->last_latch;
+		const bool pair_long = a->prev_latch < 0 || vbl - a->prev_latch > 2 * m;
+		if (a->pending) {
+			// The long interval before this one: late unless this one gave the time back.
+			if (pair_long)
+				a->lates++;
+			a->pending = false;
+		}
+		// Long, and not compensating an early frame before it: the next interval decides.
+		if (iv > m && pair_long)
+			a->pending = true;
+	}
 	a->prev_latch = a->last_latch;
 	a->last_latch = vbl;
 }
@@ -79,6 +92,7 @@ static inline void kfg_auto_reset_source(kfg_auto *a)
 {
 	a->last_latch = -1;
 	a->prev_latch = -1;
+	a->pending = false;
 }
 
 // Called once per vblank. Returns the multiplier (and so the source cap refresh / mult)
@@ -91,12 +105,14 @@ static inline uint32_t kfg_auto_step(kfg_auto *a, int64_t vbl)
 		a->late_base = lates;
 		return a->mult;
 	}
-	if (vbl - a->window_start < (int64_t)a->window_vbl)
-		return a->mult;
-
 	const uint64_t late = lates - a->late_base;
 	const double expected = (double)a->window_vbl / (double)a->mult;
 	const bool bad = (double)late > a->late_limit * expected;
+	// At x2 a window that is already over the limit cannot recover: lates only grow. Drop
+	// back at once instead of at the end of the window, so a failed trial (a game locked
+	// at refresh / 3 in its own settings, say) costs a few frames instead of two seconds.
+	if (vbl - a->window_start < (int64_t)a->window_vbl && !(a->mult == 2 && bad))
+		return a->mult;
 	const uint32_t before = a->mult;
 
 	if (a->mult == 2) {

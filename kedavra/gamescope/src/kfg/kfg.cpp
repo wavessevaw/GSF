@@ -34,6 +34,7 @@ namespace kfg
 	static LogScope kfg_log( "kfg" );
 
 	gamescope::ConVar<int> cv_kfg_multiplier{ "kfg_multiplier", 0, "KEDAVRA frame generation: 0 = off, 1 = auto (x2 or x3 from the game's frame rate), 2 = x2, 3 = x3." };
+	gamescope::ConVar<int> cv_kfg_base_fps{ "kfg_base_fps", 0, "KEDAVRA base frame cap: the game is limited to this many frames per second before generation fills the refresh (any value from 20 up; 0 = from kfg_multiplier). Needs kfg_multiplier != 0." };
 
 	// String convars are set by gamescopectl on the Wayland server thread while the
 	// compositor thread reads them; assigning a std::string under a concurrent reader is
@@ -130,7 +131,7 @@ namespace kfg
 
 		// Counters (status file).
 		uint64_t ulPaints = 0, ulApplied = 0, ulBypass = 0, ulRingMiss = 0, ulUnsupported = 0;
-		uint64_t ulOverBudget = 0, ulSources = 0;
+		uint64_t ulOverBudget = 0, ulSources = 0, ulLastSourceNs = 0;
 		const char *pszLastProblem = "none";
 		double flGpuUsLast = 0, flGpuUsMax = 0, flGpuUsSum = 0;
 		uint64_t ulGpuSamples = 0;
@@ -150,6 +151,8 @@ namespace kfg
 	};
 
 	static State_t g_State;
+	static int RefreshHz();
+	static int BaseCapFPS( int nRefreshHz );
 
 	// Presented decisions waiting for their page flip (steamcompmgr -> KMS thread)
 	// and flipped rows waiting to be written (KMS thread -> steamcompmgr).
@@ -638,7 +641,7 @@ namespace kfg
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
 			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
-			"\"flips\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
+			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\"}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -646,7 +649,7 @@ namespace kfg
 			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
-			g_ulFlips.load( std::memory_order_relaxed ),
+			g_ulFlips.load( std::memory_order_relaxed ), BaseCapFPS( RefreshHz() ), s.ulLastSourceNs,
 			s.bAutoInit ? "true" : "false", s.autoc.n_switch, s.autoc.lates,
 			s.ulGridPeriod ? SourceCapFPS( int( std::llround( 1e9 / double( s.ulGridPeriod ) ) ) ) : 0,
 			s.pszLastProblem, s.pTrace ? s.sTracePath.c_str() : "" );
@@ -656,9 +659,31 @@ namespace kfg
 
 	// ---------------------------------------------------------------- entry points
 
+	static int RefreshHz()
+	{
+		return g_State.ulGridPeriod ? int( std::llround( 1e9 / double( g_State.ulGridPeriod ) ) ) : 90;
+	}
+
+	// Fixed base cap from kfg_base_fps, clamped to what generation can fill; 0 = none.
+	static int BaseCapFPS( int nRefreshHz )
+	{
+		const int nBase = cv_kfg_base_fps.Get();
+		if ( cv_kfg_multiplier.Get() == 0 || nBase <= 0 || nRefreshHz <= 0 )
+			return 0;
+		const int nMin = ( nRefreshHz + int( KFG_MAX_MULTIPLIER ) - 1 ) / int( KFG_MAX_MULTIPLIER );
+		return std::clamp( nBase, std::max( 20, nMin ), nRefreshHz );
+	}
+
 	static uint32_t RequestedMultiplier()
 	{
 		const int n = cv_kfg_multiplier.Get();
+		const int nHz = RefreshHz();
+		if ( const int nBase = BaseCapFPS( nHz ) )
+		{
+			// Longest source interval in vblanks: 40 at 90 Hz alternates 2 and 3, so 3. A cap
+			// at the refresh rate needs no generation.
+			return nBase >= nHz ? 1u : uint32_t( ( nHz + nBase - 1 ) / nBase );
+		}
 		if ( n == 1 )
 			return g_State.bAutoInit ? g_State.autoc.mult : 3u;
 		return ( n == 2 || n == 3 ) ? uint32_t( n ) : 1u;
@@ -666,6 +691,8 @@ namespace kfg
 
 	int SourceCapFPS( int nRefreshHz )
 	{
+		if ( const int nBase = BaseCapFPS( nRefreshHz ) )
+			return nBase < nRefreshHz ? nBase : 0;
 		const uint32_t uMult = RequestedMultiplier();
 		if ( uMult <= 1 || nRefreshHz <= 0 )
 			return 0;
@@ -688,6 +715,18 @@ namespace kfg
 		WriteStatus( s, ulNow );
 		HudPoll( ulNow );
 		HudPushLayer( pFrameInfo );
+
+		// The game's own frame rate is counted whether generation is on or not: the HUD and
+		// the plugin must show what the game really delivers, not the display's flip rate
+		// (the Steam menu alone repaints at the refresh rate).
+		s.bNewSource = false;
+		const bool bNewCommit = ulBaseCommitID != 0 && ulBaseCommitID != s.ulLastCommitID;
+		if ( bNewCommit )
+		{
+			s.ulLastCommitID = ulBaseCommitID;
+			s.ulSources++;
+			s.ulLastSourceNs = ulNow;
+		}
 
 		const uint32_t uMult = RequestedMultiplier();
 		if ( !s.bInit )
@@ -737,7 +776,7 @@ namespace kfg
 			nVBlank = s.nLastVBlank + 1;  // two paints for one vblank: keep indices strictly increasing
 		s.nLastVBlank = nVBlank;
 
-		if ( cv_kfg_multiplier.Get() == 1 )
+		if ( cv_kfg_multiplier.Get() == 1 && !BaseCapFPS( RefreshHz() ) )
 		{
 			if ( !s.bAutoInit )
 			{
@@ -769,11 +808,9 @@ namespace kfg
 			}
 		}
 
-		s.bNewSource = ulBaseCommitID != 0 && ulBaseCommitID != s.ulLastCommitID;
+		s.bNewSource = bNewCommit;
 		if ( s.bNewSource )
 		{
-			s.ulLastCommitID = ulBaseCommitID;
-			s.ulSources++;
 			kfg_sched_on_latch( &s.sched, ulBaseCommitID, nVBlank );
 			if ( s.bAutoInit )
 				kfg_auto_on_latch( &s.autoc, nVBlank );

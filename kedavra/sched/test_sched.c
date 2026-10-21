@@ -77,6 +77,33 @@ static void test_locked_x2(void)
 	CHECK(reps == 0 && gens == reals, "x2 gens=%d reals=%d repeats=%d", gens, reals, reps);
 }
 
+// Base cap that does not divide the refresh (40 at 90 Hz): the limiter releases frames on
+// the vblanks where 40/90 steps (intervals 2 and 3). Every vblank must show a new real or
+// generated frame and content must advance by exactly one vblank per output.
+static void test_fractional_cap(void)
+{
+	kfg_sched_config cfg = kfg_sched_default_config(3);
+	kfg_sched s;
+	kfg_sched_init(&s, &cfg);
+	uint64_t id = 0;
+	int bad = 0, total = 0;
+	int64_t prev = INT64_MIN;
+	for (int64_t k = 0; k < 1800; k++) {
+		if (k == 0 || (k * 40) / 90 != ((k - 1) * 40) / 90) {
+			kfg_sched_on_latch(&s, ++id, k);
+			kfg_sched_on_me(&s, id, k + 2, true, false);
+		}
+		kfg_decision d = kfg_sched_decide(&s, k);
+		if (k < 60)
+			continue;
+		total++;
+		if (d.show == KFG_SHOW_REPEAT || (prev != INT64_MIN && d.content != prev + 1))
+			bad++;
+		prev = d.content;
+	}
+	CHECK(bad == 0, "40 fps cap at 90 Hz: %d of %d outputs repeat or skip", bad, total);
+}
+
 // A late source must never be displayed out of order, and latency returns after the stall.
 static void test_late_source_recovery(void)
 {
@@ -167,7 +194,7 @@ static void test_fuzz(void)
 			if (k == next && id < 4000) {
 				id++;
 				kfg_sched_on_latch(&s, id, k);
-				latch[id] = k;
+				latch[id] = kfg_sched_slot(&s, 0)->t; // content-timeline position
 				int64_t lag = 1 + rnd(rnd(10) == 0 ? 12 : 3);
 				me_ready[id] = k + lag;
 				ok[id] = rnd(50) != 0;
@@ -206,6 +233,7 @@ int main(void)
 {
 	test_locked_x3();
 	test_locked_x2();
+	test_fractional_cap();
 	test_late_source_recovery();
 	test_degrade();
 	test_cut();

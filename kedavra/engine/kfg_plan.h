@@ -88,6 +88,7 @@ typedef struct kfg_params {
 #define KFG_FLAG_COARSEST 1
 #define KFG_FLAG_DEBUG_MARKER 2
 #define KFG_FLAG_LUMA_INPUT 4
+#define KFG_FLAG_TENT 8        // reduce: 4x4 tent instead of 2x2 box (coarse search levels)
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -187,7 +188,7 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 		x->nslots = 1;
 		x->params.src_size[0] = (int32_t)sz[l - 1][0];
 		x->params.src_size[1] = (int32_t)sz[l - 1][1];
-		x->params.flags = l == 1 ? 0 : KFG_FLAG_LUMA_INPUT;
+		x->params.flags = l == 1 ? 0 : KFG_FLAG_LUMA_INPUT | (l >= 3 ? KFG_FLAG_TENT : 0);
 		kfg_set_domain(x, sz[l], 8, 8);
 	}
 	if (!have_prev)

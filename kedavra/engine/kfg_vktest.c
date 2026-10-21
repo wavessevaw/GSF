@@ -29,7 +29,7 @@ typedef struct scene {
 	bool cut;
 } scene;
 
-enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN };
+enum { S_PAN, S_OBJECTS, S_OCCLUSION, S_STATIC, S_CUT, S_FASTPAN, S_STAIRS };
 
 static const scene SCENES[] = {
 	{ "pan", S_PAN, 24, 6, true, false },
@@ -38,6 +38,7 @@ static const scene SCENES[] = {
 	{ "occlusion", S_OCCLUSION, -16, 0, true, false },
 	{ "static", S_STATIC, 0, 0, false, false },
 	{ "scene_cut", S_CUT, 0, 0, false, true },
+	{ "stairs", S_STAIRS, 18, 10, true, false },
 };
 
 static double hash2(int x, int y, int seed)
@@ -89,9 +90,32 @@ static bool hud(double x, double y, int w, int h, double rgb[3])
 	return false;
 }
 
+// Stairs and a railing: treads repeat every 14 pixels and the camera moves 18 per source
+// frame, so a wrong match 4 pixels off fits almost as well as the true motion (the aperture
+// problem behind flickering stairs and straight lines in games).
+static void stairs(double x, double y, double rgb[3])
+{
+	const double n = 0.06 * vnoise(x / 9.0, y / 9.0, 5);
+	double ty = fmod(y + 0.35 * x, 14.0);
+	if (ty < 0) ty += 14.0;
+	double v = ty < 2.0 ? 0.92 : (ty < 3.5 ? 0.12 : 0.45 + 0.25 * ty / 14.0);
+	// Railing: a thin straight handrail and posts.
+	double ry = fmod(y + 0.35 * x, 112.0), rx = fmod(x, 46.0);
+	if (ry < 0) ry += 112.0;
+	if (rx < 0) rx += 46.0;
+	if ((ry > 40 && ry < 41.6) || (rx < 1.5 && ry > 41.6 && ry < 80))
+		v = 0.05;
+	rgb[0] = v + n;
+	rgb[1] = 0.95 * v + n;
+	rgb[2] = 0.85 * v + n;
+}
+
 static void scene_pixel(const scene *s, double t, double x, double y, int w, int h, double rgb[3])
 {
 	switch (s->kind) {
+	case S_STAIRS:
+		stairs(x - s->vx * t, y - s->vy * t, rgb);
+		return;
 	case S_STATIC:
 		background(x, y, 1, rgb);
 		return;
@@ -186,6 +210,19 @@ static double mean_abs(const uint8_t *a, const uint8_t *b, int w, int h, int x0,
 				n++;
 			}
 	return n ? s / (double)n : 0;
+}
+
+// Temporal error: how much the change from the previous output to this one differs from the
+// true change, per pixel and channel (flicker and shimmer show up here, a static blur does not).
+static double temporal_err(const uint8_t *o, const uint8_t *op, const uint8_t *t, const uint8_t *tp, int w, int h)
+{
+	double sum = 0;
+	for (int i = 0; i < w * h; i++)
+		for (int c = 0; c < 3; c++) {
+			const int k = i * 4 + c;
+			sum += fabs((double)(o[k] - op[k]) - (double)(t[k] - tp[k]));
+		}
+	return sum / (3.0 * w * h);
 }
 
 static int max_abs(const uint8_t *a, const uint8_t *b, size_t n)
@@ -306,6 +343,7 @@ int main(int argc, char **argv)
 	const char *spv = "build";
 	const char *out_dir = NULL;
 	const char *json_path = NULL;
+	const char *only = NULL;   // run one scene (tuning); skips the sequence and stairs checks
 	int w = 1280, h = 800, bench = 0;
 	bool validation = getenv("KFG_VALIDATION") != NULL;
 	for (int i = 1; i < argc; i++) {
@@ -314,8 +352,9 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--json") && i + 1 < argc) json_path = argv[++i];
 		else if (!strcmp(argv[i], "--size") && i + 1 < argc) sscanf(argv[++i], "%dx%d", &w, &h);
 		else if (!strcmp(argv[i], "--bench") && i + 1 < argc) bench = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--scene") && i + 1 < argc) only = argv[++i];
 		else {
-			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N]\n");
+			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME]\n");
 			return 2;
 		}
 	}
@@ -342,6 +381,8 @@ int main(int argc, char **argv)
 	const double phases[] = { 1.0 / 3.0, 2.0 / 3.0, 0.5 };
 	for (size_t si = 0; si < sizeof(SCENES) / sizeof(SCENES[0]); si++) {
 		const scene *s = &SCENES[si];
+		if (only && strcmp(only, s->name))
+			continue;
 		render(s, 0.0, w, h, A);
 		render(s, 1.0, w, h, B);
 		kfg_vk_upload_rgba8(&vk, &e.color[0], A);
@@ -353,6 +394,34 @@ int main(int argc, char **argv)
 		run_plan(&e, &p, NULL, NULL);
 		float st[4];
 		kfg_vk_download_rgba16f(&vk, &e.stats[1], st);
+		if (getenv("KFG_FLOWDUMP")) {
+			// Tuning aid: the most common forward vectors per level (pixels, rounded).
+			for (int l = KFG_LEVELS; l >= 2; l--) {
+				const kfg_vk_image *fi = &e.flow[1][l];
+				float *fl = malloc((size_t)fi->width * fi->height * 4 * sizeof(float));
+				kfg_vk_download_rgba16f(&vk, fi, fl);
+				int best[3] = {0}, bx[3] = {0}, by[3] = {0};
+				static int hist[129][129];
+				memset(hist, 0, sizeof(hist));
+				for (uint32_t i = 0; i < fi->width * fi->height; i++) {
+					int x = (int)lrintf(fl[i * 4]) + 64, y = (int)lrintf(fl[i * 4 + 1]) + 64;
+					if (x >= 0 && x <= 128 && y >= 0 && y <= 128)
+						hist[y][x]++;
+				}
+				for (int y = 0; y <= 128; y++)
+					for (int x = 0; x <= 128; x++)
+						for (int k = 0; k < 3; k++)
+							if (hist[y][x] > best[k]) {
+								for (int j = 2; j > k; j--) { best[j] = best[j - 1]; bx[j] = bx[j - 1]; by[j] = by[j - 1]; }
+								best[k] = hist[y][x]; bx[k] = x - 64; by[k] = y - 64;
+								break;
+							}
+				printf("  level %d: (%d,%d) %.0f%%  (%d,%d) %.0f%%  (%d,%d) %.0f%%\n", l,
+				       bx[0], by[0], 100.0 * best[0] / (fi->width * fi->height), bx[1], by[1], 100.0 * best[1] / (fi->width * fi->height),
+				       bx[2], by[2], 100.0 * best[2] / (fi->width * fi->height));
+				free(fl);
+			}
+		}
 		if (js)
 			fprintf(js, "  {\"scene\": \"%s\", \"dynamic\": %s, \"cut_flag\": %.0f, \"bad_fraction\": %.4f, \"phases\": [\n",
 				s->name, s->dynamic ? "true" : "false", st[0], st[1]);
@@ -434,7 +503,7 @@ int main(int argc, char **argv)
 		fprintf(js, " ],\n");
 
 	// Running sequence through the ring: 8 frames of the objects scene, x3 outputs per pair.
-	{
+	if (!only) {
 		const scene *s = &SCENES[2];
 		int seq_fail = 0;
 		for (int f = 0; f < 8; f++) {
@@ -462,6 +531,56 @@ int main(int argc, char **argv)
 		failures += seq_fail;
 		if (js)
 			fprintf(js, " \"sequence_bad_outputs\": %d,\n", seq_fail);
+	}
+
+	// Temporal stability on the stairs: 7 frames at x3, every output compared with the one
+	// before it. Informative: printed and written to the JSON for tuning.
+	{
+		const scene *s = &SCENES[6];
+		uint8_t *O = malloc(nbytes), *Op = malloc(nbytes), *Tp = malloc(nbytes), *Dp = malloc(nbytes);
+		double te_gen = 0, te_dup = 0, ps_gen = 0, ps_dup = 0;
+		int n_te = 0, n_ps = 0;
+		bool have_prev = false;
+		for (int f = 0; f < 7; f++) {
+			uint32_t fb = (uint32_t)f % KFG_RING, fa = (uint32_t)(f + KFG_RING - 1) % KFG_RING;
+			render(s, (double)f, w, h, B);
+			kfg_vk_upload_rgba8(&vk, &e.color[fb], B);
+			kfg_plan p;
+			kfg_plan_analyze(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, f > 0, &tune);
+			run_plan(&e, &p, NULL, NULL);
+			if (f == 0)
+				continue;
+			for (int j = 0; j < 3; j++) {
+				double t = j / 3.0;
+				render(s, f - 1 + t, w, h, T);
+				render(s, f - 1 + (t < 0.5 ? 0.0 : 1.0), w, h, D);
+				if (j == 0) {
+					render(s, f - 1, w, h, O);
+				} else {
+					kfg_plan_generate(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, (float)t, 0);
+					run_plan(&e, &p, NULL, NULL);
+					kfg_vk_download_rgba8(&vk, &e.output, O);
+					ps_gen += psnr_region(O, T, w, h, 0, 0, w, h);
+					ps_dup += psnr_region(D, T, w, h, 0, 0, w, h);
+					n_ps++;
+				}
+				if (have_prev) {
+					te_gen += temporal_err(O, Op, T, Tp, w, h);
+					te_dup += temporal_err(D, Dp, T, Tp, w, h);
+					n_te++;
+				}
+				memcpy(Op, O, nbytes);
+				memcpy(Tp, T, nbytes);
+				memcpy(Dp, D, nbytes);
+				have_prev = true;
+			}
+		}
+		printf("stairs temporal: gen %.3f, duplicate %.3f (mean |change error| per channel); psnr gen %.2f dB, dup %.2f dB\n",
+		       te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
+		if (js)
+			fprintf(js, " \"stairs_temporal\": {\"gen\": %.4f, \"dup\": %.4f, \"psnr_gen\": %.3f, \"psnr_dup\": %.3f},\n",
+				te_gen / n_te, te_dup / n_te, ps_gen / n_ps, ps_dup / n_ps);
+		free(O); free(Op); free(Tp); free(Dp);
 	}
 
 	// Benchmark: analysis of one pair + two generated outputs (x3), GPU timestamps per pass.

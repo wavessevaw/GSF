@@ -144,7 +144,7 @@ index 0636ad0..256f53d 100644
  	SHADER_TYPE_COUNT
  };
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 397a112..5ac2430 100644
+index 397a112..2e81680 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -124,6 +124,7 @@ static const int g_nBaseCursorScale = 36;
@@ -173,7 +173,33 @@ index 397a112..5ac2430 100644
  	{
  		return;
  	}
-@@ -10530,6 +10540,22 @@ steamcompmgr_main(int argc, char **argv)
+@@ -6864,10 +6874,22 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
+ 	{
+ 		if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
+ 		{
+-			int nVblankDivisor = nRefreshHz / nTargetFPS;
++			if ( nRefreshHz % nTargetFPS && kfg::SourceCapFPS( nRefreshHz ) == nTargetFPS )
++			{
++				// KEDAVRA base cap that does not divide the refresh (40 at 90 Hz): release
++				// frames on the vblanks where target / refresh steps, so the game gets exactly
++				// the target rate (2, 2, 3, ... vblanks) and generation fills every vblank.
++				const uint64_t uT = uint64_t( nTargetFPS ), uR = uint64_t( nRefreshHz );
++				if ( vblank_idx * uT / uR == s_ulPrevVBlankIdx * uT / uR )
++					bSendCallback = false;
++			}
++			else
++			{
++				int nVblankDivisor = nRefreshHz / nTargetFPS;
+ 
+-			if ( vblank_idx / nVblankDivisor == s_ulPrevVBlankIdx / nVblankDivisor )
+-				bSendCallback = false;
++				if ( vblank_idx / nVblankDivisor == s_ulPrevVBlankIdx / nVblankDivisor )
++					bSendCallback = false;
++			}
+ 		}
+ 	}
+ 
+@@ -10530,6 +10552,22 @@ steamcompmgr_main(int argc, char **argv)
  			int nRealRefreshmHz = g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh;
  			g_SteamCompMgrAppRefreshCycle = gamescope::mHzToRefreshCycle( nRealRefreshmHz );
  			g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle;
@@ -196,7 +222,16 @@ index 397a112..5ac2430 100644
  			if ( g_nSteamCompMgrTargetFPS )
  			{
  				int nRealRefreshHz = gamescope::ConvertmHzToHz( nRealRefreshmHz );
-@@ -10804,6 +10830,10 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10545,6 +10583,8 @@ steamcompmgr_main(int argc, char **argv)
+ 					int nVblankDivisor = nRealRefreshHz / nTargetFPS;
+ 
+ 					g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nVblankDivisor;
++					if ( nRealRefreshHz % nTargetFPS && kfg::SourceCapFPS( nRealRefreshHz ) == nTargetFPS )
++						g_SteamCompMgrLimitedAppRefreshCycle = gamescope::mHzToRefreshCycle( gamescope::ConvertHztomHz( nTargetFPS ) );
+ 				}
+ 			}
+ 		}
+@@ -10804,6 +10844,10 @@ steamcompmgr_main(int argc, char **argv)
  			// A false vblank value means bShouldPaint will resolve to false below, effectively ignoring this flag and losing any request
  			// to force a repaint. Don't clear g_bForceRepaint unless vblank is true.
  			const bool bForceRepaint = vblank && g_bForceRepaint.exchange(false);

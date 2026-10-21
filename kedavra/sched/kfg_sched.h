@@ -7,8 +7,16 @@
 // compositor latches application commits only on its own vblank wakeups.
 //
 //   latch L_i      : vblank index at which source frame i was latched.
+//   time T_i       : vblank index that frame i stands for on the content timeline. Normally
+//                    T_i = L_i. A source that holds the cap on average (a game locked in its
+//                    own settings) but whose presents sit close to a vblank boundary latches
+//                    one vblank early or late now and then (3, 4, 2 at x3). Its frames are
+//                    still evenly spaced in game time, so they keep their place on the cap
+//                    grid: T_i = T_(i-1) + multiplier. Timing intermediates by the jittered
+//                    latches would move the picture at uneven speed although every flip is
+//                    on time; the grid costs at most one vblank of delay instead.
 //   content c      : vblank index (in source time) that the next output shows.
-//   delay d        : L_latest - c, how far the display runs behind the newest source.
+//   delay d        : T_latest - c, how far the display runs behind the newest source.
 //
 // For each output vblank k the scheduler advances c by one when that content
 // can be shown in time, and otherwise repeats the previous output (a missed
@@ -71,6 +79,7 @@ typedef struct kfg_sched_config {
 typedef struct kfg_source_slot {
 	uint64_t id;
 	int64_t latch;       // vblank index of the latch
+	int64_t t;           // position on the content timeline (see the header comment)
 	int64_t me_ready;    // first vblank whose decision may use the pair (prev, this); INT64_MAX = pending
 	bool me_ok;          // analysis succeeded (false: failure, show reals only for this pair)
 	bool cut;            // scene cut between prev and this
@@ -110,6 +119,7 @@ typedef struct kfg_sched {
 	uint32_t me_late_pos;
 	uint32_t me_late_count;
 	bool degrade_pending;
+	int32_t interval_avg16;    // running mean of latch intervals, 1/16 vblank; 0 = none
 	// Counters for telemetry.
 	uint64_t n_real, n_gen, n_repeat, n_skip, n_resync, n_degrade;
 	uint64_t n_repeat_reason[5];
@@ -173,6 +183,7 @@ static inline void kfg_sched_reset_history(kfg_sched *s)
 	s->last_gen_phase_num = 0;
 	s->wall_ref = -1;
 	s->warming = true;
+	s->interval_avg16 = 0;
 }
 
 // Source frame `id` was latched at vblank `vbl`. Latches must be strictly increasing.
@@ -185,6 +196,26 @@ static inline bool kfg_sched_on_latch(kfg_sched *s, uint64_t id, int64_t vbl)
 	kfg_source_slot *slot = &s->ring[s->head];
 	slot->id = id;
 	slot->latch = vbl;
+	slot->t = vbl;
+	const uint32_t n = s->cfg.multiplier;
+	if (newest && n > 1) {
+		const int64_t iv = vbl - newest->latch;
+		if (iv <= 4 * (int64_t)n) {
+			// Mean over about 8 frames; long gaps (pause, loading) are not cadence.
+			if (s->interval_avg16 == 0)
+				s->interval_avg16 = (int32_t)(16 * iv);
+			else
+				s->interval_avg16 += (int32_t)((16 * iv - s->interval_avg16) / 8);
+		}
+		const int64_t grid = newest->t + (int64_t)n;
+		const int32_t dev = s->interval_avg16 - (int32_t)(16 * n);
+		// On the grid only while the mean interval is the cap (within 3/16 vblank) and this
+		// latch is at most one vblank off it; a slower or faster source keeps its latches.
+		if (dev >= -3 && dev <= 3 && vbl - grid >= -1 && vbl - grid <= 1)
+			slot->t = grid;
+	}
+	if (newest && slot->t <= newest->t)
+		slot->t = newest->t + 1;
 	slot->me_ready = INT64_MAX;
 	slot->me_ok = false;
 	slot->cut = false;
@@ -228,6 +259,7 @@ static inline void kfg_sched_set_multiplier(kfg_sched *s, uint32_t multiplier)
 	s->cfg.max_fill_span = 2u * multiplier + 2u;
 	s->cfg.me_lag_budget = 2;
 	s->want_on = multiplier > 1;
+	s->interval_avg16 = 0;  // the cap changed: the old cadence says nothing
 	// The steady delay depends on the multiplier; rebuild it.
 	s->wall_ref = -1;
 	s->warming = true;
@@ -241,7 +273,7 @@ static inline int kfg_sched_locate(const kfg_sched *s, int64_t c, const kfg_sour
 	*a = *b = NULL;
 	for (uint32_t back = 0; back < s->count; back++) {
 		const kfg_source_slot *slot = kfg_sched_slot(s, back);
-		if (slot->latch <= c) {
+		if (slot->t <= c) {
 			*a = slot;
 			*b = back ? kfg_sched_slot(s, back - 1u) : NULL;
 			return (int)back;
@@ -268,7 +300,7 @@ static inline kfg_candidate kfg_sched_eval(const kfg_sched *s, int64_t c, int64_
 		r.reason = KFG_REPEAT_SOURCE_LATE;
 		return r;
 	}
-	if (a->latch == c) {
+	if (a->t == c) {
 		r.ok = true;
 		r.show = KFG_SHOW_REAL;
 		r.src_a = a->id;
@@ -279,8 +311,8 @@ static inline kfg_candidate kfg_sched_eval(const kfg_sched *s, int64_t c, int64_
 		r.reason = KFG_REPEAT_SOURCE_LATE;
 		return r;
 	}
-	const int64_t span = b->latch - a->latch;
-	const int64_t off = c - a->latch;
+	const int64_t span = b->t - a->t;
+	const int64_t off = c - a->t;
 	if (b->me_ready > k) {
 		r.reason = KFG_REPEAT_ME_LATE;
 		return r;
@@ -356,28 +388,28 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	if (s->state != KFG_STATE_ACTIVE) {
 		// Passthrough: newest frame. Content only moves forward.
 		d.state = s->state;
-		if (s->content != INT64_MIN && newest->latch <= s->content) {
+		if (s->content != INT64_MIN && newest->t <= s->content) {
 			d.show = KFG_SHOW_REPEAT;
 			d.reason = KFG_REPEAT_SOURCE_LATE;
 			s->n_repeat++;
 		} else {
 			d.show = KFG_SHOW_REAL;
 			d.src_a = newest->id;
-			s->content = newest->latch;
+			s->content = newest->t;
 			s->n_real++;
 		}
 		d.content = s->content;
-		d.delay = newest->latch - s->content;
+		d.delay = newest->t - s->content;
 		return d;
 	}
 
 	d.state = KFG_STATE_ACTIVE;
 	if (s->content == INT64_MIN)
-		s->content = newest->latch - 1; // first output shows the newest frame
+		s->content = newest->t - 1; // first output shows the newest frame
 
 	// Too far behind (long stall, suspend): resynchronise forward.
-	if (newest->latch - s->content > (int64_t)s->cfg.max_delay) {
-		s->content = newest->latch - 1;
+	if (newest->t - s->content > (int64_t)s->cfg.max_delay) {
+		s->content = newest->t - 1;
 		s->ahead_streak = 0;
 		s->wall_ref = -1;
 		s->warming = true;
@@ -472,7 +504,7 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 		s->wall_ref = k - s->content;
 	d.state = s->state;
 	d.content = s->content;
-	d.delay = newest->latch - s->content;
+	d.delay = newest->t - s->content;
 	return d;
 }
 
