@@ -3,5 +3,5 @@
   "author": "Nikita Goev / GSF contributors",
   "flags": ["root"],
   "api_version": 1,
-  "publish": {"tags": ["framegen", "gamescope", "testing"], "description": "Installs, controls and measures KEDAVRA x2/x3 frame generation in a patched Gamescope, all from the plugin."}
+  "publish": {"tags": ["framegen", "gamescope", "testing"], "description": "GSF Kedavra: installs, controls and measures x2/x3 frame generation in a patched Gamescope, all from the plugin. No Lossless Scaling."}
 }

@@ -6,6 +6,7 @@ name: KEDAVRA
 on:
   push:
     branches: [main]
+    tags: ['v*']
     paths: ['kedavra/**', '.github/workflows/kedavra.yml']
   pull_request:
     paths: ['kedavra/**', '.github/workflows/kedavra.yml']
@@ -166,3 +167,28 @@ jobs:
         with:
           name: KEDAVRA-plugin
           path: KEDAVRA.zip
+
+  # A pushed version tag (v1.0.0) publishes the plugin zip built above as a GitHub release,
+  # with the notes in docs/releases/<tag>.md.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: plugin
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: KEDAVRA-plugin
+          path: out
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          v=${TAG#v}
+          cp out/KEDAVRA.zip "GSF-Kedavra-$v.zip"
+          sha256sum "GSF-Kedavra-$v.zip" > "GSF-Kedavra-$v.zip.sha256"
+          gh release create "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" \
+            --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --verify-tag

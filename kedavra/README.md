@@ -1,4 +1,4 @@
-# KEDAVRA
+# KEDAVRA (GSF 1.0.0 Kedavra)
 
 Independent x2/x3 frame generation for Steam Deck OLED in Gaming Mode, generated and
 presented by a patched Gamescope, controlled from Decky. No Lossless Scaling.
@@ -19,4 +19,4 @@ make -C kedavra test     # scheduler tests, model stress matrix, engine on a Vul
 make -C kedavra bench    # engine GPU timing (meaningful on the Deck)
 ```
 
-Nothing here is verified on Steam Deck hardware yet; see `docs/kedavra/DECK_PROTOCOL.md`.
+Pacing targets are not yet confirmed by a KMS flip trace on Steam Deck hardware for 1.0.0; see `docs/kedavra/DECK_PROTOCOL.md` and the project [README](../README.md).
