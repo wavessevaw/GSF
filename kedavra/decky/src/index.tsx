@@ -286,8 +286,6 @@ function Content() {
     <PanelSectionRow><ToggleField label="HUD на экране" checked={hud} disabled={busy}
       description="Кольца FPS поверх игры: новые кадры на экране и FPS самой игры"
       onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD включён' : 'HUD выключен';})}/></PanelSectionRow>
-    <PanelSectionRow><div style={{fontSize: 10, lineHeight: 1.4, color: C.label}}>
-      Совет: для самого ровного результата включите лок FPS в настройках игры (30 или 45) и выберите тот же «Свой FPS».</div></PanelSectionRow>
 
     <PanelSectionRow><Focusable style={{display: 'flex', gap: 6}} flow-children="horizontal">
       <NavButton onClick={() => setView('pace')}>Темп</NavButton>
