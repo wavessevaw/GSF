@@ -80,6 +80,13 @@ def in_windows(t_s, windows):
     return any(a <= t_s < b for a, b in windows)
 
 
+def position(r):
+    """Content position shown by a row, in vblanks: the sub-vblank pos column (GSF 1.4) when
+    the trace has it, else the whole content index."""
+    v = r.get("pos")
+    return float(v) if v not in (None, "") else float(int(r["content"]))
+
+
 def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_active=True):
     if not rows:
         return {"error": "empty trace"}
@@ -142,15 +149,45 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
     prev = None
     prev_segment = None
     for r in new:
-        c = int(r["content"])
+        c = position(r)
         if prev_segment != segment[id(r)]:
             prev = None
         prev_segment = segment[id(r)]
         if prev is not None:
             if c <= prev:
                 reorders += 1
-            steps[c - prev] += 1
+            # A silk catch-up step (1.25 or 1.5 vblanks of content) counts as one step.
+            steps[int(math.floor(c - prev + 0.25))] += 1
         prev = c
+
+    # Motion as the viewer sees it, one row per vblank: how far the picture moves (in vblanks of
+    # content). A repeat shows the previous picture (0). Freezes (< 0.25) and jumps (> 1.75)
+    # are hitches; 1.25-1.5 is a catch-up speed-up.
+    motion = Counter()
+    shown = None
+    prev_segment = None
+    prev_row = None
+    for r in sel:
+        if prev_segment != segment[id(r)]:
+            shown, prev_row = None, None
+        prev_segment = segment[id(r)]
+        here = position(r) if r["kind"] in ("real", "gen") else shown
+        if (shown is not None and here is not None and prev_row is not None
+                and round((float(r["flip_ns"]) - float(prev_row["flip_ns"])) / float(r["refresh_ns"])) == 1):
+            step = here - shown
+            if step < 0.25:
+                motion["freeze"] += 1
+            elif step > 1.75:
+                motion["jump"] += 1
+            elif step > 1.05:
+                motion["speedup"] += 1
+            elif step < 0.95:
+                motion["slowdown"] += 1
+            else:
+                motion["even"] += 1
+        if here is not None:
+            shown = here
+        prev_row = r
 
     # Intermediates per source interval (by later endpoint), excluding the first and last
     # intervals which may be cut by the evaluation window.
@@ -227,6 +264,8 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
         "latency_ms": {"p50": median(lat_ms), "p95": pct(lat_ms, 0.95), "p99": pct(lat_ms, 0.99)} if lat_ms else None,
         "latency_drift_ms": drift,
         "skips": sum(1 for r in sel if r.get("skipped") == "1"),
+        "motion": dict(motion),
+        "hitches_per_min": (motion["freeze"] + motion["jump"]) / max(1e-9, (float(sel[-1]["flip_ns"]) - float(sel[0]["flip_ns"])) / 60e9),
         "compose_late": sum(1 for r in sel if r.get("compose_late") == "1"),
     }
     checks = {
