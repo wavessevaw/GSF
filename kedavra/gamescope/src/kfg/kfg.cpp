@@ -80,6 +80,7 @@ namespace kfg
 	static constexpr uint32_t k_uRing = 6;
 	static constexpr uint32_t k_uTimingSlots = 16;
 	static constexpr uint32_t k_uTimingQueries = 3;  // start, after generation, after filters
+	static constexpr uint32_t k_uAnalysisSlots = 8;  // analysis submissions timed in flight (start, end each)
 
 	struct Frame_t
 	{
@@ -163,6 +164,12 @@ namespace kfg
 		uint64_t ulValidMask = ~0ull;
 		uint32_t uNextQuery = 0;
 		std::deque<uint32_t> pendingQueries;
+		// Analysis submissions (not in gpu_us): their own pool, {slot, part 2} in flight.
+		VkQueryPool analysisPool = VK_NULL_HANDLE;
+		uint32_t uNextAnalysisQuery = 0;
+		std::deque<std::pair<uint32_t, bool>> pendingAnalysis;
+		double flAnalysisUsPair = 0, flAnalysisUsLast = 0, flAnalysisUsSum = 0;
+		uint64_t ulAnalysisPairs = 0;
 
 		// Post-generation filters (kfg_post).
 		kfg_post_cfg post = {};
@@ -536,7 +543,34 @@ namespace kfg
 			s.bQueryUnsupported = true;
 			return false;
 		}
+		createInfo.queryCount = k_uAnalysisSlots * 2;
+		if ( g_device.vk.CreateQueryPool( g_device.device(), &createInfo, nullptr, &s.analysisPool ) != VK_SUCCESS )
+			s.analysisPool = VK_NULL_HANDLE;  // composite timing still works
 		return true;
+	}
+
+	// GPU time of one pair's analysis: part 1 plus part 2.
+	static void AnalysisTimingDrain( State_t &s )
+	{
+		while ( !s.pendingAnalysis.empty() )
+		{
+			const auto [ uSlot, bPart2 ] = s.pendingAnalysis.front();
+			uint64_t ulResults[ 4 ] = {};
+			VkResult res = g_device.vk.GetQueryPoolResults( g_device.device(), s.analysisPool, uSlot * 2, 2,
+				sizeof( ulResults ), ulResults, 2 * sizeof( uint64_t ), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT );
+			if ( res == VK_NOT_READY || !ulResults[ 1 ] || !ulResults[ 3 ] )
+				return;
+			s.pendingAnalysis.pop_front();
+			const double flUs = double( ( ulResults[ 2 ] - ulResults[ 0 ] ) & s.ulValidMask ) * s.flPeriodNs / 1000.0;
+			if ( !bPart2 )
+			{
+				s.flAnalysisUsPair = flUs;  // a part 1 without its part 2 (history reset) is dropped here
+				continue;
+			}
+			s.flAnalysisUsLast = s.flAnalysisUsPair + flUs;
+			s.flAnalysisUsSum += s.flAnalysisUsLast;
+			s.ulAnalysisPairs++;
+		}
 	}
 
 	static void TimingDrain( State_t &s )
@@ -929,7 +963,7 @@ namespace kfg
 			"\"last_problem\":\"%s\",\"trace\":\"%s\","
 			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
-			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,"
+			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
 			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -946,6 +980,7 @@ namespace kfg
 			JsonSafe( s.sPostSpec ).c_str(), kfg_post_active( &s.post ) ? "true" : "false", JsonSafe( s.sPostError ).c_str(),
 			s.ulPostFrames, s.ulPostSkipped,
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
+			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
 			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false" );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
@@ -1352,9 +1387,26 @@ namespace kfg
 		// part 2, one vblank later: the finest motion level and the cut statistics.
 		const uint32_t uEnd = s.uAnalysisNext == 0 ? std::min( s.analysisPlan.n, k_uAnalysisSplit ) : s.analysisPlan.n;
 		auto pCmd = g_device.commandBuffer();
+		std::optional<uint32_t> oQuery;
+		if ( s.analysisPool != VK_NULL_HANDLE )
+		{
+			AnalysisTimingDrain( s );
+			if ( s.pendingAnalysis.size() < k_uAnalysisSlots )
+			{
+				oQuery = s.uNextAnalysisQuery;
+				s.uNextAnalysisQuery = ( s.uNextAnalysisQuery + 1 ) % k_uAnalysisSlots;
+				g_device.vk.CmdResetQueryPool( pCmd->rawBuffer(), s.analysisPool, *oQuery * 2, 2 );
+				g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.analysisPool, *oQuery * 2 );
+			}
+		}
 		RecordHistoryBarrier( pCmd.get() );
 		Resolve_t r = { &s, nullptr, s.uNextOutput };
 		RecordPlan( pCmd.get(), s.analysisPlan, r, s.uAnalysisNext, uEnd );
+		if ( oQuery )
+		{
+			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.analysisPool, *oQuery * 2 + 1 );
+			s.pendingAnalysis.push_back( { *oQuery, uEnd >= s.analysisPlan.n } );
+		}
 		g_device.submit( std::move( pCmd ) );
 		s.uAnalysisNext = uEnd;
 		if ( uEnd >= s.analysisPlan.n )
