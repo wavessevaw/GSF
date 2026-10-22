@@ -8,6 +8,8 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+
+
 // Catmull-Rom resampling in 5 bilinear taps (the four corner taps dropped). Bilinear softens
 // every fractional position, so generated frames came out blurrier than the real ones around
 // them and fine texture pulsed at the generation cadence during slow turns.
@@ -52,6 +54,13 @@ void main()
 	ivec2 bsize = (size + 3) / 4;
 	// Bilinear footprint over the block field; use it only where the four vectors agree.
 	vec2 bp = (vec2(p) + 0.5) * 0.25 - 0.5;
+	const bool pair = (u_flags & KFG_FLAG_PAIR) != 0;
+	if (pair && u_t != 0.5) {
+		// The pair's field holds the motion of what is at each block at mid-phase; at phase
+		// t that content has moved on by (t - 0.5) v. Look up where this pixel's content was.
+		vec2 v0 = texelFetch(s_samplers[2], clamp(ivec2(floor(bp + 0.5)), ivec2(0), bsize - 1), 0).xy;
+		bp -= (u_t - 0.5) * 0.25 * v0;
+	}
 	ivec2 b0 = ivec2(floor(bp));
 	vec2 fr = bp - vec2(b0);
 	vec4 s00 = texelFetch(s_samplers[2], clamp(b0, ivec2(0), bsize - 1), 0);
@@ -92,6 +101,13 @@ void main()
 	bool ina = all(greaterThanEqual(pa, vec2(0.0))) && all(lessThan(pa, vec2(size)));
 	bool inb = all(greaterThanEqual(pb, vec2(0.0))) && all(lessThan(pb, vec2(size)));
 	float w_b = sel.z;
+	if (pair) {
+		// Side ratio at mid-phase -> weight of B at this phase, then lean an unreliable match
+		// towards the nearer frame rather than a ghost (as the per-phase selection did).
+		float wa = (1.0 - u_t) * (1.0 - w_b), wb = u_t * w_b;
+		w_b = wb / max(wa + wb, 1e-6);
+		w_b = mix(w_b, u_t < 0.5 ? 0.0 : 1.0, smoothstep(0.10, 0.20, sel.w));
+	}
 	if (ina && !inb)
 		w_b = 0.0;
 	else if (inb && !ina)

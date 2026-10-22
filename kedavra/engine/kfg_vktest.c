@@ -355,6 +355,7 @@ typedef struct engine {
 	kfg_vk_image flow[KFG_RING][KFG_LEVELS + 1];
 	kfg_vk_image stats[KFG_RING];
 	kfg_vk_image select[2];
+	kfg_vk_image pair_select[KFG_RING];
 	kfg_vk_image output;
 } engine;
 
@@ -367,6 +368,7 @@ static const kfg_vk_image *resolve(void *user, kfg_image_ref r)
 	case KFG_ROLE_FLOW: return &e->flow[r.ring][r.level];
 	case KFG_ROLE_STATS: return &e->stats[r.ring];
 	case KFG_ROLE_SELECT: return &e->select[r.ring & 1];
+	case KFG_ROLE_PAIR_SELECT: return &e->pair_select[r.ring];
 	case KFG_ROLE_OUTPUT: return &e->output;
 	default: return NULL;
 	}
@@ -398,6 +400,9 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h, VkFormat c
 	for (int i = 0; i < 2; i++)
 		if (kfg_vk_image_create(vk, &e->select[i], kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
 			return -1;
+	for (uint32_t r = 0; r < KFG_RING; r++)
+		if (kfg_vk_image_create(vk, &e->pair_select[r], kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
+			return -1;
 	return kfg_vk_image_create(vk, &e->output, color_fmt, w, h);
 }
 
@@ -413,6 +418,8 @@ static void engine_destroy(engine *e)
 	}
 	kfg_vk_image_destroy(e->vk, &e->select[0]);
 	kfg_vk_image_destroy(e->vk, &e->select[1]);
+	for (uint32_t r = 0; r < KFG_RING; r++)
+		kfg_vk_image_destroy(e->vk, &e->pair_select[r]);
 	kfg_vk_image_destroy(e->vk, &e->output);
 }
 
@@ -633,8 +640,9 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--scene") && i + 1 < argc) only = argv[++i];
 		else if (!strcmp(argv[i], "--no-temporal")) g_temporal = 0;
 		else if (!strcmp(argv[i], "--lowbase")) { g_lowbase = true; g_timescale = 1.25; }
+		else if (!strcmp(argv[i], "--per-phase")) kfg_per_phase_select = 1;  // 1.2 selection, for A/B
 		else {
-			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal] [--lowbase]\n");
+			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal] [--lowbase] [--per-phase]\n");
 			return 2;
 		}
 	}
@@ -1093,6 +1101,9 @@ int main(int argc, char **argv)
 				fprintf(js, "%s{\"pass\": \"%s\", \"median_ms\": %.4f, \"p99_ms\": %.4f}", i ? ", " : "", labels[i], med, p99);
 		}
 		printf("  analysis %.3f ms, two outputs %.3f ms\n", analysis, gen);
+		// GPU time per second of play at 90 Hz: x3 (30 pairs, 60 generated frames) and
+		// x3.75 (24 pairs, 66 generated frames).
+		printf("  per second at 90 Hz: x3 %.1f ms, x3.75 %.1f ms\n", 30 * analysis + 60 * gen / 2, 24 * analysis + 66 * gen / 2);
 		if (js)
 			fprintf(js, "], \"analysis_ms\": %.4f, \"two_outputs_ms\": %.4f},\n", analysis, gen);
 	}

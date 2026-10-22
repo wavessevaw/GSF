@@ -181,11 +181,18 @@ void main()
 	float wa = (1.0 - u_t) * exp(-da / sigma);
 	float wb = u_t * exp(-db / sigma);
 	float w_b = wb / max(wa + wb, 1e-6);
+	if ((u_flags & KFG_FLAG_PAIR) != 0) {
+		// Mid-phase field for every output of the pair: z is the side ratio rb / (ra + rb)
+		// (u_t = 0.5); the warp turns it into the weight of B at its own phase and leans
+		// unreliable blocks towards the nearer frame there.
+		imageStore(dst, p, vec4(best, w_b, best_cost));
+		return;
+	}
 	// Unreliable match: lean towards the nearer frame rather than a ghost. Gradually, so
 	// neighbouring blocks on either side of the threshold do not alternate between a blend
 	// and a hard copy from one generated frame to the next (flicker on fine lines).
 	w_b = mix(w_b, u_t < 0.5 ? 0.0 : 1.0, smoothstep(0.10, 0.20, best_cost));
-	#ifdef KFG_EXPERIMENT_RAW_CONFIDENCE
+#ifdef KFG_EXPERIMENT_RAW_CONFIDENCE
 	// Diagnostic A/B only: no extra cost() call. Still pre-refinement error.
 	imageStore(dst, p, vec4(best, w_b, best_raw));
 #else
