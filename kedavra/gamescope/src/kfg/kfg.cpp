@@ -80,6 +80,7 @@ namespace kfg
 	static constexpr uint32_t k_uRing = 6;
 	static constexpr uint32_t k_uTimingSlots = 16;
 	static constexpr uint32_t k_uTimingQueries = 3;  // start, after generation, after filters
+	static constexpr uint32_t k_uAnalysisSlots = 8;  // analysis submissions timed in flight (start, end each)
 
 	struct Frame_t
 	{
@@ -90,6 +91,7 @@ namespace kfg
 		gamescope::OwningRc<CVulkanTexture> pLuma[ KFG_LEVELS + 1 ];
 		gamescope::OwningRc<CVulkanTexture> pFlow[ KFG_LEVELS + 1 ];  // pair (ulPrevID, ulID)
 		gamescope::OwningRc<CVulkanTexture> pStats;
+		gamescope::OwningRc<CVulkanTexture> pPairSelect;  // the pair's selection field, for all its phases
 	};
 
 	struct TraceRow_t
@@ -162,11 +164,18 @@ namespace kfg
 		uint64_t ulValidMask = ~0ull;
 		uint32_t uNextQuery = 0;
 		std::deque<uint32_t> pendingQueries;
+		// Analysis submissions (not in gpu_us): their own pool, {slot, part 2} in flight.
+		VkQueryPool analysisPool = VK_NULL_HANDLE;
+		uint32_t uNextAnalysisQuery = 0;
+		std::deque<std::pair<uint32_t, bool>> pendingAnalysis;
+		double flAnalysisUsPair = 0, flAnalysisUsLast = 0, flAnalysisUsSum = 0;
+		uint64_t ulAnalysisPairs = 0;
 
 		// Post-generation filters (kfg_post).
 		kfg_post_cfg post = {};
 		std::string sPostSpec, sPostError;
 		bool bPostPending = false, bPostApplied = false;
+		bool bShownFiltered = false;  // this composite shows a ring frame or an output: filtered already
 		gamescope::OwningRc<CVulkanTexture> pPost[ 2 ];
 		gamescope::OwningRc<CVulkanTexture> pSmaaEdges, pSmaaWeights;
 		gamescope::OwningRc<CVulkanTexture> pSmaaArea, pSmaaSearch;  // constant, uploaded once
@@ -452,6 +461,12 @@ namespace kfg
 		}
 		uint32_t bs[ 2 ];
 		kfg_select_size( uWidth, uHeight, bs );
+		for ( Frame_t &f : s.frames )
+		{
+			f.pPairSelect = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
+			if ( !f.pPairSelect )
+				return false;
+		}
 		s.pSelect[ 0 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pSelect[ 1 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pOutput[ 0 ] = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
@@ -528,7 +543,34 @@ namespace kfg
 			s.bQueryUnsupported = true;
 			return false;
 		}
+		createInfo.queryCount = k_uAnalysisSlots * 2;
+		if ( g_device.vk.CreateQueryPool( g_device.device(), &createInfo, nullptr, &s.analysisPool ) != VK_SUCCESS )
+			s.analysisPool = VK_NULL_HANDLE;  // composite timing still works
 		return true;
+	}
+
+	// GPU time of one pair's analysis: part 1 plus part 2.
+	static void AnalysisTimingDrain( State_t &s )
+	{
+		while ( !s.pendingAnalysis.empty() )
+		{
+			const auto [ uSlot, bPart2 ] = s.pendingAnalysis.front();
+			uint64_t ulResults[ 4 ] = {};
+			VkResult res = g_device.vk.GetQueryPoolResults( g_device.device(), s.analysisPool, uSlot * 2, 2,
+				sizeof( ulResults ), ulResults, 2 * sizeof( uint64_t ), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT );
+			if ( res == VK_NOT_READY || !ulResults[ 1 ] || !ulResults[ 3 ] )
+				return;
+			s.pendingAnalysis.pop_front();
+			const double flUs = double( ( ulResults[ 2 ] - ulResults[ 0 ] ) & s.ulValidMask ) * s.flPeriodNs / 1000.0;
+			if ( !bPart2 )
+			{
+				s.flAnalysisUsPair = flUs;  // a part 1 without its part 2 (history reset) is dropped here
+				continue;
+			}
+			s.flAnalysisUsLast = s.flAnalysisUsPair + flUs;
+			s.flAnalysisUsSum += s.flAnalysisUsLast;
+			s.ulAnalysisPairs++;
+		}
 	}
 
 	static void TimingDrain( State_t &s )
@@ -581,6 +623,7 @@ namespace kfg
 			case KFG_ROLE_FLOW:   return s.frames[ ref.ring ].pFlow[ ref.level ].get();
 			case KFG_ROLE_STATS:  return s.frames[ ref.ring ].pStats.get();
 			case KFG_ROLE_SELECT: return s.pSelect[ ref.ring & 1 ].get();
+			case KFG_ROLE_PAIR_SELECT: return s.frames[ ref.ring ].pPairSelect.get();
 			case KFG_ROLE_OUTPUT: return s.pOutput[ r.uOutput ].get();
 			case KFG_ROLE_POST_IN:      return r.pPostIn;
 			case KFG_ROLE_POST:         return s.pPost[ ref.ring & 1 ].get();
@@ -756,7 +799,10 @@ namespace kfg
 		return c;
 	}
 
-	static void RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0 )
+	// Filters on layer 0. With pInto the result is copied there (a ring frame: the game's own
+	// frame filtered once, before generation) instead of replacing layer 0; false when the
+	// filters are off for this frame.
+	static bool RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0, CVulkanTexture *pInto = nullptr )
 	{
 		const uint32_t uWidth = layer0.tex->width(), uHeight = layer0.tex->height();
 		const int nTransfer = SourceTransfer( layer0 );
@@ -765,13 +811,13 @@ namespace kfg
 		if ( !kfg_post_active( &post ) )
 		{
 			s.ulPostSkipped++;
-			return;
+			return false;
 		}
 		if ( !EnsurePostImages( s, uWidth, uHeight, post.aa == KFG_AA_SMAA, nTransfer ) )
 		{
 			s.ulPostSkipped++;
 			s.pszLastProblem = "post_allocation_failed";
-			return;
+			return false;
 		}
 		if ( post.aa == KFG_AA_SMAA )
 			RecordSmaaUpload( pCmd, s );
@@ -782,11 +828,15 @@ namespace kfg
 		kfg_plan plan;
 		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &post, flPhase );
 		if ( nRing < 0 )
-			return;
+			return false;
 		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
 		RecordPlan( pCmd, plan, r );
-		layer0.tex = s.pPost[ nRing ].get();
+		if ( pInto )
+			RecordCopy( pCmd, s.pPost[ nRing ].get(), pInto );
+		else
+			layer0.tex = s.pPost[ nRing ].get();
 		s.ulPostFrames++;
+		return true;
 	}
 
 	// JSON string content: quotes, backslashes and control characters become '?'.
@@ -913,7 +963,7 @@ namespace kfg
 			"\"last_problem\":\"%s\",\"trace\":\"%s\","
 			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
-			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,"
+			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
 			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
@@ -930,6 +980,7 @@ namespace kfg
 			JsonSafe( s.sPostSpec ).c_str(), kfg_post_active( &s.post ) ? "true" : "false", JsonSafe( s.sPostError ).c_str(),
 			s.ulPostFrames, s.ulPostSkipped,
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
+			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
 			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false" );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
@@ -1200,7 +1251,11 @@ namespace kfg
 				RecordPlan( pCmd, s.analysisPlan, r, s.uAnalysisNext );
 				s.bAnalysisQueued = false;
 			}
-			RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
+			// With filters on, the game's frame is filtered once on its way into the ring: real
+			// and generated frames then come out filtered, and the filters cost once per game
+			// frame instead of once per displayed frame (x3.75: a quarter as often).
+			if ( !s.bPostPending || !RecordPost( pCmd, s, layer0, cur.pColor.get() ) )
+				RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
 			cur.ulID = s.ulPendingID;
 			cur.bValid = true;
 			cur.ulPrevID = pPrev ? pPrev->ulID : 0;
@@ -1267,6 +1322,7 @@ namespace kfg
 		layer0.tex = pShow;
 		s.pLastShown = pShow;
 		s.ulApplied++;
+		s.bShownFiltered = s.bPostPending;  // ring frames and outputs made from them are filtered
 	}
 
 	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo )
@@ -1302,11 +1358,12 @@ namespace kfg
 			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries );
 		}
 
+		s.bShownFiltered = false;
 		if ( bGenerate && bSizeOk )
 			RecordGenerate( pCmd, s, layer0 );
 		if ( oQuery )
 			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries + 1 );
-		if ( bPost )
+		if ( bPost && !s.bShownFiltered )
 			RecordPost( pCmd, s, layer0 );
 		if ( oQuery )
 		{
@@ -1330,9 +1387,26 @@ namespace kfg
 		// part 2, one vblank later: the finest motion level and the cut statistics.
 		const uint32_t uEnd = s.uAnalysisNext == 0 ? std::min( s.analysisPlan.n, k_uAnalysisSplit ) : s.analysisPlan.n;
 		auto pCmd = g_device.commandBuffer();
+		std::optional<uint32_t> oQuery;
+		if ( s.analysisPool != VK_NULL_HANDLE )
+		{
+			AnalysisTimingDrain( s );
+			if ( s.pendingAnalysis.size() < k_uAnalysisSlots )
+			{
+				oQuery = s.uNextAnalysisQuery;
+				s.uNextAnalysisQuery = ( s.uNextAnalysisQuery + 1 ) % k_uAnalysisSlots;
+				g_device.vk.CmdResetQueryPool( pCmd->rawBuffer(), s.analysisPool, *oQuery * 2, 2 );
+				g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.analysisPool, *oQuery * 2 );
+			}
+		}
 		RecordHistoryBarrier( pCmd.get() );
 		Resolve_t r = { &s, nullptr, s.uNextOutput };
 		RecordPlan( pCmd.get(), s.analysisPlan, r, s.uAnalysisNext, uEnd );
+		if ( oQuery )
+		{
+			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.analysisPool, *oQuery * 2 + 1 );
+			s.pendingAnalysis.push_back( { *oQuery, uEnd >= s.analysisPlan.n } );
+		}
 		g_device.submit( std::move( pCmd ) );
 		s.uAnalysisNext = uEnd;
 		if ( uEnd >= s.analysisPlan.n )

@@ -17,6 +17,8 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // The block's own window does not move with the candidate: it is read once per search
 // (g_win) and only the displaced window is sampled per candidate, half the taps.
 bool g_small = false;
+// Mean absolute luma difference under which a candidate is taken without searching further.
+const float k_good = 0.004;
 float g_win[25];
 
 void load_window(int sa, vec2 q, ivec2 size)
@@ -64,6 +66,16 @@ vec2 search_coarsest(int sa, int sb, vec2 q, ivec2 size, vec2 seeds[6], int nsee
 	// The penalty still grows with the distance from zero, not from the centre: a camera
 	// estimate thrown off by repeating texture (stairs) must not pull the vectors with it.
 	best_cost = sad(sa, sb, q, vec2(0.0), size);
+	if (best_cost < k_good)
+		return vec2(0.0);  // static: no search (HUD, sky, a paused scene)
+	for (int i = 0; i < nseed; i++) {
+		// A temporal seed that already matches almost perfectly: the camera kept its motion.
+		float c = sad(sa, sb, q, seeds[i], size);
+		if (c < k_good) {
+			best_cost = c;
+			return seeds[i];
+		}
+	}
 	for (int y = -u_radius; y <= u_radius; y += 2)
 		for (int x = -u_radius; x <= u_radius; x += 2) {
 			vec2 d = lc + vec2(x, y);
@@ -124,6 +136,10 @@ vec2 search(int sa, int sb, vec2 q, ivec2 size, vec2 preds[6], int npred, bool c
 				origin = o;
 			}
 		}
+		// A predictor that already matches almost perfectly (static content, the camera
+		// motion of a turn that the coarser level found) needs no search around it.
+		if (best_cost < k_good)
+			return best;
 		vec2 centre = best;
 		for (int y = -u_radius; y <= u_radius; y++)
 			for (int x = -u_radius; x <= u_radius; x++) {
@@ -138,6 +154,8 @@ vec2 search(int sa, int sb, vec2 q, ivec2 size, vec2 preds[6], int npred, bool c
 			}
 		base = origin;
 	}
+	if (best_cost < k_good)
+		return best;
 	// Half-texel refinement with bilinear taps.
 	vec2 centre = best;
 	for (int y = -1; y <= 1; y++)

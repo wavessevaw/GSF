@@ -59,7 +59,8 @@ enum kfg_role {
 	KFG_ROLE_LUMA,      // luma pyramid of a frame; level 1..4
 	KFG_ROLE_FLOW,      // bidirectional flow of a pair; level 2..4
 	KFG_ROLE_STATS,     // 4x1 pair statistics: texel 0 cut test, texels 1-3 camera motion (affine)
-	KFG_ROLE_SELECT,    // per-output selection field (transient)
+	KFG_ROLE_SELECT,    // selection field scratch (select and repair ping-pong)
+	KFG_ROLE_PAIR_SELECT, // a pair's selection field at mid-phase (ring-indexed like FLOW)
 	KFG_ROLE_OUTPUT,    // generated output (host-owned)
 	// Post-generation filters (kfg_post.h), all host-owned.
 	KFG_ROLE_POST_IN,       // the frame this vblank shows, real or generated
@@ -121,7 +122,12 @@ typedef struct kfg_params {
 #define KFG_FLAG_PQ 128        // reduce (from colour): HDR10 PQ code values, luma normalised to 0..1000 nits
 #define KFG_FLAG_SCRGB 256     // reduce: linear scRGB, luma taken in PQ like KFG_FLAG_PQ; warp: keep
                                // negative values (colours outside BT.709)
-#define KFG_REPAIR_ROUNDS 2    // select -> repair -> repair -> warp; even, so warp reads field 0
+#define KFG_FLAG_PAIR 512      // select: mid-phase field for the whole pair (z = side ratio, no lean);
+                               // warp: project the pair's field to the output phase
+#define KFG_REPAIR_ROUNDS 2    // select -> repair -> repair
+
+// Testing only (kfg_vktest A/B): select and repair for every output phase, as up to 1.2.
+static int kfg_per_phase_select = 0;
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -218,6 +224,48 @@ static inline void kfg_set_domain(kfg_pass *x, const uint32_t dst[2], uint32_t g
 	x->groups[1] = kfg_div_up(dst[1], gy);
 }
 
+// Motion selection at block resolution and its repair rounds, ending in `out`.
+static inline void kfg_plan_selection(kfg_plan *p, uint32_t w, uint32_t h, uint32_t fa, uint32_t fb, uint32_t pr,
+				      float t, int32_t flags, kfg_image_ref out)
+{
+	uint32_t l1[2], bs[2];
+	kfg_level_size(w, h, 1, l1);
+	kfg_select_size(w, h, bs);
+
+	kfg_pass *x = kfg_plan_add(p, KFG_SHADER_SELECT, kfg_ref(KFG_ROLE_SELECT, 0, 0), "select");
+	x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 1);
+	x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, 1);
+	x->slots[2] = kfg_ref(KFG_ROLE_FLOW, pr, 2);
+	x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
+	x->nslots = 4;
+	x->params.src_size[0] = (int32_t)l1[0];
+	x->params.src_size[1] = (int32_t)l1[1];
+	x->params.full_size[0] = (int32_t)w;
+	x->params.full_size[1] = (int32_t)h;
+	x->params.t = t;
+	x->params.flags = flags;
+	kfg_set_domain(x, bs, 8, 8);
+
+	// Repair rounds: a block whose vector disagrees with its neighbours takes a neighbour's
+	// vector when that explains the block about as well. Wrong vectors were whole blocks
+	// (square artifacts); each round removes isolated ones and shrinks small clusters.
+	for (uint32_t r = 0; r < KFG_REPAIR_ROUNDS; r++) {
+		x = kfg_plan_add(p, KFG_SHADER_SELECT, r + 1 == KFG_REPAIR_ROUNDS ? out : kfg_ref(KFG_ROLE_SELECT, (r + 1) & 1u, 0), "repair");
+		x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 1);
+		x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, 1);
+		x->slots[2] = kfg_ref(KFG_ROLE_SELECT, r & 1u, 0);
+		x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
+		x->nslots = 4;
+		x->params.src_size[0] = (int32_t)l1[0];
+		x->params.src_size[1] = (int32_t)l1[1];
+		x->params.full_size[0] = (int32_t)w;
+		x->params.full_size[1] = (int32_t)h;
+		x->params.t = t;
+		x->params.flags = flags | KFG_FLAG_REPAIR;
+		kfg_set_domain(x, bs, 8, 8);
+	}
+}
+
 // Analysis of the pair (frame ring fa -> frame ring fb), written to pair ring pr.
 // have_prev = 0 for the first frame after a reset: only the pyramid of B is built.
 // prev_pair = pair ring of the previous pair (the one ending at frame A) when its flow is
@@ -294,54 +342,31 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 	x->params.dst_size[1] = 1;
 	x->groups[0] = 1;
 	x->groups[1] = 1;
+	if (!kfg_per_phase_select)
+		kfg_plan_selection(p, w, h, fa, fb, pr, 0.5f, KFG_FLAG_PAIR, kfg_ref(KFG_ROLE_PAIR_SELECT, pr, 0));
 }
 
-// One generated output at phase t in (0, 1) between frames fa and fb of pair pr.
+// One generated output at phase t in (0, 1) between frames fa and fb of pair pr: a single
+// warp pass over the pair's selection field, which the analysis made once for every phase
+// (up to 1.2 the selection and its two repair rounds ran again for each generated frame,
+// nine tenths of the generation cost).
 // flags: KFG_FLAG_DEBUG_MARKER and kfg_transfer_flags() of the colour frames.
 static inline void kfg_plan_generate(kfg_plan *p, uint32_t w, uint32_t h, uint32_t fa, uint32_t fb, uint32_t pr,
 				     float t, int32_t flags)
 {
 	p->n = 0;
-	uint32_t l1[2], bs[2], full[2] = { w, h };
-	kfg_level_size(w, h, 1, l1);
-	kfg_select_size(w, h, bs);
+	uint32_t full[2] = { w, h };
+	kfg_image_ref sel = kfg_ref(KFG_ROLE_PAIR_SELECT, pr, 0);
+	if (kfg_per_phase_select) {
+		sel = kfg_ref(KFG_ROLE_SELECT, 0, 0);  // even rounds end in field 0
+		kfg_plan_selection(p, w, h, fa, fb, pr, t, 0, sel);
+	} else
+		flags |= KFG_FLAG_PAIR;
 
-	kfg_pass *x = kfg_plan_add(p, KFG_SHADER_SELECT, kfg_ref(KFG_ROLE_SELECT, 0, 0), "select");
-	x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 1);
-	x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, 1);
-	x->slots[2] = kfg_ref(KFG_ROLE_FLOW, pr, 2);
-	x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
-	x->nslots = 4;
-	x->params.src_size[0] = (int32_t)l1[0];
-	x->params.src_size[1] = (int32_t)l1[1];
-	x->params.full_size[0] = (int32_t)w;
-	x->params.full_size[1] = (int32_t)h;
-	x->params.t = t;
-	kfg_set_domain(x, bs, 8, 8);
-
-	// Repair rounds: a block whose vector disagrees with its neighbours takes a neighbour's
-	// vector when that explains the block about as well. Wrong vectors were whole blocks
-	// (square artifacts); each round removes isolated ones and shrinks small clusters.
-	for (uint32_t r = 0; r < KFG_REPAIR_ROUNDS; r++) {
-		x = kfg_plan_add(p, KFG_SHADER_SELECT, kfg_ref(KFG_ROLE_SELECT, (r + 1) & 1u, 0), "repair");
-		x->slots[0] = kfg_ref(KFG_ROLE_LUMA, fa, 1);
-		x->slots[1] = kfg_ref(KFG_ROLE_LUMA, fb, 1);
-		x->slots[2] = kfg_ref(KFG_ROLE_SELECT, r & 1u, 0);
-		x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
-		x->nslots = 4;
-		x->params.src_size[0] = (int32_t)l1[0];
-		x->params.src_size[1] = (int32_t)l1[1];
-		x->params.full_size[0] = (int32_t)w;
-		x->params.full_size[1] = (int32_t)h;
-		x->params.t = t;
-		x->params.flags = KFG_FLAG_REPAIR;
-		kfg_set_domain(x, bs, 8, 8);
-	}
-
-	x = kfg_plan_add(p, KFG_SHADER_WARP, kfg_ref(KFG_ROLE_OUTPUT, 0, 0), "warp");
+	kfg_pass *x = kfg_plan_add(p, KFG_SHADER_WARP, kfg_ref(KFG_ROLE_OUTPUT, 0, 0), "warp");
 	x->slots[0] = kfg_ref(KFG_ROLE_COLOR, fa, 0);
 	x->slots[1] = kfg_ref(KFG_ROLE_COLOR, fb, 0);
-	x->slots[2] = kfg_ref(KFG_ROLE_SELECT, 0, 0);
+	x->slots[2] = sel;
 	x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
 	x->nslots = 4;
 	x->params.src_size[0] = (int32_t)w;
