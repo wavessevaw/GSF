@@ -3,7 +3,7 @@ import {callable, definePlugin, toaster} from '@decky/api';
 import {CSSProperties, Fragment, ReactNode, useEffect, useRef, useState} from 'react';
 import {LOGO} from './logo';
 
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 
 type Summary = {pass?: boolean; p95_ms?: number; p99_ms?: number; missed_pct?: number; rows?: number; checks?: Record<string, boolean>};
 type Report = {trace: string; report: string; ok: boolean; log: string; summary?: Summary};
@@ -236,6 +236,14 @@ function Content() {
   const failed = diag?.checks.filter(c => !c.ok) ?? [];
   const gap: CSSProperties = {height: 6};
 
+  // Above 90 Hz (a TV) the low floor is x4: not recommended, so it lives in Setup, off by default.
+  const floorInSetup = hzR > 90;
+  const setOptions = (nx: boolean, nh: boolean) => void act(async () => {
+    const r = await rpc.setOptions(nx, nh); setX375(r.x375); setHdr(r.hdr);
+    return nx !== x375 ? (r.x375 ? `Auto may go down to base ${capFloor} (${floorMult}) when the game cannot hold ${capLo}` : `Auto stays at ${loMult} at most`)
+      : (r.hdr ? 'HDR games get generation too' : 'HDR games pass through without generation');
+  });
+
   if (view === 'setup') return <PanelSection>
     <Back onClick={() => setView('main')} title="Setup"/>
     <PanelSectionRow><DialogButton onClick={() => setShowChecks(!showChecks)} className="gsf-row" style={{...card, ...flat, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left'}}>
@@ -263,6 +271,14 @@ function Content() {
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.label, padding: '0 2px'}}>
       Mounted over the stock Gamescope from /var/lib/kedavra; the SteamOS image is not changed. If Gaming Mode fails to start, the next boot uses the stock one.</div></PanelSectionRow>
     <div style={gap}/>
+    {floorInSetup && capFloor < capLo && <>
+      <PanelSectionRow><div style={caps}>ENGINE</div></PanelSectionRow>
+      <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
+        <ToggleField label={`Allow ${floorMult} in Auto`} description={`Not recommended: base ${capFloor} when the game cannot hold ${capLo}`} checked={x375}
+          disabled={busy || !running} bottomSeparator="none" onChange={v => setOptions(v, hdr)}/>
+      </div></PanelSectionRow>
+      <div style={gap}/>
+    </>}
     <PanelSectionRow><div style={caps}>TOOLS</div></PanelSectionRow>
     <PanelSectionRow><Focusable style={{display: 'flex', flexDirection: 'column', gap: 6}}>
       <ListButton title="Save report to Desktop" sub="One zip: diagnostics, pacing traces, benchmark" onClick={() => void act(async () => 'Report saved: ' + (await rpc.report()).path.replace(/^.*\/Desktop\//, 'Desktop/'))}/>
@@ -320,11 +336,6 @@ function Content() {
 
   const fpsColor = !generating ? C.green : (live?.fps ?? 0) >= 0.97 * hz ? C.green : (live?.fps ?? 0) >= 0.85 * hz ? C.yellow : C.red;
   const mult_text = multText(ratio);
-  const setOptions = (nx: boolean, nh: boolean) => void act(async () => {
-    const r = await rpc.setOptions(nx, nh); setX375(r.x375); setHdr(r.hdr);
-    return nx !== x375 ? (r.x375 ? `Auto may go down to base ${capFloor} (${floorMult}) when the game cannot hold ${capLo}` : `Auto stays at ${loMult} at most`)
-      : (r.hdr ? 'HDR games get generation too' : 'HDR games pass through without generation');
-  });
   const gpuMs = status?.timestamps ? (status?.gpu_us_avg ?? 0) / 1000 : undefined;
   const budget = 1000 / hz;
   const [badge, badgeColor] = !running ? ['ENGINE DOWN', C.red] : status?.steam_ui ? ['STEAM MENU', C.yellow]
@@ -370,7 +381,7 @@ function Content() {
     <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
       {mode === 'cap' && <SliderField label="Base game FPS" value={Math.min(base, hzR)} min={20} max={hzR} step={1} showValue bottomSeparator="standard"
         disabled={busy || !running} onChange={onBase}/>}
-      {mode === 'auto' && <ToggleField label={`Allow ${floorMult}`} description={`Base ${capFloor} when the game cannot hold ${capLo}`} checked={x375}
+      {mode === 'auto' && !floorInSetup && <ToggleField label={`Allow ${floorMult}`} description={`Base ${capFloor} when the game cannot hold ${capLo}`} checked={x375}
         disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(v, hdr)}/>}
       <ToggleField label="HDR games" checked={hdr} disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(x375, v)}/>
       <ToggleField label="In-game HUD" checked={hud} disabled={busy} bottomSeparator="none"

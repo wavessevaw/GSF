@@ -10,7 +10,7 @@
 
 GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
 
-[**Download 1.3.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.0) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
+[**Download 1.3.1**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.1) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
@@ -24,7 +24,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 </div>
 
-> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.3.0. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
+> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.3.1. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
 
 ## Why GSF Kedavra
 
@@ -40,7 +40,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8.
 
-1. Download [**GSF-Kedavra-1.3.0.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.3.0/GSF-Kedavra-1.3.0.zip).
+1. Download [**GSF-Kedavra-1.3.1.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.3.1/GSF-Kedavra-1.3.1.zip).
 2. In Decky: **Settings → Developer → Install plugin from zip**, pick the file. Upgrading over an older KEDAVRA plugin keeps your settings.
 3. Open the plugin, go to **Setup** and press **Install Gamescope KEDAVRA**. Reboot when asked.
 4. After the reboot every check in **Setup** is green, with no line saying the installed Gamescope differs from the one in the plugin.
@@ -71,7 +71,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 
 ## Measuring pacing
 
-**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.3.0 targets are:
+**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.3.1 targets are:
 
 | Metric | Target |
 | --- | --- |

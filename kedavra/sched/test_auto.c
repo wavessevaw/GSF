@@ -147,7 +147,7 @@ int main(void)
 	kfg_auto_init(&lv, 120);
 	CHECK(lv.nlevels == 5 && lv.levels[0] == 40 && lv.levels[4] == 60, "caps at 120 Hz: 40 45 50 55 60");
 	kfg_auto_init_floor(&lv, 120, 24);
-	CHECK(lv.levels[0] == 30 && lv.mult == 4, "floor at 120 Hz: 30 (x4, frames held 4 refreshes)");
+	CHECK(lv.levels[0] == 30 && lv.mult == 4, "floor at 120 Hz: 30 (x4, only when asked for)");
 	kfg_auto_init_floor(&lv, 90, 24);
 	CHECK(lv.nlevels == 5 && lv.levels[0] == 24 && lv.levels[1] == 30 && lv.mult == 4, "floor 24 at 90 Hz: 24 30 35 40 45, x3.75");
 	kfg_auto_init_floor(&lv, 90, 10);

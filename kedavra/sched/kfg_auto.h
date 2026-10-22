@@ -10,7 +10,7 @@
 // 30, x2). By default generation never goes above x3: a game that cannot hold the lowest cap
 // stays capped there and the scheduler repeats frames. A controller may lower the floor
 // (kfg_auto_floor) to 24 fps or refresh / 4, whichever is higher (90 Hz: 24, x3.75, frames
-// held 3 or 4 refreshes, never 5; 120 Hz: 30, x4; 60 Hz: 24, x2.5); the floor is then the
+// held 3 or 4 refreshes, never 5; 60 Hz: 24, x2.5; 120 Hz: 30, x4); the floor is then the
 // lowest cap, below the usual steps.
 //
 //   * it starts at the lowest cap, the cadence most games can hold;
@@ -76,8 +76,9 @@ static inline void kfg_auto_set_level(kfg_auto *a, uint32_t level)
 }
 
 // Lowest floor a controller may set: a real frame is held at most 4 refreshes (refresh / 4
-// rounded up) and the game never runs below 24 fps. 90 Hz: 24 (x3.75), 120 Hz: 30 (x4),
-// 60 Hz: 24 (x2.5).
+// rounded up) and the game never runs below 24 fps. 90 Hz: 24 (x3.75), 60 Hz: 24 (x2.5),
+// 120 Hz: 30 (x4). Without a floor Auto stays at x3 at most; the plugin offers the 120 Hz x4
+// floor only as a hidden, not recommended option.
 static inline uint32_t kfg_auto_min_floor(uint32_t refresh_hz)
 {
 	const uint32_t f = kfg_auto_div_up(refresh_hz, 4u);
