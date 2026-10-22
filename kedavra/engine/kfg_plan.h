@@ -20,12 +20,12 @@
 //   repair   x2: selection -> selection (neighbour agreement, ping-pong between two fields)
 //   warp     colour A,B + selection + stats -> output (full resolution)
 //
-// Above about the Deck's pixel count (1280x800) the analysis runs on a frame scaled down to
-// that count (kfg_analysis_size): the first reduce resamples colour straight to the analysis
+// Above about 1.44x the Deck's pixel count the analysis runs on a frame scaled down to that
+// count (kfg_analysis_size): the first reduce resamples colour straight to the analysis
 // level 1, every analysis pass works in analysis pixels, and only the warp runs at the
-// source's own size, scaling the vectors up. A 1080p or 4K game then costs the analysis of a
-// Deck frame plus a warp over its own pixels, and a camera turn covers the same share of the
-// search range at any resolution.
+// source's own size, scaling the vectors up. A 1080p or 4K game then costs about 1.4x the
+// analysis of a Deck frame plus a warp over its own pixels, and a camera turn covers the same
+// share of the search range at any resolution.
 #ifndef KFG_PLAN_H
 #define KFG_PLAN_H
 
@@ -137,9 +137,13 @@ typedef struct kfg_params {
 // Testing only (kfg_vktest A/B): select and repair for every output phase, as up to 1.2.
 static int kfg_per_phase_select = 0;
 
-// Pixel count the motion analysis works at: the Deck's screen. Hosts may change it before
-// creating their images (0 = always the source's own size).
-static uint32_t kfg_analysis_pixels = 1280u * 800u;
+// Pixel count the motion analysis works at: 1.44x the Deck's screen (1536x960). At the Deck's
+// own count slow pans on a 1080p TV lost up to 4.5 dB against a full-size analysis (motion is
+// found to the Deck's precision); at 1.44x they are within 1.6 dB and fast motion, occlusion and
+// the camera are as good or better, for about 1.4x the Deck's analysis work at any resolution
+// (1080p in full: 2x, 4K: 8x). Hosts may change it before creating their images (0 = always the
+// source's own size).
+static uint32_t kfg_analysis_pixels = 1536u * 960u;
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -202,9 +206,9 @@ static inline void kfg_level_size(uint32_t w, uint32_t h, uint32_t l, uint32_t o
 	out[1] = y ? y : 1u;
 }
 
-// Size of the frame the analysis works on: the source itself up to 1.2x
-// kfg_analysis_pixels (the Deck's 1280x800 and 1280x720 stay exact), else the source scaled
-// down, aspect kept, to kfg_analysis_pixels (1920x1080 -> 1350x759, 3840x2160 -> 1350x759).
+// Size of the frame the analysis works on: the source itself up to 1.2x kfg_analysis_pixels
+// (the Deck's 1280x800, 1600x900 and 1680x1050 stay exact), else the source scaled down, aspect
+// kept, to kfg_analysis_pixels (1920x1080 and 3840x2160 -> 1619x911).
 static inline void kfg_analysis_size(uint32_t w, uint32_t h, uint32_t out[2])
 {
 	const double px = (double)w * (double)h, limit = (double)kfg_analysis_pixels;
