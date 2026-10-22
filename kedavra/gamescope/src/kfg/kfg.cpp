@@ -872,9 +872,10 @@ namespace kfg
 		const kfg_decision &d = row.decision;
 		const char *pszKind = row.bBypass ? "repeat" : kfg_show_name( d.show );
 		const char *pszReason = row.bBypass ? "bypass" : kfg_reason_name( d.reason );
-		fprintf( pFile, "%" PRId64 ",%" PRIu64 ",%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%" PRIu64 ",%u,0,%d\n",
+		fprintf( pFile, "%" PRId64 ",%" PRIu64 ",%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%" PRIu64 ",%u,0,%d,%.3f\n",
 			row.nVBlank, row.ulFlipNs, pszKind, d.src_a, d.src_b, d.phase_num, d.phase_den, d.content, d.delay,
-			pszReason, kfg_state_name( d.state ), row.ulRefreshNs, row.uMultiplier, d.skipped ? 1 : 0 );
+			pszReason, kfg_state_name( d.state ), row.ulRefreshNs, row.uMultiplier, d.skipped ? 1 : 0,
+			double( d.pos ) / KFG_SCHED_SUB );
 	}
 
 	static void TraceWriterMain()
@@ -911,7 +912,7 @@ namespace kfg
 					pFile = fopen( sPath.c_str(), "w" );
 					if ( pFile )
 					{
-						fprintf( pFile, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped\n" );
+						fprintf( pFile, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped,pos\n" );
 						kfg_log.infof( "trace: %s", sPath.c_str() );
 					}
 					else
@@ -974,7 +975,7 @@ namespace kfg
 			"{\"engine\":\"kedavra-gamescope\",\"version\":1,\"time_ns\":%" PRIu64 ",\"multiplier\":%u,\"state\":\"%s\","
 			"\"refresh_ns\":%" PRIu64 ",\"width\":%u,\"height\":%u,"
 			"\"paints\":%" PRIu64 ",\"applied\":%" PRIu64 ",\"bypass\":%" PRIu64 ",\"ring_miss\":%" PRIu64 ",\"unsupported\":%" PRIu64 ","
-			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ","
+			"\"sources\":%" PRIu64 ",\"real\":%" PRIu64 ",\"gen\":%" PRIu64 ",\"repeat\":%" PRIu64 ",\"skip\":%" PRIu64 ",\"resync\":%" PRIu64 ",\"degrade\":%" PRIu64 ",\"catchup\":%" PRIu64 ","
 			"\"gpu_us_last\":%.1f,\"gpu_us_max\":%.1f,\"gpu_us_avg\":%.1f,\"over_budget\":%" PRIu64 ",\"timestamps\":%s,"
 			"\"flips\":%" PRIu64 ",\"base_fps\":%d,\"unsupported_format\":%d,\"unsupported_colorspace\":%d,\"last_source_ns\":%" PRIu64 ",\"auto\":%s,\"auto_switches\":%" PRIu64 ",\"source_late\":%" PRIu64 ",\"cap_fps\":%d,\"steam_ui\":%s,\"app_id\":%u,"
 			"\"last_problem\":\"%s\",\"trace\":\"%s\","
@@ -986,7 +987,7 @@ namespace kfg
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
 			s.ulPaints, s.ulApplied, s.ulBypass, s.ulRingMiss, s.ulUnsupported,
-			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade,
+			s.ulSources, q.n_real, q.n_gen, q.n_repeat, q.n_skip, q.n_resync, q.n_degrade, q.n_catchup,
 			s.flGpuUsLast, s.flGpuUsMax, s.ulGpuSamples ? s.flGpuUsSum / double( s.ulGpuSamples ) : 0.0, s.ulOverBudget,
 			s.queryPool != VK_NULL_HANDLE ? "true" : "false",
 			g_ulFlips.load( std::memory_order_relaxed ), ManualBaseFPS( RefreshHz() ), s.nLayer0Format, s.nLayer0Colorspace, s.ulLastSourceNs,

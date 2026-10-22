@@ -29,8 +29,8 @@ static void test_locked_x3(void)
 		}
 		kfg_decision d = kfg_sched_decide(&s, k);
 		if (d.show == KFG_SHOW_REAL || d.show == KFG_SHOW_GEN) {
-			CHECK(d.content > prev_content, "content not increasing at %" PRId64, k);
-			prev_content = d.content;
+			CHECK(d.pos > prev_content, "content not increasing at %" PRId64, k);
+			prev_content = d.pos;
 		}
 		if (k >= 30) {
 			total++;
@@ -133,6 +133,46 @@ static void test_late_source_recovery(void)
 	CHECK(s.n_repeat_reason[KFG_REPEAT_SOURCE_LATE] <= 4, "source-late repeats %" PRIu64, s.n_repeat_reason[KFG_REPEAT_SOURCE_LATE]);
 }
 
+// Silk pacing (GSF 1.4): a late source and the latency give-back never move the picture by a
+// whole extra vblank at once; the display catches up with brief speed-ups instead, and the
+// steady delay is the same as before the stall.
+static void test_silk_catchup(void)
+{
+	for (uint32_t mult = 2; mult <= 3; mult++) {
+		kfg_sched_config cfg = kfg_sched_default_config(mult);
+		kfg_sched s;
+		kfg_sched_init(&s, &cfg);
+		uint64_t id = 0;
+		int64_t next = 0, shown = INT64_MIN, delay_before = -1, delay_after = -1;
+		int jumps = 0, freezes = 0;
+		for (int64_t k = 0; k < 900; k++) {
+			if (k == next) {
+				kfg_sched_on_latch(&s, ++id, k);
+				kfg_sched_on_me(&s, id, k + 2, true, false);
+				// Every 60th frame is one vblank late, the next one back on time.
+				next = k + mult + (id % 60 == 0 ? 1 : 0) - (id % 60 == 1 ? 1 : 0);
+			}
+			kfg_decision d = kfg_sched_decide(&s, k);
+			int64_t here = (d.show == KFG_SHOW_REAL || d.show == KFG_SHOW_GEN) ? d.pos : shown;
+			if (k > 60 && shown != INT64_MIN) {
+				if (here - shown > 7 * KFG_SCHED_SUB / 4)
+					jumps++;
+				if (here - shown < KFG_SCHED_SUB / 4)
+					freezes++;
+			}
+			shown = here;
+			if (k == 170)
+				delay_before = d.delay;
+			if (k == 800)
+				delay_after = d.delay;
+		}
+		CHECK(jumps == 0, "x%u: %d jumps", mult, jumps);
+		CHECK(freezes <= 2, "x%u: %d freezes", mult, freezes);
+		CHECK(delay_after <= delay_before, "x%u: delay %" PRId64 " -> %" PRId64, mult, delay_before, delay_after);
+		CHECK(s.n_catchup > 0, "x%u: no catch-up", mult);
+	}
+}
+
 // Analysis that never keeps up must suspend generation (passthrough), then retry.
 static void test_degrade(void)
 {
@@ -218,14 +258,16 @@ static void test_fuzz(void)
 			}
 			kfg_decision d = kfg_sched_decide(&s, k);
 			if (d.show == KFG_SHOW_REAL || d.show == KFG_SHOW_GEN) {
-				CHECK(d.content > prev_content, "run %d k %" PRId64 ": content %" PRId64 " after %" PRId64, run, k, d.content, prev_content);
-				prev_content = d.content;
+				CHECK(d.pos > prev_content, "run %d k %" PRId64 ": content %" PRId64 " after %" PRId64, run, k, d.pos, prev_content);
+				prev_content = d.pos;
 			}
 			if (d.show == KFG_SHOW_GEN) {
 				CHECK(d.src_b == d.src_a + 1, "run %d: gen across non-consecutive %" PRIu64 "->%" PRIu64, run, d.src_a, d.src_b);
 				CHECK(me_ready[d.src_b] <= k && ok[d.src_b] && !cut[d.src_b], "run %d: gen without valid analysis", run);
 				CHECK(d.phase_num > 0 && d.phase_num < d.phase_den, "run %d: phase %u/%u", run, d.phase_num, d.phase_den);
-				CHECK(d.content > latch[d.src_a] && d.content < latch[d.src_b], "run %d: gen content outside its pair", run);
+				CHECK(d.pos > latch[d.src_a] * KFG_SCHED_SUB && d.pos < latch[d.src_b] * KFG_SCHED_SUB, "run %d: gen content outside its pair", run);
+				CHECK((int64_t)d.phase_num * (latch[d.src_b] - latch[d.src_a]) * KFG_SCHED_SUB == (d.pos - latch[d.src_a] * KFG_SCHED_SUB) * (int64_t)d.phase_den
+				      || (latch[d.src_b] - latch[d.src_a]) > (int64_t)s.cfg.max_fill_span, "run %d: phase does not match the content position", run);
 			}
 			if (d.show == KFG_SHOW_REAL && d.state == KFG_STATE_ACTIVE && d.content < latch[d.src_a])
 				CHECK(cut[d.src_a] || !ok[d.src_a], "run %d: real shown early without a cut", run);
@@ -240,6 +282,7 @@ int main(void)
 	test_locked_x2();
 	test_fractional_cap();
 	test_late_source_recovery();
+	test_silk_catchup();
 	test_degrade();
 	test_cut();
 	test_fuzz();

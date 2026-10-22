@@ -158,7 +158,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	FILE *src = p.source_path ? fopen(p.source_path, "w") : NULL;
-	fprintf(trace, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped\n");
+	fprintf(trace, "vblank,flip_ns,kind,src_a,src_b,phase_num,phase_den,content,delay,reason,state,refresh_ns,mult,compose_late,skipped,pos\n");
 	if (src)
 		fprintf(src, "id,done_ns,latch_vblank,latch_ns\n");
 
@@ -273,19 +273,19 @@ int main(int argc, char **argv)
 			}
 		}
 		if (late_now) {
-			fprintf(trace, "%" PRId64 ",%.0f,repeat,0,0,0,0,%" PRId64 ",%" PRId64 ",compose_late,%s,%.0f,%u,1,0\n",
-				k, vbl_ns, d.content, d.delay, kfg_state_name(d.state), refresh_ns, mult);
+			fprintf(trace, "%" PRId64 ",%.0f,repeat,0,0,0,0,%" PRId64 ",%" PRId64 ",compose_late,%s,%.0f,%u,1,0,%.3f\n",
+				k, vbl_ns, d.content, d.delay, kfg_state_name(d.state), refresh_ns, mult, (double)d.pos / KFG_SCHED_SUB);
 		} else if (d.show != KFG_SHOW_NONE) {
-			fprintf(trace, "%" PRId64 ",%.0f,%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%.0f,%u,0,%d\n",
+			fprintf(trace, "%" PRId64 ",%.0f,%s,%" PRIu64 ",%" PRIu64 ",%u,%u,%" PRId64 ",%" PRId64 ",%s,%s,%.0f,%u,0,%d,%.3f\n",
 				k, vbl_ns, kfg_show_name(d.show), d.src_a, d.src_b, d.phase_num, d.phase_den, d.content, d.delay,
-				kfg_reason_name(d.reason), kfg_state_name(d.state), refresh_ns, mult, d.skipped ? 1 : 0);
+				kfg_reason_name(d.reason), kfg_state_name(d.state), refresh_ns, mult, d.skipped ? 1 : 0, (double)d.pos / KFG_SCHED_SUB);
 		}
 		k++;
 	}
 	fclose(trace);
 	if (src)
 		fclose(src);
-	fprintf(stderr, "real=%" PRIu64 " gen=%" PRIu64 " repeat=%" PRIu64 " skip=%" PRIu64 " resync=%" PRIu64 " degrade=%" PRIu64 "\n",
-		s.n_real, s.n_gen, s.n_repeat, s.n_skip, s.n_resync, s.n_degrade);
+	fprintf(stderr, "real=%" PRIu64 " gen=%" PRIu64 " repeat=%" PRIu64 " skip=%" PRIu64 " resync=%" PRIu64 " degrade=%" PRIu64 " catchup=%" PRIu64 "\n",
+		s.n_real, s.n_gen, s.n_repeat, s.n_skip, s.n_resync, s.n_degrade, s.n_catchup);
 	return 0;
 }
