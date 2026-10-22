@@ -54,15 +54,19 @@ void repair(ivec2 p, vec2 c1)
 {
 	ivec2 bsize = u_dstSize;
 	vec4 nb[9];
-	float spread = 0.0;
+	float spread2 = 0.0;
 	for (int i = 0; i < 9; i++) {
 		nb[i] = texelFetch(s_samplers[2], clamp(p + ivec2(i % 3 - 1, i / 3 - 1), ivec2(0), bsize - 1), 0);
-		spread = max(spread, length(nb[i].xy - nb[4].xy));
+	}
+	// Load all neighbours first: nb[4] was uninitialized for i=0..3.
+	for (int i = 0; i < 9; i++) {
+		vec2 delta = nb[i].xy - nb[4].xy;
+		spread2 = max(spread2, dot(delta, delta));
 	}
 	// Most blocks agree with their neighbourhood, and a well matched block needs no repair
 	// (this also keeps a HUD static next to moving content): copy them through, so the
 	// rounds cost little beyond reading the field.
-	if (spread <= 1.0 || nb[4].w < 0.02) {
+	if (spread2 <= 1.0 || nb[4].w < 0.02) {
 		imageStore(dst, p, nb[4]);
 		return;
 	}
@@ -181,5 +185,10 @@ void main()
 	// neighbouring blocks on either side of the threshold do not alternate between a blend
 	// and a hard copy from one generated frame to the next (flicker on fine lines).
 	w_b = mix(w_b, u_t < 0.5 ? 0.0 : 1.0, smoothstep(0.10, 0.20, best_cost));
+	#ifdef KFG_EXPERIMENT_RAW_CONFIDENCE
+	// Diagnostic A/B only: no extra cost() call. Still pre-refinement error.
+	imageStore(dst, p, vec4(best, w_b, best_raw));
+#else
 	imageStore(dst, p, vec4(best, w_b, best_cost));
+#endif
 }

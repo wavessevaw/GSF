@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: make -C kedavra all
       - name: Scheduler unit tests and model stress matrix
-        run: make -C kedavra test-sched
+        run: make -C kedavra test-pacing test-sched
       - name: Engine correctness on lavapipe
         run: |
           export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
