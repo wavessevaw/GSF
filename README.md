@@ -6,7 +6,7 @@
 
 # GSF Kedavra
 
-**Independent x2 / x3 frame generation for Steam Deck in Gaming Mode. No Lossless Scaling. No launch command.**
+**Independent x2 / x3 frame generation for Steam Deck and Steam Machine in Gaming Mode. No Lossless Scaling. No launch command.**
 
 GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
 
@@ -96,6 +96,7 @@ More detail: [architecture](docs/kedavra/PHASE_B_ARCHITECTURE.md), [Deck test pr
 
 - HDR games (HDR10 PQ and scRGB) get generation since 1.2.0; turn **HDR games** off to pass them through untouched. HDR generation has not been checked on a Deck yet.
 - Built and tested for Steam Deck OLED at 90 Hz. Other refresh rates work in the model and tests but have not been measured on hardware.
+- **Steam Machine (since 1.3.1, unconfirmed on hardware):** on a TV, Auto stays at ×3 at most (60 Hz: base 30, ×2; 120 Hz: 40 to 60), ×4 at 120 Hz is a not-recommended toggle in Setup, and VRR is paused while generation is on. Games above 1536×960 (1080p, 4K) are analysed at that size and only the final warp runs at their own resolution: lavapipe puts a 1080p pair at 1.37× the Deck's work and 4K at 1.74×.
 - Fine repeating detail (stairs, fences, grilles) is the hardest case for any motion estimator. 1.0.0 reduced the shimmer, 1.1.0 follows walking forward better and 1.1.1 checks motion over a taller window so step edges are no longer erased, but steps can still break up at low base FPS.
 - Stopping a Pace recording has restarted Gaming Mode on the Deck. 1.1.2 moves the trace file off the compositor, but the cause is not confirmed. If it happens, press **Setup → Save report to Desktop** right after: the report now includes the crash record.
 
