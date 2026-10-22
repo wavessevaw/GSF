@@ -8,12 +8,13 @@
 
 **Собственная генерация кадров x2 / x3 для Steam Deck и Steam Machine в игровом режиме. Без Lossless Scaling. Без команд запуска.**
 
-GSF (GPU Synthetic Frames) создаёт промежуточные кадры внутри пропатченного Gamescope, то есть в том композиторе, который на Deck и так управляет каждым vblank и каждым переключением кадра. Плагин Decky устанавливает его, включает, выключает и измеряет результат.
+GSF (GPU Synthetic Frames) создаёт промежуточные кадры внутри пропатченного Gamescope, то есть в том композиторе, который в игровом режиме SteamOS и так управляет каждым vblank и каждым переключением кадра. Плагин Decky устанавливает его, включает, выключает и измеряет результат. С 1.3.1 он рассчитан и на **Steam Machine** с телевизором (60 или 120 Гц, игры в 1080p или 4K).
 
 [**Скачать 1.3.1**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.1) · [Установка](#установка) · [Режимы](#режимы) · [Измерение темпа](#измерение-темпа) · [Как это работает](#как-это-работает)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
+[![Steam Machine](https://img.shields.io/badge/Steam%20Machine-TV%2060%2F120%20Hz-0d1210?style=flat-square)](#steam-machine)
 [![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)](https://decky.xyz/)
 [![SDR и HDR](https://img.shields.io/badge/output-SDR%20%7C%20HDR-0d1210?style=flat-square)](#известные-ограничения)
 [![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
@@ -81,6 +82,15 @@ HUD по желанию рисует поверх игры три кольца, 
 | Колебания, рост задержки | нет |
 
 Если что-то не так, нажмите **Setup → Save report to Desktop**: на рабочем столе появится один zip (`~/Desktop/GSF-report-….zip`) с диагностикой, последними трассами темпа и бенчмарком. Пришлите его.
+
+## Steam Machine
+
+С 1.3.1 тот же zip ставится на Steam Machine (игровой режим SteamOS с Decky Loader) так же, как на Deck. **На Steam Machine ещё не запускалось:** всё ниже получено программными тестами.
+
+- **Множители для телевизора.** Auto никогда не поднимается выше ×3, лучше всего ×2–2,5. На 60 Гц игра держится на 30 и удваивается; **Allow ×2.5** позволяет опускаться до 24 в тяжёлых сценах. На 120 Гц лимит от 40 (×3) до 60 (×2). ×4 на 120 Гц не рекомендуется: он выключен и включается только в **Setup → Allow ×4 in Auto**.
+- **Разрешение почти не дорожает.** Движение анализируется не крупнее 1536×960 пикселей (1,44 экрана Deck); игра в 1080p или 4K анализируется уменьшенной, и только финальный кадр собирается в полном разрешении. Пара кадров игры стоит 1,37 работы Deck в 1080p и 1,74 в 4K (lavapipe), при GPU в разы сильнее, чем у Deck.
+- **VRR.** Сгенерированным кадрам нужна постоянная частота, поэтому адаптивная синхронизация (FreeSync) на паузе, пока выбран Auto или Custom. **Off** её возвращает.
+- **HUD** занимает ту же долю экрана на телевизоре 1080p или 4K.
 
 ## Как это работает
 

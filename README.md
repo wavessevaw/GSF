@@ -8,12 +8,13 @@
 
 **Independent x2 / x3 frame generation for Steam Deck and Steam Machine in Gaming Mode. No Lossless Scaling. No launch command.**
 
-GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
+GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip in SteamOS Gaming Mode. A Decky plugin installs it, switches it on and off and measures the result. Since 1.3.1 it also targets the **Steam Machine** on a TV (60 or 120 Hz, games at 1080p or 4K).
 
 [**Download 1.3.1**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.1) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
+[![Steam Machine](https://img.shields.io/badge/Steam%20Machine-TV%2060%2F120%20Hz-0d1210?style=flat-square)](#steam-machine)
 [![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)](https://decky.xyz/)
 [![SDR and HDR](https://img.shields.io/badge/output-SDR%20%7C%20HDR-0d1210?style=flat-square)](#known-limits)
 [![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
@@ -81,6 +82,15 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 | Oscillation, latency drift | none |
 
 Press **Setup → Save report to Desktop** when you report a problem: it saves one zip on the Desktop (`~/Desktop/GSF-report-….zip`) with the diagnostics, the latest pacing traces and the benchmark.
+
+## Steam Machine
+
+Since 1.3.1 the same zip installs on a Steam Machine (SteamOS Gaming Mode with Decky Loader), the same way as on the Deck. **Not yet run on a Steam Machine:** everything below comes from software tests.
+
+- **Multipliers for a TV.** Auto never goes above ×3, and ×2 to ×2.5 is the sweet spot. At 60 Hz the game is held at 30 and doubled; **Allow ×2.5** lets it drop to 24 in heavy scenes. At 120 Hz the cap runs from 40 (×3) to 60 (×2). ×4 at 120 Hz is not recommended: it is off and only switched on in **Setup → Allow ×4 in Auto**.
+- **Resolution costs little.** Motion is analysed at no more than 1536×960 pixels (1.44× the Deck's screen); a 1080p or 4K game is analysed scaled down, and only the final frame is built at full resolution. A pair of game frames costs 1.37× the Deck's work at 1080p and 1.74× at 4K (lavapipe), on a GPU several times faster than the Deck's.
+- **VRR.** Generated frames need a fixed refresh, so adaptive sync (FreeSync) is paused while Auto or Custom is selected. **Off** gives it back.
+- **HUD** keeps its share of the screen on a 1080p or 4K TV.
 
 ## How it works
 
