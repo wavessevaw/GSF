@@ -17,8 +17,12 @@ type Status = {
   gpu_us_last?: number; gpu_us_avg?: number; gpu_us_max?: number; over_budget?: number; timestamps?: boolean; last_problem?: string;
   auto?: boolean; auto_switches?: number; source_late?: number; cap_fps?: number; base_fps?: number;
   unsupported_format?: number; unsupported_colorspace?: number;
-  auto_floor?: number; hdr_enabled?: boolean; transfer?: string;
+  auto_floor?: number; hdr_enabled?: boolean; transfer?: string; vrr_held?: boolean;
 };
+
+// ×2, ×2.5, ×3.75 exactly (quarter steps, like the HUD), else one decimal (×2.6 for 35 at 90 Hz).
+const multText = (ratio: number) => Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}`
+  : Math.abs(ratio * 4 - Math.round(ratio * 4)) < 0.01 ? `×${(Math.round(ratio * 4) / 4).toFixed(2).replace(/0$/, '')}` : `×${ratio.toFixed(1)}`;
 type Mode = 'off' | 'auto' | 'cap';
 type View = 'main' | 'setup' | 'pace' | 'log';
 type Check = {key: string; ok: boolean; text: string; detail: string};
@@ -188,11 +192,16 @@ function Content() {
   const gameFps = status?.base_fps || status?.cap_fps || 0;
   const ratio = gameFps ? hz / gameFps : mult;
   const installed = diag?.checks.some(c => c.key === 'installed' && c.ok);
-  // Auto's caps (kfg_auto.h): refresh / 3, steps of 5, refresh / 2. 90 Hz: 30 / 35 / 40 / 45, and 24
-  // below them when x3.75 is allowed.
+  // Auto's caps (kfg_auto.h): refresh / 3 (at least 30), steps of 5, refresh / 2. 90 Hz: 30 / 35 /
+  // 40 / 45, and the low floor below them when allowed: 24 or refresh / 4 (90 Hz 24 at ×3.75,
+  // 120 Hz 30 at ×4, 60 Hz 24 at ×2.5).
+  const hzR = Math.round(hz), capHi = Math.floor(hzR / 2), lo3 = Math.ceil(hzR / 3);
+  const capLo = lo3 >= 30 ? lo3 : Math.min(30, capHi);
+  const capFloor = Math.max(24, Math.ceil(hzR / 4));
+  const floorMult = multText(hzR / capFloor), loMult = multText(hzR / capLo);
   const autoCaps = (() => {
-    const r = Math.round(hz), lo = Math.ceil(r / 3), hi = Math.floor(r / 2), c = [lo];
-    const floor = Math.max(20, Math.ceil(r * 4 / 15));
+    const lo = capLo, hi = capHi, c = [lo];
+    const floor = capFloor;
     if (x375 && floor < lo) c.unshift(floor);
     for (let x = (Math.floor(lo / 5) + 1) * 5; x < hi; x += 5) c.push(x);
     if (hi > lo) c.push(hi);
@@ -201,7 +210,7 @@ function Content() {
 
   const setMode = (m: Mode, b = base) => void act(async () => {
     await rpc.setMode(m, b);
-    return m === 'off' ? 'Generation off' : m === 'auto' ? `Auto: the game is held at the highest of ${autoCaps} it keeps steady, ${x375 ? '×3.75' : '×3'} at most`
+    return m === 'off' ? 'Generation off' : m === 'auto' ? `Auto: the game is held at the highest of ${autoCaps} it keeps steady, ${x375 && capFloor < capLo ? floorMult : loMult} at most`
       : `Base FPS ${b}: the game is held at ${b}, generation fills up to ${Math.round(hz)}`;
   });
   const onBase = (v: number) => {
@@ -217,6 +226,7 @@ function Content() {
   else if ((live?.unsupported ?? 0) > 1) note = `This game's frames are not supported (Vulkan format ${status?.unsupported_format}, colour space ${status?.unsupported_colorspace}). Save a report from Setup and send it.`;
   else if (status?.steam_ui) note = 'Steam is on screen: generation waits for the game.';
   else if (status?.state === 'degraded') note = 'Paused: frame analysis cannot keep up. Retrying in 2 s.';
+  else if (status?.vrr_held) note = 'VRR is paused while generation is on: generated frames need a fixed refresh. Off gives VRR back.';
   else if (mode === 'cap' && live?.real !== null && live?.real !== undefined && live.real < 0.95 * (status?.base_fps ?? 0))
     note = `The game runs below its cap of ${status?.base_fps}. Lower the cap or use Auto for steadier motion.`;
   else if (mode === 'auto') note = (status?.cap_fps ?? 0) >= Math.floor(hz / 2) ? 'Holds the top cap; drops by itself if the game falls behind.'
@@ -249,7 +259,7 @@ function Content() {
     })} className="gsf-btn" style={primary}>{busy ? 'Working…' : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
     {needsReboot && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       await rpc.reboot(); return 'Rebooting…';
-    })} className="gsf-btn" style={secondary}>Reboot the Deck now</DialogButton></PanelSectionRow>}
+    })} className="gsf-btn" style={secondary}>Reboot now</DialogButton></PanelSectionRow>}
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.label, padding: '0 2px'}}>
       Mounted over the stock Gamescope from /var/lib/kedavra; the SteamOS image is not changed. If Gaming Mode fails to start, the next boot uses the stock one.</div></PanelSectionRow>
     <div style={gap}/>
@@ -309,12 +319,10 @@ function Content() {
   </PanelSection>;
 
   const fpsColor = !generating ? C.green : (live?.fps ?? 0) >= 0.97 * hz ? C.green : (live?.fps ?? 0) >= 0.85 * hz ? C.yellow : C.red;
-  // ×2.25 and ×3.75 exactly (quarter steps, like the HUD), ×2.6 for 35 at 90 Hz.
-  const mult_text = Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}`
-    : Math.abs(ratio * 4 - Math.round(ratio * 4)) < 0.01 ? `×${(Math.round(ratio * 4) / 4).toFixed(2).replace(/0$/, '')}` : `×${ratio.toFixed(1)}`;
+  const mult_text = multText(ratio);
   const setOptions = (nx: boolean, nh: boolean) => void act(async () => {
     const r = await rpc.setOptions(nx, nh); setX375(r.x375); setHdr(r.hdr);
-    return nx !== x375 ? (r.x375 ? 'Auto may go down to base 24 (×3.75) when the game cannot hold 30' : 'Auto stays at ×3 at most')
+    return nx !== x375 ? (r.x375 ? `Auto may go down to base ${capFloor} (${floorMult}) when the game cannot hold ${capLo}` : `Auto stays at ${loMult} at most`)
       : (r.hdr ? 'HDR games get generation too' : 'HDR games pass through without generation');
   });
   const gpuMs = status?.timestamps ? (status?.gpu_us_avg ?? 0) / 1000 : undefined;
@@ -360,9 +368,9 @@ function Content() {
     </Focusable></PanelSectionRow>
     <div style={space}/>
     <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
-      {mode === 'cap' && <SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue bottomSeparator="standard"
+      {mode === 'cap' && <SliderField label="Base game FPS" value={Math.min(base, hzR)} min={20} max={hzR} step={1} showValue bottomSeparator="standard"
         disabled={busy || !running} onChange={onBase}/>}
-      {mode === 'auto' && <ToggleField label="Allow ×3.75" description="Base 24 when the game cannot hold 30" checked={x375}
+      {mode === 'auto' && <ToggleField label={`Allow ${floorMult}`} description={`Base ${capFloor} when the game cannot hold ${capLo}`} checked={x375}
         disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(v, hdr)}/>}
       <ToggleField label="HDR games" checked={hdr} disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(x375, v)}/>
       <ToggleField label="In-game HUD" checked={hud} disabled={busy} bottomSeparator="none"

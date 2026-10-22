@@ -79,7 +79,7 @@ class Control:
             if st.get("fresh") and "auto" not in st:
                 # A Gamescope from before auto mode reads 1 as "off".
                 raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no Auto mode: "
-                                   "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
+                                   "press Reinstall Gamescope KEDAVRA and reboot.")
         self._ctl("kfg_multiplier", mult)
         return {"multiplier": mult}
 
@@ -91,11 +91,12 @@ class Control:
         st = self.status()
         if st.get("fresh") and "base_fps" not in st:
             raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no base FPS: "
-                               "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
+                               "press Reinstall Gamescope KEDAVRA and reboot.")
         self._ctl("kfg_base_fps", fps)
         return {"base_fps": fps}
 
-    # The lowest floor Auto may use; the engine raises it to refresh / 3.75 (24 at 90 Hz).
+    # The lowest floor Auto may use; the engine raises it to 24 or refresh / 4 (90 Hz: 24, x3.75;
+    # 120 Hz: 30, x4; 60 Hz: 24, x2.5).
     X375_FLOOR = 20
 
     def options_differ(self, st, settings):
@@ -109,7 +110,7 @@ class Control:
         st = self.status()
         if st.get("fresh") and "req_auto_floor" not in st:
             raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no x3.75 or HDR: "
-                               "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
+                               "press Reinstall Gamescope KEDAVRA and reboot.")
         self._ctl("kfg_auto_floor", self.X375_FLOOR if settings.get("x375") else 0)
         self._ctl("kfg_hdr", 1 if settings.get("hdr") else 0)
         return {"x375": bool(settings.get("x375")), "hdr": bool(settings.get("hdr"))}
