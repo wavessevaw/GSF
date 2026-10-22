@@ -84,7 +84,7 @@ HDR: отдельная проверка ярких PQ границ и linear-li
 
 ## Governor 2.0: единый договор с engine
 
-Основная архитектура уже зафиксирована в linked GFG `CONCEPT.ru.md`: один supervisor, владельцы ресурсов, leases и verify/restore, порядок thermal → manual override → eligibility → pacing → quality → efficiency. Governor не должен получать право менять shader flags на каждом tick.
+Основная архитектура уже зафиксирована в linked GFG `CONCEPT.ru.md`: один supervisor, владельцы ресурсов, leases и verify/restore, пользовательское владение ресурсами, затем safety/restore → performance guard → цель режима → efficiency. Governor не должен получать право менять shader flags на каждом tick.
 
 Engine публикует immutable snapshot с epoch и свежестью: настоящий source FPS, подтверждённая display cadence, pending GPU work, completed stage costs, effective multiplier, bypass reason, format/refresh и thermal validity. Значение unknown не заменять нулём или здоровым статусом.
 
