@@ -1,0 +1,304 @@
+{
+  "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "baseline_gating_failures": 0,
+  "candidate_gating_failures": 0,
+  "rows": [
+    {
+      "scene": "pan",
+      "t": 0.333333,
+      "baseline": 33.671,
+      "candidate": 33.671,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "pan",
+      "t": 0.666667,
+      "baseline": 33.404,
+      "candidate": 33.403,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "pan",
+      "t": 0.5,
+      "baseline": 33.187,
+      "candidate": 33.186,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "fast_pan",
+      "t": 0.333333,
+      "baseline": 29.626,
+      "candidate": 29.626,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "fast_pan",
+      "t": 0.666667,
+      "baseline": 28.803,
+      "candidate": 28.802,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "fast_pan",
+      "t": 0.5,
+      "baseline": 28.924,
+      "candidate": 28.924,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "objects_hud",
+      "t": 0.333333,
+      "baseline": 36.718,
+      "candidate": 36.718,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "objects_hud",
+      "t": 0.666667,
+      "baseline": 36.856,
+      "candidate": 36.855,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "objects_hud",
+      "t": 0.5,
+      "baseline": 36.596,
+      "candidate": 36.597,
+      "delta": 0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "occlusion",
+      "t": 0.333333,
+      "baseline": 35.076,
+      "candidate": 35.078,
+      "delta": 0.002,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "occlusion",
+      "t": 0.666667,
+      "baseline": 35.183,
+      "candidate": 35.184,
+      "delta": 0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "occlusion",
+      "t": 0.5,
+      "baseline": 37.388,
+      "candidate": 37.389,
+      "delta": 0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "static",
+      "t": 0.333333,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "static",
+      "t": 0.666667,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "static",
+      "t": 0.5,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "scene_cut",
+      "t": 0.333333,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "scene_cut",
+      "t": 0.666667,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "scene_cut",
+      "t": 0.5,
+      "baseline": 99.0,
+      "candidate": 99.0,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "stairs",
+      "t": 0.333333,
+      "baseline": 23.114,
+      "candidate": 23.113,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "stairs",
+      "t": 0.666667,
+      "baseline": 23.014,
+      "candidate": 23.011,
+      "delta": -0.003,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "stairs",
+      "t": 0.5,
+      "baseline": 25.36,
+      "candidate": 25.359,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly",
+      "t": 0.333333,
+      "baseline": 31.368,
+      "candidate": 31.374,
+      "delta": 0.006,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly",
+      "t": 0.666667,
+      "baseline": 32.149,
+      "candidate": 32.152,
+      "delta": 0.003,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly",
+      "t": 0.5,
+      "baseline": 33.564,
+      "candidate": 33.567,
+      "delta": 0.003,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly_stairs",
+      "t": 0.333333,
+      "baseline": 20.984,
+      "candidate": 20.981,
+      "delta": -0.003,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly_stairs",
+      "t": 0.666667,
+      "baseline": 21.187,
+      "candidate": 21.185,
+      "delta": -0.002,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "dolly_stairs",
+      "t": 0.5,
+      "baseline": 21.842,
+      "candidate": 21.841,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "near_object",
+      "t": 0.333333,
+      "baseline": 31.115,
+      "candidate": 31.115,
+      "delta": 0.0,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "near_object",
+      "t": 0.666667,
+      "baseline": 32.058,
+      "candidate": 32.059,
+      "delta": 0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "near_object",
+      "t": 0.5,
+      "baseline": 31.652,
+      "candidate": 31.651,
+      "delta": -0.001,
+      "baseline_pass": true,
+      "candidate_pass": true
+    },
+    {
+      "scene": "climb",
+      "t": 0.333333,
+      "baseline": 21.593,
+      "candidate": 21.591,
+      "delta": -0.002,
+      "baseline_pass": false,
+      "candidate_pass": false
+    },
+    {
+      "scene": "climb",
+      "t": 0.666667,
+      "baseline": 21.83,
+      "candidate": 21.821,
+      "delta": -0.009,
+      "baseline_pass": false,
+      "candidate_pass": false
+    },
+    {
+      "scene": "climb",
+      "t": 0.5,
+      "baseline": 20.262,
+      "candidate": 20.248,
+      "delta": -0.014,
+      "baseline_pass": false,
+      "candidate_pass": false
+    }
+  ]
+}

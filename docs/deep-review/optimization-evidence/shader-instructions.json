@@ -1,0 +1,30 @@
+{
+  "baseline": {
+    "kfg_select": {
+      " Length ": 8,
+      "OpImageSampleExplicitLod": 1,
+      "OpImageFetch": 9,
+      "OpDot": 4
+    },
+    "kfg_warp": {
+      " Length ": 4,
+      "OpImageSampleExplicitLod": 6,
+      "OpImageFetch": 9,
+      "OpDot": 1
+    }
+  },
+  "squared": {
+    "kfg_select": {
+      " Length ": 7,
+      "OpImageSampleExplicitLod": 1,
+      "OpImageFetch": 9,
+      "OpDot": 5
+    },
+    "kfg_warp": {
+      " Length ": 1,
+      "OpImageSampleExplicitLod": 6,
+      "OpImageFetch": 9,
+      "OpDot": 4
+    }
+  }
+}

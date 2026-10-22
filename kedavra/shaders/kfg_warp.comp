@@ -59,8 +59,10 @@ void main()
 	vec4 s01 = texelFetch(s_samplers[2], clamp(b0 + ivec2(0, 1), ivec2(0), bsize - 1), 0);
 	vec4 s11 = texelFetch(s_samplers[2], clamp(b0 + ivec2(1, 1), ivec2(0), bsize - 1), 0);
 	vec4 sel;
-	float spread = max(max(length(s00.xy - s10.xy), length(s00.xy - s01.xy)), length(s00.xy - s11.xy));
-	if (spread < 2.0) {
+	// Only a threshold is needed: avoid three square roots per output pixel.
+	vec2 d10 = s00.xy - s10.xy, d01 = s00.xy - s01.xy, d11 = s00.xy - s11.xy;
+	float spread2 = max(max(dot(d10, d10), dot(d01, d01)), dot(d11, d11));
+	if (spread2 < 4.0) {
 		sel = mix(mix(s00, s10, fr.x), mix(s01, s11, fr.x), fr.y);
 	} else {
 		// Motion boundary: choose per pixel among the four neighbouring block motions by

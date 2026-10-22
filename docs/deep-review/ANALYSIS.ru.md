@@ -115,3 +115,8 @@ python3 docs/deep-review/compare_engine.py kedavra/build/engine.json /tmp/kfg-no
 ```
 
 В текущей песочнице LeakSanitizer не работает под ptrace; scheduler запущен с `ASAN_OPTIONS=detect_leaks=0`, AddressSanitizer/UBSan оставлены. Это ограничение записано, а не исправлено глобальным выключением sanitizers. `evidence/` содержит результаты, включая неуспешные quality phases. Новые аппаратные испытания не проводились; ускорение и снижение энергопотребления не заявлены.
+
+
+## Продолжение: конкретные shader-оптимизации
+
+См. [OPTIMIZATION-2.ru.md](OPTIMIZATION-2.ru.md): исправление undefined read в repair, замена пороговых Length на Dot, проверка настоящего pyramid kernel, три независимых A/B прогона и отклонённая подмена raw confidence. Там же конкретный код кэширования SAD для одинаковых predictors и условия проверки экономии на устройстве.
