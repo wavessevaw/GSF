@@ -95,6 +95,25 @@ class Control:
         self._ctl("kfg_base_fps", fps)
         return {"base_fps": fps}
 
+    # The lowest floor Auto may use; the engine raises it to refresh / 3.75 (24 at 90 Hz).
+    X375_FLOOR = 20
+
+    def options_differ(self, st, settings):
+        """True when a running engine's options are not the plugin's (it restarted with defaults)."""
+        if "req_auto_floor" not in st:
+            return False  # engine without these options
+        want_floor = self.X375_FLOOR if settings.get("x375") else 0
+        return st.get("req_auto_floor") != want_floor or bool(st.get("hdr_enabled")) != bool(settings.get("hdr"))
+
+    def apply_options(self, settings):
+        st = self.status()
+        if st.get("fresh") and "req_auto_floor" not in st:
+            raise RuntimeError("The installed Gamescope KEDAVRA is older than the plugin and has no x3.75 or HDR: "
+                               "press Reinstall Gamescope KEDAVRA and reboot the Deck.")
+        self._ctl("kfg_auto_floor", self.X375_FLOOR if settings.get("x375") else 0)
+        self._ctl("kfg_hdr", 1 if settings.get("hdr") else 0)
+        return {"x375": bool(settings.get("x375")), "hdr": bool(settings.get("hdr"))}
+
     # ------------------------------------------------------------ capture
 
     def _capture_info(self):

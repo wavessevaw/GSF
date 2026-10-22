@@ -48,6 +48,14 @@ static const scene SCENES[] = {
 	{ "climb", S_CLIMB, 0, 0, true, false },
 };
 
+// Low base frame rate (--lowbase): every source interval is 1.25 times longer, so all
+// motion between two source frames grows by 1.25 (24 instead of 30 FPS under the same camera),
+// and the generated phases are those of 24 -> 90 Hz (x3.75: multiples of 1/15).
+static double g_timescale = 1.0;
+static bool g_lowbase = false;
+#define PHASES_PER_PAIR (g_lowbase ? 4 : 3)
+#define PHASE_STEP (g_lowbase ? 4.0 / 15.0 : 1.0 / 3.0)
+
 static double hash2(int x, int y, int seed)
 {
 	uint32_t h = (uint32_t)x * 374761393u + (uint32_t)y * 668265263u + (uint32_t)seed * 2246822519u;
@@ -135,8 +143,8 @@ static void camera_pos(double t, double *cx, double *cy)
 		x += CAM_VX[f] * (t - f);
 		y += 0.18 * CAM_VX[f] * sin(f * 1.3) * (t - f);
 	}
-	*cx = x;
-	*cy = y;
+	*cx = x * g_timescale;
+	*cy = y * g_timescale;
 }
 
 static void scene_pixel(const scene *s, double t, double x, double y, int w, int h, double rgb[3])
@@ -237,8 +245,12 @@ static void scene_pixel(const scene *s, double t, double x, double y, int w, int
 	}
 }
 
+
 static void render(const scene *s, double t, int w, int h, uint8_t *out)
 {
+	// The camera sequence keeps its frame count and moves faster instead (camera_pos).
+	if (s->kind != S_CAMERA)
+		t *= g_timescale;
 	for (int y = 0; y < h; y++)
 		for (int x = 0; x < w; x++) {
 			double acc[3] = { 0, 0, 0 };
@@ -620,8 +632,9 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--bench") && i + 1 < argc) bench = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--scene") && i + 1 < argc) only = argv[++i];
 		else if (!strcmp(argv[i], "--no-temporal")) g_temporal = 0;
+		else if (!strcmp(argv[i], "--lowbase")) { g_lowbase = true; g_timescale = 1.25; }
 		else {
-			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal]\n");
+			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal] [--lowbase]\n");
 			return 2;
 		}
 	}
@@ -645,7 +658,9 @@ int main(int argc, char **argv)
 	int failures = 0;
 	printf("device: %s (%s)\n", vk.device_name, vk.driver_info);
 
-	const double phases[] = { 1.0 / 3.0, 2.0 / 3.0, 0.5 };
+	const double phases_x3[] = { 1.0 / 3.0, 2.0 / 3.0, 0.5 };
+	const double phases_lb[] = { 4.0 / 15.0, 11.0 / 15.0, 7.0 / 15.0 };
+	const double *phases = g_lowbase ? phases_lb : phases_x3;
 	for (size_t si = 0; si < sizeof(SCENES) / sizeof(SCENES[0]); si++) {
 		scene sc = SCENES[si];
 		if (getenv("KFG_PANV") && sc.kind == S_PAN)
@@ -836,8 +851,8 @@ int main(int argc, char **argv)
 			run_plan(&e, &p, NULL, NULL);
 			if (f == 0)
 				continue;
-			for (int j = 1; j < 3; j++) {
-				double t = j / 3.0;
+			for (int j = 1; j < PHASES_PER_PAIR; j++) {
+				double t = j * PHASE_STEP;
 				kfg_plan_generate(&p, (uint32_t)w, (uint32_t)h, fa, fb, fb, (float)t, 0);
 				run_plan(&e, &p, NULL, NULL);
 				kfg_vk_download_rgba8(&vk, &e.output, G);
@@ -914,8 +929,8 @@ int main(int argc, char **argv)
 					free(fl);
 				}
 			}
-			for (int j = 0; j < 3; j++) {
-				double t = j / 3.0;
+			for (int j = 0; j < PHASES_PER_PAIR; j++) {
+				double t = j * PHASE_STEP;
 				render(s, f - 1 + t, w, h, T);
 				render(s, f - 1 + (t < 0.5 ? 0.0 : 1.0), w, h, D);
 				if (j == 0) {
@@ -984,8 +999,8 @@ int main(int argc, char **argv)
 			run_plan(&e, &p, NULL, NULL);
 			if (f == 0)
 				continue;
-			for (int j = 0; j < 3; j++) {
-				double t = j / 3.0;
+			for (int j = 0; j < PHASES_PER_PAIR; j++) {
+				double t = j * PHASE_STEP;
 				render(s, f - 1 + t, w, h, T);
 				render(s, f - 1 + (t < 0.5 ? 0.0 : 1.0), w, h, D);
 				if (j == 0) {

@@ -117,6 +117,21 @@ class ControlTest(unittest.TestCase):
         self.assertLess(r["summary"]["p95_ms"], 0.01)
         self.assertIsNone(self.ctl.capture)
 
+    def test_options_x375_and_hdr(self):
+        status = self.ctl.runtime / "kedavra-status.json"
+        status.write_text(json.dumps({"engine": "kedavra-gamescope", "req_auto_floor": 0, "hdr_enabled": True}))
+        self.assertFalse(self.ctl.options_differ(json.loads(status.read_text()), {"x375": False, "hdr": True}))
+        self.assertTrue(self.ctl.options_differ(json.loads(status.read_text()), {"x375": True, "hdr": True}))
+        self.ctl.apply_options({"x375": True, "hdr": False})
+        self.assertEqual(self.rec.calls[-2][-2:], ["kfg_auto_floor", "20"])
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_hdr", "0"])
+
+    def test_options_refused_by_old_engine(self):
+        (self.ctl.runtime / "kedavra-status.json").write_text(json.dumps({"engine": "kedavra-gamescope", "auto": True}))
+        self.assertFalse(self.ctl.options_differ({"auto": True}, {"x375": True, "hdr": True}))
+        with self.assertRaises(RuntimeError):
+            self.ctl.apply_options({"x375": True, "hdr": True})
+
 
 if __name__ == "__main__":
     unittest.main()

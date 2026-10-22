@@ -45,6 +45,8 @@ test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim
 
 test-engine: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 	$(BUILD)/kfg_vktest --spv $(BUILD) --json $(BUILD)/engine.json
+	# Base 24 at 90 Hz (x3.75): motion x1.25 per source frame, phases of 1/15.
+	$(BUILD)/kfg_vktest --spv $(BUILD) --lowbase --json $(BUILD)/engine-lowbase.json
 	$(BUILD)/kfg_posttest --spv $(BUILD)
 
 test: test-sched test-engine

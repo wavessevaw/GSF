@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import asyncio
+import time
 import json
 from pathlib import Path
 
@@ -18,12 +19,13 @@ class Plugin:
         self.lock = asyncio.Lock()
         self.settings_path = self.out / "settings.json"
         self.settings = self._load_settings()
+        self.options_at = 0.0
         self.hud = Hud()
         loop = asyncio.get_event_loop()
         self.health = loop.create_task(self._health())
         self.hud_task = loop.create_task(self._hud())
 
-    DEFAULTS = {"hud": True, "base_fps": 30}
+    DEFAULTS = {"hud": True, "base_fps": 30, "x375": False, "hdr": True}
 
     def _load_settings(self):
         try:
@@ -44,6 +46,12 @@ class Plugin:
             try:
                 st = await asyncio.to_thread(self.ctl.status)
                 await asyncio.to_thread(self.hud.tick, bool(self.settings.get("hud")), st)
+                # A restarted Gamescope comes back with its defaults: restore the engine options.
+                # (The status file is rewritten once a second, so wait a few before checking again.)
+                if st.get("fresh") and time.monotonic() - self.options_at > 3 and self.ctl.options_differ(st, self.settings):
+                    self.options_at = time.monotonic()
+                    async with self.lock:
+                        await asyncio.to_thread(self.ctl.apply_options, self.settings)
             except Exception as e:
                 decky.logger.warning(f"hud: {e}")
             await asyncio.sleep(1)
@@ -79,7 +87,18 @@ class Plugin:
         return {"hud": self.settings["hud"]}
 
     async def get_settings(self):
-        return {"hud": bool(self.settings.get("hud")), "base_fps": int(self.settings.get("base_fps") or 30)}
+        return {"hud": bool(self.settings.get("hud")), "base_fps": int(self.settings.get("base_fps") or 30),
+                "x375": bool(self.settings.get("x375")), "hdr": bool(self.settings.get("hdr"))}
+
+    async def set_options(self, x375: bool, hdr: bool):
+        """Engine options: Auto may go down to x3.75 (base 24 at 90 Hz); generate for HDR games."""
+        async with self.lock:
+            self.settings["x375"] = bool(x375)
+            self.settings["hdr"] = bool(hdr)
+            await asyncio.to_thread(self._save_settings)
+            self.options_at = time.monotonic()
+            await asyncio.to_thread(self.ctl.apply_options, self.settings)
+            return {"x375": self.settings["x375"], "hdr": self.settings["hdr"]}
 
     async def set_mode(self, mode: str, base_fps: int = 0):
         """off | auto | cap (the game is held at base_fps, generation fills the refresh)."""
