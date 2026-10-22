@@ -90,6 +90,7 @@ namespace kfg
 		gamescope::OwningRc<CVulkanTexture> pLuma[ KFG_LEVELS + 1 ];
 		gamescope::OwningRc<CVulkanTexture> pFlow[ KFG_LEVELS + 1 ];  // pair (ulPrevID, ulID)
 		gamescope::OwningRc<CVulkanTexture> pStats;
+		gamescope::OwningRc<CVulkanTexture> pPairSelect;  // the pair's selection field, for all its phases
 	};
 
 	struct TraceRow_t
@@ -167,6 +168,7 @@ namespace kfg
 		kfg_post_cfg post = {};
 		std::string sPostSpec, sPostError;
 		bool bPostPending = false, bPostApplied = false;
+		bool bShownFiltered = false;  // this composite shows a ring frame or an output: filtered already
 		gamescope::OwningRc<CVulkanTexture> pPost[ 2 ];
 		gamescope::OwningRc<CVulkanTexture> pSmaaEdges, pSmaaWeights;
 		gamescope::OwningRc<CVulkanTexture> pSmaaArea, pSmaaSearch;  // constant, uploaded once
@@ -452,6 +454,12 @@ namespace kfg
 		}
 		uint32_t bs[ 2 ];
 		kfg_select_size( uWidth, uHeight, bs );
+		for ( Frame_t &f : s.frames )
+		{
+			f.pPairSelect = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
+			if ( !f.pPairSelect )
+				return false;
+		}
 		s.pSelect[ 0 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pSelect[ 1 ] = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
 		s.pOutput[ 0 ] = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
@@ -581,6 +589,7 @@ namespace kfg
 			case KFG_ROLE_FLOW:   return s.frames[ ref.ring ].pFlow[ ref.level ].get();
 			case KFG_ROLE_STATS:  return s.frames[ ref.ring ].pStats.get();
 			case KFG_ROLE_SELECT: return s.pSelect[ ref.ring & 1 ].get();
+			case KFG_ROLE_PAIR_SELECT: return s.frames[ ref.ring ].pPairSelect.get();
 			case KFG_ROLE_OUTPUT: return s.pOutput[ r.uOutput ].get();
 			case KFG_ROLE_POST_IN:      return r.pPostIn;
 			case KFG_ROLE_POST:         return s.pPost[ ref.ring & 1 ].get();
@@ -756,7 +765,10 @@ namespace kfg
 		return c;
 	}
 
-	static void RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0 )
+	// Filters on layer 0. With pInto the result is copied there (a ring frame: the game's own
+	// frame filtered once, before generation) instead of replacing layer 0; false when the
+	// filters are off for this frame.
+	static bool RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0, CVulkanTexture *pInto = nullptr )
 	{
 		const uint32_t uWidth = layer0.tex->width(), uHeight = layer0.tex->height();
 		const int nTransfer = SourceTransfer( layer0 );
@@ -765,13 +777,13 @@ namespace kfg
 		if ( !kfg_post_active( &post ) )
 		{
 			s.ulPostSkipped++;
-			return;
+			return false;
 		}
 		if ( !EnsurePostImages( s, uWidth, uHeight, post.aa == KFG_AA_SMAA, nTransfer ) )
 		{
 			s.ulPostSkipped++;
 			s.pszLastProblem = "post_allocation_failed";
-			return;
+			return false;
 		}
 		if ( post.aa == KFG_AA_SMAA )
 			RecordSmaaUpload( pCmd, s );
@@ -782,11 +794,15 @@ namespace kfg
 		kfg_plan plan;
 		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &post, flPhase );
 		if ( nRing < 0 )
-			return;
+			return false;
 		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
 		RecordPlan( pCmd, plan, r );
-		layer0.tex = s.pPost[ nRing ].get();
+		if ( pInto )
+			RecordCopy( pCmd, s.pPost[ nRing ].get(), pInto );
+		else
+			layer0.tex = s.pPost[ nRing ].get();
 		s.ulPostFrames++;
+		return true;
 	}
 
 	// JSON string content: quotes, backslashes and control characters become '?'.
@@ -1200,7 +1216,11 @@ namespace kfg
 				RecordPlan( pCmd, s.analysisPlan, r, s.uAnalysisNext );
 				s.bAnalysisQueued = false;
 			}
-			RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
+			// With filters on, the game's frame is filtered once on its way into the ring: real
+			// and generated frames then come out filtered, and the filters cost once per game
+			// frame instead of once per displayed frame (x3.75: a quarter as often).
+			if ( !s.bPostPending || !RecordPost( pCmd, s, layer0, cur.pColor.get() ) )
+				RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
 			cur.ulID = s.ulPendingID;
 			cur.bValid = true;
 			cur.ulPrevID = pPrev ? pPrev->ulID : 0;
@@ -1267,6 +1287,7 @@ namespace kfg
 		layer0.tex = pShow;
 		s.pLastShown = pShow;
 		s.ulApplied++;
+		s.bShownFiltered = s.bPostPending;  // ring frames and outputs made from them are filtered
 	}
 
 	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo )
@@ -1302,11 +1323,12 @@ namespace kfg
 			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries );
 		}
 
+		s.bShownFiltered = false;
 		if ( bGenerate && bSizeOk )
 			RecordGenerate( pCmd, s, layer0 );
 		if ( oQuery )
 			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.queryPool, *oQuery * k_uTimingQueries + 1 );
-		if ( bPost )
+		if ( bPost && !s.bShownFiltered )
 			RecordPost( pCmd, s, layer0 );
 		if ( oQuery )
 		{
