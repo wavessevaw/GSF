@@ -51,9 +51,12 @@ void main()
 		imageStore(dst, p, vec4(c.rgb, 1.0));
 		return;
 	}
-	ivec2 bsize = (size + 3) / 4;
+	// The field and its vectors are in analysis pixels: the source's own up to the Deck's
+	// pixel count, scaled down above it (u_scale source pixels per analysis pixel).
+	const vec2 sc = u_scale;
+	ivec2 bsize = (u_srcSize + 3) / 4;
 	// Bilinear footprint over the block field; use it only where the four vectors agree.
-	vec2 bp = (vec2(p) + 0.5) * 0.25 - 0.5;
+	vec2 bp = (vec2(p) + 0.5) / sc * 0.25 - 0.5;
 	const bool pair = (u_flags & KFG_FLAG_PAIR) != 0;
 	if (pair && u_t != 0.5) {
 		// The pair's field holds the motion of what is at each block at mid-phase; at phase
@@ -86,7 +89,7 @@ void main()
 		float best = 1e9;
 		sel = cand[own];
 		for (int i = 0; i < 4; i++) {
-			vec2 v = cand[i].xy;
+			vec2 v = cand[i].xy * sc;
 			vec3 a = kfg_tap(0, vec2(p) - u_t * v, size).rgb;
 			vec3 b = kfg_tap(1, vec2(p) + (1.0 - u_t) * v, size).rgb;
 			float e = dot(abs(a - b), vec3(1.0)) - (i == own ? 0.02 : 0.0);
@@ -96,7 +99,7 @@ void main()
 			}
 		}
 	}
-	vec2 v = sel.xy;
+	vec2 v = sel.xy * sc;
 	vec2 pa = vec2(p) - u_t * v;
 	vec2 pb = vec2(p) + (1.0 - u_t) * v;
 	// Out-of-frame samples: take the other side when only one is inside the image.
@@ -128,10 +131,10 @@ void main()
 #ifdef KFG_EXPERIMENT_NO_BLUR
 	const float blur = 0.0;
 #else
-	const float blur = clamp((length(v) - 10.0) * 0.08, 0.0, 4.0);
+	const float blur = clamp((length(sel.xy) - 10.0) * 0.08, 0.0, 4.0);  // analysis pixels
 #endif
 	if (blur > 0.25) {
-		vec2 o = normalize(v) * (0.5 * blur);
+		vec2 o = normalize(v) * (0.5 * blur) * sc;
 		vec3 sa = w_b < 1.0 ? kfg_tap(0, pa - o, size).rgb + kfg_tap(0, pa + o, size).rgb : vec3(0.0);
 		vec3 sb = w_b > 0.0 ? kfg_tap(1, pb - o, size).rgb + kfg_tap(1, pb + o, size).rgb : vec3(0.0);
 		c = (2.0 * c + 0.5 * mix(sa, sb, w_b)) * (1.0 / 3.0);

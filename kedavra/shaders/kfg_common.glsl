@@ -26,8 +26,7 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 	int u_flags;
 	float u_lambda;    // motion smoothness weight
 	float u_cutThreshold;
-	float u_pad0;
-	float u_pad1;
+	vec2 u_scale;      // warp: source pixels per analysis pixel
 };
 
 #define KFG_FLAG_COARSEST 1
@@ -38,6 +37,7 @@ layout(binding = 0, scalar) uniform kfg_params_t {
 #define KFG_FLAG_PQ 128
 #define KFG_FLAG_SCRGB 256
 #define KFG_FLAG_PAIR 512
+#define KFG_FLAG_RESAMPLE 1024
 
 // Pair statistics image (4x1): texel 0 = cut and match statistics; texels 1 to 3 = camera
 // motion as affine fields over normalised image coordinates: texel 1 = motion at the image

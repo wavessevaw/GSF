@@ -71,8 +71,8 @@ def _coverage(encoded: str) -> bytes:
 
 
 def scale_for(height: int) -> float:
-    """Atlas scale for the output height (800 p = 1)."""
-    return min((1.0, 1.5, 2.0), key=lambda s: abs(s - max(1.0, height / 800.0)))
+    """Atlas scale for the output height (800 p = 1; a 1080p TV 1.5, a 4K TV 3)."""
+    return min((1.0, 1.5, 2.0, 3.0), key=lambda s: abs(s - max(1.0, height / 800.0)))
 
 
 class Canvas:
@@ -335,7 +335,8 @@ class Hud:
                 self.last_key = ""
                 return publish(self.path, 0, 0, b"", seq=self.seq)
             return True
-        scale = scale_for(int(status.get("height") or 800))
+        # The screen's height, not the game's: a 1080p game on a 4K TV gets a 4K-sized HUD.
+        scale = scale_for(int(status.get("output_height") or status.get("height") or 800))
         items = items_for(status, rates)
         key = json.dumps([scale, items], sort_keys=True, default=str)
         self.seq += 1

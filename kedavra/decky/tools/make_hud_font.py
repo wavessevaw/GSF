@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 CHARS = " %+-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZx—"
-SCALES = (1.0, 1.5, 2.0)
+SCALES = (1.0, 1.5, 2.0, 3.0)  # 3.0: a 4K TV
 # style: (font file, pixel size at scale 1, letter spacing)
 STYLES = {
     "fps": ("Inter-Bold.otf", 17, 0.0),

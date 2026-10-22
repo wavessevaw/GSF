@@ -19,9 +19,17 @@
 //   select   L1 A,B + flow L2 + stats -> selection (4x4 blocks)
 //   repair   x2: selection -> selection (neighbour agreement, ping-pong between two fields)
 //   warp     colour A,B + selection + stats -> output (full resolution)
+//
+// Above about the Deck's pixel count (1280x800) the analysis runs on a frame scaled down to
+// that count (kfg_analysis_size): the first reduce resamples colour straight to the analysis
+// level 1, every analysis pass works in analysis pixels, and only the warp runs at the
+// source's own size, scaling the vectors up. A 1080p or 4K game then costs the analysis of a
+// Deck frame plus a warp over its own pixels, and a camera turn covers the same share of the
+// search range at any resolution.
 #ifndef KFG_PLAN_H
 #define KFG_PLAN_H
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -108,8 +116,7 @@ typedef struct kfg_params {
 	int32_t flags;
 	float lambda;
 	float cut_threshold;
-	float pad0;
-	float pad1;
+	float scale[2];   // warp: source pixels per analysis pixel (x, y)
 } kfg_params;
 
 #define KFG_FLAG_COARSEST 1
@@ -124,10 +131,15 @@ typedef struct kfg_params {
                                // negative values (colours outside BT.709)
 #define KFG_FLAG_PAIR 512      // select: mid-phase field for the whole pair (z = side ratio, no lean);
                                // warp: project the pair's field to the output phase
+#define KFG_FLAG_RESAMPLE 1024 // reduce (from colour): any ratio down to the analysis level 1
 #define KFG_REPAIR_ROUNDS 2    // select -> repair -> repair
 
 // Testing only (kfg_vktest A/B): select and repair for every output phase, as up to 1.2.
 static int kfg_per_phase_select = 0;
+
+// Pixel count the motion analysis works at: the Deck's screen. Hosts may change it before
+// creating their images (0 = always the source's own size).
+static uint32_t kfg_analysis_pixels = 1280u * 800u;
 
 typedef struct kfg_pass {
 	enum kfg_shader shader;
@@ -190,7 +202,25 @@ static inline void kfg_level_size(uint32_t w, uint32_t h, uint32_t l, uint32_t o
 	out[1] = y ? y : 1u;
 }
 
-// Size of the selection field (one texel per 4x4 pixels) - equals level 2.
+// Size of the frame the analysis works on: the source itself up to 1.2x
+// kfg_analysis_pixels (the Deck's 1280x800 and 1280x720 stay exact), else the source scaled
+// down, aspect kept, to kfg_analysis_pixels (1920x1080 -> 1350x759, 3840x2160 -> 1350x759).
+static inline void kfg_analysis_size(uint32_t w, uint32_t h, uint32_t out[2])
+{
+	const double px = (double)w * (double)h, limit = (double)kfg_analysis_pixels;
+	out[0] = w;
+	out[1] = h;
+	if (!kfg_analysis_pixels || px <= 1.2 * limit)
+		return;
+	const double k = sqrt(px / limit);
+	out[0] = (uint32_t)((double)w / k + 0.5);
+	out[1] = (uint32_t)((double)h / k + 0.5);
+	if (out[0] < 1u) out[0] = 1u;
+	if (out[1] < 1u) out[1] = 1u;
+}
+
+// Size of the selection field (one texel per 4x4 analysis pixels) - equals analysis level 2.
+// w x h: the analysis size.
 static inline void kfg_select_size(uint32_t w, uint32_t h, uint32_t out[2])
 {
 	out[0] = kfg_div_up(w, 4u);
@@ -225,6 +255,7 @@ static inline void kfg_set_domain(kfg_pass *x, const uint32_t dst[2], uint32_t g
 }
 
 // Motion selection at block resolution and its repair rounds, ending in `out`.
+// w x h: the analysis size.
 static inline void kfg_plan_selection(kfg_plan *p, uint32_t w, uint32_t h, uint32_t fa, uint32_t fb, uint32_t pr,
 				      float t, int32_t flags, kfg_image_ref out)
 {
@@ -275,9 +306,15 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 				    int have_prev, int prev_pair, const kfg_tuning *tune)
 {
 	p->n = 0;
+	const uint32_t fw = w, fh = h;
+	uint32_t asz[2];
+	kfg_analysis_size(fw, fh, asz);
+	w = asz[0];
+	h = asz[1];
+	const int resample = w != fw || h != fh;
 	uint32_t sz[KFG_LEVELS + 1][2];
-	sz[0][0] = w;
-	sz[0][1] = h;
+	sz[0][0] = fw;
+	sz[0][1] = fh;
 	for (uint32_t l = 1; l <= KFG_LEVELS; l++)
 		kfg_level_size(w, h, l, sz[l]);
 
@@ -287,7 +324,8 @@ static inline void kfg_plan_analyze(kfg_plan *p, uint32_t w, uint32_t h, uint32_
 		x->nslots = 1;
 		x->params.src_size[0] = (int32_t)sz[l - 1][0];
 		x->params.src_size[1] = (int32_t)sz[l - 1][1];
-		x->params.flags = l == 1 ? kfg_transfer_flags(tune->transfer) : KFG_FLAG_LUMA_INPUT | (l >= 3 ? KFG_FLAG_TENT : 0);
+		x->params.flags = l == 1 ? kfg_transfer_flags(tune->transfer) | (resample ? KFG_FLAG_RESAMPLE : 0)
+			: KFG_FLAG_LUMA_INPUT | (l >= 3 ? KFG_FLAG_TENT : 0);
 		kfg_set_domain(x, sz[l], 8, 8);
 	}
 	if (!have_prev)
@@ -355,11 +393,12 @@ static inline void kfg_plan_generate(kfg_plan *p, uint32_t w, uint32_t h, uint32
 				     float t, int32_t flags)
 {
 	p->n = 0;
-	uint32_t full[2] = { w, h };
+	uint32_t full[2] = { w, h }, asz[2];
+	kfg_analysis_size(w, h, asz);
 	kfg_image_ref sel = kfg_ref(KFG_ROLE_PAIR_SELECT, pr, 0);
 	if (kfg_per_phase_select) {
 		sel = kfg_ref(KFG_ROLE_SELECT, 0, 0);  // even rounds end in field 0
-		kfg_plan_selection(p, w, h, fa, fb, pr, t, 0, sel);
+		kfg_plan_selection(p, asz[0], asz[1], fa, fb, pr, t, 0, sel);
 	} else
 		flags |= KFG_FLAG_PAIR;
 
@@ -369,10 +408,12 @@ static inline void kfg_plan_generate(kfg_plan *p, uint32_t w, uint32_t h, uint32
 	x->slots[2] = sel;
 	x->slots[3] = kfg_ref(KFG_ROLE_STATS, pr, 0);
 	x->nslots = 4;
-	x->params.src_size[0] = (int32_t)w;
-	x->params.src_size[1] = (int32_t)h;
+	x->params.src_size[0] = (int32_t)asz[0];  // analysis size: the field is a quarter of it
+	x->params.src_size[1] = (int32_t)asz[1];
 	x->params.full_size[0] = (int32_t)w;
 	x->params.full_size[1] = (int32_t)h;
+	x->params.scale[0] = (float)w / (float)asz[0];
+	x->params.scale[1] = (float)h / (float)asz[1];
 	x->params.t = t;
 	x->params.flags = flags;
 	kfg_set_domain(x, full, 8, 8);

@@ -5,12 +5,13 @@
 // Generation needs a source that arrives on a fixed vblank cadence. Instead of a manual
 // FPS limit, the engine caps the game itself (Gamescope's frame limiter, with the
 // fractional hook for caps that do not divide the refresh) and picks the cap from what the
-// game actually delivers. The caps are steps of 5 fps from refresh / 3 up to refresh / 2
-// (90 Hz: 30, 35, 40, 45, so x3, x2.6, x2.25, x2). By default generation never goes above x3:
-// a game that cannot hold refresh / 3 (below 30 at 90 Hz) stays capped there and the
-// scheduler repeats frames. A controller may lower the floor (kfg_auto_floor) down to
-// refresh / 3.75 (24 at 90 Hz, x3.75: frames held 3 or 4 refreshes, never 5); the floor is then
-// the lowest cap, below the usual steps.
+// game actually delivers. The caps are steps of 5 fps from refresh / 3 (at least 30) up to
+// refresh / 2 (90 Hz: 30, 35, 40, 45, so x3, x2.6, x2.25, x2; 120 Hz: 40 to 60; 60 Hz, a TV:
+// 30, x2). By default generation never goes above x3: a game that cannot hold the lowest cap
+// stays capped there and the scheduler repeats frames. A controller may lower the floor
+// (kfg_auto_floor) to 24 fps or refresh / 4, whichever is higher (90 Hz: 24, x3.75, frames
+// held 3 or 4 refreshes, never 5; 120 Hz: 30, x4; 60 Hz: 24, x2.5); the floor is then the
+// lowest cap, below the usual steps.
 //
 //   * it starts at the lowest cap, the cadence most games can hold;
 //   * after a 1 s window with no late source frame it tries the next cap up;
@@ -74,12 +75,13 @@ static inline void kfg_auto_set_level(kfg_auto *a, uint32_t level)
 	a->mult = kfg_auto_div_up(a->refresh, a->cap);
 }
 
-// Lowest floor a controller may set: refresh / 3.75 rounded up (24 at 90 Hz), and never below
-// 20 fps.
+// Lowest floor a controller may set: a real frame is held at most 4 refreshes (refresh / 4
+// rounded up) and the game never runs below 24 fps. 90 Hz: 24 (x3.75), 120 Hz: 30 (x4),
+// 60 Hz: 24 (x2.5).
 static inline uint32_t kfg_auto_min_floor(uint32_t refresh_hz)
 {
-	const uint32_t f = kfg_auto_div_up(refresh_hz * 4u, 15u);
-	return f < 20u ? 20u : f;
+	const uint32_t f = kfg_auto_div_up(refresh_hz, 4u);
+	return f < 24u ? 24u : f;
 }
 
 // floor_fps: lowest cap; 0 = refresh / 3 (x3). Clamped to [kfg_auto_min_floor, refresh / 3].
@@ -88,8 +90,10 @@ static inline void kfg_auto_init_floor(kfg_auto *a, uint32_t refresh_hz, uint32_
 	if (refresh_hz < 30)
 		refresh_hz = 30;
 	a->refresh = refresh_hz;
-	// refresh / 3 (rounded up, so never above x3), then steps of 5 up to refresh / 2.
-	const uint32_t lo = kfg_auto_div_up(refresh_hz, 3), hi = refresh_hz / 2;
+	// refresh / 3 (rounded up, so never above x3) but at least 30 fps, then steps of 5 up to
+	// refresh / 2. 60 Hz (a TV): 30 only, x2; base 20 at x3 would feel slow.
+	const uint32_t hi = refresh_hz / 2, lo3 = kfg_auto_div_up(refresh_hz, 3);
+	const uint32_t lo = lo3 >= 30u ? lo3 : hi < 30u ? hi : 30u;
 	a->nlevels = 0;
 	if (floor_fps) {
 		const uint32_t mf = kfg_auto_min_floor(refresh_hz);
