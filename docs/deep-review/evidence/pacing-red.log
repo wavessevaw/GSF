@@ -1,0 +1,51 @@
+FFFFF.
+======================================================================
+FAIL: test_explicit_exclusion_breaks_interval_chain (test_pacing.PacingRegression.test_explicit_exclusion_breaks_interval_chain)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/gfg-300-audit/kedavra/kedavra/tools/test_pacing.py", line 27, in test_explicit_exclusion_breaks_interval_chain
+    self.assertEqual(r['interval_error_ms']['max'],0)
+AssertionError: 30.0 != 0
+
+======================================================================
+FAIL: test_half_refresh_counts_absent_slots (test_pacing.PacingRegression.test_half_refresh_counts_absent_slots)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/gfg-300-audit/kedavra/kedavra/tools/test_pacing.py", line 14, in test_half_refresh_counts_absent_slots
+    self.assertAlmostEqual(r['missed_fraction'],99/199)
+AssertionError: 0.0 != 0.49748743718592964 within 7 places (0.49748743718592964 difference)
+
+======================================================================
+FAIL: test_invalid_refresh_cannot_be_accepted (test_pacing.PacingRegression.test_invalid_refresh_cannot_be_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/gfg-300-audit/kedavra/kedavra/tools/test_pacing.py", line 37, in test_invalid_refresh_cannot_be_accepted
+    self.assertIn('error',p.analyze(rs,skip_s=0))
+AssertionError: 'error' not found in {'rows': 3, 'duration_s': 0.02, 'refresh_hz': nan, 'kinds': {'real': 3}, 'repeat_reasons': {}, 'missed_fraction': 0.0, 'interval_error_ms': {'p50': None, 'p95': None, 'p99': None, 'max': None}, 'oscillation_fraction': 0.0, 'reorders': 0, 'content_steps': {'1': 2}, 'generated_per_interval': {}, 'generated_per_locked_interval': {}, 'locked_interval_fraction': None, 'content_step_irregular_fraction': 0.0, 'phases': {}, 'latency_ms': None, 'latency_drift_ms': None, 'skips': 0, 'compose_late': 0, 'checks': {'p95_interval_error': False, 'p99_interval_error': False, 'missed_below_0.5pct': True, 'no_oscillation': True, 'no_reorder': True, 'uniform_content_steps': True}, 'pass': False}
+
+======================================================================
+FAIL: test_long_unexplained_stall_is_not_excluded (test_pacing.PacingRegression.test_long_unexplained_stall_is_not_excluded)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/gfg-300-audit/kedavra/kedavra/tools/test_pacing.py", line 22, in test_long_unexplained_stall_is_not_excluded
+    self.assertGreater(r['missed_fraction'],0.9)
+AssertionError: 0.0 not greater than 0.9
+
+======================================================================
+FAIL: test_phase_fractions_are_reduced (test_pacing.PacingRegression.test_phase_fractions_are_reduced)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/gfg-300-audit/kedavra/kedavra/tools/test_pacing.py", line 34, in test_phase_fractions_are_reduced
+    self.assertEqual(result['generated_per_interval'],{'1':2})
+AssertionError: {'2': 2} != {'1': 2}
+- {'2': 2}
+?   ^
+
++ {'1': 2}
+?   ^
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.003s
+
+FAILED (failures=5)

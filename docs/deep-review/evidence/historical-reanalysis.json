@@ -1,0 +1,47 @@
+[
+  {
+    "trace": "docs/kedavra/evidence/deck-20261021-auto/trace-20261021-043758-auto-x3.csv",
+    "old_repeat_fraction": 0.005071533669348527,
+    "new_slot_estimate": 0.1445682601205857,
+    "unobserved": 5209,
+    "old_pass": false,
+    "new_pass": false,
+    "note": "historical trace; no new hardware run; logging loss not distinguishable"
+  },
+  {
+    "trace": "docs/kedavra/evidence/deck-20261021-auto/trace-20261021-105329-auto-x3.csv",
+    "old_repeat_fraction": 0.0026856702209695003,
+    "new_slot_estimate": 0.007751527818196249,
+    "unobserved": 384,
+    "old_pass": false,
+    "new_pass": false,
+    "note": "historical trace; no new hardware run; logging loss not distinguishable"
+  },
+  {
+    "trace": "docs/kedavra/evidence/deck-20261021/trace-x2-run1.csv",
+    "old_repeat_fraction": 0.029343114371457153,
+    "new_slot_estimate": 0.536243428389358,
+    "unobserved": 3278,
+    "old_pass": false,
+    "new_pass": false,
+    "note": "historical trace; no new hardware run; logging loss not distinguishable"
+  },
+  {
+    "trace": "docs/kedavra/evidence/deck-20261021/trace-run2-x3-manual.csv",
+    "old_repeat_fraction": 0.001520912547528517,
+    "new_slot_estimate": 0.22712748065926675,
+    "unobserved": 2687,
+    "old_pass": false,
+    "new_pass": false,
+    "note": "historical trace; no new hardware run; logging loss not distinguishable"
+  },
+  {
+    "trace": "docs/kedavra/evidence/deck-20261021/trace-run3-x2.csv",
+    "old_repeat_fraction": 0.03688853247794707,
+    "new_slot_estimate": 0.3046415130753643,
+    "unobserved": 2881,
+    "old_pass": false,
+    "new_pass": false,
+    "note": "historical trace; no new hardware run; logging loss not distinguishable"
+  }
+]

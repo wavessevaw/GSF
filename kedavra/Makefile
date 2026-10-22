@@ -38,7 +38,14 @@ $(BUILD)/kfg_vktest: engine/kfg_vktest.c engine/kfg_vk.c engine/kfg_vk.h engine/
 $(BUILD)/kfg_posttest: engine/kfg_posttest.c engine/kfg_vk.c engine/kfg_vk.h engine/kfg_plan.h engine/kfg_post.h engine/kfg_smaa_tex.h | $(BUILD)
 	$(CC) $(CFLAGS) $(WARN) -std=c11 -Iengine -o $@ engine/kfg_posttest.c engine/kfg_vk.c -lvulkan -lm
 
-test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim
+$(BUILD)/test_completion_bridge: sched/test_completion_bridge.c sched/kfg_sched.h | $(BUILD)
+	$(CC) -O1 -g -fsanitize=address,undefined $(WARN) -std=c11 -o $@ sched/test_completion_bridge.c
+
+test-pacing:
+	$(PYTHON) -m unittest discover -s tools -p 'test_pacing.py'
+
+test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim $(BUILD)/test_completion_bridge
+	$(BUILD)/test_completion_bridge
 	$(BUILD)/test_sched
 	$(BUILD)/test_auto
 	$(PYTHON) sched/run_scenarios.py --sim $(BUILD)/kfg_sim --seeds 3 --out $(BUILD)/scenarios.json
@@ -47,7 +54,7 @@ test-engine: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 	$(BUILD)/kfg_vktest --spv $(BUILD) --json $(BUILD)/engine.json
 	$(BUILD)/kfg_posttest --spv $(BUILD)
 
-test: test-sched test-engine
+test: test-pacing test-sched test-engine
 
 bench: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 	$(BUILD)/kfg_vktest --spv $(BUILD) --json $(BUILD)/engine-bench.json --bench 200
@@ -56,4 +63,4 @@ bench: $(BUILD)/kfg_vktest $(BUILD)/kfg_posttest $(SPV)
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all test test-sched test-engine bench clean
+.PHONY: all test test-pacing test-sched test-engine bench clean

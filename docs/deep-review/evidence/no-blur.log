@@ -1,0 +1,68 @@
+device: llvmpipe (LLVM 19.1.7, 256 bits) (llvmpipe Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7))
+pan          cut=0 bad=0.024 mc=0.0154 zero=0.1163 global=(24.0,8.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=34.26dB blend=17.23dB dup=16.22dB region gen/blend/dup=34.26/17.23/16.22 |G-A|=25.56 |G-B|=33.74 hud=0.00 PASS
+  t=0.667 gen=33.94dB blend=17.24dB dup=16.23dB region gen/blend/dup=33.94/17.24/16.23 |G-A|=33.69 |G-B|=25.56 hud=0.00 PASS
+  t=0.500 gen=33.71dB blend=16.58dB dup=15.09dB region gen/blend/dup=33.71/16.58/15.09 |G-A|=31.59 |G-B|=31.63 hud=0.00 PASS
+fast_pan     cut=0 bad=0.004 mc=0.0020 zero=0.0959 global=(72.0,-0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=31.89dB blend=17.70dB dup=16.68dB region gen/blend/dup=31.89/17.70/16.68 |G-A|=26.89 |G-B|=29.95 hud=0.00 PASS
+  t=0.667 gen=30.57dB blend=17.67dB dup=16.65dB region gen/blend/dup=30.57/17.67/16.65 |G-A|=29.83 |G-B|=26.98 hud=0.00 PASS
+  t=0.500 gen=30.81dB blend=17.50dB dup=16.19dB region gen/blend/dup=30.81/17.50/16.19 |G-A|=29.13 |G-B|=29.23 hud=0.00 PASS
+objects_hud  cut=0 bad=0.001 mc=0.0005 zero=0.0043 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=36.68dB blend=30.10dB dup=29.20dB region gen/blend/dup=25.01/19.33/18.21 |G-A|=1.06 |G-B|=1.36 hud=0.00 PASS
+  t=0.667 gen=36.83dB blend=30.08dB dup=29.16dB region gen/blend/dup=25.61/19.42/18.28 |G-A|=1.35 |G-B|=1.06 hud=0.00 PASS
+  t=0.500 gen=36.63dB blend=29.67dB dup=28.20dB region gen/blend/dup=24.90/19.25/17.70 |G-A|=1.24 |G-B|=1.25 hud=0.00 PASS
+occlusion    cut=0 bad=0.003 mc=0.0010 zero=0.0776 global=(-16.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=34.68dB blend=20.62dB dup=19.28dB region gen/blend/dup=24.39/19.14/17.99 |G-A|=16.53 |G-B|=20.99 hud=0.00 PASS
+  t=0.667 gen=34.80dB blend=20.60dB dup=19.26dB region gen/blend/dup=24.48/19.00/17.84 |G-A|=21.01 |G-B|=16.48 hud=0.00 PASS
+  t=0.500 gen=37.73dB blend=20.24dB dup=18.50dB region gen/blend/dup=24.61/18.82/17.15 |G-A|=18.96 |G-B|=18.92 hud=0.00 PASS
+static       cut=0 bad=0.000 mc=0.0000 zero=0.0000 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.667 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.500 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+scene_cut    cut=1 bad=0.036 mc=0.0258 zero=0.0798 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=99.00dB blend=27.64dB dup=99.00dB region gen/blend/dup=99.00/27.64/99.00 |G-A|=0.00 |G-B|=24.60 hud=0.00 PASS
+  t=0.667 gen=99.00dB blend=27.64dB dup=99.00dB region gen/blend/dup=99.00/27.64/99.00 |G-A|=24.60 |G-B|=0.00 hud=0.00 PASS
+  t=0.500 gen=99.00dB blend=24.11dB dup=99.00dB region gen/blend/dup=99.00/24.11/99.00 |G-A|=24.60 |G-B|=0.00 hud=0.00 PASS
+stairs       cut=0 bad=0.017 mc=0.0172 zero=0.1049 global=(16.0,8.0) grad=(-0.0,0.0;0.0,-0.0)
+  t=0.333 gen=23.44dB blend=12.63dB dup=11.40dB region gen/blend/dup=23.44/12.63/11.40 |G-A|=55.78 |G-B|=49.82 hud=0.00 PASS
+  t=0.667 gen=23.30dB blend=12.63dB dup=11.40dB region gen/blend/dup=23.30/12.63/11.40 |G-A|=50.03 |G-B|=56.27 hud=0.00 PASS
+  t=0.500 gen=25.68dB blend=12.83dB dup=11.37dB region gen/blend/dup=25.68/12.83/11.37 |G-A|=58.14 |G-B|=58.18 hud=0.00 PASS
+dolly        cut=0 bad=0.025 mc=0.0179 zero=0.1033 global=(-0.2,4.9) grad=(30.5,0.0;0.0,19.1)
+  t=0.333 gen=31.19dB blend=17.90dB dup=16.63dB region gen/blend/dup=30.59/16.95/15.74 |G-A|=24.06 |G-B|=29.17 hud=0.00 PASS
+  t=0.667 gen=32.05dB blend=17.80dB dup=16.73dB region gen/blend/dup=31.95/16.85/15.78 |G-A|=29.83 |G-B|=23.09 hud=0.00 PASS
+  t=0.500 gen=33.40dB blend=17.87dB dup=16.27dB region gen/blend/dup=32.61/17.04/15.53 |G-A|=27.50 |G-B|=26.65 hud=0.00 PASS
+dolly_stairs cut=0 bad=0.019 mc=0.0202 zero=0.1100 global=(1.1,0.6) grad=(2.9,0.0;0.0,1.8)
+  t=0.333 gen=21.04dB blend=12.96dB dup=11.89dB region gen/blend/dup=21.04/12.96/11.89 |G-A|=43.64 |G-B|=45.60 hud=0.00 PASS
+  t=0.667 gen=21.27dB blend=12.97dB dup=11.88dB region gen/blend/dup=21.27/12.97/11.88 |G-A|=45.34 |G-B|=43.21 hud=0.00 PASS
+  t=0.500 gen=21.89dB blend=13.08dB dup=11.80dB region gen/blend/dup=21.89/13.08/11.80 |G-A|=45.72 |G-B|=45.92 hud=0.00 PASS
+near_object  cut=0 bad=0.004 mc=0.0026 zero=0.0721 global=(16.0,0.0) grad=(-0.0,0.0;0.0,-0.0)
+  t=0.333 gen=31.07dB blend=20.01dB dup=18.82dB region gen/blend/dup=24.97/18.64/17.53 |G-A|=16.51 |G-B|=20.55 hud=0.00 PASS
+  t=0.667 gen=32.08dB blend=20.02dB dup=18.84dB region gen/blend/dup=25.51/18.71/17.62 |G-A|=20.41 |G-B|=16.49 hud=0.00 PASS
+  t=0.500 gen=31.93dB blend=19.96dB dup=18.39dB region gen/blend/dup=25.48/18.35/16.93 |G-A|=18.78 |G-B|=18.79 hud=0.00 PASS
+climb        cut=0 bad=0.053 mc=0.0183 zero=0.0830 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=21.59dB blend=21.63dB dup=19.37dB region gen/blend/dup=21.59/21.63/19.37 |G-A|=10.35 |G-B|=15.97 hud=0.00 OPEN (not gated): moving region not better than blend/duplicate by 2 dB
+  t=0.667 gen=21.83dB blend=21.68dB dup=19.24dB region gen/blend/dup=21.83/21.68/19.24 |G-A|=16.70 |G-B|=9.37 hud=0.00 OPEN (not gated): moving region not better than blend/duplicate by 2 dB
+  t=0.500 gen=20.26dB blend=21.16dB dup=17.32dB region gen/blend/dup=20.26/21.16/17.32 |G-A|=14.16 |G-B|=13.04 hud=0.00 OPEN (not gated): moving region not better than blend/duplicate by 2 dB
+sequence: PASS (0 bad outputs of 14)
+camera: psnr gen 28.22 dB (worst 23.77), dup 15.99 dB; temporal gen 4.296, dup 34.459; cuts 0 of 11; hud max 4.13
+stairs temporal: gen 9.045, duplicate 66.624 (mean |change error| per channel); psnr gen 24.27 dB, dup 11.40 dB
+slow_pan temporal: gen 5.427, duplicate 7.295 (mean |change error| per channel); psnr gen 29.15 dB, dup 25.52 dB
+slow_stairs temporal: gen 4.927, duplicate 28.171 (mean |change error| per channel); psnr gen 29.07 dB, dup 14.51 dB
+climb temporal: gen 3.345, duplicate 10.352 (mean |change error| per channel); psnr gen 25.32 dB, dup 19.55 dB
+hdr pq    pan          cut=0 PASS
+          worst gain over blend/duplicate 16.66 dB
+hdr pq    objects_hud  cut=0 PASS
+          worst gain over blend/duplicate 5.63 dB
+hdr pq    occlusion    cut=0 PASS
+          worst gain over blend/duplicate 13.38 dB
+hdr pq    static       cut=0 PASS
+hdr pq    scene_cut    cut=1 PASS
+hdr scrgb pan          cut=0 PASS
+          worst gain over blend/duplicate 16.69 dB
+hdr scrgb objects_hud  cut=0 PASS
+          worst gain over blend/duplicate 5.11 dB
+hdr scrgb occlusion    cut=0 PASS
+          worst gain over blend/duplicate 10.85 dB
+hdr scrgb static       cut=0 PASS
+hdr scrgb scene_cut    cut=1 PASS
+PASS: 0 failure(s)

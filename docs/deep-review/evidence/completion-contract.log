@@ -1,0 +1,3 @@
+fixed-plus-two: generated=237 before-modeled-completion=237 degraded=0
+completion-observed: generated=24 before-modeled-completion=0 degraded=2
+PASS: production-scheduler completion contract counterexample

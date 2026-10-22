@@ -98,7 +98,11 @@ void main()
 	// Faint motion blur on fast motion only (a turn above ~10 px per game frame): two more
 	// taps per side along the motion, up to 4 px long. Static and slow content (HUD, text,
 	// slow turns) is untouched and costs nothing.
+#ifdef KFG_EXPERIMENT_NO_BLUR
+	const float blur = 0.0;
+#else
 	const float blur = clamp((length(v) - 10.0) * 0.08, 0.0, 4.0);
+#endif
 	if (blur > 0.25) {
 		vec2 o = normalize(v) * (0.5 * blur);
 		vec3 sa = kfg_tap(0, pa - o, size).rgb + kfg_tap(0, pa + o, size).rgb;

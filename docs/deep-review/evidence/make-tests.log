@@ -1,0 +1,74 @@
+make: Entering directory '/workspace/gfg-300-audit/kedavra/kedavra'
+python3 -m unittest discover -s tools -p 'test_pacing.py'
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.002s
+
+OK
+cc -O1 -g -fsanitize=address,undefined -Wall -Wextra -Wno-missing-field-initializers -std=c11 -o /workspace/gfg-300-audit/build/test_sched sched/test_sched.c
+cc -O1 -g -fsanitize=address,undefined -Wall -Wextra -Wno-missing-field-initializers -std=c11 -o /workspace/gfg-300-audit/build/test_auto sched/test_auto.c -lm
+/workspace/gfg-300-audit/build/test_completion_bridge
+fixed-plus-two: generated=237 before-modeled-completion=237 degraded=0
+completion-observed: generated=24 before-modeled-completion=0 degraded=2
+PASS: production-scheduler completion contract counterexample
+/workspace/gfg-300-audit/build/test_sched
+kfg_sched: all tests passed
+/workspace/gfg-300-audit/build/test_auto
+native 60:  cap 45 100.0%, mean cap 45.0, switches 3, late 0.000%
+native 50:  cap 45 100.0%, mean cap 45.0, switches 3, late 0.000%
+native 44:  mean cap 35.1, switches 43, late 0.218%
+native 38:  mean cap 35.1, switches 39, late 0.171%
+native 33:  mean cap 30.1, switches 38, late 0.022%
+native 22:  mean cap 30.0, switches 0
+floor 24, native 27:  mean cap 24.0, switches 40, late 0.139%, uneven motion 8.82%
+floor 24, native 60:  cap 45 100.0%
+lock 30:    above 30 0.00% of the run, switches 38, late 0.256%, uneven motion 0.10%
+lock 45:    cap 45 100.0%, switches 3, late 0.059%, uneven motion 0.09%
+60->36->60: cap 45 63.9% (second half), switches 15
+kfg_auto: all tests passed
+python3 sched/run_scenarios.py --sim /workspace/gfg-300-audit/build/kfg_sim --seeds 3 --out /workspace/gfg-300-audit/build/scenarios.json
+PASS x3_30to90_stable               seed=1 missed=0.0074% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.01ms reorder=0 degraded_rows=0
+PASS x3_30to90_stable               seed=2 missed=0.0056% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.05ms reorder=0 degraded_rows=0
+PASS x3_30to90_stable               seed=3 missed=0.0037% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.12ms reorder=0 degraded_rows=0
+PASS x2_45to90_stable               seed=1 missed=0.0167% p95=0.003ms p99=0.004ms lat50=31.0ms drift=0.03ms reorder=0 degraded_rows=0
+PASS x2_45to90_stable               seed=2 missed=0.0167% p95=0.003ms p99=0.004ms lat50=31.0ms drift=-0.04ms reorder=0 degraded_rows=0
+PASS x2_45to90_stable               seed=3 missed=0.0093% p95=0.003ms p99=0.004ms lat50=31.0ms drift=-0.03ms reorder=0 degraded_rows=0
+PASS x2_30to60_stable               seed=1 missed=0.0111% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.00ms reorder=0 degraded_rows=0
+PASS x2_30to60_stable               seed=2 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.03ms reorder=0 degraded_rows=0
+PASS x2_30to60_stable               seed=3 missed=0.0084% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.02ms reorder=0 degraded_rows=0
+PASS x2_40to80_stable               seed=1 missed=0.0125% p95=0.003ms p99=0.004ms lat50=34.4ms drift=-0.03ms reorder=0 degraded_rows=0
+PASS x2_40to80_stable               seed=2 missed=0.0146% p95=0.003ms p99=0.004ms lat50=34.4ms drift=0.02ms reorder=0 degraded_rows=0
+PASS x2_40to80_stable               seed=3 missed=0.0084% p95=0.003ms p99=0.004ms lat50=34.4ms drift=-0.02ms reorder=0 degraded_rows=0
+PASS x3_30to90_30min                seed=1 missed=0.0043% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.04ms reorder=0 degraded_rows=0
+PASS x2_45to90_30min                seed=1 missed=0.0136% p95=0.003ms p99=0.004ms lat50=31.0ms drift=-0.01ms reorder=0 degraded_rows=0
+PASS x3_game_spikes                 seed=1 missed=0.2713% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.02ms reorder=0 degraded_rows=0
+PASS x3_game_spikes                 seed=2 missed=0.3475% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.08ms reorder=0 degraded_rows=0
+PASS x3_game_spikes                 seed=3 missed=0.2824% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.01ms reorder=0 degraded_rows=0
+PASS x3_heavy_analysis              seed=1 missed=0.0074% p95=0.003ms p99=0.004ms lat50=44.6ms drift=-0.01ms reorder=0 degraded_rows=0
+PASS x3_heavy_analysis              seed=2 missed=0.0167% p95=0.003ms p99=0.004ms lat50=44.6ms drift=-0.00ms reorder=0 degraded_rows=0
+PASS x3_heavy_analysis              seed=3 missed=0.0074% p95=0.003ms p99=0.004ms lat50=44.6ms drift=-0.01ms reorder=0 degraded_rows=0
+PASS x3_scene_cuts                  seed=1 missed=0.0074% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.01ms reorder=0 degraded_rows=0
+PASS x3_scene_cuts                  seed=2 missed=0.0056% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.05ms reorder=0 degraded_rows=0
+PASS x3_scene_cuts                  seed=3 missed=0.0037% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.11ms reorder=0 degraded_rows=0
+PASS x3_fps_drop                    seed=1 missed=0.0071% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.07ms reorder=0 degraded_rows=0
+PASS x3_fps_drop                    seed=2 missed=0.0071% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.06ms reorder=0 degraded_rows=0
+PASS x3_fps_drop                    seed=3 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.8ms drift=-0.07ms reorder=0 degraded_rows=0
+PASS toggle_off_on                  seed=1 missed=0.0079% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.00ms reorder=0 degraded_rows=0
+PASS toggle_off_on                  seed=2 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.00ms reorder=0 degraded_rows=0
+PASS toggle_off_on                  seed=3 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.8ms drift=-0.06ms reorder=0 degraded_rows=0
+PASS switch_x3_x2                   seed=1 missed=0.0136% p95=0.003ms p99=0.004ms lat50=52.5ms drift=0.12ms reorder=0 degraded_rows=0
+PASS switch_x3_x2                   seed=2 missed=0.0000% p95=0.003ms p99=0.004ms lat50=52.4ms drift=-0.04ms reorder=0 degraded_rows=0
+PASS switch_x3_x2                   seed=3 missed=0.0068% p95=0.003ms p99=0.004ms lat50=52.5ms drift=-0.08ms reorder=0 degraded_rows=0
+PASS refresh_90_to_60               seed=1 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.02ms reorder=0 degraded_rows=0
+PASS refresh_90_to_60               seed=2 missed=0.0084% p95=0.003ms p99=0.004ms lat50=46.8ms drift=0.05ms reorder=0 degraded_rows=0
+PASS refresh_90_to_60               seed=3 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.14ms reorder=0 degraded_rows=0
+PASS insufficient_compute           seed=1 missed=0.0082% p95=0.003ms p99=0.004ms lat50=46.7ms drift=-0.04ms reorder=0 degraded_rows=2520
+PASS insufficient_compute           seed=2 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.8ms drift=-0.02ms reorder=0 degraded_rows=2520
+PASS insufficient_compute           seed=3 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.8ms drift=-0.04ms reorder=0 degraded_rows=2520
+PASS suspend_resume                 seed=1 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.08ms reorder=0 degraded_rows=0
+PASS suspend_resume                 seed=2 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.7ms drift=0.05ms reorder=0 degraded_rows=0
+PASS suspend_resume                 seed=3 missed=0.0000% p95=0.003ms p99=0.004ms lat50=46.8ms drift=0.05ms reorder=0 degraded_rows=0
+PASS uncapped_40fps_x3_informative  seed=1 missed=0.1319% p95=0.003ms p99=0.004ms lat50=41.4ms drift=-0.07ms reorder=0 degraded_rows=0
+PASS uncapped_40fps_x3_informative  seed=2 missed=0.1224% p95=0.003ms p99=0.004ms lat50=41.4ms drift=-0.14ms reorder=0 degraded_rows=0
+PASS uncapped_40fps_x3_informative  seed=3 missed=0.2637% p95=0.003ms p99=0.004ms lat50=41.7ms drift=-0.23ms reorder=0 degraded_rows=0
+make: Leaving directory '/workspace/gfg-300-audit/kedavra/kedavra'
