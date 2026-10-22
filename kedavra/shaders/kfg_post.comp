@@ -1,0 +1,539 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// KEDAVRA post-generation filters (see engine/kfg_post.h for the stages and their order).
+// slot 0 = the stage input, sampled through its UNORM view: values are the game's encoded
+// (sRGB) values, the same values ReShade/vkBasalt effects were written for. Each effect's
+// result is clamped to [0, 1], as an 8-bit render target between ReShade passes would.
+//
+// Ports, defaults unchanged unless noted (licences in THIRD_PARTY.md next to this file):
+//   SweetFX by CeeJay.dk (MIT): Vibrance, Curves, Technicolor, Technicolor2, DPX, Sepia,
+//     Monochrome, Vignette, HDR (HDR Look), FilmGrain, Cartoon, Nostalgia, ChromaticAberration
+//   Colourfulness by bacondither (BSD-2-Clause style)
+//   CAS: AMD FidelityFX Contrast Adaptive Sharpening (MIT), as in vkBasalt
+//   DLS: NVIDIA Denoised Luma Sharpening by Suketu J. Shah (BSD-3-Clause), as in vkBasalt
+//   Deband: by Niklas Haas (MIT), as in vkBasalt
+//   Bleach Bypass, Noir, Clarity, Levels Plus: GFG Extreme's own effects (GPL-3.0-or-later)
+//   FXAA: an implementation of the published FXAA edge search, written for KEDAVRA
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#define STAGE_GRADE 0
+#define STAGE_SHARPEN 1
+#define STAGE_FXAA 2
+#define STAGE_FINISH 3
+
+#define G_DEBAND        (1 << 0)
+#define G_HDR_LOOK      (1 << 1)
+#define G_CLARITY       (1 << 2)
+#define G_CARTOON       (1 << 3)
+#define G_LEVELS_PLUS   (1 << 4)
+#define G_CURVES        (1 << 5)
+#define G_VIBRANCE      (1 << 6)
+#define G_COLOURFULNESS (1 << 7)
+#define G_TECHNICOLOR2  (1 << 8)
+#define G_DPX           (1 << 9)
+#define G_TECHNICOLOR   (1 << 10)
+#define G_BLEACH_BYPASS (1 << 11)
+#define G_SEPIA         (1 << 12)
+#define G_NOIR          (1 << 13)
+#define G_MONOCHROME    (1 << 14)
+#define G_NOSTALGIA     (1 << 15)
+
+#define F_CHROMATIC  (1 << 0)
+#define F_VIGNETTE   (1 << 1)
+#define F_FILM_GRAIN (1 << 2)
+
+#define S_CAS 1
+#define S_DLS 2
+
+const vec3 LUMA709 = vec3(0.2126, 0.7152, 0.0722);
+
+vec2 g_rcp;     // 1 / size
+vec2 g_uv;      // texcoord of this pixel's centre
+
+vec4 tap(vec2 uv) { return textureLod(s_samplers[0], uv, 0.0); }
+vec3 at(vec2 uv) { return tap(uv).rgb; }
+vec3 px(ivec2 o) { return at(g_uv + vec2(o) * g_rcp); }
+
+vec3 srgb_to_linear(vec3 c)
+{
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), greaterThan(c, vec3(0.04045)));
+}
+
+vec3 linear_to_srgb(vec3 c)
+{
+	c = max(c, vec3(0.0));
+	return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, greaterThan(c, vec3(0.0031308)));
+}
+
+// ------------------------------------------------------------------------------------- grade
+
+// Deband (haasn, vkBasalt defaults: avgdiff 3.4, maxdiff 6.8, middiff 3.3, range 16, 4 iterations).
+// The PRNG is seeded from the pixel position instead of the normalised coordinate.
+float db_rand(float x) { return fract(x / 41.0); }
+float db_permute(float x) { return mod((34.0 * x + 1.0) * x, 289.0); }
+
+void db_analyze(vec3 ori, vec2 range, vec2 dir, out vec3 avg, out vec3 avg_diff, out vec3 max_diff,
+		out vec3 mid1, out vec3 mid2)
+{
+	vec3 r = at(g_uv + range * dir);
+	max_diff = abs(ori - r);
+	avg = r;
+	mid1 = r;
+	r = at(g_uv - range * dir);
+	max_diff = max(max_diff, abs(ori - r));
+	avg += r;
+	mid1 = abs((mid1 + r) * 0.5 - ori);
+	r = at(g_uv + range * vec2(-dir.y, dir.x));
+	max_diff = max(max_diff, abs(ori - r));
+	avg += r;
+	mid2 = r;
+	r = at(g_uv + range * vec2(dir.y, -dir.x));
+	max_diff = max(max_diff, abs(ori - r));
+	avg += r;
+	mid2 = abs((mid2 + r) * 0.5 - ori);
+	avg *= 0.25;
+	avg_diff = abs(ori - avg);
+}
+
+vec3 deband(ivec2 p, vec3 ori)
+{
+	const float avgdiff = 3.4 / 255.0, maxdiff = 6.8 / 55.0, middiff = 3.3 / 255.0, range = 16.0;
+	float h = db_permute(db_permute(db_permute(mod(float(p.x), 289.0)) + mod(float(p.y), 289.0)) + 436.0 / 32767.0);
+	float dir = db_rand(db_permute(h)) * 6.2831853;
+	vec2 o = vec2(cos(dir), sin(dir));
+	vec3 res = ori;
+	for (int i = 1; i <= 4; ++i) {
+		float dist = db_rand(h) * range * float(i);
+		vec3 avg, avg_diff, max_diff, mid1, mid2;
+		db_analyze(ori, dist * g_rcp, o, avg, avg_diff, max_diff, mid1, mid2);
+		float fi = float(i);
+		vec3 factor = pow(clamp(3.0 * (1.0 - avg_diff / (avgdiff * fi)), 0.0, 1.0) *
+				  clamp(3.0 * (1.0 - max_diff / (maxdiff * fi)), 0.0, 1.0) *
+				  clamp(3.0 * (1.0 - mid1 / (middiff * fi)), 0.0, 1.0) *
+				  clamp(3.0 * (1.0 - mid2 / (middiff * fi)), 0.0, 1.0), vec3(0.1));
+		res = mix(ori, avg, factor);
+		h = db_permute(h);
+	}
+	// Ordered dither (vkBasalt).
+	float grid = fract(dot(g_uv, vec2(u_dstSize) * vec2(1.0 / 16.0, 10.0 / 36.0)) + 0.25);
+	float shift = 0.25 * (1.0 / 255.0);
+	vec3 rgb = vec3(shift, -shift, shift);
+	res += mix(2.0 * rgb, -2.0 * rgb, grid);
+	return res;
+}
+
+// HDR (SweetFX FakeHDR, GFG's single-ring path for the default radii).
+vec3 hdr_ring(float radius)
+{
+	vec2 q = radius * g_rcp;
+	return at(g_uv + vec2(1.5, -1.5) * q) + at(g_uv + vec2(-1.5, -1.5) * q) + at(g_uv + vec2(1.5, 1.5) * q) +
+	       at(g_uv + vec2(-1.5, 1.5) * q) + at(g_uv + vec2(0.0, -2.5) * q) + at(g_uv + vec2(0.0, 2.5) * q) +
+	       at(g_uv + vec2(-2.5, 0.0) * q) + at(g_uv + vec2(2.5, 0.0) * q);
+}
+
+vec3 hdr_look(vec3 color)
+{
+	const float power = 1.30, radius1 = 0.793, radius2 = 0.87;
+	const float dist = radius2 - radius1;
+	vec3 bloom = 0.005 * hdr_ring(2.0 * radius2 - radius1);
+	vec3 hdr = (color + bloom) * dist;
+	vec3 blend = hdr + color;
+	return pow(abs(blend), vec3(power)) + hdr;
+}
+
+vec3 clarity(vec3 color)
+{
+	vec3 centre = px(ivec2(0));
+	vec3 surround = (px(ivec2(2, 0)) + px(ivec2(-2, 0)) + px(ivec2(0, 2)) + px(ivec2(0, -2))) * 0.25;
+	float detail = dot(centre - surround, LUMA709);
+	float midtone = 1.0 - abs(dot(color, LUMA709) * 2.0 - 1.0);
+	return color + detail * midtone * 0.4;
+}
+
+vec3 cartoon(vec3 color)
+{
+	const float power = 1.5, slope = 1.5;
+	float d1 = dot(LUMA709, px(ivec2(1, 1))) - dot(LUMA709, px(ivec2(-1, -1)));
+	float d2 = dot(LUMA709, px(ivec2(1, -1))) - dot(LUMA709, px(ivec2(-1, 1)));
+	float edge = d1 * d1 + d2 * d2;
+	return pow(abs(edge), slope) * -power + color;
+}
+
+vec3 levels_plus(vec3 c)
+{
+	const float black = 0.02, white = 0.98, gamma = 1.0;
+	return pow(clamp((c - black) / max(white - black, 0.01), 0.0, 1.0), vec3(1.0 / gamma));
+}
+
+// Curves: luma mode, formula 4 (simplified Catmull-Rom), contrast 0.65 (x2 for this formula).
+vec3 curves(vec3 c)
+{
+	float luma = dot(LUMA709, c);
+	vec3 chroma = c - luma;
+	float x = luma * (luma * (1.5 - luma) + 0.5);
+	x = mix(luma, x, 0.65 * 2.0);
+	return x + chroma;
+}
+
+vec3 vibrance(vec3 c)
+{
+	const float v = 0.15;
+	float luma = dot(vec3(0.212656, 0.715158, 0.072186), c);
+	float sat = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+	vec3 coeff = vec3(v);
+	return mix(vec3(luma), c, 1.0 + coeff * (1.0 - sign(coeff) * sat));
+}
+
+// Colourfulness (bacondither, 2018-11-12): colourfulness 0.4, lim_luma 0.7, fast luma, no dither.
+vec3 colourfulness(vec3 c0)
+{
+	const float colourfulness_ = 0.4, lim_luma = 0.7;
+	const vec3 coeff = vec3(0.2558, 0.6511, 0.0931);
+	float luma = sqrt(dot(clamp(c0 * abs(c0), 0.0, 1.0), coeff));
+	c0 = clamp(c0, 0.0, 1.0);
+	vec3 diff_luma = c0 - luma;
+	vec3 c_diff = diff_luma * (colourfulness_ + 1.0) - diff_luma;
+	vec3 rlc_diff = clamp(c_diff * 1.2 + c0, -0.0001, 1.0001) - c0;
+	float poslim = (1.0002 - luma) / (abs(max(diff_luma.r, max(diff_luma.g, diff_luma.b))) + 0.0001);
+	float neglim = (luma + 0.0002) / (abs(min(diff_luma.r, min(diff_luma.g, diff_luma.b))) + 0.0001);
+	vec3 diffmax = diff_luma * min(min(poslim, neglim), 32.0) - diff_luma;
+	vec3 s = max(pow(lim_luma * sqrt(abs(diffmax)) + (1.0 - lim_luma) * sqrt(abs(rlc_diff)), vec3(2.0)), vec3(1e-7));
+	c_diff = c_diff * s / sqrt(s * s + c_diff * c_diff);
+	return c0 + c_diff;
+}
+
+vec3 technicolor2(vec3 color)
+{
+	const vec3 strength3 = vec3(0.2);
+	const float brightness = 1.0, saturation = 1.0, strength = 1.0;
+	color = clamp(color, 0.0, 1.0);
+	vec3 temp = 1.0 - color;
+	vec3 target = temp.grg;
+	vec3 target2 = temp.bbr;
+	vec3 temp2 = color * target;
+	temp2 *= target2;
+	temp = temp2 * strength3;
+	temp2 *= brightness;
+	target = temp.grg;
+	target2 = temp.bbr;
+	temp = color - target;
+	temp += temp2;
+	temp2 = temp - target2;
+	color = mix(color, temp2, strength);
+	return mix(vec3(dot(color, vec3(0.333))), color, saturation);
+}
+
+vec3 dpx(vec3 input_)
+{
+	const vec3 curve = vec3(8.0), cc = vec3(0.36, 0.36, 0.34);
+	const float contrast = 0.1, saturation = 3.0, colorfulness = 2.5, strength = 0.20;
+	// HLSL float3x3 rows; mul(M, v) = rows . v. GLSL matrices are column major, so transpose.
+	const mat3 RGB = transpose(mat3(
+		2.6714711726599600, -1.2672360578624100, -0.4109956021722270,
+		-1.0251070293466400, 1.9840911624108900, 0.0439502493584124,
+		0.0610009456429445, -0.2236707508128630, 1.1590210416706100));
+	const mat3 XYZ = transpose(mat3(
+		0.5003033835433160, 0.3380975732227390, 0.1645897795458570,
+		0.2579688942747580, 0.6761952591447060, 0.0658358459823868,
+		0.0234517888692628, 0.1126992737203000, 0.8668396731242010));
+	vec3 b = input_ * (1.0 - contrast) + 0.5 * contrast;
+	vec3 bt = 1.0 / (1.0 + exp(curve / 2.0));
+	b = (1.0 / (1.0 + exp(-curve * (b - cc)))) / (-2.0 * bt + 1.0) + (-bt / (-2.0 * bt + 1.0));
+	float value = max(max(b.r, b.g), b.b);
+	vec3 color = b / value;
+	color = pow(abs(color), vec3(1.0 / colorfulness));
+	vec3 c0 = XYZ * (color * value);
+	float luma = dot(c0, vec3(0.30, 0.59, 0.11));
+	c0 = (1.0 - saturation) * luma + saturation * c0;
+	c0 = RGB * c0;
+	return mix(input_, c0, strength);
+}
+
+vec3 technicolor(vec3 tcol)
+{
+	const float power = 4.0, strength = 0.4;
+	const vec3 neg = vec3(0.88);
+	const vec3 cyan = vec3(0.0, 1.30, 1.0), magenta = vec3(1.0, 0.0, 1.05), yellow = vec3(1.6, 1.6, 0.05);
+	const vec2 redorange = vec2(1.05, 0.620), green = vec2(0.30, 1.0), magenta2 = vec2(1.0, 1.05);
+	vec2 nr = tcol.rg * (1.0 / (neg.r * power));
+	vec2 ng = tcol.rg * (1.0 / (neg.g * power));
+	vec2 nb = tcol.rb * (1.0 / (neg.b * power));
+	vec3 r = vec3(dot(redorange, nr)) + cyan;
+	vec3 g = vec3(dot(green, ng)) + magenta;
+	vec3 b = vec3(dot(magenta2, nb)) + yellow;
+	return mix(tcol, r * g * b, strength);
+}
+
+vec3 bleach_bypass(vec3 c)
+{
+	float luma = dot(c, LUMA709);
+	vec3 muted = mix(vec3(luma), c, 0.38);
+	vec3 contrasted = muted * muted * (3.0 - 2.0 * muted);
+	vec3 processed = mix(muted, contrasted, 0.68);
+	return mix(c, clamp(processed, 0.0, 1.0), 0.72);
+}
+
+vec3 sepia(vec3 c)
+{
+	return mix(c, c * vec3(0.55, 0.43, 0.42) * 2.55, 0.58);
+}
+
+vec3 noir(vec3 c)
+{
+	float luma = dot(c, LUMA709);
+	float mono = clamp((luma - 0.5) * 1.32 + 0.5, 0.0, 1.0);
+	vec2 centred = g_uv * 2.0 - 1.0;
+	float vig = clamp(1.0 - dot(centred, centred) * 0.18, 0.0, 1.0);
+	vec3 processed = mono * vig * vec3(1.02, 1.0, 0.96);
+	return clamp(processed, 0.0, 1.0);  // strength 1.0
+}
+
+vec3 monochrome(vec3 c)
+{
+	return vec3(dot(vec3(0.21, 0.72, 0.07), c));  // preset "Custom" defaults, saturation 0
+}
+
+// Nostalgia 1.3: C64 palette (the default custom palette), matched in linear light,
+// scanlines type 1, no dither.
+const vec3 C64[16] = vec3[16](
+	vec3(0.0, 0.0, 0.0), vec3(255.0, 255.0, 255.0) / 255.0, vec3(136.0, 0.0, 0.0) / 255.0,
+	vec3(170.0, 255.0, 238.0) / 255.0, vec3(204.0, 68.0, 204.0) / 255.0, vec3(0.0, 204.0, 85.0) / 255.0,
+	vec3(0.0, 0.0, 170.0) / 255.0, vec3(238.0, 238.0, 119.0) / 255.0, vec3(221.0, 136.0, 85.0) / 255.0,
+	vec3(102.0, 68.0, 0.0) / 255.0, vec3(255.0, 119.0, 119.0) / 255.0, vec3(51.0, 51.0, 51.0) / 255.0,
+	vec3(119.0, 119.0, 119.0) / 255.0, vec3(170.0, 255.0, 102.0) / 255.0, vec3(0.0, 136.0, 255.0) / 255.0,
+	vec3(187.0, 187.0, 187.0) / 255.0);
+
+vec3 nostalgia(vec3 c)
+{
+	vec3 color = srgb_to_linear(clamp(c, 0.0, 1.0));
+	vec3 best = C64[0];
+	vec3 d = color - C64[0];
+	float bestd = dot(d, d);
+	for (int i = 1; i < 16; i++) {
+		d = color - C64[i];
+		float dd = dot(d, d);
+		if (dd < bestd) {
+			bestd = dd;
+			best = C64[i];
+		}
+	}
+	best *= fract(g_uv.y * (float(u_dstSize.y) * 0.5)) + 0.5;
+	return linear_to_srgb(best);
+}
+
+vec3 grade(ivec2 p, int fx)
+{
+	vec3 c = px(ivec2(0));
+	if ((fx & G_DEBAND) != 0)        c = clamp(deband(p, c), 0.0, 1.0);
+	if ((fx & G_HDR_LOOK) != 0)      c = clamp(hdr_look(c), 0.0, 1.0);
+	if ((fx & G_CLARITY) != 0)       c = clamp(clarity(c), 0.0, 1.0);
+	if ((fx & G_CARTOON) != 0)       c = clamp(cartoon(c), 0.0, 1.0);
+	if ((fx & G_LEVELS_PLUS) != 0)   c = clamp(levels_plus(c), 0.0, 1.0);
+	if ((fx & G_CURVES) != 0)        c = clamp(curves(c), 0.0, 1.0);
+	if ((fx & G_VIBRANCE) != 0)      c = clamp(vibrance(c), 0.0, 1.0);
+	if ((fx & G_COLOURFULNESS) != 0) c = clamp(colourfulness(c), 0.0, 1.0);
+	if ((fx & G_TECHNICOLOR2) != 0)  c = clamp(technicolor2(c), 0.0, 1.0);
+	if ((fx & G_DPX) != 0)           c = clamp(dpx(c), 0.0, 1.0);
+	if ((fx & G_TECHNICOLOR) != 0)   c = clamp(technicolor(c), 0.0, 1.0);
+	if ((fx & G_BLEACH_BYPASS) != 0) c = clamp(bleach_bypass(c), 0.0, 1.0);
+	if ((fx & G_SEPIA) != 0)         c = clamp(sepia(c), 0.0, 1.0);
+	if ((fx & G_NOIR) != 0)          c = clamp(noir(c), 0.0, 1.0);
+	if ((fx & G_MONOCHROME) != 0)    c = clamp(monochrome(c), 0.0, 1.0);
+	if ((fx & G_NOSTALGIA) != 0)     c = clamp(nostalgia(c), 0.0, 1.0);
+	return c;
+}
+
+// ----------------------------------------------------------------------------------- sharpen
+
+vec3 cas(float sharpness)
+{
+	vec3 a = px(ivec2(-1, -1)), b = px(ivec2(0, -1)), c = px(ivec2(1, -1));
+	vec3 d = px(ivec2(-1, 0)), e = px(ivec2(0, 0)), f = px(ivec2(1, 0));
+	vec3 g = px(ivec2(-1, 1)), h = px(ivec2(0, 1)), i = px(ivec2(1, 1));
+	vec3 mn = min(min(min(d, e), min(f, b)), h);
+	vec3 mn2 = min(min(min(mn, a), min(g, c)), i);
+	mn += mn2;
+	vec3 mx = max(max(max(d, e), max(f, b)), h);
+	vec3 mx2 = max(max(max(mx, a), max(g, c)), i);
+	mx += mx2;
+	vec3 amp = clamp(min(mn, 2.0 - mx) / mx, 0.0, 1.0);
+	amp = inversesqrt(amp);
+	float peak = 8.0 - 3.0 * sharpness;
+	vec3 w = -vec3(1.0) / (amp * peak);
+	vec3 rcpw = vec3(1.0) / (1.0 + 4.0 * w);
+	vec3 window = (b + d) + (f + h);
+	return clamp((window * w + e) * rcpw, 0.0, 1.0);
+}
+
+float dls_luma(vec3 c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b; }
+
+vec3 dls(float sharpen, float denoise)
+{
+	const float high_block = 0.65, low_block = 1.0 / 256.0;
+	const float sharp_min = -1.0 / 14.0, sharp_max = -1.0 / 6.5, denoise_min = 0.001, denoise_max = -0.1;
+	vec3 x = px(ivec2(0));
+	float lx = dls_luma(x);
+	float la = dls_luma(px(ivec2(-1, 0))), lb = dls_luma(px(ivec2(1, 0)));
+	float lc = dls_luma(px(ivec2(0, 1))), ld = dls_luma(px(ivec2(0, -1)));
+	float le = dls_luma(px(ivec2(-1, -1))), lf = dls_luma(px(ivec2(1, 1)));
+	float lg = dls_luma(px(ivec2(-1, 1))), lh = dls_luma(px(ivec2(1, -1)));
+	float ncmin = min(min(le, lf), min(lg, lh)), ncmax = max(max(le, lf), max(lg, lh));
+	float npmin = min(min(min(la, lb), min(lc, ld)), lx), npmax = max(max(max(la, lb), max(lc, ld)), lx);
+	float lmin = 0.5 * min(ncmin, npmin) + 0.5 * npmin;
+	float lmax = 0.5 * max(ncmax, npmax) + 0.5 * npmax;
+	float lw = lmin / (lmax + low_block);
+	float hw = 1.0 - max(lmax - high_block, 0.0) / (1.0 - high_block) * (max(lmax - high_block, 0.0) / (1.0 - high_block));
+	hw *= hw;
+	float kd = 1.0 / (denoise_min + (denoise_max - denoise_min) * denoise);
+	float nw = (lmax - lmin) * kd;
+	nw *= nw;
+	float boost = min(min(lw, hw), nw);
+	float k = boost * (sharp_min + (sharp_max - sharp_min) * sharpen);
+	float acc = lx + (la + lb + lc + ld) * k + (le + lf + lg + lh) * (k * 0.5);
+	acc /= 1.0 + 6.0 * k;
+	return clamp(x + (acc - lx), 0.0, 1.0);
+}
+
+// -------------------------------------------------------------------------------------- FXAA
+//
+// Edge-directed antialiasing in the spirit of FXAA 3.11 "quality": local contrast test, edge
+// orientation from second differences, a search along the edge for its ends, and a blend
+// across the edge proportional to the distance from the nearer end, plus a sub-pixel term.
+// Thresholds: vkBasalt's defaults (edge 0.125, edge min 0.0312, sub-pixel 0.75).
+
+float fx_luma(vec3 c) { return c.g; }  // green as luma, like FXAA_GREEN_AS_LUMA
+
+vec3 fxaa()
+{
+	const float edge_threshold = 0.125, edge_min = 0.0312, subpix = 0.75;
+	const float steps[12] = float[12](1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0, 8.0);
+	vec3 cm = px(ivec2(0));
+	float lm = fx_luma(cm);
+	float ln = fx_luma(px(ivec2(0, -1))), ls = fx_luma(px(ivec2(0, 1)));
+	float lw = fx_luma(px(ivec2(-1, 0))), le = fx_luma(px(ivec2(1, 0)));
+	float mx = max(max(max(ln, ls), max(lw, le)), lm);
+	float mn = min(min(min(ln, ls), min(lw, le)), lm);
+	float range = mx - mn;
+	if (range < max(edge_min, mx * edge_threshold))
+		return cm;
+	float lnw = fx_luma(px(ivec2(-1, -1))), lne = fx_luma(px(ivec2(1, -1)));
+	float lsw = fx_luma(px(ivec2(-1, 1))), lse = fx_luma(px(ivec2(1, 1)));
+
+	// Sub-pixel aliasing amount from the 3x3 low-pass.
+	float avg = (2.0 * (ln + ls + lw + le) + (lnw + lne + lsw + lse)) / 12.0;
+	float sub = clamp(abs(avg - lm) / range, 0.0, 1.0);
+	sub = smoothstep(0.0, 1.0, sub);
+	float sub_blend = sub * sub * subpix;
+
+	float horz = abs(lnw + lne - 2.0 * ln) + 2.0 * abs(lw + le - 2.0 * lm) + abs(lsw + lse - 2.0 * ls);
+	float vert = abs(lnw + lsw - 2.0 * lw) + 2.0 * abs(ln + ls - 2.0 * lm) + abs(lne + lse - 2.0 * le);
+	bool is_horz = horz >= vert;  // the edge runs horizontally: blend vertically
+
+	float l_neg = is_horz ? ln : lw, l_pos = is_horz ? ls : le;
+	float g_neg = abs(l_neg - lm), g_pos = abs(l_pos - lm);
+	float step_len = is_horz ? g_rcp.y : g_rcp.x;
+	bool neg_side = g_neg >= g_pos;
+	float grad = 0.25 * max(g_neg, g_pos);
+	float l_local = neg_side ? 0.5 * (l_neg + lm) : 0.5 * (l_pos + lm);
+	if (neg_side)
+		step_len = -step_len;
+
+	vec2 uv_edge = g_uv;
+	if (is_horz) uv_edge.y += 0.5 * step_len;
+	else uv_edge.x += 0.5 * step_len;
+	vec2 dir = is_horz ? vec2(g_rcp.x, 0.0) : vec2(0.0, g_rcp.y);
+
+	vec2 uv1 = uv_edge - dir, uv2 = uv_edge + dir;
+	float e1 = fx_luma(at(uv1)) - l_local, e2 = fx_luma(at(uv2)) - l_local;
+	bool done1 = abs(e1) >= grad, done2 = abs(e2) >= grad;
+	for (int i = 1; i < 12 && !(done1 && done2); i++) {
+		if (!done1) {
+			uv1 -= dir * steps[i];
+			e1 = fx_luma(at(uv1)) - l_local;
+			done1 = abs(e1) >= grad;
+		}
+		if (!done2) {
+			uv2 += dir * steps[i];
+			e2 = fx_luma(at(uv2)) - l_local;
+			done2 = abs(e2) >= grad;
+		}
+	}
+	float d1 = is_horz ? g_uv.x - uv1.x : g_uv.y - uv1.y;
+	float d2 = is_horz ? uv2.x - g_uv.x : uv2.y - g_uv.y;
+	bool near1 = d1 < d2;
+	float dmin = min(d1, d2);
+	float span = d1 + d2;
+	bool centre_smaller = lm - l_local < 0.0;
+	bool good = ((near1 ? e1 : e2) < 0.0) != centre_smaller;
+	float edge_blend = good ? 0.5 - dmin / span : 0.0;
+	float blend = max(edge_blend, sub_blend);
+
+	vec2 uv = g_uv;
+	if (is_horz) uv.y += blend * step_len;
+	else uv.x += blend * step_len;
+	return at(uv);
+}
+
+// ------------------------------------------------------------------------------------ finish
+
+vec3 finish(ivec2 p, int fx)
+{
+	vec3 c = px(ivec2(0));
+	if ((fx & F_CHROMATIC) != 0) {
+		const vec2 shift = vec2(2.5, -0.5);
+		vec3 ca = vec3(at(g_uv + g_rcp * shift).r, c.g, at(g_uv - g_rcp * shift).b);
+		c = clamp(mix(c, ca, 0.5), 0.0, 1.0);
+	}
+	if ((fx & F_VIGNETTE) != 0) {
+		// Type 0 (original): ratio 1, radius 2, amount -1, slope 2, centre (0.5, 0.5).
+		vec2 d = g_uv - 0.5;
+		d *= vec2(g_rcp.y / g_rcp.x, 1.0);
+		d /= 2.0;
+		float dist = dot(d, d);
+		c = clamp(c * (1.0 + pow(dist, 2.0 * 0.5) * -1.0), 0.0, 1.0);
+	}
+	if ((fx & F_FILM_GRAIN) != 0) {
+		// Intensity 0.5, variance 0.4, mean 0.5, signal-to-noise 6. u_t is the timer term
+		// (Timer * 0.0022337, folded into [0, 1) by the host: only its fractional part matters).
+		const float PI = 3.1415927;
+		const float intensity = 0.5, variance0 = 0.4, mean = 0.5;
+		float inv_luma = dot(c, vec3(-1.0 / 3.0)) + 1.0;
+		float seed = dot(g_uv, vec2(12.9898, 78.233));
+		float n1 = fract(sin(seed) * 43758.5453 + u_t);
+		float n2 = fract(cos(seed) * 53758.5453 - u_t);
+		float stn = pow(abs(inv_luma), 6.0);
+		float variance = variance0 * variance0 * stn;
+		n1 = n1 < 0.0001 ? 0.0001 : n1;
+		float r = sqrt(-log(n1));
+		r = n1 < 0.0001 ? PI : r;
+		float theta = 2.0 * PI * n2;
+		float gauss = variance * r * cos(theta) + mean;
+		float grain = mix(1.0 + intensity, 1.0 - intensity, gauss);
+		c = clamp(c * grain, 0.0, 1.0);
+	}
+	return c;
+}
+
+void main()
+{
+	ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(p, u_dstSize)))
+		return;
+	g_rcp = 1.0 / vec2(u_dstSize);
+	g_uv = (vec2(p) + 0.5) * g_rcp;
+	float alpha = tap(g_uv).a;
+	vec3 c;
+	if (u_level == STAGE_GRADE)
+		c = grade(p, u_flags);
+	else if (u_level == STAGE_SHARPEN)
+		c = u_flags == S_DLS ? dls(u_lambda, u_cutThreshold) : cas(u_lambda);
+	else if (u_level == STAGE_FXAA)
+		c = fxaa();
+	else
+		c = finish(p, u_flags);
+	imageStore(dst, p, vec4(c, alpha));
+}

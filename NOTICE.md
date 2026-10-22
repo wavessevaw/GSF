@@ -14,6 +14,7 @@ and [COPYRIGHT.md](COPYRIGHT.md), which describes the GSF extraction.
 | Original Decky LSFG-VK plugin, toml++, Bjoern Hoehrmann decoder, Steam Deck Homebrew | Notices inherited from original GFG licensing bundle; **not a claim that all implementations ship in the standalone engine** | BSD-3-Clause / MIT text preserved in LICENSE.md |
 | AFMF-Linux by serialexperimentslainnnn | External reference studied in `docs/GSF_AFMF_LINUX_SOURCE_AUDIT_20261018.md`; **not vendored into the GSF source tree at extraction** | Its own MIT license applies to any separately imported upstream code in future |
 | AMD FidelityFX Optical Flow / FSR3 | Discussed and referenced as an algorithm or external benchmark; **not a blanket permission to redistribute shaders** | Verify exact vendor source and its applicable license/NOTICE before any import |
+| KEDAVRA filters (SweetFX, Colourfulness, AMD CAS, NVIDIA DLS, haasn deband, SMAA) | Ported or vendored into `kedavra/shaders` and `kedavra/engine/smaa` | MIT / BSD; full notices in `kedavra/shaders/THIRD_PARTY.md` |
 | Vulkan-Headers / SPIR-V tools / Mesa / Gamescope | Build/runtime ecosystem dependencies, not code reassigned to GSF | Their independent licenses apply; no project affiliation implied |
 
 **Important:** preserving historical notices is conservative.

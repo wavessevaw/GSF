@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Full-resolution synthesis of one generated frame at phase u_t.
 // Slots: 0 = colour A, 1 = colour B, 2 = selected motion (4x4 blocks), 3 = stats.
-// Colour is interpolated in the source's stored encoding.
+// Colour is interpolated in the source's stored encoding (sRGB, PQ or linear scRGB).
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "kfg_common.glsl"
@@ -30,7 +30,10 @@ vec4 tap_sharp(int slot, vec2 pos, ivec2 size)
 	       + textureLod(s_samplers[slot], vec2(p3.x, p12.y), 0.0) * (w3.x * w12.y)
 	       + textureLod(s_samplers[slot], vec2(p12.x, p3.y), 0.0) * (w12.x * w3.y);
 	float wsum = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
-	return max(r / wsum, vec4(0.0));
+	r /= wsum;
+	// Catmull-Rom overshoots below zero at edges. scRGB keeps negative values: they are
+	// colours outside BT.709, not overshoot, and clamping them would shift wide-gamut colour.
+	return (u_flags & KFG_FLAG_SCRGB) != 0 ? r : max(r, vec4(0.0));
 }
 
 void main()
@@ -56,8 +59,10 @@ void main()
 	vec4 s01 = texelFetch(s_samplers[2], clamp(b0 + ivec2(0, 1), ivec2(0), bsize - 1), 0);
 	vec4 s11 = texelFetch(s_samplers[2], clamp(b0 + ivec2(1, 1), ivec2(0), bsize - 1), 0);
 	vec4 sel;
-	float spread = max(max(length(s00.xy - s10.xy), length(s00.xy - s01.xy)), length(s00.xy - s11.xy));
-	if (spread < 2.0) {
+	// Only a threshold is needed: avoid three square roots per output pixel.
+	vec2 d10 = s00.xy - s10.xy, d01 = s00.xy - s01.xy, d11 = s00.xy - s11.xy;
+	float spread2 = max(max(dot(d10, d10), dot(d01, d01)), dot(d11, d11));
+	if (spread2 < 4.0) {
 		sel = mix(mix(s00, s10, fr.x), mix(s01, s11, fr.x), fr.y);
 	} else {
 		// Motion boundary: choose per pixel among the four neighbouring block motions by
@@ -95,7 +100,11 @@ void main()
 	// Faint motion blur on fast motion only (a turn above ~10 px per game frame): two more
 	// taps per side along the motion, up to 4 px long. Static and slow content (HUD, text,
 	// slow turns) is untouched and costs nothing.
+#ifdef KFG_EXPERIMENT_NO_BLUR
+	const float blur = 0.0;
+#else
 	const float blur = clamp((length(v) - 10.0) * 0.08, 0.0, 4.0);
+#endif
 	if (blur > 0.25) {
 		vec2 o = normalize(v) * (0.5 * blur);
 		vec3 sa = kfg_tap(0, pa - o, size).rgb + kfg_tap(0, pa + o, size).rgb;

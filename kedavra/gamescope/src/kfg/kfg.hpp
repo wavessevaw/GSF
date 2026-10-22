@@ -12,7 +12,10 @@
 //     real or generated frame that vblank shows;
 //   * the page-flip handler stamps every decision with its KMS flip time, which is
 //     the trace kedavra/tools/kfg_pacing.py analyses.
-// Control: gamescopectl kfg_multiplier 0|2|3, kfg_trace <csv path>, kfg_status <json path>.
+//   * filters (kfg_post) run on the frame each vblank shows, after generation, so real and
+//     generated frames look the same and the motion analysis never sees them.
+// Control: gamescopectl kfg_multiplier 0|1|2|3, kfg_base_fps, kfg_post <filters>,
+// kfg_policy <revision>, kfg_trace <csv path>, kfg_status <json path>.
 #pragma once
 
 #include <cstdint>
@@ -28,6 +31,9 @@ namespace kfg
 	// lands on a fixed vblank cadence without a manual FPS limit. 0 = no KEDAVRA limit.
 	int SourceCapFPS( int nRefreshHz );
 	bool WantsEveryVBlank();
+	// DRM backend: true while every frame must go through the composite (generation, or
+	// filters on the game's frames), so it is never scanned out directly.
+	bool WantsComposite();
 
 	// steamcompmgr paint_all, before the connector presents frameInfo. Feeds the
 	// scheduler with the base plane commit and the vblank this paint targets.

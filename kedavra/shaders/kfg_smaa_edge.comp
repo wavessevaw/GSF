@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SMAA pass 1: luma edges. slot 0 = colour; dst = edges (rg).
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "kfg_smaa.glsl"
+
+void main()
+{
+	vec2 tc, pc;
+	if (!kfg_smaa_coords(tc, pc))
+		return;
+	vec4 offset[3];
+	SMAAEdgeDetectionVS(tc, offset);
+	vec2 e = SMAALumaEdgeDetectionPS(tc, offset, s_samplers[0]);
+	imageStore(dst, ivec2(gl_GlobalInvocationID.xy), vec4(e, 0.0, 0.0));
+}

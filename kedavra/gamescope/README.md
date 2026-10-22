@@ -23,7 +23,7 @@ Build (Arch Linux, as in CI):
 git clone https://github.com/ValveSoftware/gamescope && cd gamescope
 git checkout aa289ea5977d8b21b92b0f246f0e8f0c225d180f && git submodule update --init
 sh /path/to/gsf/kedavra/gamescope/apply.sh .
-meson setup build --buildtype=release && ninja -C build
+meson setup build --prefix=/usr --buildtype=release && ninja -C build   # /usr: SteamOS display scripts
 ```
 
 Convars (`gamescopectl <name> <value>`):

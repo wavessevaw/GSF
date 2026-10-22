@@ -25,6 +25,7 @@ import csv
 import json
 import math
 import sys
+from fractions import Fraction
 from collections import Counter, defaultdict
 
 LIMITS = {
@@ -82,14 +83,32 @@ def in_windows(t_s, windows):
 def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_active=True):
     if not rows:
         return {"error": "empty trace"}
+    try:
+        if any(not math.isfinite(float(r[k])) for r in rows for k in ("flip_ns", "refresh_ns")):
+            return {"error": "nonfinite timestamp or refresh"}
+        if any(float(r["refresh_ns"]) <= 0 for r in rows):
+            return {"error": "nonpositive refresh"}
+    except (TypeError, KeyError, ValueError):
+        return {"error": "invalid timing fields"}
     t0 = float(rows[0]["flip_ns"])
     sel = []
+    segment = {}
+    segment_id = 0
+    previous = None
     for r in rows:
         t_s = (float(r["flip_ns"]) - t0) / 1e9
-        if t_s < skip_s or in_windows(t_s, exclude):
+        if t_s < skip_s or in_windows(t_s, exclude) or (only_active and r.get("state", "active") != "active"):
+            segment_id += 1
+            previous = None
             continue
-        if only_active and r.get("state", "active") != "active":
-            continue
+        if previous is not None:
+            before = (float(previous["flip_ns"]) - t0) / 1e9
+            if (r["refresh_ns"] != previous["refresh_ns"]
+                    or r.get("epoch") != previous.get("epoch")
+                    or any(before < b and t_s >= a for a, b in exclude)):
+                segment_id += 1
+        segment[id(r)] = segment_id
+        previous = r
         sel.append(r)
     if len(sel) < 3:
         return {"error": "too few rows in evaluation window", "rows": len(sel)}
@@ -106,8 +125,10 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
     errors, devs = [], []
     for a, b in zip(new, new[1:]):
         dt = float(b["flip_ns"]) - float(a["flip_ns"])
-        if dt > 20 * float(b["refresh_ns"]) or a["refresh_ns"] != b["refresh_ns"]:
-            continue  # chain broken by an exclusion window or a state change
+        if segment[id(a)] != segment[id(b)]:
+            continue  # only explicit boundaries break the measurement chain
+        if dt <= 0:
+            return {"error": "non-increasing flip timestamps"}
         target = float(b["refresh_ns"])
         errors.append(abs(dt - target) / 1e6)
         devs.append((dt - target) / 1e6)
@@ -119,8 +140,12 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
     reorders = 0
     steps = Counter()
     prev = None
+    prev_segment = None
     for r in new:
         c = int(r["content"])
+        if prev_segment != segment[id(r)]:
+            prev = None
+        prev_segment = segment[id(r)]
         if prev is not None:
             if c <= prev:
                 reorders += 1
@@ -130,13 +155,23 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
     # Intermediates per source interval (by later endpoint), excluding the first and last
     # intervals which may be cut by the evaluation window.
     per_pair = defaultdict(set)
+    pair_spans = defaultdict(set)
     for r in new:
         if r["kind"] == "gen":
-            per_pair[int(r["src_b"])].add((int(r["phase_num"]), int(r["phase_den"])))
-    pairs = sorted(per_pair)[1:-1]
+            num, den = int(r["phase_num"]), int(r["phase_den"])
+            if den <= 0 or not 0 < num < den:
+                return {"error": "invalid generated phase"}
+            f = Fraction(num, den)
+            key = (segment[id(r)], int(r["src_b"]))
+            per_pair[key].add((f.numerator, f.denominator))
+            pair_spans[key].add(den)
+    segment_pairs = defaultdict(list)
+    for key in sorted(per_pair):
+        segment_pairs[key[0]].append(key)
+    pairs = [key for keys in segment_pairs.values() for key in keys[1:-1]]
     gen_hist = Counter(len(per_pair[p]) for p in pairs)
     # Pairs whose source interval equals the multiplier (cadence-locked intervals).
-    locked = [p for p in pairs if expect_mult and all(den == expect_mult for _, den in per_pair[p])]
+    locked = [p for p in pairs if expect_mult and pair_spans[p] == {expect_mult}]
     locked_hist = Counter(len(per_pair[p]) for p in locked)
     phases = Counter()
     for p in pairs:
@@ -156,7 +191,17 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
         third = len(lat) // 3
         drift = median(lat_ms[-third:]) - median(lat_ms[:third])
 
-    missed = kinds.get("repeat", 0) / n
+    unobserved = 0
+    for a, b in zip(sel, sel[1:]):
+        if segment[id(a)] != segment[id(b)]:
+            continue
+        dt = float(b["flip_ns"]) - float(a["flip_ns"])
+        if dt <= 0:
+            return {"error": "non-increasing flip timestamps"}
+        unobserved += max(0, int(math.floor(dt / float(b["refresh_ns"]) + 0.5)) - 1)
+    # These are inferred fixed-refresh slots. Logger loss and an absent physical flip
+    # cannot be distinguished without sequence/commit identity: never call this optical proof.
+    missed = (kinds.get("repeat", 0) + unobserved) / (n + unobserved)
     report = {
         "rows": n,
         "duration_s": (float(sel[-1]["flip_ns"]) - float(sel[0]["flip_ns"])) / 1e9,
@@ -164,6 +209,10 @@ def analyze(rows, sources=None, skip_s=2.0, exclude=(), expect_mult=None, only_a
         "kinds": dict(kinds),
         "repeat_reasons": dict(reasons),
         "missed_fraction": missed,
+        "repeat_row_fraction": kinds.get("repeat", 0) / n,
+        "unobserved_slots": unobserved,
+        "estimated_refresh_slots": n + unobserved,
+        "slot_count_basis": "fixed-refresh timestamps; lossless trace assumed",
         "interval_error_ms": {
             "p50": pct(errors, 0.5), "p95": pct(errors, 0.95), "p99": pct(errors, 0.99), "max": max(errors) if errors else None,
         },

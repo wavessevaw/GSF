@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Publish the plugin to the release of this existing tag (e.g. v1.1.0); empty = build only'
+        description: 'Publish the plugin as release vX.Y.Z (the tag is created on this commit if missing; main only); empty = build only'
         required: false
         default: ''
 permissions:
@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: make -C kedavra all
       - name: Scheduler unit tests and model stress matrix
-        run: make -C kedavra test-sched
+        run: make -C kedavra test-pacing test-sched
       - name: Engine correctness on lavapipe
         run: |
           export VK_ICD_FILENAMES="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)"
@@ -45,7 +45,7 @@ jobs:
       - name: Steam Deck bench bundle (engine on RADV)
         run: |
           mkdir -p deck-bench
-          cp kedavra/build/kfg_vktest kedavra/build/*.spv deck-bench/
+          cp kedavra/build/kfg_vktest kedavra/build/kfg_posttest kedavra/build/*.spv deck-bench/
       - uses: actions/upload-artifact@v4
         with:
           name: kedavra-deck-bench
@@ -96,7 +96,8 @@ jobs:
       - name: Build
         run: |
           cd /tmp/gamescope
-          meson setup build --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false -Denable_tests=false
+          # --prefix=/usr: display scripts from /usr/share/gamescope/scripts (Deck OLED HDR).
+          meson setup build --prefix=/usr --buildtype=release -Dpipewire=enabled -Denable_openvr_support=false -Denable_tests=false
           ninja -C build
       - name: Smoke
         run: |
@@ -175,10 +176,10 @@ jobs:
 
   # A pushed version tag (v1.0.0) publishes the plugin zip built above as a GitHub release,
   # with the notes in docs/releases/<tag>.md. A release already made on github.com with a new
-  # tag gets the zip and the notes added. Run by hand with a tag, it publishes to that tag's
-  # release from the branch it runs on (for a release whose tag run failed).
+  # tag gets the zip and the notes added. Run by hand on main with a tag, it publishes that
+  # release, creating the tag on the commit it ran on when the tag does not exist yet.
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v') && github.ref == 'refs/heads/main')
     needs: plugin
     runs-on: ubuntu-24.04
     permissions:
@@ -203,5 +204,5 @@ jobs:
             gh release edit "$TAG" --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md"
           else
             gh release create "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" \
-              --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --verify-tag
+              --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --target "$GITHUB_SHA"
           fi

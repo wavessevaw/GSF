@@ -272,6 +272,8 @@ int kfg_vk_init(kfg_vk *vk, const char *spv_dir, bool validation)
 		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 	};
 	VKCHECK(vkCreateSampler(vk->device, &sci, NULL, &vk->sampler));
+	sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
+	VKCHECK(vkCreateSampler(vk->device, &sci, NULL, &vk->sampler_nearest));
 
 	vk->ubo_size = 1u << 16;
 	VkBufferCreateInfo bci = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = vk->ubo_size, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT };
@@ -303,6 +305,7 @@ void kfg_vk_destroy(kfg_vk *vk)
 	vkDestroyBuffer(vk->device, vk->ubo, NULL);
 	vkFreeMemory(vk->device, vk->ubo_mem, NULL);
 	vkDestroySampler(vk->device, vk->sampler, NULL);
+	vkDestroySampler(vk->device, vk->sampler_nearest, NULL);
 	vkDestroyDescriptorPool(vk->device, vk->dpool, NULL);
 	for (int i = 0; i < KFG_SHADER_COUNT; i++)
 		vkDestroyPipeline(vk->device, vk->pipelines[i], NULL);
@@ -353,7 +356,7 @@ int kfg_vk_record(kfg_vk *vk, const kfg_plan *plan, kfg_vk_resolve_fn resolve, v
 			const kfg_vk_image *img = s < x->nslots ? resolve(user, x->slots[s]) : NULL;
 			if (!img)
 				img = &vk->dummy;
-			sii[s] = (VkDescriptorImageInfo){ .sampler = vk->sampler, .imageView = img->view, .imageLayout = VK_IMAGE_LAYOUT_GENERAL };
+			sii[s] = (VkDescriptorImageInfo){ .sampler = (x->nearest_mask >> s) & 1u ? vk->sampler_nearest : vk->sampler, .imageView = img->view, .imageLayout = VK_IMAGE_LAYOUT_GENERAL };
 		}
 		VkWriteDescriptorSet w[3] = {
 			{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = set, .dstBinding = 0, .descriptorCount = 1,
@@ -444,6 +447,11 @@ static int copy(kfg_vk *vk, const kfg_vk_image *img, void *data, VkDeviceSize by
 int kfg_vk_upload_rgba8(kfg_vk *vk, kfg_vk_image *img, const uint8_t *rgba)
 {
 	return copy(vk, img, (void *)rgba, (VkDeviceSize)img->width * img->height * 4, true);
+}
+
+int kfg_vk_upload_raw(kfg_vk *vk, kfg_vk_image *img, const void *data, size_t bytes)
+{
+	return copy(vk, img, (void *)data, (VkDeviceSize)bytes, true);
 }
 
 int kfg_vk_download_rgba8(kfg_vk *vk, const kfg_vk_image *img, uint8_t *rgba)

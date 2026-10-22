@@ -3,7 +3,7 @@ import {callable, definePlugin, toaster} from '@decky/api';
 import {CSSProperties, Fragment, ReactNode, useEffect, useRef, useState} from 'react';
 import {LOGO} from './logo';
 
-const VERSION = '1.1.2';
+const VERSION = '1.2.0';
 
 type Summary = {pass?: boolean; p95_ms?: number; p99_ms?: number; missed_pct?: number; rows?: number; checks?: Record<string, boolean>};
 type Report = {trace: string; report: string; ok: boolean; log: string; summary?: Summary};
@@ -17,6 +17,7 @@ type Status = {
   gpu_us_last?: number; gpu_us_avg?: number; gpu_us_max?: number; over_budget?: number; timestamps?: boolean; last_problem?: string;
   auto?: boolean; auto_switches?: number; source_late?: number; cap_fps?: number; base_fps?: number;
   unsupported_format?: number; unsupported_colorspace?: number;
+  auto_floor?: number; hdr_enabled?: boolean; transfer?: string;
 };
 type Mode = 'off' | 'auto' | 'cap';
 type View = 'main' | 'setup' | 'pace' | 'log';
@@ -26,7 +27,8 @@ type Bench = {ok: boolean; correct?: boolean; analysis_ms?: number; two_outputs_
 
 const rpc = {
   status: callable<[], Status>('get_status'),
-  settings: callable<[], {hud: boolean; base_fps: number}>('get_settings'),
+  settings: callable<[], {hud: boolean; base_fps: number; x375: boolean; hdr: boolean}>('get_settings'),
+  setOptions: callable<[boolean, boolean], {x375: boolean; hdr: boolean}>('set_options'),
   setMode: callable<[Mode, number], {mode: Mode; base_fps: number}>('set_mode'),
   setHud: callable<[boolean], {hud: boolean}>('set_hud'),
   start: callable<[string], Capture>('start_capture'),
@@ -135,6 +137,8 @@ function Content() {
   const [status, setStatus] = useState<Status>();
   const [view, setView] = useState<View>('main');
   const [hud, setHud] = useState(true);
+  const [x375, setX375] = useState(false);
+  const [hdr, setHdr] = useState(true);
   const [base, setBase] = useState(30);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -147,7 +151,7 @@ function Content() {
   const lock = useRef(false);
   const baseTimer = useRef<number | undefined>(undefined);
 
-  useEffect(() => {rpc.settings().then(r => {setHud(r.hud); setBase(r.base_fps);}).catch(() => {});}, []);
+  useEffect(() => {rpc.settings().then(r => {setHud(r.hud); setBase(r.base_fps); setX375(r.x375); setHdr(r.hdr);}).catch(() => {});}, []);
   const refreshDiag = async () => {try {setDiag(await rpc.diagnose());} catch (e) {setMessage(String(e));}};
   useEffect(() => {void refreshDiag();}, []);
   useEffect(() => {
@@ -184,9 +188,12 @@ function Content() {
   const gameFps = status?.base_fps || status?.cap_fps || 0;
   const ratio = gameFps ? hz / gameFps : mult;
   const installed = diag?.checks.some(c => c.key === 'installed' && c.ok);
-  // Auto's caps (kfg_auto.h): refresh / 3, steps of 5, refresh / 2. 90 Hz: 30 / 35 / 40 / 45.
+  // Auto's caps (kfg_auto.h): refresh / 3, steps of 5, refresh / 2. 90 Hz: 30 / 35 / 40 / 45, and 24
+  // below them when x3.75 is allowed.
   const autoCaps = (() => {
     const r = Math.round(hz), lo = Math.ceil(r / 3), hi = Math.floor(r / 2), c = [lo];
+    const floor = Math.max(20, Math.ceil(r * 4 / 15));
+    if (x375 && floor < lo) c.unshift(floor);
     for (let x = (Math.floor(lo / 5) + 1) * 5; x < hi; x += 5) c.push(x);
     if (hi > lo) c.push(hi);
     return c.join(' / ');
@@ -194,7 +201,7 @@ function Content() {
 
   const setMode = (m: Mode, b = base) => void act(async () => {
     await rpc.setMode(m, b);
-    return m === 'off' ? 'Generation off' : m === 'auto' ? `Auto: the game is held at the highest of ${autoCaps} it keeps steady, ×3 at most`
+    return m === 'off' ? 'Generation off' : m === 'auto' ? `Auto: the game is held at the highest of ${autoCaps} it keeps steady, ${x375 ? '×3.75' : '×3'} at most`
       : `Base FPS ${b}: the game is held at ${b}, generation fills up to ${Math.round(hz)}`;
   });
   const onBase = (v: number) => {
@@ -302,7 +309,14 @@ function Content() {
   </PanelSection>;
 
   const fpsColor = !generating ? C.green : (live?.fps ?? 0) >= 0.97 * hz ? C.green : (live?.fps ?? 0) >= 0.85 * hz ? C.yellow : C.red;
-  const mult_text = Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}` : `×${ratio.toFixed(1)}`;
+  // ×2.25 and ×3.75 exactly (quarter steps, like the HUD), ×2.6 for 35 at 90 Hz.
+  const mult_text = Math.abs(ratio - Math.round(ratio)) < 0.05 ? `×${Math.round(ratio)}`
+    : Math.abs(ratio * 4 - Math.round(ratio * 4)) < 0.01 ? `×${(Math.round(ratio * 4) / 4).toFixed(2).replace(/0$/, '')}` : `×${ratio.toFixed(1)}`;
+  const setOptions = (nx: boolean, nh: boolean) => void act(async () => {
+    const r = await rpc.setOptions(nx, nh); setX375(r.x375); setHdr(r.hdr);
+    return nx !== x375 ? (r.x375 ? 'Auto may go down to base 24 (×3.75) when the game cannot hold 30' : 'Auto stays at ×3 at most')
+      : (r.hdr ? 'HDR games get generation too' : 'HDR games pass through without generation');
+  });
   const gpuMs = status?.timestamps ? (status?.gpu_us_avg ?? 0) / 1000 : undefined;
   const budget = 1000 / hz;
   const [badge, badgeColor] = !running ? ['ENGINE DOWN', C.red] : status?.steam_ui ? ['STEAM MENU', C.yellow]
@@ -348,6 +362,9 @@ function Content() {
     <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
       {mode === 'cap' && <SliderField label="Base game FPS" value={base} min={20} max={90} step={1} showValue bottomSeparator="standard"
         disabled={busy || !running} onChange={onBase}/>}
+      {mode === 'auto' && <ToggleField label="Allow ×3.75" description="Base 24 when the game cannot hold 30" checked={x375}
+        disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(v, hdr)}/>}
+      <ToggleField label="HDR games" checked={hdr} disabled={busy || !running} bottomSeparator="standard" onChange={v => setOptions(x375, v)}/>
       <ToggleField label="In-game HUD" checked={hud} disabled={busy} bottomSeparator="none"
         onChange={v => void act(async () => {setHud((await rpc.setHud(v)).hud); return v ? 'HUD on' : 'HUD off';})}/>
     </div></PanelSectionRow>
