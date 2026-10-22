@@ -52,6 +52,10 @@ static const scene SCENES[] = {
 // motion between two source frames grows by 1.25 (24 instead of 30 FPS under the same camera),
 // and the generated phases are those of 24 -> 90 Hz (x3.75: multiples of 1/15).
 static double g_timescale = 1.0;
+// --scaled: the scenes keep their 1280x800 layout and motion at any --size (a game at 1080p or
+// 4K shows the same picture with more pixels), so results compare across resolutions.
+// Regions given to the metrics are in that layout too.
+static double g_geo = 1.0;
 static bool g_lowbase = false;
 #define PHASES_PER_PAIR (g_lowbase ? 4 : 3)
 #define PHASE_STEP (g_lowbase ? 4.0 / 15.0 : 1.0 / 3.0)
@@ -257,7 +261,7 @@ static void render(const scene *s, double t, int w, int h, uint8_t *out)
 			for (int sy = 0; sy < 2; sy++)
 				for (int sx = 0; sx < 2; sx++) {
 					double c[3];
-					scene_pixel(s, t, x + 0.25 + 0.5 * sx, y + 0.25 + 0.5 * sy, w, h, c);
+					scene_pixel(s, t, (x + 0.25 + 0.5 * sx) / g_geo, (y + 0.25 + 0.5 * sy) / g_geo, (int)lrint(w / g_geo), (int)lrint(h / g_geo), c);
 					for (int i = 0; i < 3; i++)
 						acc[i] += c[i] * 0.25;
 				}
@@ -274,6 +278,10 @@ static double psnr_region(const uint8_t *a, const uint8_t *b, int w, int h, int 
 {
 	double se = 0;
 	long n = 0;
+	if (g_geo != 1.0) {
+		x0 = (int)lrint(x0 * g_geo); y0 = (int)lrint(y0 * g_geo);
+		x1 = (int)lrint(x1 * g_geo); y1 = (int)lrint(y1 * g_geo);
+	}
 	if (x0 < 0) x0 = 0;
 	if (y0 < 0) y0 = 0;
 	if (x1 > w) x1 = w;
@@ -293,9 +301,14 @@ static double psnr_region(const uint8_t *a, const uint8_t *b, int w, int h, int 
 
 static double mean_abs(const uint8_t *a, const uint8_t *b, int w, int h, int x0, int y0, int x1, int y1)
 {
-	(void)h;
 	double s = 0;
 	long n = 0;
+	if (g_geo != 1.0) {
+		x0 = (int)lrint(x0 * g_geo); y0 = (int)lrint(y0 * g_geo);
+		x1 = (int)lrint(x1 * g_geo); y1 = (int)lrint(y1 * g_geo);
+	}
+	if (x1 > w) x1 = w;
+	if (y1 > h) y1 = h;
 	for (int y = y0; y < y1; y++)
 		for (int x = x0; x < x1; x++)
 			for (int c = 0; c < 3; c++) {
@@ -381,12 +394,14 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h, VkFormat c
 	e->vk = vk;
 	e->w = w;
 	e->h = h;
+	uint32_t asz[2];
+	kfg_analysis_size(w, h, asz);  // luma, flow and fields work at the analysis size
 	for (uint32_t r = 0; r < KFG_RING; r++) {
 		if (kfg_vk_image_create(vk, &e->color[r], color_fmt, w, h))
 			return -1;
 		for (uint32_t l = 1; l <= KFG_LEVELS; l++) {
 			uint32_t sz[2];
-			kfg_level_size(w, h, l, sz);
+			kfg_level_size(asz[0], asz[1], l, sz);
 			if (kfg_vk_image_create(vk, &e->luma[r][l], kfg_vk_format(KFG_FORMAT_R8), sz[0], sz[1]))
 				return -1;
 			if (l >= 2 && kfg_vk_image_create(vk, &e->flow[r][l], kfg_vk_format(KFG_FORMAT_RGBA16F), sz[0], sz[1]))
@@ -396,7 +411,7 @@ static int engine_init(engine *e, kfg_vk *vk, uint32_t w, uint32_t h, VkFormat c
 			return -1;
 	}
 	uint32_t bs[2];
-	kfg_select_size(w, h, bs);
+	kfg_select_size(asz[0], asz[1], bs);
 	for (int i = 0; i < 2; i++)
 		if (kfg_vk_image_create(vk, &e->select[i], kfg_vk_format(KFG_FORMAT_RGBA16F), bs[0], bs[1]))
 			return -1;
@@ -641,11 +656,15 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--no-temporal")) g_temporal = 0;
 		else if (!strcmp(argv[i], "--lowbase")) { g_lowbase = true; g_timescale = 1.25; }
 		else if (!strcmp(argv[i], "--per-phase")) kfg_per_phase_select = 1;  // 1.2 selection, for A/B
+		else if (!strcmp(argv[i], "--scaled")) g_geo = -1.0;  // set from --size below
+		else if (!strcmp(argv[i], "--analysis-pixels") && i + 1 < argc) kfg_analysis_pixels = (uint32_t)atoi(argv[++i]);  // 0 = full size
 		else {
-			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal] [--lowbase] [--per-phase]\n");
+			fprintf(stderr, "usage: kfg_vktest [--spv DIR] [--size WxH] [--out DIR] [--json FILE] [--bench N] [--scene NAME] [--no-temporal] [--lowbase] [--per-phase] [--scaled] [--analysis-pixels N]\n");
 			return 2;
 		}
 	}
+	if (g_geo < 0)
+		g_geo = h / 800.0;
 	kfg_vk vk;
 	if (kfg_vk_init(&vk, spv, validation)) {
 		fprintf(stderr, "Vulkan init failed\n");

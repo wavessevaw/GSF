@@ -97,6 +97,17 @@ class HudTest(unittest.TestCase):
         self.hud.tick(False, None)
         self.assertEqual(self.header()[2:4], (0, 0))
 
+    def test_scale_follows_the_screen_not_the_game(self):
+        self.assertEqual(kedavra_hud.scale_for(800), 1.0)
+        self.assertEqual(kedavra_hud.scale_for(1080), 1.5)
+        self.assertEqual(kedavra_hud.scale_for(2160), 3.0)
+        self.hud.tick(True, status(1_000_000_000, 90, 30, 30, 60, 0))
+        self.hud.tick(True, status(2_000_000_000, 180, 60, 60, 120, 0))
+        w800 = self.header()[2]
+        # A 1080p game on a 4K TV: the HUD is sized for 2160 lines.
+        self.hud.tick(True, status(3_000_000_000, 270, 90, 90, 180, 0, height=1080, output_height=2160))
+        self.assertGreater(self.header()[2], 2.5 * w800)
+
     def test_stale_engine_hides(self):
         self.hud.tick(True, status(1_000_000_000, 90, 30, 30, 60, 0))
         self.hud.tick(True, {"engine": "stale"})

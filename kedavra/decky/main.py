@@ -91,7 +91,7 @@ class Plugin:
                 "x375": bool(self.settings.get("x375")), "hdr": bool(self.settings.get("hdr"))}
 
     async def set_options(self, x375: bool, hdr: bool):
-        """Engine options: Auto may go down to x3.75 (base 24 at 90 Hz); generate for HDR games."""
+        """Engine options: Auto may go down to its low floor (x3.75 at 90 Hz, x4 at 120, x2.5 at 60); generate for HDR games."""
         async with self.lock:
             self.settings["x375"] = bool(x375)
             self.settings["hdr"] = bool(hdr)

@@ -71,7 +71,9 @@ namespace kfg
 	// A controller sets kfg_multiplier, kfg_base_fps and kfg_post, then kfg_policy to a new
 	// revision; the status file echoes the revision with the values in force, so the
 	// controller knows its whole policy arrived.
-	gamescope::ConVar<int> cv_kfg_auto_floor{ "kfg_auto_floor", 0, "Lowest base cap Auto may use, in fps: 0 = refresh / 3 (x3); down to refresh / 3.75 (24 at 90 Hz, x3.75)." };
+	gamescope::ConVar<int> cv_kfg_auto_floor{ "kfg_auto_floor", 0, "Lowest base cap Auto may use, in fps: 0 = refresh / 3 (x3, at least 30); down to 24 or refresh / 4, whichever is higher (90 Hz: 24, x3.75; 60 Hz: 24, x2.5; 120 Hz: 30, x4)." };
+	gamescope::ConVar<int> cv_kfg_analysis_pixels{ "kfg_analysis_pixels", 1536 * 960, "Pixel count KEDAVRA's motion analysis works at: larger games (1080p, 4K) are analysed scaled down to it and only the final warp runs at their own size. 0 = always the game's own size." };
+	gamescope::ConVar<bool> cv_kfg_hold_vrr{ "kfg_hold_vrr", true, "With generation on (Auto or a fixed mode), keep the display at its fixed refresh rate: generated frames need a vblank grid, which adaptive sync (VRR) does not give." };
 	gamescope::ConVar<bool> cv_kfg_hdr{ "kfg_hdr", true, "Generate and filter HDR games too (HDR10 PQ and scRGB, in float frames). false = HDR games pass through untouched." };
 	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
@@ -150,6 +152,8 @@ namespace kfg
 		uint64_t ulPaints = 0, ulApplied = 0, ulBypass = 0, ulRingMiss = 0, ulUnsupported = 0;
 		uint64_t ulOverBudget = 0, ulSources = 0, ulLastSourceNs = 0;
 		bool bSteamUI = false;  // the Steam client is the base plane (its menus, not the game)
+		bool bVRRHeld = false;  // adaptive sync was asked for and is held off for generation
+		uint32_t uAnalysisPixels = 0;  // kfg_analysis_pixels the images were made for
 		uint32_t uPaintAppID = 0;  // app id of the base plane at the last paint (diagnostics)
 		int nLayer0Format = 0, nLayer0Colorspace = 0;  // last layer 0 that generation could not take
 		const char *pszLastProblem = "none";
@@ -222,6 +226,7 @@ namespace kfg
 		gamescope::OwningRc<CVulkanTexture> pTex;
 		std::vector<uint8_t> pixels;
 		uint32_t uWidth = 0, uHeight = 0, uCorner = 0, uMargin = 12;
+		uint32_t uOutputHeight = 0;  // of the last composite (a TV can be 2160 with a 1080p game)
 		uint64_t ulLastPollNs = 0;
 		int64_t nMtimeNs = -1;
 		bool bVisible = false;
@@ -306,12 +311,15 @@ namespace kfg
 	static void HudPushLayer( FrameInfo_t *pFrameInfo )
 	{
 		Hud_t &h = g_Hud;
-		if ( !h.bVisible || !h.pTex || !pFrameInfo->layers.count() || pFrameInfo->layers.count() >= k_nMaxLayers )
+		if ( !pFrameInfo->layers.count() )
 			return;
 		// Placed in output pixels, from the size of the composite target.
 		const FrameInfo_t::Layer_t &base = pFrameInfo->layers.get( 0 );
 		const float flOutW = base.tex ? float( base.tex->width() ) / base.scale.x : 1280.0f;
 		const float flOutH = base.tex ? float( base.tex->height() ) / base.scale.y : 800.0f;
+		h.uOutputHeight = uint32_t( std::lround( flOutH ) );  // the HUD's size follows the screen
+		if ( !h.bVisible || !h.pTex || pFrameInfo->layers.count() >= k_nMaxLayers )
+			return;
 		const float flX = ( h.uCorner & 1u ) ? flOutW - float( h.uWidth + h.uMargin ) : float( h.uMargin );
 		const float flY = ( h.uCorner & 2u ) ? flOutH - float( h.uHeight + h.uMargin ) : float( h.uMargin );
 
@@ -437,9 +445,15 @@ namespace kfg
 
 	static bool EnsureImages( State_t &s, uint32_t uWidth, uint32_t uHeight )
 	{
-		if ( s.uWidth == uWidth && s.uHeight == uHeight && s.pOutput[ 0 ] )
+		const uint32_t uAnalysisPixels = uint32_t( std::max( 0, cv_kfg_analysis_pixels.Get() ) );
+		if ( s.uWidth == uWidth && s.uHeight == uHeight && s.pOutput[ 0 ] && s.uAnalysisPixels == uAnalysisPixels )
 			return true;
 		ReleaseImages( s );
+		// The plans read the same value, so it only changes together with the images.
+		kfg_analysis_pixels = uAnalysisPixels;
+		s.uAnalysisPixels = uAnalysisPixels;
+		uint32_t asz[ 2 ];
+		kfg_analysis_size( uWidth, uHeight, asz );  // luma, flow and fields: analysis size
 		for ( Frame_t &f : s.frames )
 		{
 			f.pColor = CreateImage( uWidth, uHeight, kfg_color_format( s.nTransfer ) );
@@ -448,7 +462,7 @@ namespace kfg
 			for ( uint32_t l = 1; l <= KFG_LEVELS; l++ )
 			{
 				uint32_t sz[ 2 ];
-				kfg_level_size( uWidth, uHeight, l, sz );
+				kfg_level_size( asz[ 0 ], asz[ 1 ], l, sz );
 				f.pLuma[ l ] = CreateImage( sz[ 0 ], sz[ 1 ], KFG_FORMAT_R8 );
 				if ( l >= 2 )
 					f.pFlow[ l ] = CreateImage( sz[ 0 ], sz[ 1 ], KFG_FORMAT_RGBA16F );
@@ -460,7 +474,7 @@ namespace kfg
 				return false;
 		}
 		uint32_t bs[ 2 ];
-		kfg_select_size( uWidth, uHeight, bs );
+		kfg_select_size( asz[ 0 ], asz[ 1 ], bs );
 		for ( Frame_t &f : s.frames )
 		{
 			f.pPairSelect = CreateImage( bs[ 0 ], bs[ 1 ], KFG_FORMAT_RGBA16F );
@@ -953,6 +967,9 @@ namespace kfg
 			std::scoped_lock lock( g_TraceMutex );
 			sTrace = g_sTraceOpen;
 		}
+		uint32_t asz[ 2 ] = { 0, 0 };
+		if ( s.uWidth )
+			kfg_analysis_size( s.uWidth, s.uHeight, asz );
 		fprintf( f,
 			"{\"engine\":\"kedavra-gamescope\",\"version\":1,\"time_ns\":%" PRIu64 ",\"multiplier\":%u,\"state\":\"%s\","
 			"\"refresh_ns\":%" PRIu64 ",\"width\":%u,\"height\":%u,"
@@ -964,7 +981,8 @@ namespace kfg
 			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
 			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
-			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s}\n",
+			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s,"
+			"\"analysis_width\":%u,\"analysis_height\":%u,\"vrr_held\":%s,\"output_height\":%u}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
 			s.ulGridPeriod, s.uWidth, s.uHeight,
 			s.ulPaints, s.ulApplied, s.ulBypass, s.ulRingMiss, s.ulUnsupported,
@@ -981,7 +999,8 @@ namespace kfg
 			s.ulPostFrames, s.ulPostSkipped,
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
 			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
-			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false" );
+			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false",
+			asz[ 0 ], asz[ 1 ], s.bVRRHeld ? "true" : "false", g_Hud.uOutputHeight );
 		fclose( f );
 		rename( sTmp.c_str(), sPath.c_str() );
 	}
@@ -1057,6 +1076,13 @@ namespace kfg
 		s.bPostPending = false;
 		s.bPostApplied = false;
 		PostUpdateConfig( s );
+
+		// Generation needs a fixed vblank grid. Adaptive sync stays off for as long as a
+		// generation mode is selected, not per game or menu: each switch is a modeset (a black
+		// screen on many TVs). Mode Off gives it back.
+		s.bVRRHeld = cv_kfg_hold_vrr && cv_kfg_multiplier.Get() != 0 && pFrameInfo->allowVRR;
+		if ( s.bVRRHeld )
+			pFrameInfo->allowVRR = false;
 
 		StartTraceWriter();
 		WriteStatus( s, ulNow );

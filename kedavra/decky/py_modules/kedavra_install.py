@@ -226,7 +226,7 @@ class Installer:
         if rc != 0:
             raise RuntimeError("systemctl enable: " + out.strip()[-300:])
         return {"installed": self.bundled_version(), "needs_reboot": True,
-                "message": "Installed. Reboot the Deck: Gaming Mode will start with Gamescope KEDAVRA."}
+                "message": "Installed. Reboot: Gaming Mode will start with Gamescope KEDAVRA."}
 
     def uninstall(self):
         self.run(["systemctl", "disable", UNIT_NAME])
@@ -236,7 +236,7 @@ class Installer:
         (self.state / "disabled").touch()
         mounted = self._mounted()
         return {"needs_reboot": mounted,
-                "message": "Removed. Reboot the Deck to return to the stock Gamescope." if mounted
+                "message": "Removed. Reboot to return to the stock Gamescope." if mounted
                 else "Removed. The stock Gamescope is active."}
 
     def reboot(self):

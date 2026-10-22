@@ -6,14 +6,15 @@
 
 # GSF Kedavra
 
-**Independent x2 / x3 frame generation for Steam Deck in Gaming Mode. No Lossless Scaling. No launch command.**
+**Independent x2 / x3 frame generation for Steam Deck and Steam Machine in Gaming Mode. No Lossless Scaling. No launch command.**
 
-GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip on the Deck. A Decky plugin installs it, switches it on and off and measures the result.
+GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Gamescope, the compositor that already owns every vblank and every page flip in SteamOS Gaming Mode. A Decky plugin installs it, switches it on and off and measures the result. Since 1.3.1 it also targets the **Steam Machine** on a TV (60 or 120 Hz, games at 1080p or 4K).
 
-[**Download 1.3.0**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.0) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
+[**Download 1.3.1**](https://github.com/wavessevaw/GSF/releases/tag/v1.3.1) · [Install](#installation) · [Modes](#modes) · [Measuring pacing](#measuring-pacing) · [How it works](#how-it-works)
 
 [![Release](https://img.shields.io/github/v/release/wavessevaw/GSF?style=flat-square&color=52d64a&label=release)](https://github.com/wavessevaw/GSF/releases/latest)
 [![Steam Deck](https://img.shields.io/badge/Steam%20Deck-OLED-0d1210?style=flat-square)](https://www.steamdeck.com/)
+[![Steam Machine](https://img.shields.io/badge/Steam%20Machine-TV%2060%2F120%20Hz-0d1210?style=flat-square)](#steam-machine)
 [![Decky](https://img.shields.io/badge/Decky%20Loader-plugin-0d1210?style=flat-square)](https://decky.xyz/)
 [![SDR and HDR](https://img.shields.io/badge/output-SDR%20%7C%20HDR-0d1210?style=flat-square)](#known-limits)
 [![License](https://img.shields.io/badge/license-GPL--3.0-0d1210?style=flat-square)](LICENSE.md)
@@ -24,7 +25,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 </div>
 
-> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.3.0. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
+> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.3.1. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
 
 ## Why GSF Kedavra
 
@@ -40,7 +41,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 Requires [Decky Loader](https://decky.xyz/). Tested on SteamOS 3.8.
 
-1. Download [**GSF-Kedavra-1.3.0.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.3.0/GSF-Kedavra-1.3.0.zip).
+1. Download [**GSF-Kedavra-1.3.1.zip**](https://github.com/wavessevaw/GSF/releases/download/v1.3.1/GSF-Kedavra-1.3.1.zip).
 2. In Decky: **Settings → Developer → Install plugin from zip**, pick the file. Upgrading over an older KEDAVRA plugin keeps your settings.
 3. Open the plugin, go to **Setup** and press **Install Gamescope KEDAVRA**. Reboot when asked.
 4. After the reboot every check in **Setup** is green, with no line saying the installed Gamescope differs from the one in the plugin.
@@ -71,7 +72,7 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 
 ## Measuring pacing
 
-**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.3.0 targets are:
+**Pace → Record pacing trace** writes the KMS flip time of every refresh while you play. Stop it after one or two minutes and the plugin analyses the trace on the device. The 1.3.1 targets are:
 
 | Metric | Target |
 | --- | --- |
@@ -81,6 +82,15 @@ The optional HUD draws three rings over the game, in the same style as [GFG Extr
 | Oscillation, latency drift | none |
 
 Press **Setup → Save report to Desktop** when you report a problem: it saves one zip on the Desktop (`~/Desktop/GSF-report-….zip`) with the diagnostics, the latest pacing traces and the benchmark.
+
+## Steam Machine
+
+Since 1.3.1 the same zip installs on a Steam Machine (SteamOS Gaming Mode with Decky Loader), the same way as on the Deck. **Not yet run on a Steam Machine:** everything below comes from software tests.
+
+- **Multipliers for a TV.** Auto never goes above ×3, and ×2 to ×2.5 is the sweet spot. At 60 Hz the game is held at 30 and doubled; **Allow ×2.5** lets it drop to 24 in heavy scenes. At 120 Hz the cap runs from 40 (×3) to 60 (×2). ×4 at 120 Hz is not recommended: it is off and only switched on in **Setup → Allow ×4 in Auto**.
+- **Resolution costs little.** Motion is analysed at no more than 1536×960 pixels (1.44× the Deck's screen); a 1080p or 4K game is analysed scaled down, and only the final frame is built at full resolution. A pair of game frames costs 1.37× the Deck's work at 1080p and 1.74× at 4K (lavapipe), on a GPU several times faster than the Deck's.
+- **VRR.** Generated frames need a fixed refresh, so adaptive sync (FreeSync) is paused while Auto or Custom is selected. **Off** gives it back.
+- **HUD** keeps its share of the screen on a 1080p or 4K TV.
 
 ## How it works
 
@@ -96,6 +106,7 @@ More detail: [architecture](docs/kedavra/PHASE_B_ARCHITECTURE.md), [Deck test pr
 
 - HDR games (HDR10 PQ and scRGB) get generation since 1.2.0; turn **HDR games** off to pass them through untouched. HDR generation has not been checked on a Deck yet.
 - Built and tested for Steam Deck OLED at 90 Hz. Other refresh rates work in the model and tests but have not been measured on hardware.
+- **Steam Machine (since 1.3.1, unconfirmed on hardware):** on a TV, Auto stays at ×3 at most (60 Hz: base 30, ×2; 120 Hz: 40 to 60), ×4 at 120 Hz is a not-recommended toggle in Setup, and VRR is paused while generation is on. Games above 1536×960 (1080p, 4K) are analysed at that size and only the final warp runs at their own resolution: lavapipe puts a 1080p pair at 1.37× the Deck's work and 4K at 1.74×.
 - Fine repeating detail (stairs, fences, grilles) is the hardest case for any motion estimator. 1.0.0 reduced the shimmer, 1.1.0 follows walking forward better and 1.1.1 checks motion over a taller window so step edges are no longer erased, but steps can still break up at low base FPS.
 - Stopping a Pace recording has restarted Gaming Mode on the Deck. 1.1.2 moves the trace file off the compositor, but the cause is not confirmed. If it happens, press **Setup → Save report to Desktop** right after: the report now includes the crash record.
 

@@ -15,7 +15,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-HUD_SIZES = {"1.0": 22, "1.5": 33, "2.0": 44}
+HUD_SIZES = {"1.0": 22, "1.5": 33, "2.0": 44, "3.0": 66}
 PANEL_PX = 96
 
 
