@@ -120,3 +120,5 @@ python3 docs/deep-review/compare_engine.py kedavra/build/engine.json /tmp/kfg-no
 ## Продолжение: конкретные shader-оптимизации
 
 См. [OPTIMIZATION-2.ru.md](OPTIMIZATION-2.ru.md): исправление undefined read в repair, замена пороговых Length на Dot, проверка настоящего pyramid kernel, три независимых A/B прогона и отклонённая подмена raw confidence. Там же конкретный код кэширования SAD для одинаковых predictors и условия проверки экономии на устройстве.
+
+Копия отчёта оптимизации и доказательств также сохранена [в ветке GFG](https://github.com/wavessevaw/GFG-Extreme/tree/codex/controller-review-examples/docs/audit-v3.0.0/kedavra-optimization).
