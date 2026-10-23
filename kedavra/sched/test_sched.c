@@ -215,6 +215,53 @@ static void test_cut(void)
 	}
 }
 
+// Three refreshes remain before the next pair. Spend the last source vblank
+// over all three instead of two half-steps followed by a frozen output.
+static void test_short_runway(void)
+{
+	kfg_sched_config cfg = kfg_sched_default_config(3);
+	kfg_sched s;
+	kfg_sched_init(&s, &cfg);
+	kfg_sched_on_latch(&s, 1, 0);
+	kfg_sched_on_me(&s, 1, 1, true, false);
+	kfg_sched_on_latch(&s, 2, 3);
+	kfg_sched_on_me(&s, 2, 4, true, false);
+	s.state = KFG_STATE_ACTIVE;
+	s.warming = false;
+	s.content = 2;
+	int64_t previous = 2 * KFG_SCHED_SUB;
+	for (int64_t k = 4; k <= 6; k++) {
+		kfg_decision d = kfg_sched_decide(&s, k);
+		CHECK(d.show == KFG_SHOW_GEN || d.show == KFG_SHOW_REAL, "short runway froze at %" PRId64, k);
+		CHECK(d.pos - previous >= KFG_SCHED_SUB / 4, "runway step too small");
+		previous = d.pos;
+	}
+	CHECK(previous <= 3 * KFG_SCHED_SUB, "runway exceeded the ready source");
+}
+
+// Pending analysis can miss its predicted completion. The exact real endpoint
+// is still usable even though the normal step would enter the unfinished pair.
+static void test_ready_tail(void)
+{
+	kfg_sched_config cfg = kfg_sched_default_config(3);
+	kfg_sched s;
+	kfg_sched_init(&s, &cfg);
+	kfg_sched_on_latch(&s, 1, 0);
+	kfg_sched_on_me(&s, 1, 1, true, false);
+	kfg_sched_on_latch(&s, 2, 3);
+	kfg_sched_on_me(&s, 2, 4, true, false);
+	kfg_sched_on_latch(&s, 3, 6); // deliberately pending
+	s.state = KFG_STATE_ACTIVE;
+	s.warming = false;
+	s.content = 2;
+	s.frac = KFG_SCHED_SUB / 2;
+	kfg_decision d = kfg_sched_decide(&s, 8);
+	CHECK(d.show == KFG_SHOW_REAL && d.src_a == 2, "ready endpoint wasted while analysis is pending");
+	CHECK(d.pos == 3 * KFG_SCHED_SUB, "tail step must end exactly at the ready source");
+	d = kfg_sched_decide(&s, 9);
+	CHECK(d.show == KFG_SHOW_REPEAT, "must not enter a pair without completed analysis");
+}
+
 // Randomized: arbitrary latch spacing, analysis delay, failures, cuts, multiplier changes,
 // toggles, resets and missed flips. Invariants:
 //  * content of displayed frames strictly increases (no reordering, no repeats counted as new),
@@ -285,6 +332,8 @@ int main(void)
 	test_silk_catchup();
 	test_degrade();
 	test_cut();
+	test_short_runway();
+	test_ready_tail();
 	test_fuzz();
 	if (failures) {
 		fprintf(stderr, "%d failure(s)\n", failures);

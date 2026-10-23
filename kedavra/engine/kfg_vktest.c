@@ -299,6 +299,25 @@ static double psnr_region(const uint8_t *a, const uint8_t *b, int w, int h, int 
 	return mse <= 1e-12 ? 99.0 : 10.0 * log10(255.0 * 255.0 / mse);
 }
 
+// Screen border metric, independent of the layout scaling used by object regions.
+static double psnr_border(const uint8_t *a, const uint8_t *b, int w, int h)
+{
+	double se = 0;
+	long n = 0;
+	const int band = (w < h ? w : h) / 20;
+	for (int y = 0; y < h; y++)
+		for (int x = 0; x < w; x++) {
+			if (x >= band && x < w - band && y >= band && y < h - band)
+				continue;
+			for (int c = 0; c < 3; c++) {
+				double d = (double)a[4 * ((size_t)y * w + x) + c] - b[4 * ((size_t)y * w + x) + c];
+				se += d * d;
+				n++;
+			}
+		}
+	return !n || se <= 1e-12 ? 99.0 : 10.0 * log10(255.0 * 255.0 * n / se);
+}
+
 static double mean_abs(const uint8_t *a, const uint8_t *b, int w, int h, int x0, int y0, int x1, int y1)
 {
 	double s = 0;
@@ -638,6 +657,57 @@ static int cmp_double(const void *a, const void *b)
 	return x < y ? -1 : x > y;
 }
 
+// Isolate visibility from motion estimation: constant colours and a known field.
+// All four screen edges must select the source that actually contains the sample.
+static int border_checks(kfg_vk *vk)
+{
+	const int w = 64, h = 48;
+	engine e;
+	if (engine_init(&e, vk, w, h, VK_FORMAT_R8G8B8A8_UNORM))
+		return 1;
+	uint8_t a[64 * 48 * 4], b[sizeof(a)], out[sizeof(a)];
+	for (int i = 0; i < w * h; i++) {
+		a[4*i] = 255; a[4*i+1] = a[4*i+2] = 0; a[4*i+3] = 255;
+		b[4*i] = b[4*i+1] = 0; b[4*i+2] = b[4*i+3] = 255;
+	}
+	kfg_vk_upload_rgba8(vk, &e.color[0], a);
+	kfg_vk_upload_rgba8(vk, &e.color[1], b);
+	uint16_t stats[16] = {0};
+	kfg_vk_upload_raw(vk, &e.stats[1], stats, sizeof(stats));
+	_Float16 field[16 * 12 * 4];
+	int failures = 0;
+	for (int axis = 0; axis < 2; axis++) {
+		for (int i = 0; i < 16 * 12; i++) {
+			field[4*i] = axis == 0 ? 4.0 : 0.0;
+			field[4*i+1] = axis == 1 ? 4.0 : 0.0;
+			field[4*i+2] = 0.5;
+			field[4*i+3] = 0.0;
+		}
+		kfg_vk_upload_raw(vk, &e.pair_select[1], field, sizeof(field));
+		// At 1.5 pixels from the last centre, a phase sweep crosses the border.
+		int previous = -1;
+		for (int step = 1; step < 64; step++) {
+			float t = step / 64.0f;
+			kfg_plan p;
+			kfg_plan_generate(&p, w, h, 0, 1, 1, t, 0);
+			run_plan(&e, &p, NULL, NULL);
+			kfg_vk_download_rgba8(vk, &e.output, out);
+			int lo = axis == 0 ? (h/2)*w : w/2;
+			int hi = axis == 0 ? (h/2)*w+w-1 : (h-1)*w+w/2;
+			if (out[4*lo+2] != 255 || out[4*lo] != 0 || out[4*hi] != 255 || out[4*hi+2] != 0)
+				failures++;
+			int near = axis == 0 ? hi-1 : hi-w;
+			int value = out[4*near+2];
+			if (previous >= 0 && abs(value-previous) > 16)
+				failures++;
+			previous = value;
+		}
+	}
+	engine_destroy(&e);
+	printf("border visibility and phase continuity: %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
+	return failures;
+}
+
 int main(int argc, char **argv)
 {
 	const char *spv = "build";
@@ -843,8 +913,8 @@ int main(int argc, char **argv)
 			printf("  t=%.3f gen=%.2fdB blend=%.2fdB dup=%.2fdB region gen/blend/dup=%.2f/%.2f/%.2f |G-A|=%.2f |G-B|=%.2f hud=%.2f %s%s\n",
 			       t, pg, pl, pd, og, ol, od, ma, mb, hud_err, ok ? "PASS" : known ? "OPEN (not gated): " : "FAIL: ", why);
 			if (js)
-				fprintf(js, "   {\"t\": %.6f, \"psnr_gen\": %.3f, \"psnr_blend\": %.3f, \"psnr_dup\": %.3f, \"region_gen\": %.3f, \"region_blend\": %.3f, \"region_dup\": %.3f, \"mean_abs_vs_A\": %.3f, \"mean_abs_vs_B\": %.3f, \"hud_err\": %.3f, \"pass\": %s}%s\n",
-					t, pg, pl, pd, og, ol, od, ma, mb, hud_err, ok ? "true" : "false", pi < 2 ? "," : "");
+				fprintf(js, "   {\"t\": %.6f, \"psnr_gen\": %.3f, \"psnr_border\": %.3f, \"psnr_blend\": %.3f, \"psnr_dup\": %.3f, \"region_gen\": %.3f, \"region_blend\": %.3f, \"region_dup\": %.3f, \"mean_abs_vs_A\": %.3f, \"mean_abs_vs_B\": %.3f, \"hud_err\": %.3f, \"pass\": %s}%s\n",
+					t, pg, psnr_border(G, T, w, h), pl, pd, og, ol, od, ma, mb, hud_err, ok ? "true" : "false", pi < 2 ? "," : "");
 			char name[128];
 			snprintf(name, sizeof(name), "%s_t%03d_gen", s->name, (int)lrint(t * 1000));
 			write_ppm(out_dir, name, G, w, h);
@@ -1070,6 +1140,9 @@ int main(int argc, char **argv)
 		failures += hdr_checks(&vk, w, h, KFG_TRANSFER_PQ, js);
 		failures += hdr_checks(&vk, w, h, KFG_TRANSFER_SCRGB, js);
 	}
+
+	if (!only || !strcmp(only, "border"))
+		failures += border_checks(&vk);
 
 	// Benchmark: analysis of one pair + two generated outputs (x3), GPU timestamps per pass.
 	if (bench > 0 && vk.timestamps) {

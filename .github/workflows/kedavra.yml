@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Publish the plugin as release vX.Y.Z (the tag is created on this commit if missing; main only); empty = build only'
+        description: 'Publish vX.Y.Z or prerelease vX.Y.Z-rc.N (creates the tag on this commit; main only); empty = build only'
         required: false
         default: ''
 permissions:
@@ -180,7 +180,7 @@ jobs:
   # release, creating the tag on the commit it ran on when the tag does not exist yet.
   release:
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v') && github.ref == 'refs/heads/main')
-    needs: plugin
+    needs: [plugin, decky]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -195,14 +195,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          set -eu
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          test -s "docs/releases/$TAG.md"
           v=${TAG#v}
+          release_flags=()
+          edit_flags=()
+          if [[ "$v" == *-* ]]; then
+            release_flags=(--prerelease --latest=false)
+            edit_flags=(--prerelease=true --latest=false)
+          fi
           cp out/KEDAVRA.zip "GSF-Kedavra-$v.zip"
           sha256sum "GSF-Kedavra-$v.zip" > "GSF-Kedavra-$v.zip.sha256"
           if gh release view "$TAG" >/dev/null 2>&1; then
             # The release was created on github.com together with the tag: fill it in.
             gh release upload "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" --clobber
-            gh release edit "$TAG" --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md"
+            gh release edit "$TAG" --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" "${edit_flags[@]}"
           else
             gh release create "$TAG" "GSF-Kedavra-$v.zip" "GSF-Kedavra-$v.zip.sha256" \
-              --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --target "$GITHUB_SHA"
+              --title "GSF $v Kedavra" --notes-file "docs/releases/$TAG.md" --target "$GITHUB_SHA" "${release_flags[@]}"
           fi
