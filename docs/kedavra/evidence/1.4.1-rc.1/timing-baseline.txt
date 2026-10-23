@@ -1,0 +1,46 @@
+device: llvmpipe (LLVM 19.1.7, 256 bits) (llvmpipe Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7))
+static       cut=0 bad=0.000 mc=0.0000 zero=0.0000 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.667 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.500 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+benchmark (30 reps, llvmpipe (LLVM 19.1.7, 256 bits)): median GPU ms per pass
+  reduce       1.827 (p99 4.552)
+  reduce       0.434 (p99 0.567)
+  reduce       0.261 (p99 0.365)
+  reduce       0.101 (p99 0.544)
+  me           12.239 (p99 19.954)
+  global       0.798 (p99 1.348)
+  me           19.373 (p99 32.084)
+  me           24.613 (p99 37.223)
+  stats        0.962 (p99 1.366)
+  select       11.196 (p99 16.609)
+  repair       3.757 (p99 6.909)
+  repair       3.613 (p99 4.888)
+  g1:warp      30.103 (p99 42.532)
+  g2:warp      30.844 (p99 43.330)
+  analysis 78.378 ms, two outputs 61.745 ms
+  per second at 90 Hz: x3 4203.7 ms, x3.75 3918.6 ms
+PASS: 0 failure(s)
+device: llvmpipe (LLVM 19.1.7, 256 bits) (llvmpipe Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7))
+static       cut=0 bad=0.000 mc=0.0000 zero=0.0000 global=(0.0,0.0) grad=(0.0,0.0;0.0,0.0)
+  t=0.333 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.667 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+  t=0.500 gen=99.00dB blend=99.00dB dup=99.00dB region gen/blend/dup=99.00/99.00/99.00 |G-A|=0.00 |G-B|=0.00 hud=0.00 PASS
+benchmark (30 reps, llvmpipe (LLVM 19.1.7, 256 bits)): median GPU ms per pass
+  reduce       1.860 (p99 3.748)
+  reduce       0.446 (p99 0.991)
+  reduce       0.270 (p99 0.331)
+  reduce       0.102 (p99 0.244)
+  me           12.540 (p99 31.279)
+  global       0.743 (p99 1.915)
+  me           21.832 (p99 37.403)
+  me           26.629 (p99 37.047)
+  stats        0.929 (p99 1.186)
+  select       11.887 (p99 28.691)
+  repair       4.036 (p99 20.745)
+  repair       3.815 (p99 5.733)
+  g1:warp      31.750 (p99 43.189)
+  g2:warp      31.506 (p99 42.304)
+  analysis 84.345 ms, two outputs 63.999 ms
+  per second at 90 Hz: x3 4450.3 ms, x3.75 4136.3 ms
+PASS: 0 failure(s)
