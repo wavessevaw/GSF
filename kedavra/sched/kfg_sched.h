@@ -51,6 +51,7 @@ extern "C" {
 #define KFG_SCHED_RING 16u
 #define KFG_MAX_MULTIPLIER 4u
 #define KFG_SCHED_SUB 8      // content sub-steps per vblank (catch-up granularity)
+#define KFG_CATCH_FINE 1     // catch-up of one vblank or less: +1/8 (1.125x) ...
 #define KFG_CATCH_STEP 2     // catch-up: +2/8 vblank of content per output (1.25x) ...
 #define KFG_CATCH_FAST 4     // ... +4/8 (1.5x) while more than KFG_CATCH_FAR vblanks behind
 #define KFG_CATCH_FAR 4
@@ -86,6 +87,9 @@ typedef struct kfg_sched_config {
 	uint32_t recover_vblanks;   // suspension length before generation is retried
 	uint32_t max_fill_span;     // late source: fill intervals up to this many vblanks with
 	                            // one intermediate per vblank; longer ones quantise to 1/multiplier
+	uint32_t cadence_frames;    // the cap's cadence: cadence_frames source frames every
+	uint32_t cadence_vblanks;   // cadence_vblanks vblanks (40 fps at 90 Hz: 4 in 9; x3: 1 in 3)
+	uint32_t giveback_calm;     // vblanks without a slow-down or a repeat before latency is given back
 } kfg_sched_config;
 
 typedef struct kfg_source_slot {
@@ -137,6 +141,7 @@ typedef struct kfg_sched {
 	uint32_t me_late_count;
 	bool degrade_pending;
 	int32_t interval_avg16;    // running mean of latch intervals, 1/16 vblank; 0 = none
+	int64_t trouble_k;         // last vblank with a slow-down or a repeat
 	// Counters for telemetry.
 	uint64_t n_real, n_gen, n_repeat, n_skip, n_resync, n_degrade, n_catchup;
 	uint64_t n_repeat_reason[5];
@@ -152,7 +157,10 @@ static inline kfg_sched_config kfg_sched_default_config(uint32_t multiplier)
 	c.degrade_misses = 8;
 	c.degrade_window = 32;
 	c.recover_vblanks = 180;
-	c.max_fill_span = 2u * multiplier + 2u;
+	c.max_fill_span = 2u * multiplier + 4u;
+	c.cadence_frames = 1;
+	c.cadence_vblanks = multiplier;
+	c.giveback_calm = 90;     // 1 s at 90 Hz
 	return c;
 }
 
@@ -205,6 +213,53 @@ static inline void kfg_sched_reset_history(kfg_sched *s)
 	s->catchup = 0;
 }
 
+static inline uint32_t kfg_sched_gcd(uint32_t a, uint32_t b);
+
+// The cap's cadence: a base cap that does not divide the refresh (40 fps at 90 Hz) releases the
+// game on a repeating pattern of vblank gaps (2, 2, 2, 3). Knowing the pattern, the scheduler
+// expects each source where it really comes instead of at the mean, so a 2-vblank gap is not
+// taken for an early frame and a 3-vblank gap for a late one. 0 or a refresh at or below the
+// cap: the whole multiplier.
+static inline void kfg_sched_set_cadence(kfg_sched *s, uint32_t refresh_hz, uint32_t cap_fps)
+{
+	uint32_t frames = 1, vblanks = s->cfg.multiplier;
+	if (cap_fps > 0 && refresh_hz > cap_fps) {
+		const uint32_t g = kfg_sched_gcd(refresh_hz, cap_fps);
+		frames = cap_fps / g;
+		vblanks = refresh_hz / g;
+		if (frames >= KFG_SCHED_RING - 1u) {
+			// The pattern is longer than the history: the mean gap it is.
+			frames = 1;
+			vblanks = (refresh_hz + cap_fps / 2) / cap_fps;
+		}
+	}
+	if (frames == s->cfg.cadence_frames && vblanks == s->cfg.cadence_vblanks)
+		return;
+	s->cfg.cadence_frames = frames;
+	s->cfg.cadence_vblanks = vblanks;
+	s->interval_avg16 = 0;
+}
+
+// The content gap expected before the next source: the cadence's own gap one pattern back once
+// the history holds a whole pattern in step with it, else the mean gap. 0: not known yet.
+static inline int64_t kfg_sched_next_gap(const kfg_sched *s)
+{
+	const uint32_t P = s->cfg.cadence_frames ? s->cfg.cadence_frames : 1u;
+	const int64_t V = s->cfg.cadence_vblanks ? (int64_t)s->cfg.cadence_vblanks : (int64_t)s->cfg.multiplier;
+	if (P == 1)
+		return V;
+	if (s->count > P) {
+		const kfg_source_slot *first = kfg_sched_slot(s, P);
+		const kfg_source_slot *newest = kfg_sched_slot(s, 0);
+		if (newest->t - first->t == V) {
+			const kfg_source_slot *a = kfg_sched_slot(s, P);
+			const kfg_source_slot *b = kfg_sched_slot(s, P - 1u);
+			return b->t - a->t;
+		}
+	}
+	return (V + (int64_t)P / 2) / (int64_t)P;
+}
+
 // Source frame `id` was latched at vblank `vbl`. Latches must be strictly increasing.
 // Returns false (and ignores the frame) when the latch is not newer than the last one.
 static inline bool kfg_sched_on_latch(kfg_sched *s, uint64_t id, int64_t vbl)
@@ -226,11 +281,15 @@ static inline bool kfg_sched_on_latch(kfg_sched *s, uint64_t id, int64_t vbl)
 			else
 				s->interval_avg16 += (int32_t)((16 * iv - s->interval_avg16) / 8);
 		}
-		const int64_t grid = newest->t + (int64_t)n;
-		const int32_t dev = s->interval_avg16 - (int32_t)(16 * n);
+		// The grid of the cap's cadence (whole multiplier: every n vblanks; 40 at 90 Hz: the
+		// 2, 2, 2, 3 pattern).
+		const int64_t P = s->cfg.cadence_frames ? (int64_t)s->cfg.cadence_frames : 1;
+		const int64_t V = s->cfg.cadence_vblanks ? (int64_t)s->cfg.cadence_vblanks : (int64_t)n;
+		const int64_t grid = newest->t + kfg_sched_next_gap(s);
+		const int64_t dev = (int64_t)s->interval_avg16 * P - 16 * V;
 		// On the grid only while the mean interval is the cap (within 3/16 vblank) and this
 		// latch is at most one vblank off it; a slower or faster source keeps its latches.
-		if (dev >= -3 && dev <= 3 && vbl - grid >= -1 && vbl - grid <= 1)
+		if (dev >= -3 * P && dev <= 3 * P && vbl - grid >= -1 && vbl - grid <= 1)
 			slot->t = grid;
 	}
 	if (newest && slot->t <= newest->t)
@@ -275,8 +334,10 @@ static inline void kfg_sched_set_multiplier(kfg_sched *s, uint32_t multiplier)
 	if (multiplier > KFG_MAX_MULTIPLIER)
 		multiplier = KFG_MAX_MULTIPLIER;
 	s->cfg.multiplier = multiplier;
-	s->cfg.max_fill_span = 2u * multiplier + 2u;
+	s->cfg.max_fill_span = 2u * multiplier + 4u;
 	s->cfg.me_lag_budget = 2;
+	s->cfg.cadence_frames = 1;
+	s->cfg.cadence_vblanks = multiplier;
 	s->want_on = multiplier > 1;
 	s->interval_avg16 = 0;  // the cap changed: the old cadence says nothing
 	// The steady delay depends on the multiplier; rebuild it.
@@ -413,10 +474,12 @@ static inline int64_t kfg_sched_lookahead(const kfg_sched *s, int64_t k, int64_t
 	}
 	if (lag < 0)
 		lag = 0;
-	int64_t next_latch = newest->latch + (s->interval_avg16 + 8) / 16;
+	// The next source where the cap's cadence puts it (a fractional cap's own gap, not the mean).
+	const int64_t gap = kfg_sched_next_gap(s);
+	int64_t next_latch = newest->latch + gap;
 	if (next_latch <= k)
 		next_latch = k + 1;  // overdue: the earliest it can still come
-	const int64_t next_t = newest->t + (int64_t)s->cfg.multiplier;
+	const int64_t next_t = newest->t + gap;
 	const int64_t next_ready = next_latch + lag;
 	int64_t best = INT64_MAX;
 	// The horizon only moves forward: visit each retained pair once, rather than
@@ -540,7 +603,8 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	}
 	int64_t extra = 0;
 	if (s->catchup > 0) {
-		extra = s->catchup > (int64_t)KFG_CATCH_FAR * Q ? KFG_CATCH_FAST : KFG_CATCH_STEP;
+		extra = s->catchup > (int64_t)KFG_CATCH_FAR * Q ? KFG_CATCH_FAST
+		      : s->catchup > Q ? KFG_CATCH_STEP : KFG_CATCH_FINE;
 		if (extra > s->catchup)
 			extra = s->catchup;
 	}
@@ -552,6 +616,7 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	// spreads the shortfall evenly (quarter speed at the most) and the catch-up pays the slower
 	// vblanks back once the source is there.
 	int64_t spread;
+	bool slowed = false;
 	const int64_t limit = kfg_sched_lookahead(s, k, base, &spread);
 	if (!s->warming && limit < step) {
 		const int64_t want = limit >= Q ? limit : spread;
@@ -562,6 +627,7 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 		if (step < Q) {
 			d.catchup = true;
 			s->n_catchup++;
+			slowed = true;
 		}
 	}
 	int64_t p = base + step;
@@ -583,6 +649,7 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 			p = slow;
 			cand = tail;
 			extra = 0;
+			slowed = true;
 			if (!d.catchup) {
 				d.catchup = true;
 				s->n_catchup++;
@@ -598,8 +665,12 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 			s->ahead_streak++;
 		else
 			s->ahead_streak = 0;
-		if (s->ahead_streak >= s->cfg.catchup_streak) {
-			s->catchup += Q;
+		if (s->ahead_streak >= s->cfg.catchup_streak && k - s->trouble_k >= (int64_t)s->cfg.giveback_calm &&
+		    s->wall_ref > 0) {
+			// Only after a calm stretch (no slow-down, no repeat): a delay that keeps the
+			// display just short of the source keeps it on the edge, and every late latch
+			// would then slow it down and speed it up again.
+			s->wall_ref--;
 			s->ahead_streak = 0;
 			s->n_skip++;
 		}
@@ -620,6 +691,8 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	}
 
 	const int64_t pc = kfg_sched_vbl(p);
+	if (!cand.ok || slowed)
+		s->trouble_k = k;
 	if (!cand.ok) {
 		d.show = KFG_SHOW_REPEAT;
 		d.reason = cand.reason;
@@ -665,8 +738,17 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	}
 	if (s->catchup < 0)
 		s->catchup = 0;
-	if (cand.ok && !s->warming && (s->wall_ref < 0 || k - s->content < s->wall_ref))
-		s->wall_ref = k - s->content;
+	if (cand.ok && !s->warming) {
+		if (s->wall_ref < 0) {
+			s->wall_ref = k - s->content;
+		} else if (slowed && k - s->content > s->wall_ref) {
+			// A slow-down is not paid back: the display keeps the delay it settled at, so
+			// it does not speed up again right away only to run short at the next late
+			// latch. The give-back above takes it back after a calm stretch.
+			s->wall_ref = k - s->content;
+			s->catchup = 0;
+		}
+	}
 	d.state = s->state;
 	d.content = s->content;
 	d.pos = s->content * Q + (int64_t)s->frac;

@@ -224,11 +224,22 @@ int main(int argc, char **argv)
 			g.queued_done_ns = g.done_ns;
 		}
 
+		// The compositor tells the scheduler the cap's cadence every vblank.
+		kfg_sched_set_cadence(&s, (uint32_t)llround(p.refresh_hz), p.cap_fps > 0 ? (uint32_t)llround(p.cap_fps) : 0u);
+
 		// Compositor wake for vblank k: latch (FIFO limiter), analysis, decision.
-		int64_t cap_interval = p.cap_fps > 0 ? (int64_t)llround(p.refresh_hz / p.cap_fps) : 1;
-		if (cap_interval < 1)
-			cap_interval = 1;
-		if (g.queued_done && k >= last_latch + cap_interval) {
+		// Gamescope's limiter: a whole divisor of the refresh releases every n-th vblank; a cap
+		// that does not divide it (40 at 90 Hz) releases on the vblanks where cap / refresh
+		// steps (2, 2, 2, 3, ...), as the KEDAVRA hook in steamcompmgr does.
+		bool released = true;
+		if (p.cap_fps > 0 && p.cap_fps < p.refresh_hz) {
+			const int64_t T = llround(p.cap_fps), R = llround(p.refresh_hz);
+			if (R % T == 0)
+				released = k >= last_latch + R / T;
+			else
+				released = last_latch < 0 || (k * T) / R != (last_latch * T) / R;
+		}
+		if (g.queued_done && released) {
 			kfg_sched_on_latch(&s, g.queued_id, k);
 			last_latch = k;
 			if (src)

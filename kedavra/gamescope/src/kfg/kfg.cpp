@@ -1142,6 +1142,8 @@ namespace kfg
 			s.uMultiplier = uMult;
 			kfg_log.infof( "multiplier %u", uMult );
 		}
+		// The base cap's release pattern (40 at 90 Hz: 2, 2, 2, 3 vblanks); unchanged caps are a no-op.
+		kfg_sched_set_cadence( &s.sched, uint32_t( RefreshHz() ), uint32_t( BaseCapFPS( RefreshHz() ) ) );
 		if ( uMult == 1 && s.sched.state == KFG_STATE_OFF )
 		{
 			// Fully off: drop the ring so an idle feature costs no memory.
