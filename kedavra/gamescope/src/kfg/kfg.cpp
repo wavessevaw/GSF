@@ -220,7 +220,8 @@ namespace kfg
 	// rate) into a BGRA bitmap and publishes it atomically. Gamescope shows it as one
 	// more layer of every composited frame, so it counts what reaches the screen,
 	// generated frames included. File: 8 x u32 header {magic 'KFGH', version 1, width,
-	// height, corner 0-3 (TL, TR, BL, BR), margin px, sequence, 0}, then w*h*4 bytes.
+	// height, corner 0-3 (TL, TR, BL, BR) or 4 (centre: a message panel), margin px, sequence, 0},
+	// then w*h*4 bytes.
 
 	gamescope::ConVar<std::string> cv_kfg_hud{ "kfg_hud", "/dev/shm/kedavra-hud.raw", "KEDAVRA HUD bitmap written by the Decky plugin; empty = no HUD.", CopyTo( g_sHudPath ) };
 
@@ -305,7 +306,7 @@ namespace kfg
 			h.uHeight = hdr[ 3 ];
 		}
 		h.pixels = std::move( px );
-		h.uCorner = hdr[ 4 ] & 3u;
+		h.uCorner = hdr[ 4 ] == 4u ? 4u : hdr[ 4 ] & 3u;
 		h.uMargin = std::min( hdr[ 5 ], 200u );
 		h.bUpload = true;
 		h.bVisible = true;
@@ -323,8 +324,11 @@ namespace kfg
 		h.uOutputHeight = uint32_t( std::lround( flOutH ) );  // the HUD's size follows the screen
 		if ( !h.bVisible || !h.pTex || pFrameInfo->layers.count() >= k_nMaxLayers )
 			return;
-		const float flX = ( h.uCorner & 1u ) ? flOutW - float( h.uWidth + h.uMargin ) : float( h.uMargin );
-		const float flY = ( h.uCorner & 2u ) ? flOutH - float( h.uHeight + h.uMargin ) : float( h.uMargin );
+		const bool bCentre = h.uCorner == 4u;
+		const float flX = bCentre ? std::floor( ( flOutW - float( h.uWidth ) ) / 2.0f )
+		                : ( h.uCorner & 1u ) ? flOutW - float( h.uWidth + h.uMargin ) : float( h.uMargin );
+		const float flY = bCentre ? std::floor( ( flOutH - float( h.uHeight ) ) / 2.0f )
+		                : ( h.uCorner & 2u ) ? flOutH - float( h.uHeight + h.uMargin ) : float( h.uMargin );
 
 		FrameInfo_t::Layer_t *layer = pFrameInfo->layers.push();
 		if ( !layer )
