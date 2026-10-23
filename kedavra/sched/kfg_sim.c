@@ -70,6 +70,8 @@ typedef struct params {
 	double fg_slowdown;      // fractional slowdown of the game while generation runs
 	double vblank_jitter_us;
 	double cut_prob;         // per-source probability of a scene cut
+	double me_min_vblanks;   // analysis usable no earlier than this many vblanks after the latch
+	                         // (2: the analysis split over two submissions, GSF 1.4.1)
 	double duration_s;
 	uint64_t seed;
 	event ev[MAX_EVENTS];
@@ -82,7 +84,7 @@ static void usage(void)
 {
 	fprintf(stderr,
 		"kfg_sim [--refresh HZ] [--mult N] [--cap FPS] [--game-ms MS] [--game-p99-ms MS]\n"
-		"        [--spike-prob P] [--spike-ms MS] [--me-ms MS] [--me-p99-ms MS] [--warp-ms MS]\n"
+		"        [--spike-prob P] [--spike-ms MS] [--me-ms MS] [--me-p99-ms MS] [--me-min-vblanks N] [--warp-ms MS]\n"
 		"        [--compose-ms MS] [--compose-p99-ms MS] [--redzone-ms MS] [--fg-slowdown F]\n"
 		"        [--cut-prob P] [--duration S] [--seed N] [--event T:what:value]... --trace out.csv [--sources out.csv]\n"
 		"events: cap, mult, off, on, refresh, gap (ms of no game output), me_scale, game_ms\n");
@@ -93,7 +95,7 @@ static int parse(int argc, char **argv, params *p)
 	*p = (params){
 		.refresh_hz = 90, .mult = 3, .cap_fps = 30, .game_ms = 20, .game_p99_ms = 26,
 		.spike_prob = 0.002, .spike_ms = 45, .me_ms = 2.0, .me_p99_ms = 3.5, .warp_ms = 0.45,
-		.compose_ms = 0.55, .compose_p99_ms = 0.9, .redzone_ms = 1.65, .fg_slowdown = 0.08,
+		.compose_ms = 0.55, .compose_p99_ms = 0.9, .redzone_ms = 1.65, .me_min_vblanks = 1, .fg_slowdown = 0.08,
 		.vblank_jitter_us = 5, .duration_s = 60, .seed = 1,
 	};
 	for (int i = 1; i < argc; i++) {
@@ -105,7 +107,7 @@ static int parse(int argc, char **argv, params *p)
 		NUM("--me-ms", me_ms) NUM("--me-p99-ms", me_p99_ms) NUM("--warp-ms", warp_ms)
 		NUM("--compose-ms", compose_ms) NUM("--compose-p99-ms", compose_p99_ms)
 		NUM("--redzone-ms", redzone_ms) NUM("--fg-slowdown", fg_slowdown)
-		NUM("--vblank-jitter-us", vblank_jitter_us) NUM("--duration", duration_s) NUM("--cut-prob", cut_prob)
+		NUM("--vblank-jitter-us", vblank_jitter_us) NUM("--duration", duration_s) NUM("--cut-prob", cut_prob) NUM("--me-min-vblanks", me_min_vblanks)
 #undef NUM
 		if (!strcmp(a, "--mult") && v) { p->mult = (uint32_t)atoi(v); i++; continue; }
 		if (!strcmp(a, "--seed") && v) { p->seed = strtoull(v, NULL, 10); i++; continue; }
@@ -248,7 +250,7 @@ int main(int argc, char **argv)
 			double me = rng_lognormal(&r, p.me_ms * me_scale, p.me_p99_ms * me_scale) * 1e6;
 			double ready_ns = wake_ns + me;
 			// First decision (wake) at or after ready_ns.
-			int64_t ready_k = k + 1;
+			int64_t ready_k = k + (p.me_min_vblanks > 1 ? llround(p.me_min_vblanks) : 1);
 			while (grid_origin + (double)(ready_k - grid_base) * refresh_ns - p.redzone_ms * 1e6 < ready_ns)
 				ready_k++;
 			kfg_sched_on_me(&s, g.queued_id, ready_k, true, rng_unit(&r) < p.cut_prob);

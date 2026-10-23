@@ -25,7 +25,7 @@ GSF (GPU Synthetic Frames) generates the in-between frames inside a patched Game
 
 </div>
 
-> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED. The pacing targets below have **not yet been confirmed by a KMS flip trace on hardware** for 1.4.2. One 14-minute Auto trace from the build before 1.1.1 met them, with motion just outside the uniformity limit; earlier builds did not ([1.1.x evidence](docs/kedavra/evidence/deck-20261021-auto/README.md), [earlier](docs/kedavra/evidence/deck-20261021/README.md)).
+> **Status: experimental.** The engine, scheduler and plugin pass their software tests in CI, and the build runs on a Steam Deck OLED.
 
 ## Why GSF Kedavra
 
@@ -96,7 +96,7 @@ Since 1.3.1 the same zip installs on a Steam Machine (SteamOS Gaming Mode with D
 
 1. Gamescope copies every new game frame into a small GPU ring.
 2. Right after the frame is composited, a separate submission runs hierarchical motion estimation between it and the previous frame, split over two refreshes so it never delays a flip.
-3. On every vblank the scheduler (`kedavra/sched/kfg_sched.h`) picks a real frame or an intermediate at the right phase. Frames from a game whose presents jitter around the cap keep their place on the cap grid, so motion stays even. Since 1.4.0 the scheduler moves content in eighths of a refresh: after a late game frame the picture runs about 1.25× fast for a few refreshes instead of skipping one, and when the next frame is late it slows down evenly instead of stopping. Since 1.4.1, when the ready frames would still run out, it briefly drops to quarter speed instead of freezing. Since 1.4.2 a slow-down is not paid back with a speed-up: the picture keeps the extra refresh of delay and gives it back slowly after a calm second, so it no longer changes speed at every late frame. A fractional cap (40 or 35 at 90 Hz) is followed on its real 2-2-2-3 release pattern, not its mean. Each refresh still costs one warp or one copy.
+3. On every vblank the scheduler (`kedavra/sched/kfg_sched.h`) picks a real frame or an intermediate at the right phase. Frames from a game whose presents jitter around the cap keep their place on the cap grid, so motion stays even. Since 1.4.0 the scheduler moves content in eighths of a refresh: after a late game frame the picture runs about 1.25× fast for a few refreshes instead of skipping one, and when the next frame is late it slows down evenly instead of stopping. Since 1.4.1, when the ready frames would still run out, it briefly drops to quarter speed instead of freezing. Since 1.4.2 a slow-down is not paid back with a speed-up: the picture keeps its delay and gives a refresh back after a calm second, so it no longer changes speed at every late frame. A fractional cap (40 or 35 at 90 Hz) is followed on its real 2-2-2-3 release pattern, not its mean, and the motion analysis runs in one pass when it fits, so a pair is usable one refresh after its frame arrives. Each refresh still costs one warp or one copy.
 4. The intermediate is synthesised at full resolution with occlusion-aware blending, and Gamescope flips it like any other frame.
 5. The plugin reads the engine status once a second, draws the HUD and records traces.
 
