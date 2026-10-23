@@ -419,26 +419,29 @@ static inline int64_t kfg_sched_lookahead(const kfg_sched *s, int64_t k, int64_t
 	const int64_t next_t = newest->t + (int64_t)s->cfg.multiplier;
 	const int64_t next_ready = next_latch + lag;
 	int64_t best = INT64_MAX;
+	// The horizon only moves forward: visit each retained pair once, rather than
+	// rescanning the entire ring for every predicted output.
+	int back = (int)s->count - 1;
+	int64_t r = kfg_sched_slot(s, (uint32_t)back)->t;
+	back--;
 	for (int64_t i = 1; i <= lag + 3; i++) {
 		const int64_t j = k + i - 1;  // the vblank of the i-th output from now
 		// Content showable at vblank j: up to the newest source whose pair is analysed by then.
-		int64_t r = INT64_MIN;
-		for (int back = (int)s->count - 1; back >= 0; back--) {
+		while (back >= 0) {
 			const kfg_source_slot *slot = kfg_sched_slot(s, (uint32_t)back);
-			// A pair still being analysed is expected after the observed lag.
 			const int64_t ready = slot->me_ready != INT64_MAX ? slot->me_ready : slot->latch + lag;
-			if (r != INT64_MIN && ready > j)
+			if (ready > j)
 				break;
 			r = slot->t;
+			back--;
 		}
-		if (r == newest->t && next_ready <= j)
-			r = next_t;
+		const int64_t available = r == newest->t && next_ready <= j ? next_t : r;
 		// This step followed by normal ones stays within what is ready ...
-		const int64_t now = r * Q - base - (i - 1) * Q;
+		const int64_t now = available * Q - base - (i - 1) * Q;
 		if (now < best)
 			best = now;
 		// ... and the deficit spread evenly over the vblanks until then.
-		const int64_t even = (r * Q - base) / i;
+		const int64_t even = (available * Q - base) / i;
 		if (even < *spread)
 			*spread = even;
 	}
@@ -546,13 +549,13 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 	// pairs analysed by then, at the lag the last pairs had, and the next source where the
 	// game's own cadence puts it, or on the next vblank when it is already overdue). A catch-up
 	// takes only the room this leaves; when the display would run into a freeze on the way, it
-	// spreads the shortfall evenly (half speed at the most) and the catch-up pays the slower
+	// spreads the shortfall evenly (quarter speed at the most) and the catch-up pays the slower
 	// vblanks back once the source is there.
 	int64_t spread;
 	const int64_t limit = kfg_sched_lookahead(s, k, base, &spread);
 	if (!s->warming && limit < step) {
 		const int64_t want = limit >= Q ? limit : spread;
-		step = want < Q / 2 ? Q / 2 : want;
+		step = want < Q / 4 ? Q / 4 : want;
 		if (step > Q + extra)
 			step = Q + extra;
 		extra = step > Q ? step - Q : 0;
@@ -568,6 +571,23 @@ static inline kfg_decision kfg_sched_decide(kfg_sched *s, int64_t k)
 		extra = 0;
 		p = base + Q;
 		cand = kfg_sched_eval_pos(s, p, k);
+	}
+
+	if (!cand.ok && !s->warming &&
+	    (cand.reason == KFG_REPEAT_SOURCE_LATE || cand.reason == KFG_REPEAT_ME_LATE)) {
+		// A prediction may be optimistic. Use a remaining half-step when it is
+		// actually ready, instead of freezing with valid content still available.
+		const int64_t slow = base + Q / 2;
+		kfg_candidate tail = kfg_sched_eval_pos(s, slow, k);
+		if (tail.ok) {
+			p = slow;
+			cand = tail;
+			extra = 0;
+			if (!d.catchup) {
+				d.catchup = true;
+				s->n_catchup++;
+			}
+		}
 	}
 
 	// Latency give-back: after a long streak in which one more vblank of content was also

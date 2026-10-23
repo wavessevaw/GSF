@@ -1,0 +1,669 @@
+{
+  "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "driver": "llvmpipe Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7)",
+  "size": [
+    1280,
+    800
+  ],
+  "scenes": [
+    {
+      "scene": "pan",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0241,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 33.39,
+          "psnr_border": 25.924,
+          "psnr_blend": 17.235,
+          "psnr_dup": 16.216,
+          "region_gen": 33.39,
+          "region_blend": 17.235,
+          "region_dup": 16.216,
+          "mean_abs_vs_A": 25.276,
+          "mean_abs_vs_B": 33.355,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 35.123,
+          "psnr_border": 27.983,
+          "psnr_blend": 17.244,
+          "psnr_dup": 16.232,
+          "region_gen": 35.123,
+          "region_blend": 17.244,
+          "region_dup": 16.232,
+          "mean_abs_vs_A": 33.411,
+          "mean_abs_vs_B": 25.324,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 33.724,
+          "psnr_border": 26.311,
+          "psnr_blend": 16.583,
+          "psnr_dup": 15.09,
+          "region_gen": 33.724,
+          "region_blend": 16.583,
+          "region_dup": 15.09,
+          "mean_abs_vs_A": 31.26,
+          "mean_abs_vs_B": 31.264,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "fast_pan",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0041,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 29.011,
+          "psnr_border": 22.677,
+          "psnr_blend": 17.699,
+          "psnr_dup": 16.679,
+          "region_gen": 29.011,
+          "region_blend": 17.699,
+          "region_dup": 16.679,
+          "mean_abs_vs_A": 26.111,
+          "mean_abs_vs_B": 29.123,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 29.019,
+          "psnr_border": 22.694,
+          "psnr_blend": 17.665,
+          "psnr_dup": 16.647,
+          "region_gen": 29.019,
+          "region_blend": 17.665,
+          "region_dup": 16.647,
+          "mean_abs_vs_A": 29.067,
+          "mean_abs_vs_B": 26.251,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 29.126,
+          "psnr_border": 22.848,
+          "psnr_blend": 17.5,
+          "psnr_dup": 16.189,
+          "region_gen": 29.126,
+          "region_blend": 17.5,
+          "region_dup": 16.189,
+          "mean_abs_vs_A": 28.411,
+          "mean_abs_vs_B": 28.472,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "objects_hud",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0013,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 36.531,
+          "psnr_border": 99.0,
+          "psnr_blend": 30.097,
+          "psnr_dup": 29.196,
+          "region_gen": 24.66,
+          "region_blend": 19.331,
+          "region_dup": 18.212,
+          "mean_abs_vs_A": 1.048,
+          "mean_abs_vs_B": 1.32,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 36.438,
+          "psnr_border": 99.0,
+          "psnr_blend": 30.084,
+          "psnr_dup": 29.155,
+          "region_gen": 25.077,
+          "region_blend": 19.417,
+          "region_dup": 18.28,
+          "mean_abs_vs_A": 1.314,
+          "mean_abs_vs_B": 1.057,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 36.585,
+          "psnr_border": 99.0,
+          "psnr_blend": 29.669,
+          "psnr_dup": 28.198,
+          "region_gen": 24.87,
+          "region_blend": 19.253,
+          "region_dup": 17.704,
+          "mean_abs_vs_A": 1.223,
+          "mean_abs_vs_B": 1.231,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "occlusion",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0028,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 35.157,
+          "psnr_border": 38.448,
+          "psnr_blend": 20.615,
+          "psnr_dup": 19.28,
+          "region_gen": 24.304,
+          "region_blend": 19.138,
+          "region_dup": 17.994,
+          "mean_abs_vs_A": 16.418,
+          "mean_abs_vs_B": 20.879,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 35.171,
+          "psnr_border": 37.689,
+          "psnr_blend": 20.598,
+          "psnr_dup": 19.263,
+          "region_gen": 24.436,
+          "region_blend": 19.003,
+          "region_dup": 17.836,
+          "mean_abs_vs_A": 20.923,
+          "mean_abs_vs_B": 16.411,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 37.385,
+          "psnr_border": 43.121,
+          "psnr_blend": 20.238,
+          "psnr_dup": 18.5,
+          "region_gen": 24.497,
+          "region_blend": 18.816,
+          "region_dup": 17.149,
+          "mean_abs_vs_A": 18.844,
+          "mean_abs_vs_B": 18.814,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "static",
+      "dynamic": false,
+      "cut_flag": 0,
+      "bad_fraction": 0.0,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 99.0,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 99.0,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 0.0,
+          "mean_abs_vs_B": 0.0,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 99.0,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 99.0,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 0.0,
+          "mean_abs_vs_B": 0.0,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 99.0,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 99.0,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 0.0,
+          "mean_abs_vs_B": 0.0,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "scene_cut",
+      "dynamic": false,
+      "cut_flag": 1,
+      "bad_fraction": 0.0359,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 27.636,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 27.636,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 0.0,
+          "mean_abs_vs_B": 24.595,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 27.636,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 27.636,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 24.595,
+          "mean_abs_vs_B": 0.0,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 99.0,
+          "psnr_border": 99.0,
+          "psnr_blend": 24.114,
+          "psnr_dup": 99.0,
+          "region_gen": 99.0,
+          "region_blend": 24.114,
+          "region_dup": 99.0,
+          "mean_abs_vs_A": 24.595,
+          "mean_abs_vs_B": 0.0,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "stairs",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0171,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 23.08,
+          "psnr_border": 19.098,
+          "psnr_blend": 12.628,
+          "psnr_dup": 11.402,
+          "region_gen": 23.08,
+          "region_blend": 12.628,
+          "region_dup": 11.402,
+          "mean_abs_vs_A": 54.478,
+          "mean_abs_vs_B": 48.663,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 23.116,
+          "psnr_border": 19.113,
+          "psnr_blend": 12.628,
+          "psnr_dup": 11.402,
+          "region_gen": 23.116,
+          "region_blend": 12.628,
+          "region_dup": 11.402,
+          "mean_abs_vs_A": 48.806,
+          "mean_abs_vs_B": 54.85,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 25.385,
+          "psnr_border": 19.892,
+          "psnr_blend": 12.83,
+          "psnr_dup": 11.367,
+          "region_gen": 25.385,
+          "region_blend": 12.83,
+          "region_dup": 11.367,
+          "mean_abs_vs_A": 56.681,
+          "mean_abs_vs_B": 56.793,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "dolly",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0255,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 32.771,
+          "psnr_border": 27.268,
+          "psnr_blend": 17.903,
+          "psnr_dup": 16.629,
+          "region_gen": 32.106,
+          "region_blend": 16.948,
+          "region_dup": 15.745,
+          "mean_abs_vs_A": 23.893,
+          "mean_abs_vs_B": 29.006,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 31.525,
+          "psnr_border": 26.789,
+          "psnr_blend": 17.8,
+          "psnr_dup": 16.728,
+          "region_gen": 31.57,
+          "region_blend": 16.854,
+          "region_dup": 15.78,
+          "mean_abs_vs_A": 29.643,
+          "mean_abs_vs_B": 22.933,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 33.642,
+          "psnr_border": 27.157,
+          "psnr_blend": 17.873,
+          "psnr_dup": 16.271,
+          "region_gen": 32.989,
+          "region_blend": 17.035,
+          "region_dup": 15.534,
+          "mean_abs_vs_A": 27.338,
+          "mean_abs_vs_B": 26.493,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "dolly_stairs",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0191,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 20.814,
+          "psnr_border": 16.747,
+          "psnr_blend": 12.958,
+          "psnr_dup": 11.894,
+          "region_gen": 20.814,
+          "region_blend": 12.958,
+          "region_dup": 11.894,
+          "mean_abs_vs_A": 42.637,
+          "mean_abs_vs_B": 44.709,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 20.93,
+          "psnr_border": 16.877,
+          "psnr_blend": 12.966,
+          "psnr_dup": 11.884,
+          "region_gen": 20.93,
+          "region_blend": 12.966,
+          "region_dup": 11.884,
+          "mean_abs_vs_A": 44.596,
+          "mean_abs_vs_B": 42.269,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 21.843,
+          "psnr_border": 17.845,
+          "psnr_blend": 13.082,
+          "psnr_dup": 11.802,
+          "region_gen": 21.843,
+          "region_blend": 13.082,
+          "region_dup": 11.802,
+          "mean_abs_vs_A": 44.987,
+          "mean_abs_vs_B": 45.171,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "near_object",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.004,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 31.125,
+          "psnr_border": 29.525,
+          "psnr_blend": 20.006,
+          "psnr_dup": 18.818,
+          "region_gen": 25.182,
+          "region_blend": 18.643,
+          "region_dup": 17.528,
+          "mean_abs_vs_A": 16.329,
+          "mean_abs_vs_B": 20.333,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 31.537,
+          "psnr_border": 33.773,
+          "psnr_blend": 20.024,
+          "psnr_dup": 18.845,
+          "region_gen": 24.953,
+          "region_blend": 18.705,
+          "region_dup": 17.619,
+          "mean_abs_vs_A": 20.29,
+          "mean_abs_vs_B": 16.428,
+          "hud_err": 0.0,
+          "pass": true
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 31.645,
+          "psnr_border": 32.176,
+          "psnr_blend": 19.957,
+          "psnr_dup": 18.387,
+          "region_gen": 25.159,
+          "region_blend": 18.346,
+          "region_dup": 16.926,
+          "mean_abs_vs_A": 18.659,
+          "mean_abs_vs_B": 18.681,
+          "hud_err": 0.0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scene": "climb",
+      "dynamic": true,
+      "cut_flag": 0,
+      "bad_fraction": 0.0531,
+      "phases": [
+        {
+          "t": 0.333333,
+          "psnr_gen": 21.774,
+          "psnr_border": 25.199,
+          "psnr_blend": 21.63,
+          "psnr_dup": 19.371,
+          "region_gen": 21.774,
+          "region_blend": 21.63,
+          "region_dup": 19.371,
+          "mean_abs_vs_A": 10.474,
+          "mean_abs_vs_B": 15.84,
+          "hud_err": 0.0,
+          "pass": false
+        },
+        {
+          "t": 0.666667,
+          "psnr_gen": 22.625,
+          "psnr_border": 25.552,
+          "psnr_blend": 21.675,
+          "psnr_dup": 19.237,
+          "region_gen": 22.625,
+          "region_blend": 21.675,
+          "region_dup": 19.237,
+          "mean_abs_vs_A": 16.738,
+          "mean_abs_vs_B": 8.695,
+          "hud_err": 0.0,
+          "pass": false
+        },
+        {
+          "t": 0.5,
+          "psnr_gen": 20.257,
+          "psnr_border": 23.675,
+          "psnr_blend": 21.162,
+          "psnr_dup": 17.315,
+          "region_gen": 20.257,
+          "region_blend": 21.162,
+          "region_dup": 17.315,
+          "mean_abs_vs_A": 14.128,
+          "mean_abs_vs_B": 13.066,
+          "hud_err": 0.0,
+          "pass": false
+        }
+      ]
+    }
+  ],
+  "sequence_bad_outputs": 0,
+  "camera": {
+    "psnr_gen": 27.921,
+    "psnr_worst": 23.381,
+    "psnr_dup": 15.992,
+    "temporal_gen": 5.1867,
+    "temporal_dup": 34.4588,
+    "cuts": 0,
+    "hud_max": 4.202
+  },
+  "stairs_temporal": {
+    "gen": 10.2442,
+    "dup": 66.624,
+    "psnr_gen": 23.497,
+    "psnr_dup": 11.403
+  },
+  "slow_pan_temporal": {
+    "gen": 5.4345,
+    "dup": 7.2954,
+    "psnr_gen": 29.074,
+    "psnr_dup": 25.517
+  },
+  "slow_stairs_temporal": {
+    "gen": 5.0951,
+    "dup": 28.171,
+    "psnr_gen": 28.069,
+    "psnr_dup": 14.507
+  },
+  "climb_temporal": {
+    "gen": 3.2485,
+    "dup": 10.3519,
+    "psnr_gen": 25.434,
+    "psnr_dup": 19.547
+  },
+  "hdr_pq": {
+    "scenes": [
+      {
+        "scene": "pan",
+        "cut_flag": 0,
+        "gain_db": 15.783,
+        "pass": true
+      },
+      {
+        "scene": "objects_hud",
+        "cut_flag": 0,
+        "gain_db": 5.747,
+        "pass": true
+      },
+      {
+        "scene": "occlusion",
+        "cut_flag": 0,
+        "gain_db": 13.82,
+        "pass": true
+      },
+      {
+        "scene": "static",
+        "cut_flag": 0,
+        "gain_db": 0.0,
+        "pass": true
+      },
+      {
+        "scene": "scene_cut",
+        "cut_flag": 1,
+        "gain_db": 0.0,
+        "pass": true
+      }
+    ],
+    "worst_gain_db": 5.747,
+    "static_rel_err": 0.000244,
+    "failures": 0
+  },
+  "hdr_scrgb": {
+    "scenes": [
+      {
+        "scene": "pan",
+        "cut_flag": 0,
+        "gain_db": 14.227,
+        "pass": true
+      },
+      {
+        "scene": "objects_hud",
+        "cut_flag": 0,
+        "gain_db": 5.34,
+        "pass": true
+      },
+      {
+        "scene": "occlusion",
+        "cut_flag": 0,
+        "gain_db": 13.268,
+        "pass": true
+      },
+      {
+        "scene": "static",
+        "cut_flag": 0,
+        "gain_db": 0.0,
+        "pass": true
+      },
+      {
+        "scene": "scene_cut",
+        "cut_flag": 1,
+        "gain_db": 0.0,
+        "pass": true
+      }
+    ],
+    "worst_gain_db": 5.34,
+    "static_rel_err": 0.000636,
+    "failures": 0
+  },
+  "failures": 0
+}

@@ -1,0 +1,524 @@
+{
+  "origin": "model",
+  "baseline": "v1.4.0",
+  "duration_seconds": 180,
+  "runs": [
+    {
+      "name": "x2_60_near",
+      "seed": 1,
+      "baseline": {
+        "hitches_per_min": 4.719985074975651,
+        "latency_ms": {
+          "p50": 54.521899,
+          "p95": 67.922303,
+          "p99": 69.98655155999998
+        },
+        "motion": {
+          "speedup": 388,
+          "even": 10096,
+          "slowdown": 180,
+          "freeze": 14
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 1.0114253732090681,
+        "latency_ms": {
+          "p50": 54.49303,
+          "p95": 67.8229412,
+          "p99": 68.26288998
+        },
+        "motion": {
+          "speedup": 388,
+          "even": 10096,
+          "slowdown": 191,
+          "freeze": 3
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x2_60_near",
+      "seed": 2,
+      "baseline": {
+        "hitches_per_min": 5.394773839122641,
+        "latency_ms": {
+          "p50": 54.54689,
+          "p95": 67.894183,
+          "p99": 68.2803892
+        },
+        "motion": {
+          "even": 10167,
+          "slowdown": 150,
+          "speedup": 344,
+          "freeze": 16
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 0.3371733649451651,
+        "latency_ms": {
+          "p50": 54.546972,
+          "p95": 67.896476,
+          "p99": 68.2815246
+        },
+        "motion": {
+          "even": 10167,
+          "slowdown": 165,
+          "speedup": 344,
+          "freeze": 1
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x2_60_near",
+      "seed": 3,
+      "baseline": {
+        "hitches_per_min": 5.7314104058029836,
+        "latency_ms": {
+          "p50": 54.6477955,
+          "p95": 67.8840105,
+          "p99": 68.27892684999999
+        },
+        "motion": {
+          "even": 10491,
+          "slowdown": 34,
+          "freeze": 17,
+          "speedup": 136
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 0.0,
+        "latency_ms": {
+          "p50": 54.6477955,
+          "p95": 67.8840105,
+          "p99": 68.27892684999999
+        },
+        "motion": {
+          "even": 10491,
+          "slowdown": 51,
+          "speedup": 136
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_near",
+      "seed": 1,
+      "baseline": {
+        "hitches_per_min": 14.835164893816348,
+        "latency_ms": {
+          "p50": 48.745923,
+          "p95": 56.6478752,
+          "p99": 57.16469668
+        },
+        "motion": {
+          "even": 14850,
+          "slowdown": 362,
+          "speedup": 760,
+          "freeze": 44
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 8.766233800891479,
+        "latency_ms": {
+          "p50": 48.745923,
+          "p95": 56.655368599999996,
+          "p99": 57.16772232
+        },
+        "motion": {
+          "even": 14850,
+          "slowdown": 380,
+          "speedup": 760,
+          "freeze": 26
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_near",
+      "seed": 2,
+      "baseline": {
+        "hitches_per_min": 11.125678969766097,
+        "latency_ms": {
+          "p50": 47.994043,
+          "p95": 56.577661,
+          "p99": 57.2035609
+        },
+        "motion": {
+          "speedup": 1467,
+          "even": 13691,
+          "slowdown": 826,
+          "freeze": 33
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 6.742835739252181,
+        "latency_ms": {
+          "p50": 47.996258,
+          "p95": 56.597094999999996,
+          "p99": 57.91010910000004
+        },
+        "motion": {
+          "speedup": 1467,
+          "even": 13691,
+          "slowdown": 839,
+          "freeze": 20
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_near",
+      "seed": 3,
+      "baseline": {
+        "hitches_per_min": 8.766233874881207,
+        "latency_ms": {
+          "p50": 38.451385,
+          "p95": 54.646113299999996,
+          "p99": 56.91978008
+        },
+        "motion": {
+          "even": 11629,
+          "slowdown": 1646,
+          "speedup": 2715,
+          "freeze": 26
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 5.731768302806943,
+        "latency_ms": {
+          "p50": 38.451385,
+          "p95": 54.7265056,
+          "p99": 56.98926616
+        },
+        "motion": {
+          "even": 11629,
+          "slowdown": 1655,
+          "speedup": 2715,
+          "freeze": 17
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x2_90_near",
+      "seed": 1,
+      "baseline": {
+        "hitches_per_min": 13.8236765259995,
+        "latency_ms": {
+          "p50": 37.304067,
+          "p95": 45.661642400000005,
+          "p99": 46.05612275
+        },
+        "motion": {
+          "speedup": 589,
+          "even": 15162,
+          "slowdown": 224,
+          "freeze": 41
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 7.417582526146074,
+        "latency_ms": {
+          "p50": 37.304298,
+          "p95": 45.6640807,
+          "p99": 46.05739844
+        },
+        "motion": {
+          "speedup": 589,
+          "even": 15162,
+          "slowdown": 243,
+          "freeze": 22
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x2_90_near",
+      "seed": 2,
+      "baseline": {
+        "hitches_per_min": 19.553003057741293,
+        "latency_ms": {
+          "p50": 37.35765,
+          "p95": 45.7164711,
+          "p99": 46.0439226
+        },
+        "motion": {
+          "even": 15310,
+          "speedup": 486,
+          "slowdown": 164,
+          "freeze": 54,
+          "jump": 4
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 12.473467467869446,
+        "latency_ms": {
+          "p50": 37.357655,
+          "p95": 45.7185697,
+          "p99": 46.04418578
+        },
+        "motion": {
+          "even": 15310,
+          "speedup": 486,
+          "slowdown": 185,
+          "freeze": 33,
+          "jump": 4
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x2_90_near",
+      "seed": 3,
+      "baseline": {
+        "hitches_per_min": 14.834238756720499,
+        "latency_ms": {
+          "p50": 37.406741,
+          "p95": 45.80540355,
+          "p99": 46.27751369999997
+        },
+        "motion": {
+          "even": 15666,
+          "slowdown": 44,
+          "freeze": 44,
+          "speedup": 263
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 7.417119378360249,
+        "latency_ms": {
+          "p50": 37.40628,
+          "p95": 45.8043044,
+          "p99": 46.40530141999999
+        },
+        "motion": {
+          "even": 15666,
+          "slowdown": 66,
+          "freeze": 22,
+          "speedup": 263
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x375_90_near",
+      "seed": 1,
+      "baseline": {
+        "hitches_per_min": 14.498907277888593,
+        "latency_ms": {
+          "p50": 51.051077,
+          "p95": 61.4121336,
+          "p99": 64.94075079
+        },
+        "motion": {
+          "even": 13883,
+          "slowdown": 894,
+          "speedup": 1195,
+          "freeze": 41,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 10.452700595687125,
+        "latency_ms": {
+          "p50": 51.025835,
+          "p95": 61.0888278,
+          "p99": 65.15688193999999
+        },
+        "motion": {
+          "even": 13860,
+          "slowdown": 918,
+          "speedup": 1206,
+          "freeze": 29,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x375_90_near",
+      "seed": 2,
+      "baseline": {
+        "hitches_per_min": 18.882297895796185,
+        "latency_ms": {
+          "p50": 51.097260500000004,
+          "p95": 62.080646449999996,
+          "p99": 65.50163432000001
+        },
+        "motion": {
+          "even": 13919,
+          "slowdown": 838,
+          "speedup": 1202,
+          "freeze": 54,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 13.487355639854417,
+        "latency_ms": {
+          "p50": 51.097260500000004,
+          "p95": 62.23142695,
+          "p99": 66.2508983
+        },
+        "motion": {
+          "even": 13919,
+          "slowdown": 854,
+          "speedup": 1202,
+          "freeze": 38,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x375_90_near",
+      "seed": 3,
+      "baseline": {
+        "hitches_per_min": 17.19745213586997,
+        "latency_ms": {
+          "p50": 50.897694,
+          "p95": 60.462135,
+          "p99": 65.36477740000002
+        },
+        "motion": {
+          "even": 13906,
+          "slowdown": 862,
+          "freeze": 49,
+          "speedup": 1195,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 12.139377978261154,
+        "latency_ms": {
+          "p50": 50.897694,
+          "p95": 60.5075255,
+          "p99": 65.9189369
+        },
+        "motion": {
+          "even": 13906,
+          "slowdown": 877,
+          "freeze": 34,
+          "speedup": 1195,
+          "jump": 2
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_stable",
+      "seed": 1,
+      "baseline": {
+        "hitches_per_min": 8.429070910340245,
+        "latency_ms": {
+          "p50": 46.741629,
+          "p95": 49.9913484,
+          "p99": 51.847299840000005
+        },
+        "motion": {
+          "even": 15780,
+          "slowdown": 52,
+          "freeze": 25,
+          "speedup": 159
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 4.720279709790538,
+        "latency_ms": {
+          "p50": 46.720125,
+          "p95": 49.892711999999996,
+          "p99": 51.2261038
+        },
+        "motion": {
+          "even": 15768,
+          "slowdown": 71,
+          "freeze": 14,
+          "speedup": 163
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_stable",
+      "seed": 2,
+      "baseline": {
+        "hitches_per_min": 12.13710437900684,
+        "latency_ms": {
+          "p50": 46.738654,
+          "p95": 49.934924,
+          "p99": 51.525231000000005
+        },
+        "motion": {
+          "even": 15666,
+          "slowdown": 84,
+          "freeze": 36,
+          "speedup": 231
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 7.0799775544206565,
+        "latency_ms": {
+          "p50": 46.738654,
+          "p95": 49.934924,
+          "p99": 51.525231000000005
+        },
+        "motion": {
+          "even": 15666,
+          "slowdown": 99,
+          "freeze": 21,
+          "speedup": 231
+        },
+        "all_states_reorders": 0
+      }
+    },
+    {
+      "name": "x3_90_stable",
+      "seed": 3,
+      "baseline": {
+        "hitches_per_min": 10.451395474123574,
+        "latency_ms": {
+          "p50": 46.7419725,
+          "p95": 49.974181,
+          "p99": 51.4064792
+        },
+        "motion": {
+          "even": 15703,
+          "slowdown": 78,
+          "freeze": 31,
+          "speedup": 205
+        },
+        "all_states_reorders": 0
+      },
+      "new": {
+        "hitches_per_min": 5.731410421293573,
+        "latency_ms": {
+          "p50": 46.7419725,
+          "p95": 49.974181,
+          "p99": 51.4064792
+        },
+        "motion": {
+          "even": 15703,
+          "slowdown": 92,
+          "freeze": 17,
+          "speedup": 205
+        },
+        "all_states_reorders": 0
+      }
+    }
+  ]
+}
