@@ -81,12 +81,19 @@ Log в плагине показывает и runtime events, и system journal.
 Даже такой flip **не доказывает**, что содержимое пикселей изменилось: нужен optical/content test.
 GPU elapsed, CPU submit и CPU completion-observed timestamp не смешиваются в «GPU execution».
 
+Для всех DRM-кадров trace row регистрируется **до** atomic commit. Уникальный process-local
+token переносится в DRMPresentCtx и сопоставляется при page flip; FIFO после Present удалён.
+Failed commit отменяет запись, reset журнала не переиспользует token, переполнение учитывается
+в `trace_dropped`. При ненулевой дельте этого счётчика трасса неполна и не доказывает pacing.
+
 ## Прогоны и приёмка
 
 CI: ASan/UBSan tests production admission/completion/retirement helpers, 40000 vblanks
 completion/reset stress ×2/×3; существующая scheduler matrix; Vulkan correctness и C1 exact
 parity на lavapipe; backend fault injection, persistence/rollback, rotation/report packaging;
 TypeScript и сборка patched Gamescope с runtime smoke/older-glibc compatibility.
+Production present queue дополнительно проходит 100000 token events: fast flip before commit
+return, cancel on failed commit, reordered completion, reset и overflow.
 
 На Deck ещё обязательны отдельные A/B/A: все Off; только C1; только completion/deadline;
 только DirectScan; затем совместно. 45→90 ×2, 30→90 ×3, 30→60 ×2; дополнительно 24→90.

@@ -40,7 +40,8 @@ namespace kfg
 	void FinalGpuWorkComplete();
 	bool IsScanoutFb( gamescope::IBackendFb *pFb );
 	void OnDirectCommit( uint64_t ulPresent, int nResult );
-	void BeforeDirectCommit( uint64_t ulPresent );
+	uint64_t BeforeDrmCommit();
+	void AfterDrmCommit( uint64_t ulToken, int nResult );
 	void OnDirectFlip( uint64_t ulPresent, uint64_t ulNs, uint32_t uFb );
 
 	// steamcompmgr paint_all, before the connector presents frameInfo. Feeds the
@@ -54,7 +55,7 @@ namespace kfg
 	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo );
 
 	// KMS thread: page flip completed at ulVBlankNs (kernel timestamp).
-	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, bool bDirect = false );
+	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, uint64_t ulToken = 0 );
 
 	// rendervulkan.cpp: uploads pass constants (CVulkanCmdBuffer::uploadConstants lives there).
 	void UploadParams( CVulkanCmdBuffer *pCmd, const kfg_params &params );

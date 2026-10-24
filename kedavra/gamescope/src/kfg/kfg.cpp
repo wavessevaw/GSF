@@ -16,7 +16,6 @@
 #include <ctime>
 #include <deque>
 #include <mutex>
-#include <map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -34,6 +33,7 @@
 #include "kfg_auto.h"
 #include "kfg_sched.h"
 #include "kfg_runtime.h"
+#include "kfg_present.hpp"
 
 uint64_t get_time_in_nanos();
 
@@ -119,7 +119,6 @@ namespace kfg
 		struct Scanout_t { gamescope::OwningRc<CVulkanTexture> tex; uint64_t seq = 0; };
 		uint64_t ulEpoch = 1, ulTargetNs = 0, ulAnalysisID = 0, ulScanoutRetryNs = 0;
 		bool bDeadline = false;
-		bool bDirectAccepted = false;
 		std::deque<Completion_t> completions;
 		std::vector<Scanout_t> scanout;
 		CVulkanTexture *pScanoutWriting = nullptr;
@@ -222,8 +221,7 @@ namespace kfg
 	// Presented decisions waiting for their page flip (steamcompmgr -> KMS thread)
 	// and flipped rows waiting to be written (KMS thread -> steamcompmgr).
 	static std::mutex g_TraceMutex;
-	static std::deque<TraceRow_t> g_InFlight;
-	static std::map<uint64_t, TraceRow_t> g_DirectInFlight;
+	static KfgPresentQueue<TraceRow_t> g_PresentRows;
 	static std::vector<TraceRow_t> g_Flipped;
 	// The trace file belongs to its own writer thread (TraceWriterMain): opening, writing,
 	// flushing and closing it never run on the compositor or the KMS thread, so a slow disk
@@ -992,8 +990,7 @@ namespace kfg
 				{
 					std::scoped_lock lock( g_TraceMutex );
 					g_sTraceOpen = pFile ? sOpen : std::string();
-					g_InFlight.clear();
-					g_DirectInFlight.clear();
+					g_PresentRows.reset();
 					g_Flipped.clear();
 				}
 				g_bTraceOn.store( pFile != nullptr, std::memory_order_relaxed );
@@ -1077,7 +1074,7 @@ namespace kfg
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
 			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
 			cv_kfg_post_direct_history ? "true" : "false", s.ulPostDirectRecords, s.ulPostHistoryCopyRecords,
-			unsigned( getpid() ), g_ulTraceDropped.load(), s.ulEpoch, s.pszC1Reason,
+			unsigned( getpid() ), g_ulTraceDropped.load() + g_PresentRows.dropped, s.ulEpoch, s.pszC1Reason,
 			cv_kfg_direct_scan ? "true" : "false", s.pszDirectReason, s.ulDirectPrepared, s.ulDirectCommits, s.ulDirectFailures,
 			g_ulDirectFlips.load(), g_ulDirectPresent.load(), g_ulDirectFlipNs.load(), g_uDirectFb.load(), s.scanout.size(),
 			cv_kfg_deadline_analysis ? "true" : "false", s.pszAnalysisReason, s.ulCompletionCount, s.ulAnalysisDeferred, s.ulAnalysisDropped,
@@ -1154,7 +1151,6 @@ namespace kfg
 	{
 		State_t &s = g_State;
 		const uint64_t ulNow = get_time_in_nanos();
-		s.bDirectAccepted = false;
 		s.ulFinalBeginNs = 0;
 		if ( !s.scanout.empty() && ( !cv_kfg_direct_scan || s.nTransfer != KFG_TRANSFER_SDR ) )
 		{
@@ -1618,28 +1614,33 @@ namespace kfg
 		return false;
 	}
 
-	void BeforeDirectCommit( uint64_t ulPresent )
+	uint64_t BeforeDrmCommit()
 	{
 		State_t &s = g_State;
-		if ( !g_bTraceOn.load( std::memory_order_relaxed ) ) return;
+		if ( !s.bPending || !g_bTraceOn.load( std::memory_order_relaxed ) ) return 0;
 		std::scoped_lock lock( g_TraceMutex );
-		if ( g_DirectInFlight.size() >= 64 ) { g_ulTraceDropped.fetch_add( g_DirectInFlight.size() ); g_DirectInFlight.clear(); }
-		g_DirectInFlight[ ulPresent ] = TraceRow_t{ s.nPendingVBlank, 0, s.pending, false, s.ulGridPeriod, s.uMultiplier };
+		const bool bBypass = !s.bApplied && s.pending.state != KFG_STATE_OFF;
+		return g_PresentRows.reserve( TraceRow_t{ s.nPendingVBlank, 0, s.pending, bBypass, s.ulGridPeriod, s.uMultiplier } );
+	}
+
+	void AfterDrmCommit( uint64_t ulToken, int nResult )
+	{
+		if ( !nResult || !ulToken ) return;
+		std::scoped_lock lock( g_TraceMutex );
+		g_PresentRows.cancel( ulToken );
 	}
 
 	void OnDirectCommit( uint64_t ulPresent, int nResult )
 	{
+		(void) ulPresent;
 		if ( nResult )
 		{
-			std::scoped_lock lock( g_TraceMutex );
-			g_DirectInFlight.erase( ulPresent );
 			++g_State.ulDirectFailures;
 			g_State.ulScanoutRetryNs = get_time_in_nanos() + 5'000'000'000ull;
 			g_State.pszDirectReason = "atomic_commit_failed";
 		}
 		else
 		{
-			g_State.bDirectAccepted = true;
 			++g_State.ulDirectCommits;
 			g_State.pszDirectReason = "atomic_commit_accepted";
 		}
@@ -1652,16 +1653,6 @@ namespace kfg
 		g_ulDirectFlipNs.store( ulNs );
 		g_uDirectFb.store( uFb );
 		g_ulDirectFlips.fetch_add( 1 );
-		std::scoped_lock lock( g_TraceMutex );
-		auto it = g_DirectInFlight.find( ulPresent );
-		if ( it != g_DirectInFlight.end() )
-		{
-			auto row = it->second;
-			g_DirectInFlight.erase( it );
-			row.ulFlipNs = ulNs;
-			if ( g_Flipped.size() < 4096 ) g_Flipped.push_back( row );
-			else g_ulTraceDropped.fetch_add( 1 );
-		}
 	}
 
 	bool PrepareScanout( FrameInfo_t *pFrameInfo )
@@ -1729,31 +1720,18 @@ namespace kfg
 			s.ulBypass++;
 			s.pszLastProblem = "composite_bypassed";
 		}
-		if ( !g_bTraceOn.load( std::memory_order_relaxed ) )
-			return;
-		if ( s.bDirectAccepted ) return; // registered before atomic commit, correlated by present ID
-		std::scoped_lock lock( g_TraceMutex );
-		if ( g_InFlight.size() > 64 )
-		{
-			g_ulTraceDropped.fetch_add( g_InFlight.size() );
-			g_InFlight.clear();  // flips stopped arriving (suspend, DPMS)
-		}
-		g_InFlight.push_back( TraceRow_t{ s.nPendingVBlank, 0, s.pending, bBypass, s.ulGridPeriod, s.uMultiplier } );
 	}
 
-	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, bool bDirect )
+	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, uint64_t ulToken )
 	{
 		(void) uSequence;
 		g_ulFlips.fetch_add( 1, std::memory_order_relaxed );
-		if ( bDirect ) return;
 		std::scoped_lock lock( g_TraceMutex );
-		if ( g_InFlight.empty() )
-			return;
-		TraceRow_t row = g_InFlight.front();
-		g_InFlight.pop_front();
-		row.ulFlipNs = ulVBlankNs;
+		auto row = g_PresentRows.complete( ulToken );
+		if ( !row ) return;
+		row->ulFlipNs = ulVBlankNs;
 		if ( g_Flipped.size() < 4096 )
-			g_Flipped.push_back( row );
+			g_Flipped.push_back( *row );
 		else g_ulTraceDropped.fetch_add( 1 );
 	}
 }
