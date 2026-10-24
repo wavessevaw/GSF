@@ -17,7 +17,41 @@
 typedef struct compare_env {
     engine base;
     kfg_vk_image post[2], display, edges, weights, area, search;
+    VkPipeline copy;
 } compare_env;
+
+// The standalone host does not expose Gamescope's COPY enum. Keep the original
+// engine untouched and load that existing SPIR-V as a harness-owned pipeline.
+#define COMPARE_COPY_SHADER ((enum kfg_shader)KFG_SHADER_COUNT)
+
+static int create_copy_pipeline(kfg_vk *vk, const char *spv, VkPipeline *out)
+{
+    char path[2048];
+    snprintf(path, sizeof(path), "%s/kfg_copy.spv", spv);
+    FILE *file = fopen(path, "rb");
+    if (!file) return -1;
+    fseek(file, 0, SEEK_END);
+    long bytes = ftell(file);
+    rewind(file);
+    if (bytes <= 0 || bytes % 4) { fclose(file); return -1; }
+    uint32_t *code = malloc((size_t)bytes);
+    if (!code || fread(code, 1, (size_t)bytes, file) != (size_t)bytes) { free(code); fclose(file); return -1; }
+    fclose(file);
+    VkShaderModuleCreateInfo sm = { .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = (size_t)bytes, .pCode = code };
+    VkShaderModule module;
+    VkResult rc = vkCreateShaderModule(vk->device, &sm, NULL, &module);
+    free(code);
+    if (rc != VK_SUCCESS) return -1;
+    VkComputePipelineCreateInfo ci = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = { .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                   .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = module, .pName = "main" },
+        .layout = vk->layout,
+    };
+    rc = vkCreateComputePipelines(vk->device, VK_NULL_HANDLE, 1, &ci, NULL, out);
+    vkDestroyShaderModule(vk->device, module, NULL);
+    return rc == VK_SUCCESS ? 0 : -1;
+}
 
 static uint64_t mono_ns(void)
 {
@@ -44,7 +78,7 @@ static const kfg_vk_image *compare_resolve(void *user, kfg_image_ref ref)
 // Deliberately not vkCmdCopyImage: that was only a pixel-parity test in posttest.
 static void append_copy(kfg_plan *p, kfg_image_ref src, kfg_image_ref dst, uint32_t w, uint32_t h)
 {
-    kfg_pass *x = kfg_plan_add(p, KFG_SHADER_COPY, dst, "identity copy");
+    kfg_pass *x = kfg_plan_add(p, COMPARE_COPY_SHADER, dst, "identity copy");
     x->slots[0] = src;
     x->nslots = 1;
     x->nearest_mask = 1;
@@ -76,7 +110,26 @@ static void compare_destroy(compare_env *e)
     kfg_vk_image *images[] = { &e->post[0], &e->post[1], &e->display, &e->edges, &e->weights, &e->area, &e->search };
     for (unsigned i = 0; i < sizeof(images) / sizeof(images[0]); ++i)
         kfg_vk_image_destroy(e->base.vk, images[i]);
+    vkDestroyPipeline(e->base.vk->device, e->copy, NULL);
     engine_destroy(&e->base);
+}
+
+static int compare_record(compare_env *e, const kfg_plan *plan)
+{
+    kfg_vk *vk = e->base.vk;
+    for (uint32_t i = 0; i < plan->n; ++i) {
+        kfg_plan one = { .n = 1 };
+        one.pass[0] = plan->pass[i];
+        VkPipeline saved = vk->pipelines[KFG_SHADER_POST];
+        if (one.pass[0].shader == COMPARE_COPY_SHADER) {
+            one.pass[0].shader = KFG_SHADER_POST;
+            vk->pipelines[KFG_SHADER_POST] = e->copy;
+        }
+        int rc = kfg_vk_record(vk, &one, compare_resolve, e);
+        vk->pipelines[KFG_SHADER_POST] = saved;
+        if (rc) return rc;
+    }
+    return 0;
 }
 
 static int compare_plan(kfg_plan *p, const char *name, const char *spec,
@@ -128,7 +181,7 @@ int main(int argc, char **argv)
     kfg_vk vk;
     if (kfg_vk_init(&vk, argv[1], false) || !vk.timestamps) return 1;
     compare_env e;
-    if (compare_init(&e, &vk, w, h)) return 1;
+    if (compare_init(&e, &vk, w, h) || create_copy_pipeline(&vk, argv[1], &e.copy)) return 1;
     char path[2048];
     snprintf(path, sizeof(path), "%s/meta.txt", outdir);
     FILE *meta = fopen(path, "w");
@@ -165,7 +218,7 @@ int main(int argc, char **argv)
             if (compare_plan(&p, cases[c].name, cases[c].spec, w, h, optimized, phase)) return 1;
             uint64_t begin = mono_ns();
             kfg_vk_begin(&vk);
-            if (kfg_vk_record(&vk, &p, compare_resolve, &e)) return 1;
+            if (compare_record(&e, &p)) return 1;
             uint64_t recorded = mono_ns();
             if (kfg_vk_submit_wait(&vk)) return 1;
             uint64_t done = mono_ns();
