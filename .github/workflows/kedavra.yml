@@ -173,6 +173,17 @@ jobs:
         with:
           name: KEDAVRA-plugin
           path: KEDAVRA.zip
+      - name: Label isolated C1 test package
+        if: startsWith(github.head_ref, 'experiment/kedavra-c1-')
+        env:
+          C1_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 kedavra/tools/package_c1_test.py --plugin KEDAVRA.zip --out c1-test
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.head_ref, 'experiment/kedavra-c1-')
+        with:
+          name: KEDAVRA-C1-test-${{ github.event.pull_request.head.sha }}
+          path: c1-test/
+
 
   # A pushed version tag (v1.0.0) publishes the plugin zip built above as a GitHub release,
   # with the notes in docs/releases/<tag>.md. A release already made on github.com with a new

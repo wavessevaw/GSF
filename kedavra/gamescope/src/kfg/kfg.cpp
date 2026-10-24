@@ -74,6 +74,7 @@ namespace kfg
 	gamescope::ConVar<int> cv_kfg_auto_floor{ "kfg_auto_floor", 0, "Lowest base cap Auto may use, in fps: 0 = refresh / 3 (x3, at least 30); down to 24 or refresh / 4, whichever is higher (90 Hz: 24, x3.75; 60 Hz: 24, x2.5; 120 Hz: 30, x4)." };
 	gamescope::ConVar<int> cv_kfg_analysis_pixels{ "kfg_analysis_pixels", 1536 * 960, "Pixel count KEDAVRA's motion analysis works at: larger games (1080p, 4K) are analysed scaled down to it and only the final warp runs at their own size. 0 = always the game's own size." };
 	gamescope::ConVar<bool> cv_kfg_hold_vrr{ "kfg_hold_vrr", true, "With generation on (Auto or a fixed mode), keep the display at its fixed refresh rate: generated frames need a vblank grid, which adaptive sync (VRR) does not give." };
+	gamescope::ConVar<bool> cv_kfg_post_direct_history{ "kfg_post_direct_history", false, "EXPERIMENTAL C1: write the last SDR filter pass directly into history, avoiding its copy. false = 1.4.1 path." };
 	gamescope::ConVar<bool> cv_kfg_hdr{ "kfg_hdr", true, "Generate and filter HDR games too (HDR10 PQ and scRGB, in float frames). false = HDR games pass through untouched." };
 	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
@@ -188,6 +189,7 @@ namespace kfg
 		int nPostTransfer = KFG_TRANSFER_SDR;  // of the post images
 		bool bPostLimited = false;  // HDR frame: colour looks left out (last filtered frame)
 		uint64_t ulPostFrames = 0, ulPostSkipped = 0;
+		uint64_t ulPostDirectRecords = 0, ulPostHistoryCopyRecords = 0;
 		double flPostUsLast = 0, flPostUsSum = 0;
 		uint64_t ulPostSamples = 0;
 	};
@@ -813,10 +815,10 @@ namespace kfg
 		return c;
 	}
 
-	// Filters on layer 0. With pInto the result is copied there (a ring frame: the game's own
+	// Filters on layer 0. With pInto the result is written/copied there (a ring frame: the game's own
 	// frame filtered once, before generation) instead of replacing layer 0; false when the
 	// filters are off for this frame.
-	static bool RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0, CVulkanTexture *pInto = nullptr )
+	static bool RecordPost( CVulkanCmdBuffer *pCmd, State_t &s, FrameInfo_t::Layer_t &layer0, CVulkanTexture *pInto = nullptr, uint32_t uIntoFrame = k_uRing )
 	{
 		const uint32_t uWidth = layer0.tex->width(), uHeight = layer0.tex->height();
 		const int nTransfer = SourceTransfer( layer0 );
@@ -844,9 +846,32 @@ namespace kfg
 		if ( nRing < 0 )
 			return false;
 		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
+		// C1 is opt-in, SDR only. The target must be this source's history image,
+		// with the same format/extent, and distinct from every plan input/output.
+		bool bDirect = cv_kfg_post_direct_history && pInto && uIntoFrame < k_uRing &&
+			s.frames[ uIntoFrame ].pColor.get() == pInto && nTransfer == KFG_TRANSFER_SDR &&
+			pInto->width() == uWidth && pInto->height() == uHeight &&
+			pInto->format() == s.pPost[ nRing ]->format();
+		if ( bDirect )
+		{
+			for ( uint32_t i = 0; i < plan.n && bDirect; i++ )
+			{
+				const kfg_pass &pass = plan.pass[ i ];
+				bDirect = ResolveRef( r, pass.dst ) != pInto;
+				for ( uint32_t j = 0; j < pass.nslots && bDirect; j++ )
+					bDirect = ResolveRef( r, pass.slots[ j ] ) != pInto;
+			}
+		}
+		if ( bDirect )
+			bDirect = kfg_plan_post_into( &plan, kfg_ref( KFG_ROLE_COLOR, uIntoFrame, 0 ) );
 		RecordPlan( pCmd, plan, r );
-		if ( pInto )
+		if ( bDirect )
+			s.ulPostDirectRecords++;
+		else if ( pInto )
+		{
 			RecordCopy( pCmd, s.pPost[ nRing ].get(), pInto );
+			s.ulPostHistoryCopyRecords++;
+		}
 		else
 			layer0.tex = s.pPost[ nRing ].get();
 		s.ulPostFrames++;
@@ -982,6 +1007,7 @@ namespace kfg
 			"\"policy\":%d,\"req_multiplier\":%d,\"req_base_fps\":%d,\"req_auto_floor\":%d,\"auto_floor\":%u,"
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
 			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
+			"\"experimental_build\":\"c1-post-history-v1\",\"post_direct_history_requested\":%s,\"post_direct_history_sdr_records\":%" PRIu64 ",\"post_history_copy_records\":%" PRIu64 ","
 			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s,"
 			"\"analysis_width\":%u,\"analysis_height\":%u,\"vrr_held\":%s,\"output_height\":%u}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
@@ -1000,6 +1026,7 @@ namespace kfg
 			s.ulPostFrames, s.ulPostSkipped,
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
 			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
+			cv_kfg_post_direct_history ? "true" : "false", s.ulPostDirectRecords, s.ulPostHistoryCopyRecords,
 			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false",
 			asz[ 0 ], asz[ 1 ], s.bVRRHeld ? "true" : "false", g_Hud.uOutputHeight );
 		fclose( f );
@@ -1281,7 +1308,7 @@ namespace kfg
 			// With filters on, the game's frame is filtered once on its way into the ring: real
 			// and generated frames then come out filtered, and the filters cost once per game
 			// frame instead of once per displayed frame (x3.75: a quarter as often).
-			if ( !s.bPostPending || !RecordPost( pCmd, s, layer0, cur.pColor.get() ) )
+			if ( !s.bPostPending || !RecordPost( pCmd, s, layer0, cur.pColor.get(), FrameIndex( s, &cur ) ) )
 				RecordCopy( pCmd, layer0.tex, cur.pColor.get() );
 			cur.ulID = s.ulPendingID;
 			cur.bValid = true;

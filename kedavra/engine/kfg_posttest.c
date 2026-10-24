@@ -84,12 +84,49 @@ static void test_plan(void)
 	CHECK(kfg_plan_post(&p, 64, 64, &c, 0.0f) == 0 && p.n == 1, "fxaa alone: one pass into POST[0]");
 }
 
+
+static void test_plan_into(void)
+{
+	kfg_post_cfg cfg;
+	char err[128];
+	kfg_plan original = {0}, direct;
+	kfg_image_ref target = kfg_ref(KFG_ROLE_COLOR, 5, 0);
+	CHECK(!kfg_plan_post_into(NULL, target), "redirect rejects NULL");
+	CHECK(!kfg_plan_post_into(&original, target), "redirect rejects an empty plan");
+
+	kfg_post_parse("vibrance,cas=0.4,smaa,film_grain", &cfg, err, sizeof(err));
+	kfg_plan_post(&original, 63, 47, &cfg, 0.25f);
+	direct = original;
+	CHECK(kfg_plan_post_into(&direct, target), "full chain redirects to history");
+	CHECK(direct.n == original.n, "redirect adds no filter pass");
+	CHECK(direct.pass[direct.n - 1].dst.role == target.role &&
+	      direct.pass[direct.n - 1].dst.ring == 5, "redirect keeps integration ring indices above standalone KFG_RING");
+	CHECK(!memcmp(direct.pass, original.pass, (direct.n - 1) * sizeof(kfg_pass)),
+	      "intermediate ping-pong passes remain unchanged");
+	direct.pass[direct.n - 1].dst = original.pass[original.n - 1].dst;
+	CHECK(!memcmp(direct.pass, original.pass, direct.n * sizeof(kfg_pass)),
+	      "only the last destination changes, not shader, inputs, constants or dispatch");
+
+	direct = original;
+	CHECK(!kfg_plan_post_into(&direct, kfg_ref(KFG_ROLE_POST, 0, 0)), "reject scratch as history");
+	CHECK(!kfg_plan_post_into(&direct, kfg_ref(KFG_ROLE_POST_IN, 0, 0)), "reject source as history");
+	CHECK(!memcmp(direct.pass, original.pass, direct.n * sizeof(kfg_pass)), "rejection leaves plan intact");
+	direct.pass[0].slots[0] = target;
+	CHECK(!kfg_plan_post_into(&direct, target), "reject a target sampled by any earlier pass");
+	direct = original;
+	direct.pass[0].dst = target;
+	CHECK(!kfg_plan_post_into(&direct, target), "reject a target written by an earlier pass");
+	direct = original;
+	direct.n = KFG_MAX_PASSES + 1;
+	CHECK(!kfg_plan_post_into(&direct, target), "reject invalid pass count");
+}
+
 // ---- GPU resources ------------------------------------------------------------------------
 
 typedef struct post_env {
 	kfg_vk *vk;
 	uint32_t w, h;
-	kfg_vk_image in, post[2], edges, weights, area, search;
+	kfg_vk_image in, post[2], history, edges, weights, area, search;
 } post_env;
 
 static const kfg_vk_image *resolve(void *user, kfg_image_ref r)
@@ -97,6 +134,7 @@ static const kfg_vk_image *resolve(void *user, kfg_image_ref r)
 	post_env *e = user;
 	switch (r.role) {
 	case KFG_ROLE_POST_IN: return &e->in;
+	case KFG_ROLE_COLOR: return r.ring == 0 ? &e->history : NULL;
 	case KFG_ROLE_POST: return &e->post[r.ring & 1];
 	case KFG_ROLE_SMAA_EDGES: return &e->edges;
 	case KFG_ROLE_SMAA_WEIGHTS: return &e->weights;
@@ -114,7 +152,8 @@ static int env_init(post_env *e, kfg_vk *vk, uint32_t w, uint32_t h)
 	e->h = h;
 	VkFormat rgba = kfg_vk_format(KFG_FORMAT_RGBA8);
 	if (kfg_vk_image_create(vk, &e->in, rgba, w, h) || kfg_vk_image_create(vk, &e->post[0], rgba, w, h) ||
-	    kfg_vk_image_create(vk, &e->post[1], rgba, w, h) || kfg_vk_image_create(vk, &e->edges, rgba, w, h) ||
+	    kfg_vk_image_create(vk, &e->post[1], rgba, w, h) || kfg_vk_image_create(vk, &e->history, rgba, w, h) ||
+	    kfg_vk_image_create(vk, &e->edges, rgba, w, h) ||
 	    kfg_vk_image_create(vk, &e->weights, rgba, w, h) ||
 	    kfg_vk_image_create(vk, &e->area, rgba, KFG_SMAA_AREA_W, KFG_SMAA_AREA_H) ||
 	    kfg_vk_image_create(vk, &e->search, kfg_vk_format(KFG_FORMAT_R8), KFG_SMAA_SEARCH_W, KFG_SMAA_SEARCH_H))
@@ -128,7 +167,7 @@ static int env_init(post_env *e, kfg_vk *vk, uint32_t w, uint32_t h)
 
 static void env_destroy(post_env *e)
 {
-	kfg_vk_image *imgs[] = { &e->in, &e->post[0], &e->post[1], &e->edges, &e->weights, &e->area, &e->search };
+	kfg_vk_image *imgs[] = { &e->in, &e->post[0], &e->post[1], &e->history, &e->edges, &e->weights, &e->area, &e->search };
 	for (size_t i = 0; i < sizeof(imgs) / sizeof(imgs[0]); i++)
 		kfg_vk_image_destroy(e->vk, imgs[i]);
 }
@@ -547,6 +586,82 @@ static const struct { const char *name, *spec; } PRESETS[] = {
 			"bleach_bypass,sepia,noir,monochrome,nostalgia,dls=0.5:0.17,smaa,chromatic_aberration,vignette,film_grain" },
 };
 
+
+// Exact SDR texel parity: legacy post -> same-format copy -> history versus
+// last shader writing history directly. This tests pixels, not synthetic counters.
+// vkCmdCopyImage models the identity texel copy; it is not a timing model for
+// Gamescope's compute RecordCopy. No benchmark claim is derived from this test.
+static int run_post_history(post_env *e, const char *spec, float phase, const uint8_t *src,
+			    uint8_t *out, int direct)
+{
+	kfg_post_cfg cfg;
+	char err[128];
+	kfg_plan plan;
+	if (kfg_post_parse(spec, &cfg, err, sizeof(err)))
+		return -1;
+	const int ring = kfg_plan_post(&plan, e->w, e->h, &cfg, phase);
+	if (ring < 0 || (direct && !kfg_plan_post_into(&plan, kfg_ref(KFG_ROLE_COLOR, 0, 0))))
+		return -1;
+	if (kfg_vk_upload_rgba8(e->vk, &e->in, src))
+		return -1;
+	kfg_vk_begin(e->vk);
+	if (kfg_vk_record(e->vk, &plan, resolve, e))
+		return -1;
+	if (!direct) {
+		// kfg_vk_record ends each pass with shader/transfer visibility barriers.
+		VkImageCopy region = {
+			.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+			.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+			.extent = { e->w, e->h, 1 },
+		};
+		vkCmdCopyImage(e->vk->cmd, e->post[ring].image, VK_IMAGE_LAYOUT_GENERAL,
+			       e->history.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+	}
+	if (kfg_vk_submit_wait(e->vk))
+		return -1;
+	return kfg_vk_download_rgba8(e->vk, &e->history, out);
+}
+
+static void test_history_case(post_env *e, const char *spec)
+{
+	const size_t bytes = (size_t)e->w * e->h * 4;
+	uint8_t *src = malloc(bytes), *legacy = malloc(bytes), *direct = malloc(bytes);
+	if (!src || !legacy || !direct) {
+		CHECK(0, "history parity allocation failed");
+		free(src); free(legacy); free(direct);
+		return;
+	}
+	for (int frame = 0; frame < 3; frame++) {
+		fill_ramp(src, e->w, e->h);
+		for (uint32_t y = 0; y < e->h; y++)
+			for (uint32_t x = 0; x < e->w; x++) {
+				const size_t i = 4 * ((size_t)y * e->w + x);
+				if ((x + 3 * y + (uint32_t)frame) % 13 < 3)
+					src[i + 1] = (uint8_t)(frame * 71);
+				src[i + 3] = (uint8_t)((x * 17 + y * 29 + (uint32_t)frame) & 255);
+			}
+		const float phase = 0.125f + (float)frame * 0.25f;
+		const int a = run_post_history(e, spec, phase, src, legacy, 0);
+		const int b = run_post_history(e, spec, phase, src, direct, 1);
+		CHECK(a == 0 && b == 0, "history %s frame %d submits", spec, frame);
+		if (!a && !b)
+			CHECK(!memcmp(legacy, direct, bytes), "history %s frame %d differs at %ux%u", spec, frame, e->w, e->h);
+	}
+	free(src); free(legacy); free(direct);
+}
+
+static void test_history_redirect(post_env *e)
+{
+	for (size_t i = 0; i < KFG_POST_EFFECT_COUNT; i++)
+		test_history_case(e, KFG_POST_EFFECTS[i].name);
+	const char *single[] = { "cas=0.5", "dls=0.5:0.17", "fxaa", "smaa" };
+	for (size_t i = 0; i < sizeof(single) / sizeof(single[0]); i++)
+		test_history_case(e, single[i]);
+	for (size_t i = 0; i < sizeof(PRESETS) / sizeof(PRESETS[0]); i++)
+		test_history_case(e, PRESETS[i].spec);
+	printf("  history parity: %ux%u, all effects/presets, three reused frames\n", e->w, e->h);
+}
+
 int main(int argc, char **argv)
 {
 	const char *spv = "build";
@@ -563,6 +678,7 @@ int main(int argc, char **argv)
 	printf("parser and plan\n");
 	test_parse();
 	test_plan();
+	test_plan_into();
 
 	kfg_vk vk;
 	if (kfg_vk_init(&vk, spv, getenv("KFG_VALIDATION") != NULL)) {
@@ -607,6 +723,15 @@ int main(int argc, char **argv)
 		CHECK(run_post(&e, PRESETS[i].spec, 0.5f, img, NULL) == 0, "preset %s fails", PRESETS[i].name);
 		free(img);
 	}
+	printf("direct history exact pixel parity\n");
+	test_history_redirect(&e);
+	env_destroy(&e);
+	// Non-multiple-of-eight extents exercise partial workgroups and image edges.
+	if (env_init(&e, &vk, 63, 47)) {
+		fprintf(stderr, "odd-size history images failed\n");
+		return 1;
+	}
+	test_history_redirect(&e);
 	env_destroy(&e);
 
 	if (bench > 0) {
