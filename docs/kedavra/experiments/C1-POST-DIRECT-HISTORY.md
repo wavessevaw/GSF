@@ -44,20 +44,28 @@ make -C kedavra test-pacing test-sched test-engine
 Для software correctness выбрать lavapipe ICD; для Deck bench — RADV и сохранить device/driver.
 Прохождение lavapipe не подтверждает аппаратное ускорение или правильный физический вывод.
 
-## Активация и A/B в одном бинарнике
+## Установка и управление из плагина
 
-По умолчанию оптимизация **выключена**. После осознанного запуска тестового runtime:
+Концепция продукта: установка runtime, настройка, диагностика и откат доступны в плагине.
+Пользователю не нужны терминал, convars или редактирование файлов. ZIP плагина устанавливается
+через стандартный интерфейс Decky; затем все действия выполняются в GSF Kedavra:
 
-```sh
-# A: прежний маршрут 1.4.1
-gamescopectl kfg_post_direct_history 0
-# B: C1, только если источник SDR, generation и фильтры активны
-gamescopectl kfg_post_direct_history 1
-# Возврат к A немедленно, без переустановки
-gamescopectl kfg_post_direct_history 0
-```
+1. **Setup → Install / Reinstall C1 test runtime → Reboot now**.
+2. **Setup → Image filters**: выбрать тот же пресет для всех сравнений (например Sharp/CAS).
+   Есть Off, Sharp, Vivid, HDR look (эффект SDR, не переключение HDR), Cinema, Noir, Retro, Smooth.
+3. Включить Auto или Custom на главной панели; для тестов выбрать нужный base FPS.
+4. **Setup → C1 direct history**: Off — A, On — B, снова Off — A.
+5. **Pace** записывает trace; **Setup → GPU benchmark / Save report to Desktop** собирают диагностику.
 
-Проверить свежий `$XDG_RUNTIME_DIR/kedavra-status.json`:
+По умолчанию C1 **выключен**, фильтры **Off**. Настройки сохраняются плагином и восстанавливаются
+после перезапуска Gamescope. Включение C1 отклоняется при старом или устаревшем status runtime;
+панель предлагает Reinstall и Reboot. Ошибка команды не сохраняет новое значение; backend
+пытается восстановить прежние параметры. Панель показывает сохранённый запрос и подтверждённый
+runtime flag отдельно, счётчики записанных direct/copy команд и отсутствие измеренного выигрыша.
+Не следует трактовать On как доказательство выполнения C1 на каждом кадре.
+
+Для разработчика backend использует `kfg_post` и `kfg_post_direct_history` через gamescopectl,
+но пользователь работает только с UI. Диагностические поля свежего status:
 
 - `experimental_build == "c1-post-history-v1"`;
 - `post_direct_history_requested` отражает переключатель;
@@ -82,9 +90,10 @@ ZIP имеет тот же Decky plugin ID KEDAVRA и при ручной уст
 Перед такой установкой сохранить рабочий ZIP/настройки и проверить путь возврата к нему.
 Не устанавливать modified Mesa/kernel и не изменять firmware/SMU или power/thermal limits.
 
-Быстрый программный rollback C1 — `kfg_post_direct_history 0`. Если проблема относится к
-самой тестовой session, возврат к сохранённому стабильному runtime через штатный механизм
-установки, в Desktop Mode; не удалять/подменять файлы активной Game Mode session.
+Быстрый rollback C1 — **Setup → C1 direct history → Off**. Возврат к системному Gamescope —
+**Setup → Remove and restore stock Gamescope → Reboot now**. Возврат к сохранённому стабильному
+плагину — через стандартный интерфейс Decky; затем его **Setup → Install / Reinstall → Reboot now**.
+Не удалять/подменять файлы активной Game Mode session.
 При чёрном экране, GPU reset, corruption или ухудшении real FPS прекратить аппаратный тест.
 
 Исследование/план следующего этапа — [DirectScan](https://github.com/wavessevaw/GSF_Kedavra/blob/967481efe51dbb3813a5b11fb3fdb97ffb1204d7/docs/kedavra/research/hardware-native-runtime/02-DIRECTSCAN.md).

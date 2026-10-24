@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import json
 import os
 import shutil
 import subprocess
@@ -157,6 +158,18 @@ class InstallerTest(unittest.TestCase):
         self.assertFalse(keys["installed"]["ok"])
         self.assertFalse(keys["mounted"]["ok"])
         self.assertFalse(d["ok"])
+
+    def test_experimental_manifest_installed_and_compared(self):
+        info = {"experiment": "c1-post-history-v1", "head_commit": "a" * 40}
+        (self.inst.bundle / "EXPERIMENT.json").write_text(json.dumps(info))
+        self.inst.install()
+        diag = self.inst.diagnose()
+        self.assertEqual(diag["bundle_build"], info)
+        self.assertEqual(diag["installed_build"], info)
+        self.assertTrue(next(c for c in diag["checks"] if c["key"] == "experimental_installed")["ok"])
+        (self.inst.runtime / "EXPERIMENT.json").unlink()
+        diag = self.inst.diagnose()
+        self.assertFalse(next(c for c in diag["checks"] if c["key"] == "experimental_installed")["ok"])
 
     def test_boot_script_rolls_back_unhealthy_boot(self):
         self.inst.install()

@@ -1,4 +1,4 @@
-import {DialogButton, Focusable, PanelSection, PanelSectionRow, SliderField, ToggleField, gamepadDialogClasses, gamepadSliderClasses, staticClasses} from '@decky/ui';
+import {DialogButton, DropdownItem, Focusable, PanelSection, PanelSectionRow, SliderField, ToggleField, gamepadDialogClasses, gamepadSliderClasses, staticClasses} from '@decky/ui';
 import {callable, definePlugin, toaster} from '@decky/api';
 import {CSSProperties, Fragment, ReactNode, useEffect, useRef, useState} from 'react';
 import {LOGO} from './logo';
@@ -18,6 +18,9 @@ type Status = {
   auto?: boolean; auto_switches?: number; source_late?: number; cap_fps?: number; base_fps?: number;
   unsupported_format?: number; unsupported_colorspace?: number;
   auto_floor?: number; hdr_enabled?: boolean; transfer?: string; vrr_held?: boolean;
+  post?: string; post_active?: boolean; post_error?: string;
+  experimental_build?: string; post_direct_history_requested?: boolean;
+  post_direct_history_sdr_records?: number; post_history_copy_records?: number;
 };
 
 // ×2, ×2.5, ×3.75 exactly (quarter steps, like the HUD), else one decimal (×2.6 for 35 at 90 Hz).
@@ -26,13 +29,22 @@ const multText = (ratio: number) => Math.abs(ratio - Math.round(ratio)) < 0.05 ?
 type Mode = 'off' | 'auto' | 'cap';
 type View = 'main' | 'setup' | 'pace' | 'log';
 type Check = {key: string; ok: boolean; text: string; detail: string};
-type Diagnose = {checks: Check[]; ok: boolean};
+type BuildInfo = {experiment: string; head_commit: string};
+type Diagnose = {checks: Check[]; ok: boolean; bundle_build?: BuildInfo | null; installed_build?: BuildInfo | null};
 type Bench = {ok: boolean; correct?: boolean; analysis_ms?: number; two_outputs_ms?: number; device?: string; log: string; json: string};
+type RenderOptions = {post_preset: string; post_direct_history: boolean};
+const FILTERS = [
+  {data: 'off', label: 'Off'}, {data: 'sharp', label: 'Sharp (CAS)'},
+  {data: 'vivid', label: 'Vivid'}, {data: 'hdr_look', label: 'HDR look (SDR effect)'},
+  {data: 'cinema', label: 'Cinema'}, {data: 'noir', label: 'Noir'},
+  {data: 'retro', label: 'Retro'}, {data: 'smooth', label: 'Smooth (CAS + SMAA)'},
+];
 
 const rpc = {
   status: callable<[], Status>('get_status'),
-  settings: callable<[], {hud: boolean; base_fps: number; x375: boolean; hdr: boolean}>('get_settings'),
+  settings: callable<[], {hud: boolean; base_fps: number; x375: boolean; hdr: boolean} & RenderOptions>('get_settings'),
   setOptions: callable<[boolean, boolean], {x375: boolean; hdr: boolean}>('set_options'),
+  setRenderOptions: callable<[string, boolean], RenderOptions>('set_render_options'),
   setMode: callable<[Mode, number], {mode: Mode; base_fps: number}>('set_mode'),
   setHud: callable<[boolean], {hud: boolean}>('set_hud'),
   start: callable<[string], Capture>('start_capture'),
@@ -143,6 +155,8 @@ function Content() {
   const [hud, setHud] = useState(true);
   const [x375, setX375] = useState(false);
   const [hdr, setHdr] = useState(true);
+  const [postPreset, setPostPreset] = useState('off');
+  const [directHistory, setDirectHistory] = useState(false);
   const [base, setBase] = useState(30);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -155,7 +169,8 @@ function Content() {
   const lock = useRef(false);
   const baseTimer = useRef<number | undefined>(undefined);
 
-  useEffect(() => {rpc.settings().then(r => {setHud(r.hud); setBase(r.base_fps); setX375(r.x375); setHdr(r.hdr);}).catch(() => {});}, []);
+  useEffect(() => {rpc.settings().then(r => {setHud(r.hud); setBase(r.base_fps); setX375(r.x375); setHdr(r.hdr);
+    setPostPreset(r.post_preset); setDirectHistory(r.post_direct_history);}).catch(() => {});}, []);
   const refreshDiag = async () => {try {setDiag(await rpc.diagnose());} catch (e) {setMessage(String(e));}};
   useEffect(() => {void refreshDiag();}, []);
   useEffect(() => {
@@ -192,6 +207,15 @@ function Content() {
   const gameFps = status?.base_fps || status?.cap_fps || 0;
   const ratio = gameFps ? hz / gameFps : mult;
   const installed = diag?.checks.some(c => c.key === 'installed' && c.ok);
+  const c1Supported = running && status?.experimental_build === 'c1-post-history-v1'
+    && typeof status?.post_direct_history_requested === 'boolean';
+  const c1Bundle = diag?.bundle_build?.experiment === 'c1-post-history-v1';
+  const setRenderOptions = (preset: string, direct: boolean) => void act(async () => {
+    const r = await rpc.setRenderOptions(preset, direct);
+    setPostPreset(r.post_preset); setDirectHistory(r.post_direct_history);
+    if (preset !== postPreset) return `Image filters: ${FILTERS.find(f => f.data === preset)?.label ?? preset}`;
+    return direct ? 'C1 requested. It applies to SDR generation with active image filters.' : 'C1 off. Standard history copy restored.';
+  });
   // Auto's caps (kfg_auto.h): refresh / 3 (at least 30), steps of 5, refresh / 2. 90 Hz: 30 / 35 /
   // 40 / 45, and the low floor below them when allowed: 24 or refresh / 4 (90 Hz 24 at ×3.75,
   // 120 Hz 30 at ×4, 60 Hz 24 at ×2.5).
@@ -264,12 +288,30 @@ function Content() {
     <div style={gap}/>
     <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} className="gsf-btn" style={primary}>{busy ? 'Working…' : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
+    })} className="gsf-btn" style={primary}>{busy ? 'Working…' : c1Bundle ? (installed ? 'Reinstall C1 test runtime' : 'Install C1 test runtime') : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
     {needsReboot && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       await rpc.reboot(); return 'Rebooting…';
     })} className="gsf-btn" style={secondary}>Reboot now</DialogButton></PanelSectionRow>}
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.label, padding: '0 2px'}}>
-      Mounted over the stock Gamescope from /var/lib/kedavra; the SteamOS image is not changed. If Gaming Mode fails to start, the next boot uses the stock one.</div></PanelSectionRow>
+      The installed runtime starts after reboot. If Gaming Mode fails to start, the next boot restores stock Gamescope.</div></PanelSectionRow>
+    <div style={gap}/>
+    <PanelSectionRow><div style={caps}>IMAGE OPTIONS · C1 TEST</div></PanelSectionRow>
+    <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
+      <DropdownItem label="Image filters" rgOptions={FILTERS} selectedOption={postPreset}
+        disabled={busy || !running || status?.post === undefined} bottomSeparator="standard"
+        onChange={v => setRenderOptions(String(v.data), directHistory)}/>
+      <ToggleField label="C1 direct history" checked={directHistory} disabled={busy || !running || (!c1Supported && !directHistory)}
+        description="Experimental · SDR generation with filters · off restores the standard path"
+        bottomSeparator="none" onChange={v => setRenderOptions(postPreset, v)}/>
+    </div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.muted, padding: '0 2px'}}>
+      {!running ? 'Install the runtime above, then press Reboot now.' : !c1Supported ? 'This running runtime has no C1 support. Reinstall the C1 test runtime above and reboot.'
+        : <>Runtime C1 · requested {status?.post_direct_history_requested ? 'On' : 'Off'}{directHistory !== status?.post_direct_history_requested ? ' · applying saved setting…' : ''}.
+          {directHistory && (!status?.post_active ? ' Choose an image filter to use C1.' : status?.transfer !== 'sdr' ? ' Waiting for an SDR game frame.' : ' Eligible SDR frames can use C1.')}
+          {' '}Recorded direct passes: {status?.post_direct_history_sdr_records ?? 0}; history copies: {status?.post_history_copy_records ?? 0}.
+          {' '}These are recorded commands; performance on Deck is not measured.</>}
+      {status?.post_error && <div style={{color: C.red}}>Filter error: {status.post_error}</div>}
+    </div></PanelSectionRow>
     <div style={gap}/>
     {floorInSetup && capFloor < capLo && <>
       <PanelSectionRow><div style={caps}>ENGINE</div></PanelSectionRow>
@@ -394,7 +436,7 @@ function Content() {
       <Tile label="Log" icon="log" onClick={() => setView('log')}/>
     </Focusable></PanelSectionRow>
     {message && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere', padding: `0 ${INSET}px`}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 6}}>GSF {VERSION} · KEDAVRA</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 6}}>GSF {VERSION} · KEDAVRA · C1 TEST</div></PanelSectionRow>
   </PanelSection>;
 }
 

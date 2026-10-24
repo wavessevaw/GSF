@@ -26,8 +26,14 @@ def main():
         "head_commit": head, "build_commit": build,
         "base_release": "1.4.1", "official_release": False,
         "default_enabled": False, "scope": "SDR generation with active post filters",
-        "enable": "gamescopectl kfg_post_direct_history 1",
-        "disable": "gamescopectl kfg_post_direct_history 0",
+        "plugin_controls": True,
+        "controls": {
+            "install": "Setup > Install / Reinstall C1 test runtime > Reboot now",
+            "filters": "Setup > Image filters",
+            "enable": "Setup > C1 direct history: On",
+            "disable": "Setup > C1 direct history: Off",
+            "restore_stock": "Setup > Remove and restore stock Gamescope > Reboot now",
+        },
         "hardware_performance_measured": False,
     }
     target = args.out / ("KEDAVRA-C1-test-" + head[:12] + ".zip")
@@ -36,6 +42,7 @@ def main():
         if "KEDAVRA/EXPERIMENT.json" in archive.namelist():
             parser.error("experimental manifest already exists")
         archive.writestr("KEDAVRA/EXPERIMENT.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        archive.writestr("KEDAVRA/runtime/EXPERIMENT.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
         bad = archive.testzip()
         if bad:
             parser.error("corrupt ZIP member: " + bad)

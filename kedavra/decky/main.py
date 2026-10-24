@@ -25,12 +25,20 @@ class Plugin:
         self.health = loop.create_task(self._health())
         self.hud_task = loop.create_task(self._hud())
 
-    DEFAULTS = {"hud": True, "base_fps": 30, "x375": False, "hdr": True}
+    DEFAULTS = {"hud": True, "base_fps": 30, "x375": False, "hdr": True,
+                "post_preset": "off", "post_direct_history": False}
 
     def _load_settings(self):
         try:
-            return {**self.DEFAULTS, **json.loads(self.settings_path.read_text())}
-        except (OSError, ValueError):
+            settings = {**self.DEFAULTS, **json.loads(self.settings_path.read_text())}
+            # A damaged/older settings file must never turn an experiment on.
+            settings["post_direct_history"] = settings.get("post_direct_history") is True
+            try:
+                self.ctl.render_options(settings)
+            except (ValueError, TypeError):
+                settings["post_preset"] = "off"
+            return settings
+        except (OSError, ValueError, TypeError):
             return dict(self.DEFAULTS)
 
     def _save_settings(self):
@@ -52,6 +60,9 @@ class Plugin:
                     self.options_at = time.monotonic()
                     async with self.lock:
                         await asyncio.to_thread(self.ctl.apply_options, self.settings)
+                if st.get("fresh") and self.ctl.render_options_differ(st, self.settings):
+                    async with self.lock:
+                        await asyncio.to_thread(self.ctl.apply_render_options, self.settings, False)
             except Exception as e:
                 decky.logger.warning(f"hud: {e}")
             await asyncio.sleep(1)
@@ -88,7 +99,27 @@ class Plugin:
 
     async def get_settings(self):
         return {"hud": bool(self.settings.get("hud")), "base_fps": int(self.settings.get("base_fps") or 30),
-                "x375": bool(self.settings.get("x375")), "hdr": bool(self.settings.get("hdr"))}
+                "x375": bool(self.settings.get("x375")), "hdr": bool(self.settings.get("hdr")),
+                **self.ctl.render_options(self.settings)}
+
+    async def set_render_options(self, post_preset: str, post_direct_history: bool):
+        """Image filters and C1 are controlled and persisted from the plugin."""
+        async with self.lock:
+            previous = dict(self.settings)
+            proposed = {**previous, "post_preset": post_preset, "post_direct_history": post_direct_history}
+            self.ctl.render_options(proposed)  # validate before any command or settings mutation
+            try:
+                result = await asyncio.to_thread(self.ctl.apply_render_options, proposed)
+            except Exception:
+                # A second command may have failed after changing the filters.
+                try:
+                    await asyncio.to_thread(self.ctl.apply_render_options, previous, False)
+                except Exception:
+                    pass
+                raise
+            self.settings = proposed
+            await asyncio.to_thread(self._save_settings)
+            return result
 
     async def set_options(self, x375: bool, hdr: bool):
         """Engine options: Auto may go down to its low floor (x3.75 at 90 Hz, x4 at 120, x2.5 at 60); generate for HDR games."""

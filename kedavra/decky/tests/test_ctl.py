@@ -132,6 +132,56 @@ class ControlTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.ctl.apply_options({"x375": True, "hdr": True})
 
+    def render_status(self, **changes):
+        st = {"experimental_build": kedavra_ctl.C1_BUILD,
+              "post_direct_history_requested": False, "post": ""}
+        st.update(changes)
+        path = self.ctl.runtime / "kedavra-status.json"
+        path.write_text(json.dumps(st))
+        os.utime(path, (self.now, self.now))
+        return self.ctl.status()
+
+    def test_render_presets_and_c1_on_off(self):
+        self.render_status()
+        self.ctl.apply_render_options({"post_preset": "sharp", "post_direct_history": True})
+        self.assertEqual(self.rec.calls[-2][-2:], ["kfg_post", "cas=0.5"])
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_post_direct_history", "1"])
+        self.ctl.apply_render_options({"post_preset": "off", "post_direct_history": False})
+        self.assertEqual(self.rec.calls[-2][-2:], ["kfg_post", ""])
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_post_direct_history", "0"])
+
+    def test_render_options_validate_before_sending(self):
+        self.render_status()
+        for settings in ({"post_preset": "cas=999; bad"}, {"post_direct_history": "true"}):
+            with self.assertRaises(ValueError):
+                self.ctl.apply_render_options(settings)
+        self.assertEqual(self.rec.calls, [])
+
+    def test_c1_refuses_old_or_stale_runtime(self):
+        for changes in ({"experimental_build": "old"}, {"post_direct_history_requested": None}):
+            self.render_status(**changes)
+            with self.assertRaises(RuntimeError):
+                self.ctl.apply_render_options({"post_preset": "sharp", "post_direct_history": True})
+        self.render_status()
+        p = self.ctl.runtime / "kedavra-status.json"
+        os.utime(p, (self.now - 10, self.now - 10))
+        with self.assertRaises(RuntimeError):
+            self.ctl.apply_render_options({"post_direct_history": True})
+        self.assertEqual(self.rec.calls, [])
+
+    def test_render_options_restore_after_restart_without_sending_c1_to_old_engine(self):
+        settings = {"post_preset": "smooth", "post_direct_history": True}
+        st = self.render_status()
+        self.assertTrue(self.ctl.render_options_differ(st, settings))
+        self.ctl.apply_render_options(settings, strict=False)
+        st = self.render_status(post="cas=0.3,smaa", post_direct_history_requested=True)
+        self.assertFalse(self.ctl.render_options_differ(st, settings))
+        st = self.render_status(experimental_build="old", post="cas=0.3,smaa")
+        self.assertFalse(self.ctl.render_options_differ(st, settings))
+        self.rec.calls.clear()
+        self.ctl.apply_render_options(settings, strict=False)
+        self.assertEqual([c[-2] for c in self.rec.calls], ["kfg_post"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,14 @@ from kedavra_install import clean_env
 
 STATUS_STALE_S = 3.0
 
+# Named presets are translated here; the UI never supplies console commands.
+POST_PRESETS = {
+    "off": "", "sharp": "cas=0.5", "vivid": "vibrance,cas=0.35",
+    "hdr_look": "hdr_look,cas=0.3", "cinema": "technicolor2,vignette",
+    "noir": "noir,film_grain", "retro": "nostalgia,vignette", "smooth": "cas=0.3,smaa",
+}
+C1_BUILD = "c1-post-history-v1"
+
 
 class Control:
     def __init__(self, home, plugin_dir, uid=1000, runner=subprocess.run, clock=time.time, sleep=time.sleep):
@@ -98,6 +106,41 @@ class Control:
     # The lowest floor Auto may use; the engine raises it to 24 or refresh / 4 (90 Hz: 24, x3.75;
     # 120 Hz: 30, x4; 60 Hz: 24, x2.5).
     X375_FLOOR = 20
+
+    @staticmethod
+    def render_options(settings):
+        preset = settings.get("post_preset", "off")
+        if not isinstance(preset, str) or preset not in POST_PRESETS:
+            raise ValueError("unknown image filter preset")
+        direct = settings.get("post_direct_history", False)
+        if not isinstance(direct, bool):
+            raise ValueError("C1 option must be boolean")
+        return {"post_preset": preset, "post_direct_history": direct}
+
+    @staticmethod
+    def supports_c1(st):
+        return (st.get("fresh") and st.get("experimental_build") == C1_BUILD
+                and isinstance(st.get("post_direct_history_requested"), bool))
+
+    def render_options_differ(self, st, settings):
+        if not st.get("fresh"):
+            return False
+        options = self.render_options(settings)
+        return (("post" in st and st["post"] != POST_PRESETS[options["post_preset"]])
+                or (self.supports_c1(st) and st["post_direct_history_requested"] != options["post_direct_history"]))
+
+    def apply_render_options(self, settings, strict=True):
+        options = self.render_options(settings)
+        st = self.status()
+        if strict and (not st.get("fresh") or "post" not in st):
+            raise RuntimeError("Open Setup, install the bundled Gamescope and reboot before changing image options.")
+        if strict and options["post_direct_history"] and not self.supports_c1(st):
+            raise RuntimeError("This running Gamescope has no C1 support. Open Setup, reinstall the C1 runtime and reboot.")
+        if st.get("fresh") and "post" in st:
+            self._ctl("kfg_post", POST_PRESETS[options["post_preset"]])
+        if self.supports_c1(st):
+            self._ctl("kfg_post_direct_history", 1 if options["post_direct_history"] else 0)
+        return options
 
     def options_differ(self, st, settings):
         """True when a running engine's options are not the plugin's (it restarted with defaults)."""

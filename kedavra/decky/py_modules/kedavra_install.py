@@ -113,6 +113,17 @@ class Installer:
         return p.read_text().strip() if p.exists() else None
 
     @staticmethod
+    def build_info(runtime):
+        try:
+            info = json.loads((Path(runtime) / "EXPERIMENT.json").read_text())
+            if (info.get("experiment") == "c1-post-history-v1"
+                    and isinstance(info.get("head_commit"), str) and len(info["head_commit"]) == 40):
+                return {"experiment": info["experiment"], "head_commit": info["head_commit"]}
+        except (OSError, ValueError, AttributeError):
+            pass
+        return None
+
+    @staticmethod
     def _loader(runtime, *args):
         # The runtime carries its own glibc. The system ldd would check it against the
         # system glibc, so the bundled loader resolves it instead, from the runtime's own
@@ -225,8 +236,9 @@ class Installer:
         rc, out = self.run(["systemctl", "enable", UNIT_NAME])
         if rc != 0:
             raise RuntimeError("systemctl enable: " + out.strip()[-300:])
+        label = "C1 test runtime" if self.build_info(self.runtime) else "Gamescope KEDAVRA"
         return {"installed": self.bundled_version(), "needs_reboot": True,
-                "message": "Installed. Reboot: Gaming Mode will start with Gamescope KEDAVRA."}
+                "message": f"Installed {label}. Press Reboot now to start it in Gaming Mode."}
 
     def uninstall(self):
         self.run(["systemctl", "disable", UNIT_NAME])
@@ -271,6 +283,13 @@ class Installer:
 
         inst = self.installed_version()
         add("installed", inst is not None, f"Installed: {inst}" if inst else "Not installed")
+        bundle_build, installed_build = self.build_info(self.bundle), self.build_info(self.runtime)
+        if bundle_build:
+            add("experimental_bundle", True, "Plugin carries C1 test build " + bundle_build["head_commit"][:12])
+            if inst:
+                add("experimental_installed", installed_build == bundle_build,
+                    "Installed C1 build matches plugin" if installed_build == bundle_build
+                    else "Installed runtime differs from C1 bundle: press Reinstall and reboot")
         if inst and inst != self.bundled_version():
             add("outdated", False, f"Installed Gamescope {inst}, plugin carries {self.bundled_version()}: "
                 "press Reinstall and reboot")
@@ -301,7 +320,8 @@ class Installer:
         age = self.status_age()
         add("status", age is not None and age < 3, "Engine status is fresh" if age is not None and age < 3
             else ("Engine status is %.0f s old" % age if age is not None else "No engine status file"))
-        return {"checks": checks, "ok": all(c["ok"] for c in checks if c["key"] in ("libs", "mounted", "running", "status"))}
+        return {"checks": checks, "ok": all(c["ok"] for c in checks if c["key"] in ("libs", "mounted", "running", "status")),
+                "bundle_build": bundle_build, "installed_build": installed_build}
 
     def report(self, out_dir, dest_dir=None):
         """Diagnostics text in out_dir, plus one zip for sending on the Desktop (dest_dir):

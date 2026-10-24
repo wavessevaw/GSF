@@ -23,3 +23,13 @@ patched Gamescope (`kedavra/gamescope`) that the zip carries in `runtime/`.
 
 Build: `sh package.sh OUT.zip RUNTIME_DIR BENCH_DIR` (CI job `plugin` produces the full
 `KEDAVRA.zip`). Tests: `python3 -m unittest discover -s tests`.
+# Experimental C1 build
+
+All runtime installation and controls are in the plugin. Install this ZIP through Decky's
+standard plugin interface, then open **Setup → Install / Reinstall C1 test runtime → Reboot now**.
+Choose **Image filters** in Setup and use **C1 direct history** for A/B/A (Off / On / Off).
+C1 and filters default to Off. The plugin saves both settings and restores them when Gamescope
+restarts. Older/stale runtime status cannot enable C1; reinstall/reboot is offered in Setup.
+**Remove and restore stock Gamescope → Reboot now** restores the system runtime.
+The footer says **C1 TEST**; no terminal commands or file edits are required.
+
