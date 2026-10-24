@@ -173,7 +173,7 @@ jobs:
         with:
           name: KEDAVRA-plugin
           path: KEDAVRA.zip
-      - name: Label isolated C1 test package
+      - name: Label isolated Hardware Runtime test package
         if: startsWith(github.head_ref, 'experiment/kedavra-c1-')
         env:
           C1_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -181,7 +181,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: startsWith(github.head_ref, 'experiment/kedavra-c1-')
         with:
-          name: KEDAVRA-C1-test-${{ github.event.pull_request.head.sha }}
+          name: KEDAVRA-HardwareRuntime-test-${{ github.event.pull_request.head.sha }}
           path: c1-test/
 
 

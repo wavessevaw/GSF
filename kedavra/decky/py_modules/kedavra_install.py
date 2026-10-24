@@ -360,6 +360,13 @@ class Installer:
                         z.write(t.with_suffix(".json"), "captures/" + t.with_suffix(".json").name)
                 if (out_dir / "bench.json").exists():
                     z.write(out_dir / "bench.json", "bench.json")
+                for name in ("runtime-events.jsonl", "runtime-events.jsonl.1", "runtime-events.jsonl.2",
+                             "runtime-summary.json", "runtime-selftest.json", "settings.json"):
+                    evidence = out_dir / name
+                    if evidence.is_file(): z.write(evidence, "runtime/" + name)
+                for label, runtime in (("plugin-build", self.bundle), ("installed-build", self.runtime)):
+                    manifest = runtime / "EXPERIMENT.json"
+                    if manifest.is_file(): z.write(manifest, "runtime/" + label + ".json")
             self._own(dest, bundle)
         except OSError:
             # No Desktop folder we can write: the text report in out_dir still exists.
@@ -399,3 +406,20 @@ def bench(plugin_dir, out_dir, run=_run):
     except (OSError, ValueError):
         pass
     return summary
+
+
+def runtime_selftest(plugin_dir, out_dir, run=_run):
+    """Read-only Vulkan pixel correctness on the current ICD; does not install anything."""
+    directory = Path(plugin_dir) / "bench"
+    binary = directory / "kfg_posttest"
+    result = {"ok": False, "hardware_scanout_tested": False}
+    try:
+        binary.chmod(0o755)
+        rc, log = run([str(binary), "--spv", str(directory)], timeout=180)
+        result.update(ok=rc == 0 and "PASS: 0 failure(s)" in log, log=log[-18000:],
+                      software_device="llvmpipe" in log.lower() or "lavapipe" in log.lower())
+    except OSError as error:
+        result["log"] = str(error)
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    (Path(out_dir) / "runtime-selftest.json").write_text(json.dumps(result))
+    return result

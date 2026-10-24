@@ -21,6 +21,10 @@ type Status = {
   post?: string; post_active?: boolean; post_error?: string;
   experimental_build?: string; post_direct_history_requested?: boolean;
   post_direct_history_sdr_records?: number; post_history_copy_records?: number;
+  hardware_runtime_version?: number; direct_scan_requested?: boolean; direct_scan_reason?: string;
+  direct_scan_prepared?: number; direct_scan_commits?: number; direct_scan_flips?: number; direct_scan_failures?: number;
+  deadline_analysis_requested?: boolean; analysis_reason?: string; analysis_completions?: number;
+  analysis_deferred?: number; analysis_dropped?: number; c1_reason?: string; diagnostic_logging_error?: string;
 };
 
 // ×2, ×2.5, ×3.75 exactly (quarter steps, like the HUD), else one decimal (×2.6 for 35 at 90 Hz).
@@ -33,6 +37,7 @@ type BuildInfo = {experiment: string; head_commit: string};
 type Diagnose = {checks: Check[]; ok: boolean; bundle_build?: BuildInfo | null; installed_build?: BuildInfo | null};
 type Bench = {ok: boolean; correct?: boolean; analysis_ms?: number; two_outputs_ms?: number; device?: string; log: string; json: string};
 type RenderOptions = {post_preset: string; post_direct_history: boolean};
+type RuntimeOptions = {direct_scan: boolean; deadline_analysis: boolean};
 const FILTERS = [
   {data: 'off', label: 'Off'}, {data: 'sharp', label: 'Sharp (CAS)'},
   {data: 'vivid', label: 'Vivid'}, {data: 'hdr_look', label: 'HDR look (SDR effect)'},
@@ -42,7 +47,9 @@ const FILTERS = [
 
 const rpc = {
   status: callable<[], Status>('get_status'),
-  settings: callable<[], {hud: boolean; base_fps: number; x375: boolean; hdr: boolean} & RenderOptions>('get_settings'),
+  settings: callable<[], {hud: boolean; base_fps: number; x375: boolean; hdr: boolean} & RenderOptions & RuntimeOptions>('get_settings'),
+  setRuntimeOptions: callable<[boolean, boolean], RuntimeOptions>('set_runtime_options'),
+  selftest: callable<[], {ok: boolean; log: string}>('run_runtime_selftest'),
   setOptions: callable<[boolean, boolean], {x375: boolean; hdr: boolean}>('set_options'),
   setRenderOptions: callable<[string, boolean], RenderOptions>('set_render_options'),
   setMode: callable<[Mode, number], {mode: Mode; base_fps: number}>('set_mode'),
@@ -157,6 +164,8 @@ function Content() {
   const [hdr, setHdr] = useState(true);
   const [postPreset, setPostPreset] = useState('off');
   const [directHistory, setDirectHistory] = useState(false);
+  const [directScan, setDirectScan] = useState(false);
+  const [deadlineAnalysis, setDeadlineAnalysis] = useState(false);
   const [base, setBase] = useState(30);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -170,7 +179,8 @@ function Content() {
   const baseTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {rpc.settings().then(r => {setHud(r.hud); setBase(r.base_fps); setX375(r.x375); setHdr(r.hdr);
-    setPostPreset(r.post_preset); setDirectHistory(r.post_direct_history);}).catch(() => {});}, []);
+    setPostPreset(r.post_preset); setDirectHistory(r.post_direct_history);
+    setDirectScan(r.direct_scan); setDeadlineAnalysis(r.deadline_analysis);}).catch(() => {});}, []);
   const refreshDiag = async () => {try {setDiag(await rpc.diagnose());} catch (e) {setMessage(String(e));}};
   useEffect(() => {void refreshDiag();}, []);
   useEffect(() => {
@@ -210,6 +220,12 @@ function Content() {
   const c1Supported = running && status?.experimental_build === 'c1-post-history-v1'
     && typeof status?.post_direct_history_requested === 'boolean';
   const c1Bundle = diag?.bundle_build?.experiment === 'c1-post-history-v1';
+  const runtimeSupported = running && status?.hardware_runtime_version === 1;
+  const setRuntimeOptions = (scan: boolean, deadline: boolean) => void act(async () => {
+    const result = await rpc.setRuntimeOptions(scan, deadline);
+    setDirectScan(result.direct_scan); setDeadlineAnalysis(result.deadline_analysis);
+    return 'Runtime settings saved. Current route and fallback reasons are shown below.';
+  });
   const setRenderOptions = (preset: string, direct: boolean) => void act(async () => {
     const r = await rpc.setRenderOptions(preset, direct);
     setPostPreset(r.post_preset); setDirectHistory(r.post_direct_history);
@@ -295,14 +311,20 @@ function Content() {
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.label, padding: '0 2px'}}>
       The installed runtime starts after reboot. If Gaming Mode fails to start, the next boot restores stock Gamescope.</div></PanelSectionRow>
     <div style={gap}/>
-    <PanelSectionRow><div style={caps}>IMAGE OPTIONS · C1 TEST</div></PanelSectionRow>
+    <PanelSectionRow><div style={caps}>HARDWARE RUNTIME · TEST</div></PanelSectionRow>
     <PanelSectionRow><div className="gsf-green" style={{...card, padding: `2px ${INSET}px`}}>
       <DropdownItem label="Image filters" rgOptions={FILTERS} selectedOption={postPreset}
         disabled={busy || !running || status?.post === undefined} bottomSeparator="standard"
         onChange={v => setRenderOptions(String(v.data), directHistory)}/>
       <ToggleField label="C1 direct history" checked={directHistory} disabled={busy || !running || (!c1Supported && !directHistory)}
         description="Experimental · SDR generation with filters · off restores the standard path"
-        bottomSeparator="none" onChange={v => setRenderOptions(postPreset, v)}/>
+        bottomSeparator="standard" onChange={v => setRenderOptions(postPreset, v)}/>
+      <ToggleField label="DirectScan" checked={directScan} disabled={busy || !runtimeSupported}
+        description="Scan out eligible generated SDR buffers; Gamescope manages overlays and fallback"
+        bottomSeparator="standard" onChange={v => setRuntimeOptions(v, deadlineAnalysis)}/>
+      <ToggleField label="Deadline-aware analysis" checked={deadlineAnalysis} disabled={busy || !runtimeSupported}
+        description="Use completed GPU analysis and reserve time for the next displayed frame"
+        bottomSeparator="none" onChange={v => setRuntimeOptions(directScan, v)}/>
     </div></PanelSectionRow>
     <PanelSectionRow><div style={{fontSize: 11, lineHeight: 1.45, color: C.muted, padding: '0 2px'}}>
       {!running ? 'Install the runtime above, then press Reboot now.' : !c1Supported ? 'This running runtime has no C1 support. Reinstall the C1 test runtime above and reboot.'
@@ -311,6 +333,16 @@ function Content() {
           {' '}Recorded direct passes: {status?.post_direct_history_sdr_records ?? 0}; history copies: {status?.post_history_copy_records ?? 0}.
           {' '}These are recorded commands; performance on Deck is not measured.</>}
       {status?.post_error && <div style={{color: C.red}}>Filter error: {status.post_error}</div>}
+      {runtimeSupported && <div style={{marginTop: 8, overflowWrap: 'anywhere'}}>
+        C1: {status?.c1_reason}.<br/>
+        DirectScan requested {status?.direct_scan_requested ? 'On' : 'Off'}: {status?.direct_scan_reason}.<br/>
+        Prepared / commits / KMS flips: {status?.direct_scan_prepared ?? 0} / {status?.direct_scan_commits ?? 0} / {status?.direct_scan_flips ?? 0}.
+        {' '}Failures: {status?.direct_scan_failures ?? 0}.<br/>
+        Deadline requested {status?.deadline_analysis_requested ? 'On' : 'Off'}: {status?.analysis_reason}.<br/>
+        Analysis completed / deferred / superseded: {status?.analysis_completions ?? 0} / {status?.analysis_deferred ?? 0} / {status?.analysis_dropped ?? 0}.
+        <div style={{marginTop: 6}}>Diagnostics record automatically. After a problem, use Save report to Desktop; no terminal is needed.</div>
+      </div>}
+      {status?.diagnostic_logging_error && <div style={{color: C.red}}>Diagnostic logging failed: {status.diagnostic_logging_error}</div>}
     </div></PanelSectionRow>
     <div style={gap}/>
     {floorInSetup && capFloor < capLo && <>
@@ -324,6 +356,11 @@ function Content() {
     <PanelSectionRow><div style={caps}>TOOLS</div></PanelSectionRow>
     <PanelSectionRow><Focusable style={{display: 'flex', flexDirection: 'column', gap: 6}}>
       <ListButton title="Save report to Desktop" sub="One zip: diagnostics, pacing traces, benchmark" onClick={() => void act(async () => 'Report saved: ' + (await rpc.report()).path.replace(/^.*\/Desktop\//, 'Desktop/'))}/>
+      <ListButton title="Run pixel self-test" sub="Run from Steam menu · result is included in the report" onClick={() => void act(async () => {
+        const result = await rpc.selftest();
+        const saved = await rpc.report();
+        return `${result.ok ? 'Pixel self-test passed' : 'Pixel self-test failed'} · report: ${saved.path}`;
+      })}/>
       <ListButton title="GPU benchmark" sub={benchRes ? (benchRes.ok ? `Analysis ${benchRes.analysis_ms?.toFixed(1)} ms · two frames ${benchRes.two_outputs_ms?.toFixed(1)} ms · ${benchRes.correct ? 'PASS' : 'FAIL'}` : 'Failed') : 'About 20 seconds'}
         onClick={() => void act(async () => {
           const b = await rpc.bench(); setBenchRes(b);
@@ -436,7 +473,7 @@ function Content() {
       <Tile label="Log" icon="log" onClick={() => setView('log')}/>
     </Focusable></PanelSectionRow>
     {message && <PanelSectionRow><div style={{fontSize: 10, color: C.muted, overflowWrap: 'anywhere', padding: `0 ${INSET}px`}}>{message}</div></PanelSectionRow>}
-    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 6}}>GSF {VERSION} · KEDAVRA · C1 TEST</div></PanelSectionRow>
+    <PanelSectionRow><div style={{fontSize: 10, color: C.label, textAlign: 'center', letterSpacing: '0.08em', paddingTop: 6}}>GSF {VERSION} · HARDWARE RUNTIME TEST</div></PanelSectionRow>
   </PanelSection>;
 }
 

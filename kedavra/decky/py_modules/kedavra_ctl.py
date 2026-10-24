@@ -122,6 +122,31 @@ class Control:
         return (st.get("fresh") and st.get("experimental_build") == C1_BUILD
                 and isinstance(st.get("post_direct_history_requested"), bool))
 
+    @staticmethod
+    def runtime_options(settings):
+        options = {key: settings.get(key, False) for key in ("direct_scan", "deadline_analysis")}
+        if any(not isinstance(value, bool) for value in options.values()):
+            raise ValueError("runtime options must be boolean")
+        return options
+
+    @staticmethod
+    def supports_runtime(st):
+        return st.get("fresh") and st.get("hardware_runtime_version") == 1
+
+    def runtime_options_differ(self, st, settings):
+        return self.supports_runtime(st) and any(
+            st.get(key + "_requested") != value for key, value in self.runtime_options(settings).items())
+
+    def apply_runtime_options(self, settings, strict=True):
+        options = self.runtime_options(settings)
+        if not self.supports_runtime(self.status()):
+            if strict:
+                raise RuntimeError("Install the Hardware Runtime from Setup and reboot: the running runtime has no fresh capability status.")
+            return options
+        for key, value in options.items():
+            self._ctl("kfg_" + key, int(value))
+        return options
+
     def render_options_differ(self, st, settings):
         if not st.get("fresh"):
             return False

@@ -23,6 +23,9 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema": 1, "experiment": "c1-post-history-v1",
+        "hardware_runtime_version": 1,
+        "features": ["c1_post_history", "direct_scan_sdr_sync0", "completion_deadline_analysis"],
+        "diagnostic_logging_schema": 1,
         "head_commit": head, "build_commit": build,
         "base_release": "1.4.1", "official_release": False,
         "default_enabled": False, "scope": "SDR generation with active post filters",
@@ -32,11 +35,14 @@ def main():
             "filters": "Setup > Image filters",
             "enable": "Setup > C1 direct history: On",
             "disable": "Setup > C1 direct history: Off",
+            "direct_scan": "Setup > DirectScan",
+            "deadline": "Setup > Deadline-aware analysis",
+            "logs": "Log / Setup > Save report to Desktop",
             "restore_stock": "Setup > Remove and restore stock Gamescope > Reboot now",
         },
         "hardware_performance_measured": False,
     }
-    target = args.out / ("KEDAVRA-C1-test-" + head[:12] + ".zip")
+    target = args.out / ("KEDAVRA-HardwareRuntime-test-" + head[:12] + ".zip")
     shutil.copyfile(args.plugin, target)
     with zipfile.ZipFile(target, "a", compression=zipfile.ZIP_DEFLATED) as archive:
         if "KEDAVRA/EXPERIMENT.json" in archive.namelist():
@@ -47,7 +53,7 @@ def main():
         if bad:
             parser.error("corrupt ZIP member: " + bad)
     (args.out / "BUILD-INFO.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    readme = Path(__file__).resolve().parents[2] / "docs/kedavra/experiments/C1-POST-DIRECT-HISTORY.md"
+    readme = Path(__file__).resolve().parents[2] / "docs/kedavra/experiments/HARDWARE-RUNTIME.md"
     shutil.copyfile(readme, args.out / "README.ru.md")
     names = [target.name, "BUILD-INFO.json", "README.ru.md"]
     (args.out / "SHA256SUMS").write_text("".join(

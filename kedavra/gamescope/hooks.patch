@@ -1,5 +1,4 @@
 diff --git a/src/Backends/DRMBackend.cpp b/src/Backends/DRMBackend.cpp
-index c9034b7..4a48f8b 100644
 --- a/src/Backends/DRMBackend.cpp
 +++ b/src/Backends/DRMBackend.cpp
 @@ -56,6 +56,7 @@
@@ -10,27 +9,93 @@ index c9034b7..4a48f8b 100644
  
  extern int g_nPreferredOutputWidth;
  extern int g_nPreferredOutputHeight;
-@@ -788,6 +789,7 @@ static void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsi
+@@ -560,6 +561,7 @@
+ struct DRMPresentCtx
+ {
+ 	uint64_t ulPendingFlipCount = 0;
++	uint32_t uKfgFb = 0;
+ };
+ 
+ extern gamescope::ConVar<bool> cv_composite_force;
+@@ -788,6 +790,8 @@
  	// This is the last vblank time
  	uint64_t vblanktime = sec * 1'000'000'000lu + usec * 1'000lu;
  	GetVBlankTimer().MarkVBlank( vblanktime, true );
-+	kfg::OnPageFlip( vblanktime, frame );
++	kfg::OnPageFlip( vblanktime, frame, pCtx->uKfgFb != 0 );
++	if ( pCtx->uKfgFb ) kfg::OnDirectFlip( pCtx->ulPendingFlipCount, vblanktime, pCtx->uKfgFb );
  
  	// TODO: get the fbids_queued instance from data if we ever have more than one in flight
  
-@@ -3912,6 +3914,7 @@ namespace gamescope
+@@ -3883,6 +3887,10 @@
  
- 			bool bNeedsFullComposite = false;
- 			bNeedsFullComposite |= cv_composite_force;
-+			bNeedsFullComposite |= kfg::WantsComposite();
- 			bNeedsFullComposite |= bWasFirstFrame;
- 			bNeedsFullComposite |= pFrameInfo->useFSRLayer0;
- 			bNeedsFullComposite |= pFrameInfo->useNISLayer0;
+ 		virtual int Present( const FrameInfo_t *pFrameInfo, bool bAsync )
+ 		{
++			// Preparation is local to this physical DRM present. Other connectors/captures
++			// retain their own FrameInfo. Kedavra is recorded at most once on fallback.
++			FrameInfo_t kfgFrame = *pFrameInfo;
++			pFrameInfo = &kfgFrame;
+ 			static uint64_t s_ulLastTime = get_time_in_nanos();
+ 			uint64_t ulNow = get_time_in_nanos();
+ 			drm_log.debugf( "CDRMBackend::Present Begin: %lu -> delta: %lu", ulNow, ulNow - s_ulLastTime );
+@@ -3941,6 +3949,12 @@
+ 
+ 			bNeedsFullComposite |= !!(g_uCompositeDebug & CompositeDebugFlag::Heatmap);
+ 			bNeedsFullComposite |= g_uOutputRotation != 0; // can't rotate planes at scanout
++			bool bKfgPrepared = false;
++			if ( !bNeedsFullComposite && !g_bOutputHDREnabled )
++				bKfgPrepared = kfg::PrepareScanout( &kfgFrame );
++			else
++				kfg::ScanoutFallback( g_bOutputHDREnabled ? "hdr_output_composition" : "backend_requires_composition" );
++			bNeedsFullComposite |= kfg::WantsComposite() && !bKfgPrepared;
+ 
+ 			bool bDoComposite = true;
+ 			if ( !bNeedsFullComposite && !bWantsPartialComposite )
+@@ -3949,6 +3963,7 @@
+ 				// over to the composite path
+ 				std::shared_ptr<gamescope::BackendBlob> pPendingModeId = g_DRM.pending.mode_id;
+ 				int ret = drm_prepare( &g_DRM, bAsync, pFrameInfo );
++				if ( bKfgPrepared && ret ) kfg::ScanoutFallback( "atomic_plane_validation_failed" );
+ 				if ( ret == 0 )
+ 					bDoComposite = false;
+ 				else if ( ret == -EACCES )
+@@ -4364,6 +4379,12 @@
+ 			defer( if ( drm->req != nullptr ) { drmModeAtomicFree( drm->req ); drm->req = nullptr; } );
+ 
+ 			bool isPageFlip = drm->flags & DRM_MODE_PAGE_FLIP_EVENT;
++			uint32_t uKfgFb = 0;
++			// Inspect the actual atomic request, including a prepared base plus
++			// composited overlays. FrameInfo can describe the pre-composite input.
++			for ( const auto &fb : drm->m_FbIdsInRequest )
++				if ( kfg::IsScanoutFb( fb.get() ) )
++					uKfgFb = static_cast<CDRMFb *>( fb.get() )->GetFbId();
+ 			uint32_t uNewPendingFlipCount = 0;
+ 
+ 			if ( isPageFlip )
+@@ -4383,16 +4404,19 @@
+ 			uint32_t uCurrentPresentCtx = m_uNextPresentCtx;
+ 			m_uNextPresentCtx = ( m_uNextPresentCtx + 1 ) % 3;
+ 			m_PresentCtxs[uCurrentPresentCtx].ulPendingFlipCount = g_DRM.pConnector->PresentationFeedback().m_uQueuedPresents;
++			m_PresentCtxs[uCurrentPresentCtx].uKfgFb = uKfgFb;
+ 
+ 			drm_log.debugf("flip commit %" PRIu64, (uint64_t)g_DRM.pConnector->PresentationFeedback().m_uQueuedPresents);
+ 			gpuvis_trace_printf( "flip commit %" PRIu64, (uint64_t)g_DRM.pConnector->PresentationFeedback().m_uQueuedPresents );
+ 
++			if ( uKfgFb ) kfg::BeforeDirectCommit( m_PresentCtxs[uCurrentPresentCtx].ulPendingFlipCount );
+ 			ret = drmModeAtomicCommit(drm->fd, drm->req, drm->flags, &m_PresentCtxs[uCurrentPresentCtx] );
++			if ( uKfgFb ) kfg::OnDirectCommit( m_PresentCtxs[uCurrentPresentCtx].ulPendingFlipCount, ret );
+ 			if ( ret != 0 )
+ 			{
+ 				drm_log.errorf_errno( "flip error" );
+ 
+-				if ( ret != -EBUSY && ret != -EACCES )
++				if ( ret != -EBUSY && ret != -EACCES && !uKfgFb )
+ 				{
+ 					drm_log.errorf( "fatal flip error, aborting" );
+ 					if ( isPageFlip )
 diff --git a/src/meson.build b/src/meson.build
-index 498bca6..cb8d92a 100644
 --- a/src/meson.build
 +++ b/src/meson.build
-@@ -73,6 +73,16 @@ shader_src = [
+@@ -73,6 +73,16 @@
    'shaders/cs_nis_hdr_linear_fp16.comp',
    'shaders/cs_rgb_to_nv12.comp',
    'shaders/cs_sgsr.comp',
@@ -47,7 +112,7 @@ index 498bca6..cb8d92a 100644
  ]
  
  spirv_shaders = glsl_generator.process(shader_src)
-@@ -99,6 +109,7 @@ required_wlroots_features = ['xwayland']
+@@ -99,6 +109,7 @@
  
  src = [
    'Backends/HeadlessBackend.cpp',
@@ -56,7 +121,6 @@ index 498bca6..cb8d92a 100644
    'Utils/DirHelpers.cpp',
    'Utils/TempFiles.cpp',
 diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
-index 89e9494..a10825f 100644
 --- a/src/rendervulkan.cpp
 +++ b/src/rendervulkan.cpp
 @@ -45,6 +45,18 @@
@@ -78,7 +142,7 @@ index 89e9494..a10825f 100644
  #include "cs_gaussian_blur_horizontal.h"
  #include "cs_nis.h"
  #include "cs_nis_fp16.h"
-@@ -990,6 +1002,16 @@ bool CVulkanDevice::createShaders()
+@@ -990,6 +1002,16 @@
  	}
  	SHADER(RGB_TO_NV12, cs_rgb_to_nv12);
  	SHADER(SGSR, cs_sgsr);
@@ -95,7 +159,7 @@ index 89e9494..a10825f 100644
  #undef SHADER
  
  	for (uint32_t i = 0; i < shaderInfos.size(); i++)
-@@ -1222,6 +1244,16 @@ void CVulkanDevice::compileAllPipelines(std::stop_token st)
+@@ -1222,6 +1244,16 @@
  	SHADER(NIS_HDR_LINEAR, 1, 1, 1);
  	SHADER(RGB_TO_NV12, 1, 1, 1);
  	SHADER(SGSR, 1, 1, 1);
@@ -112,7 +176,25 @@ index 89e9494..a10825f 100644
  #undef SHADER
  
  	for (auto& info : pipelineInfos) {
-@@ -4415,6 +4447,18 @@ namespace
+@@ -2260,7 +2292,7 @@
+ 		else
+ 		{
+ 			std::span<const uint64_t> modifiers = GetBackend()->GetSupportedModifiers( drmFormat );
+-			assert( !modifiers.empty() );
++			if ( modifiers.empty() ) return false;
+ 			possibleModifiers = modifiers.data();
+ 			numPossibleModifiers = modifiers.size();
+ 		}
+@@ -2301,7 +2333,7 @@
+ 				return false;
+ 		}
+ 
+-		assert( modifiers.size() > 0 );
++		if ( modifiers.empty() ) return false;
+ 
+ 		modifierListInfo = {
+ 			.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
+@@ -4415,6 +4447,18 @@
  
  ReshadeEffectPipeline *g_pLastReshadeEffect = nullptr;
  
@@ -131,22 +213,21 @@ index 89e9494..a10825f 100644
  std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamescope::Rc<CVulkanTexture> pPipewireTexture, bool partial, gamescope::Rc<CVulkanTexture> pOutputOverride, bool increment, std::unique_ptr<CVulkanCmdBuffer> pInCommandBuffer )
  {
  	EOTF outputTF = frameInfo->outputEncodingEOTF;
-@@ -4469,6 +4513,10 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
+@@ -4468,6 +4512,10 @@
+ 	auto cmdBuffer = pInCommandBuffer ? std::move( pInCommandBuffer ) : g_device.commandBuffer();
  
  	const std::optional<uint32_t> oTimingSlot = CompositeTimingBegin( cmdBuffer.get() );
- 
++
 +	// KEDAVRA: real or generated frame for this vblank replaces layer 0.
 +	if ( !pOutputOverride )
 +		kfg::RecordComposite( cmdBuffer.get(), frameInfo );
-+
+ 
  	for (uint32_t i = 0; i < EOTF_Count; i++)
  		cmdBuffer->bindColorMgmtLuts(i, frameInfo->shaperLut[i], frameInfo->lut3D[i]);
- 
 diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
-index 0636ad0..01c9acb 100644
 --- a/src/rendervulkan.hpp
 +++ b/src/rendervulkan.hpp
-@@ -625,6 +625,16 @@ enum ShaderType {
+@@ -625,6 +625,16 @@
  	SHADER_TYPE_NIS_HDR_LINEAR,
  	SHADER_TYPE_RGB_TO_NV12,
  	SHADER_TYPE_SGSR,
@@ -164,10 +245,9 @@ index 0636ad0..01c9acb 100644
  	SHADER_TYPE_COUNT
  };
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 397a112..2e81680 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -124,6 +124,7 @@ static const int g_nBaseCursorScale = 36;
+@@ -124,6 +124,7 @@
  
  #define GPUVIS_TRACE_IMPLEMENTATION
  #include "gpuvis_trace_utils.h"
@@ -175,7 +255,7 @@ index 397a112..2e81680 100644
  
  LogScope xwm_log("xwm");
  LogScope focus_log("focus");
-@@ -3505,7 +3506,16 @@ paint_all( global_focus_t *pFocus, bool async, bool bRepeatFrame )
+@@ -3505,7 +3506,16 @@
  		}
  	}
  
@@ -193,11 +273,14 @@ index 397a112..2e81680 100644
  	{
  		return;
  	}
-@@ -6864,10 +6874,22 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
+@@ -6864,10 +6874,22 @@
  	{
  		if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
  		{
 -			int nVblankDivisor = nRefreshHz / nTargetFPS;
+-
+-			if ( vblank_idx / nVblankDivisor == s_ulPrevVBlankIdx / nVblankDivisor )
+-				bSendCallback = false;
 +			if ( nRefreshHz % nTargetFPS && kfg::SourceCapFPS( nRefreshHz ) == nTargetFPS )
 +			{
 +				// KEDAVRA base cap that does not divide the refresh (40 at 90 Hz): release
@@ -210,16 +293,14 @@ index 397a112..2e81680 100644
 +			else
 +			{
 +				int nVblankDivisor = nRefreshHz / nTargetFPS;
- 
--			if ( vblank_idx / nVblankDivisor == s_ulPrevVBlankIdx / nVblankDivisor )
--				bSendCallback = false;
++
 +				if ( vblank_idx / nVblankDivisor == s_ulPrevVBlankIdx / nVblankDivisor )
 +					bSendCallback = false;
 +			}
  		}
  	}
  
-@@ -10530,6 +10552,22 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10530,6 +10552,22 @@
  			int nRealRefreshmHz = g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh;
  			g_SteamCompMgrAppRefreshCycle = gamescope::mHzToRefreshCycle( nRealRefreshmHz );
  			g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle;
@@ -242,7 +323,7 @@ index 397a112..2e81680 100644
  			if ( g_nSteamCompMgrTargetFPS )
  			{
  				int nRealRefreshHz = gamescope::ConvertmHzToHz( nRealRefreshmHz );
-@@ -10545,6 +10583,8 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10545,6 +10583,8 @@
  					int nVblankDivisor = nRealRefreshHz / nTargetFPS;
  
  					g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nVblankDivisor;
@@ -251,7 +332,7 @@ index 397a112..2e81680 100644
  				}
  			}
  		}
-@@ -10804,6 +10844,10 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10804,6 +10844,10 @@
  			// A false vblank value means bShouldPaint will resolve to false below, effectively ignoring this flag and losing any request
  			// to force a repaint. Don't clear g_bForceRepaint unless vblank is true.
  			const bool bForceRepaint = vblank && g_bForceRepaint.exchange(false);

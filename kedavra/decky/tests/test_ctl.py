@@ -150,6 +150,20 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(self.rec.calls[-2][-2:], ["kfg_post", ""])
         self.assertEqual(self.rec.calls[-1][-2:], ["kfg_post_direct_history", "0"])
 
+    def test_hardware_runtime_options_guard_and_apply(self):
+        self.render_status()
+        with self.assertRaises(RuntimeError):
+            self.ctl.apply_runtime_options({"direct_scan": True, "deadline_analysis": True})
+        self.assertEqual(self.rec.calls, [])
+        st = self.render_status(hardware_runtime_version=1, direct_scan_requested=False, deadline_analysis_requested=False)
+        options = {"direct_scan": True, "deadline_analysis": True}
+        self.assertTrue(self.ctl.runtime_options_differ(st, options))
+        self.ctl.apply_runtime_options(options)
+        self.assertEqual(self.rec.calls[-2][-2:], ["kfg_direct_scan", "1"])
+        self.assertEqual(self.rec.calls[-1][-2:], ["kfg_deadline_analysis", "1"])
+        with self.assertRaises(ValueError):
+            self.ctl.apply_runtime_options({"direct_scan": "true"})
+
     def test_render_options_validate_before_sending(self):
         self.render_status()
         for settings in ({"post_preset": "cas=999; bad"}, {"post_direct_history": "true"}):

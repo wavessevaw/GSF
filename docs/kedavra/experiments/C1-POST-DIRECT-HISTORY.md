@@ -18,7 +18,8 @@ inputs/scratch images плана. Переназначается только de
 промежуточные ping-pong images и shader constants остаются прежними.
 
 HDR/PQ, scRGB, post-only без generation, фильтры Off и любой неприменимый target используют
-существующий путь. DirectScan в эту сборку не входит. Для игры без фильтров выигрыша от C1 нет.
+существующий путь. DirectScan и deadline-режим добавлены отдельными opt-in путями в
+[Hardware Runtime](HARDWARE-RUNTIME.md). Для игры без фильтров выигрыша от C1 нет.
 
 ## Сборка и проверки
 

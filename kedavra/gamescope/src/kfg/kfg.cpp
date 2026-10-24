@@ -16,6 +16,7 @@
 #include <ctime>
 #include <deque>
 #include <mutex>
+#include <map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "kfg_smaa_tex.h"
 #include "kfg_auto.h"
 #include "kfg_sched.h"
+#include "kfg_runtime.h"
 
 uint64_t get_time_in_nanos();
 
@@ -75,6 +77,8 @@ namespace kfg
 	gamescope::ConVar<int> cv_kfg_analysis_pixels{ "kfg_analysis_pixels", 1536 * 960, "Pixel count KEDAVRA's motion analysis works at: larger games (1080p, 4K) are analysed scaled down to it and only the final warp runs at their own size. 0 = always the game's own size." };
 	gamescope::ConVar<bool> cv_kfg_hold_vrr{ "kfg_hold_vrr", true, "With generation on (Auto or a fixed mode), keep the display at its fixed refresh rate: generated frames need a vblank grid, which adaptive sync (VRR) does not give." };
 	gamescope::ConVar<bool> cv_kfg_post_direct_history{ "kfg_post_direct_history", false, "EXPERIMENTAL C1: write the last SDR filter pass directly into history, avoiding its copy. false = 1.4.1 path." };
+	gamescope::ConVar<bool> cv_kfg_direct_scan{ "kfg_direct_scan", false, "EXPERIMENTAL: prepare generated SDR frames in scanout-compatible buffers; Gamescope retains DRM and fallback." };
+	gamescope::ConVar<bool> cv_kfg_deadline_analysis{ "kfg_deadline_analysis", false, "EXPERIMENTAL: publish actual GPU completion and admit analysis before the next final-frame deadline." };
 	gamescope::ConVar<bool> cv_kfg_hdr{ "kfg_hdr", true, "Generate and filter HDR games too (HDR10 PQ and scRGB, in float frames). false = HDR games pass through untouched." };
 	gamescope::ConVar<int> cv_kfg_policy{ "kfg_policy", 0, "Policy revision of the controller that set the kfg convars, echoed in the status file." };
 
@@ -90,6 +94,7 @@ namespace kfg
 		uint64_t ulID = 0;
 		uint64_t ulPrevID = 0;      // the frame the pair analysis of this one used; 0 = none
 		bool bValid = false;
+		bool bAnalysisReady = false;
 		gamescope::OwningRc<CVulkanTexture> pColor;
 		gamescope::OwningRc<CVulkanTexture> pLuma[ KFG_LEVELS + 1 ];
 		gamescope::OwningRc<CVulkanTexture> pFlow[ KFG_LEVELS + 1 ];  // pair (ulPrevID, ulID)
@@ -109,6 +114,19 @@ namespace kfg
 
 	struct State_t
 	{
+		struct Completion_t { uint64_t epoch, id, seq, submitted; };
+		struct Scanout_t { gamescope::OwningRc<CVulkanTexture> tex; uint64_t seq = 0; };
+		uint64_t ulEpoch = 1, ulTargetNs = 0, ulAnalysisID = 0, ulScanoutRetryNs = 0;
+		bool bDeadline = false;
+		bool bDirectAccepted = false;
+		std::deque<Completion_t> completions, inlineCompletions;
+		std::vector<Scanout_t> scanout;
+		CVulkanTexture *pScanoutWriting = nullptr;
+		uint64_t ulCompletionCount = 0, ulAnalysisDeferred = 0, ulAnalysisDropped = 0;
+		uint64_t ulDirectPrepared = 0, ulDirectCommits = 0, ulDirectFailures = 0;
+		uint64_t ulLastSubmitNs = 0, ulCompletionObservedNs = 0;
+		double flAnalysisChunkUs = 4000.0;
+		const char *pszDirectReason = "disabled", *pszAnalysisReason = "baseline", *pszC1Reason = "disabled";
 		kfg_sched sched;
 		bool bInit = false;
 		uint32_t uMultiplier = 1;
@@ -203,6 +221,7 @@ namespace kfg
 	// and flipped rows waiting to be written (KMS thread -> steamcompmgr).
 	static std::mutex g_TraceMutex;
 	static std::deque<TraceRow_t> g_InFlight;
+	static std::map<uint64_t, TraceRow_t> g_DirectInFlight;
 	static std::vector<TraceRow_t> g_Flipped;
 	// The trace file belongs to its own writer thread (TraceWriterMain): opening, writing,
 	// flushing and closing it never run on the compositor or the KMS thread, so a slow disk
@@ -212,6 +231,8 @@ namespace kfg
 	static std::string g_sTraceOpen;                // its path (under g_TraceMutex), for status
 	// Every KMS page flip of the output (KMS thread), for the displayed frame rate.
 	static std::atomic<uint64_t> g_ulFlips{ 0 };
+	static std::atomic<uint64_t> g_ulDirectFlips{ 0 }, g_ulDirectPresent{ 0 }, g_ulDirectFlipNs{ 0 };
+	static std::atomic<uint32_t> g_uDirectFb{ 0 };
 
 	// ---------------------------------------------------------------- on-screen HUD
 	//
@@ -436,6 +457,9 @@ namespace kfg
 
 	static void ReleaseImages( State_t &s )
 	{
+		++s.ulEpoch;
+		s.completions.clear();
+		s.inlineCompletions.clear();
 		for ( Frame_t &f : s.frames )
 			f = Frame_t{};
 		s.pSelect[ 0 ] = s.pSelect[ 1 ] = nullptr;
@@ -512,9 +536,14 @@ namespace kfg
 
 	static void ResetHistory( State_t &s, const char *pszWhy )
 	{
+		++s.ulEpoch;
+		s.completions.clear();
+		s.inlineCompletions.clear();
+		s.bAnalysisQueued = false;
 		for ( Frame_t &f : s.frames )
 		{
 			f.bValid = false;
+			f.bAnalysisReady = false;
 			f.ulPrevID = 0;
 		}
 		s.pLastShown = nullptr;
@@ -578,6 +607,8 @@ namespace kfg
 				return;
 			s.pendingAnalysis.pop_front();
 			const double flUs = double( ( ulResults[ 2 ] - ulResults[ 0 ] ) & s.ulValidMask ) * s.flPeriodNs / 1000.0;
+			// Slow-decaying upper envelope, not a claim of pure shader execution time.
+			s.flAnalysisChunkUs = std::max( flUs, s.flAnalysisChunkUs * 0.98 );
 			if ( !bPart2 )
 			{
 				s.flAnalysisUsPair = flUs;  // a part 1 without its part 2 (history reset) is dropped here
@@ -640,7 +671,7 @@ namespace kfg
 			case KFG_ROLE_STATS:  return s.frames[ ref.ring ].pStats.get();
 			case KFG_ROLE_SELECT: return s.pSelect[ ref.ring & 1 ].get();
 			case KFG_ROLE_PAIR_SELECT: return s.frames[ ref.ring ].pPairSelect.get();
-			case KFG_ROLE_OUTPUT: return s.pOutput[ r.uOutput ].get();
+			case KFG_ROLE_OUTPUT: return s.pScanoutWriting ? s.pScanoutWriting : s.pOutput[ r.uOutput ].get();
 			case KFG_ROLE_POST_IN:      return r.pPostIn;
 			case KFG_ROLE_POST:         return s.pPost[ ref.ring & 1 ].get();
 			case KFG_ROLE_SMAA_EDGES:   return s.pSmaaEdges.get();
@@ -826,6 +857,7 @@ namespace kfg
 		s.bPostLimited = nTransfer != KFG_TRANSFER_SDR && post.grade != s.post.grade;
 		if ( !kfg_post_active( &post ) )
 		{
+			s.pszC1Reason = "filters_inactive_for_transfer";
 			s.ulPostSkipped++;
 			return false;
 		}
@@ -833,6 +865,7 @@ namespace kfg
 		{
 			s.ulPostSkipped++;
 			s.pszLastProblem = "post_allocation_failed";
+			s.pszC1Reason = "post_allocation_failed";
 			return false;
 		}
 		if ( post.aa == KFG_AA_SMAA )
@@ -844,7 +877,10 @@ namespace kfg
 		kfg_plan plan;
 		const int nRing = kfg_plan_post( &plan, uWidth, uHeight, &post, flPhase );
 		if ( nRing < 0 )
+		{
+			s.pszC1Reason = "post_plan_failed";
 			return false;
+		}
 		Resolve_t r = { &s, nullptr, s.uNextOutput, layer0.tex.get() };
 		// C1 is opt-in, SDR only. The target must be this source's history image,
 		// with the same format/extent, and distinct from every plan input/output.
@@ -852,6 +888,11 @@ namespace kfg
 			s.frames[ uIntoFrame ].pColor.get() == pInto && nTransfer == KFG_TRANSFER_SDR &&
 			pInto->width() == uWidth && pInto->height() == uHeight &&
 			pInto->format() == s.pPost[ nRing ]->format();
+		s.pszC1Reason = !cv_kfg_post_direct_history ? "disabled" : !pInto ? "post_only" :
+			nTransfer != KFG_TRANSFER_SDR ? "hdr_fallback" : uIntoFrame >= k_uRing ? "invalid_history_slot" :
+			s.frames[ uIntoFrame ].pColor.get() != pInto ? "history_owner_mismatch" :
+			pInto->width() != uWidth || pInto->height() != uHeight ? "extent_mismatch" :
+			pInto->format() != s.pPost[ nRing ]->format() ? "format_mismatch" : "target_alias";
 		if ( bDirect )
 		{
 			for ( uint32_t i = 0; i < plan.n && bDirect; i++ )
@@ -863,7 +904,10 @@ namespace kfg
 			}
 		}
 		if ( bDirect )
+		{
 			bDirect = kfg_plan_post_into( &plan, kfg_ref( KFG_ROLE_COLOR, uIntoFrame, 0 ) );
+			s.pszC1Reason = bDirect ? "direct_recorded" : "plan_redirect_rejected";
+		}
 		RecordPlan( pCmd, plan, r );
 		if ( bDirect )
 			s.ulPostDirectRecords++;
@@ -947,6 +991,7 @@ namespace kfg
 					std::scoped_lock lock( g_TraceMutex );
 					g_sTraceOpen = pFile ? sOpen : std::string();
 					g_InFlight.clear();
+					g_DirectInFlight.clear();
 					g_Flipped.clear();
 				}
 				g_bTraceOn.store( pFile != nullptr, std::memory_order_relaxed );
@@ -1008,6 +1053,9 @@ namespace kfg
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
 			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
 			"\"experimental_build\":\"c1-post-history-v1\",\"post_direct_history_requested\":%s,\"post_direct_history_sdr_records\":%" PRIu64 ",\"post_history_copy_records\":%" PRIu64 ","
+			"\"hardware_runtime_version\":1,\"history_epoch\":%" PRIu64 ",\"c1_reason\":\"%s\","
+			"\"direct_scan_requested\":%s,\"direct_scan_reason\":\"%s\",\"direct_scan_prepared\":%" PRIu64 ",\"direct_scan_commits\":%" PRIu64 ",\"direct_scan_failures\":%" PRIu64 ",\"direct_scan_flips\":%" PRIu64 ",\"direct_scan_present_id\":%" PRIu64 ",\"direct_scan_flip_ns\":%" PRIu64 ",\"direct_scan_fb\":%u,\"scanout_pool_size\":%zu,"
+			"\"deadline_analysis_requested\":%s,\"analysis_reason\":\"%s\",\"analysis_completions\":%" PRIu64 ",\"analysis_deferred\":%" PRIu64 ",\"analysis_dropped\":%" PRIu64 ",\"analysis_jobs_pending\":%zu,\"analysis_submit_cpu_ns\":%" PRIu64 ",\"analysis_completion_observed_ns\":%" PRIu64 ","
 			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s,"
 			"\"analysis_width\":%u,\"analysis_height\":%u,\"vrr_held\":%s,\"output_height\":%u}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
@@ -1027,6 +1075,11 @@ namespace kfg
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
 			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
 			cv_kfg_post_direct_history ? "true" : "false", s.ulPostDirectRecords, s.ulPostHistoryCopyRecords,
+			s.ulEpoch, s.pszC1Reason,
+			cv_kfg_direct_scan ? "true" : "false", s.pszDirectReason, s.ulDirectPrepared, s.ulDirectCommits, s.ulDirectFailures,
+			g_ulDirectFlips.load(), g_ulDirectPresent.load(), g_ulDirectFlipNs.load(), g_uDirectFb.load(), s.scanout.size(),
+			cv_kfg_deadline_analysis ? "true" : "false", s.pszAnalysisReason, s.ulCompletionCount, s.ulAnalysisDeferred, s.ulAnalysisDropped,
+			s.completions.size(), s.ulLastSubmitNs, s.ulCompletionObservedNs,
 			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false",
 			asz[ 0 ], asz[ 1 ], s.bVRRHeld ? "true" : "false", g_Hud.uOutputHeight );
 		fclose( f );
@@ -1099,11 +1152,22 @@ namespace kfg
 	{
 		State_t &s = g_State;
 		const uint64_t ulNow = get_time_in_nanos();
+		s.bDirectAccepted = false;
 		s.bPending = false;
 		s.bApplied = false;
 		s.bPostPending = false;
 		s.bPostApplied = false;
 		PostUpdateConfig( s );
+		s.ulTargetNs = ulTargetVBlankNs;
+		if ( s.bDeadline != cv_kfg_deadline_analysis.Get() )
+		{
+			s.bDeadline = cv_kfg_deadline_analysis.Get();
+			ResetHistory( s, "completion policy changed" );
+		}
+		if ( !s.bDeadline ) s.pszAnalysisReason = "baseline";
+		if ( !cv_kfg_post_direct_history ) s.pszC1Reason = "disabled";
+		else if ( !kfg_post_active( &s.post ) ) s.pszC1Reason = "filters_off";
+		if ( !cv_kfg_direct_scan ) s.pszDirectReason = "disabled";
 
 		// Generation needs a fixed vblank grid. Adaptive sync stays off for as long as a
 		// generation mode is selected, not per game or menu: each switch is a modeset (a black
@@ -1135,7 +1199,11 @@ namespace kfg
 				ResetHistory( s, "steam ui" );
 		}
 		if ( bSteamUI )
+		{
+			if ( cv_kfg_direct_scan ) s.pszDirectReason = "steam_ui";
+			if ( cv_kfg_post_direct_history ) s.pszC1Reason = "steam_ui";
 			return;
+		}
 		// Filters apply to the game's frames whether generation is on or not.
 		if ( kfg_post_active( &s.post ) )
 		{
@@ -1157,7 +1225,10 @@ namespace kfg
 		if ( !s.bInit )
 		{
 			if ( uMult == 1 )
+			{
+				if ( cv_kfg_direct_scan ) s.pszDirectReason = "generation_off";
 				return;
+			}
 			kfg_sched_config cfg = kfg_sched_default_config( uMult );
 			kfg_sched_init( &s.sched, &cfg );
 			s.uMultiplier = uMult;
@@ -1254,6 +1325,22 @@ namespace kfg
 		}
 
 		s.bNewSource = bNewCommit;
+		if ( s.bDeadline )
+		{
+			const uint64_t ulCompleted = g_device.completedSeqNo();
+			while ( !s.completions.empty() && s.completions.front().seq <= ulCompleted )
+			{
+				const auto job = s.completions.front();
+				s.completions.pop_front();
+				Frame_t *pFrame = FindFrame( s, job.id );
+				if ( !pFrame || !kfg_runtime_completed( job.epoch, s.ulEpoch, job.seq, ulCompleted ) ) continue;
+				pFrame->bAnalysisReady = true;
+				kfg_sched_on_me( &s.sched, job.id, nVBlank, true, false );
+				++s.ulCompletionCount;
+				s.ulCompletionObservedNs = ulNow;
+				s.pszAnalysisReason = "completion_observed";
+			}
+		}
 		if ( s.bNewSource )
 		{
 			kfg_sched_on_latch( &s.sched, ulBaseCommitID, nVBlank );
@@ -1261,7 +1348,8 @@ namespace kfg
 				kfg_auto_on_latch( &s.autoc, nVBlank );
 			// Analysis runs in its own submission after this paint's composite (see
 			// SubmitAnalysis), in two parts, so the pair is usable two vblanks later.
-			kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 2, true, false );
+			if ( !s.bDeadline )
+				kfg_sched_on_me( &s.sched, ulBaseCommitID, nVBlank + 2, true, false );
 		}
 
 		s.pending = kfg_sched_decide( &s.sched, nVBlank );
@@ -1302,7 +1390,15 @@ namespace kfg
 			// submitted: its rest goes into this composite, ahead of the new frame's.
 			if ( s.bAnalysisQueued )
 			{
-				RecordPlan( pCmd, s.analysisPlan, r, s.uAnalysisNext );
+				if ( !s.bDeadline )
+					RecordPlan( pCmd, s.analysisPlan, r, s.uAnalysisNext );
+				else
+				{
+					// Unsubmitted work is cancellable; never drag it into the final frame.
+					kfg_sched_on_me( &s.sched, s.ulAnalysisID, s.nPendingVBlank, false, false );
+					++s.ulAnalysisDropped;
+					s.pszAnalysisReason = "superseded_before_submit";
+				}
 				s.bAnalysisQueued = false;
 			}
 			// With filters on, the game's frame is filtered once on its way into the ring: real
@@ -1313,14 +1409,16 @@ namespace kfg
 			cur.ulID = s.ulPendingID;
 			cur.bValid = true;
 			cur.ulPrevID = pPrev ? pPrev->ulID : 0;
+			cur.bAnalysisReady = false;
 			const uint32_t fb = FrameIndex( s, &cur );
 			const uint32_t fa = pPrev ? FrameIndex( s, pPrev ) : fb;
 			// Not recorded here: ~5 ms of analysis inside the composite made the flip miss
 			// its vblank (on the Deck a third of the vblanks had no flip).
 			// The previous pair (ending at A) seeds the coarse search when A had its own pair.
-			const int prevPair = pPrev && pPrev->ulPrevID ? int( fa ) : -1;
+			const int prevPair = pPrev && pPrev->ulPrevID && ( !s.bDeadline || pPrev->bAnalysisReady ) ? int( fa ) : -1;
 			kfg_plan_analyze( &s.analysisPlan, s.uWidth, s.uHeight, fa, fb, fb, pPrev ? 1 : 0, prevPair, &tune );
 			s.bAnalysisQueued = true;
+			s.ulAnalysisID = cur.ulID;
 			s.uAnalysisNext = 0;
 		}
 
@@ -1347,8 +1445,8 @@ namespace kfg
 						float( d.phase_num ) / float( d.phase_den ),
 						kfg_transfer_flags( s.nTransfer ) | ( cv_kfg_debug_marker ? KFG_FLAG_DEBUG_MARKER : 0 ) );
 					RecordPlan( pCmd, plan, r );
-					pShow = s.pOutput[ s.uNextOutput ].get();
-					s.uNextOutput ^= 1u;
+					pShow = s.pScanoutWriting ? s.pScanoutWriting : s.pOutput[ s.uNextOutput ].get();
+					if ( !s.pScanoutWriting ) s.uNextOutput ^= 1u;
 				}
 				else
 				{
@@ -1440,6 +1538,19 @@ namespace kfg
 		// Part 1: luma pyramid and the two coarse motion levels (~1.6 ms on the Deck);
 		// part 2, one vblank later: the finest motion level and the cut statistics.
 		const uint32_t uEnd = s.uAnalysisNext == 0 ? std::min( s.analysisPlan.n, k_uAnalysisSplit ) : s.analysisPlan.n;
+		if ( s.bDeadline )
+		{
+			if ( s.analysisPool != VK_NULL_HANDLE ) AnalysisTimingDrain( s );
+			const uint64_t ulNow = get_time_in_nanos();
+			const uint64_t ulFinalNs = uint64_t( std::max( 1000.0, s.flGpuUsLast * 1.25 ) * 1000.0 );
+			const uint64_t ulAnalysisNs = uint64_t( std::max( 500.0, s.flAnalysisChunkUs * 1.25 ) * 1000.0 );
+			if ( !kfg_runtime_admit( ulNow, s.ulTargetNs + s.ulGridPeriod, ulFinalNs, ulAnalysisNs, 500'000ull + s.ulLastSubmitNs ) )
+			{
+				++s.ulAnalysisDeferred;
+				s.pszAnalysisReason = "insufficient_deadline_slack";
+				return;
+			}
+		}
 		auto pCmd = g_device.commandBuffer();
 		std::optional<uint32_t> oQuery;
 		if ( s.analysisPool != VK_NULL_HANDLE )
@@ -1461,10 +1572,124 @@ namespace kfg
 			g_device.vk.CmdWriteTimestamp( pCmd->rawBuffer(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s.analysisPool, *oQuery * 2 + 1 );
 			s.pendingAnalysis.push_back( { *oQuery, uEnd >= s.analysisPlan.n } );
 		}
-		g_device.submit( std::move( pCmd ) );
+		const uint64_t ulSubmitBegin = get_time_in_nanos();
+		const uint64_t ulSeq = g_device.submit( std::move( pCmd ) );
+		s.ulLastSubmitNs = get_time_in_nanos() - ulSubmitBegin;
 		s.uAnalysisNext = uEnd;
 		if ( uEnd >= s.analysisPlan.n )
+		{
 			s.bAnalysisQueued = false;
+			if ( s.bDeadline && ulSeq )
+				s.completions.push_back( { s.ulEpoch, s.ulAnalysisID, ulSeq, ulSubmitBegin } );
+		}
+		if ( s.bDeadline ) s.pszAnalysisReason = "submitted_waiting_completion";
+	}
+
+	void ScanoutFallback( const char *pszReason )
+	{
+		if ( cv_kfg_direct_scan ) g_State.pszDirectReason = pszReason;
+	}
+
+	bool IsScanoutFb( gamescope::IBackendFb *pFb )
+	{
+		if ( !pFb ) return false;
+		for ( auto &slot : g_State.scanout )
+			if ( slot.tex && slot.tex->GetBackendFb() == pFb ) return true;
+		return false;
+	}
+
+	void BeforeDirectCommit( uint64_t ulPresent )
+	{
+		State_t &s = g_State;
+		if ( !g_bTraceOn.load( std::memory_order_relaxed ) ) return;
+		std::scoped_lock lock( g_TraceMutex );
+		if ( g_DirectInFlight.size() >= 64 ) g_DirectInFlight.clear();
+		g_DirectInFlight[ ulPresent ] = TraceRow_t{ s.nPendingVBlank, 0, s.pending, false, s.ulGridPeriod, s.uMultiplier };
+	}
+
+	void OnDirectCommit( uint64_t ulPresent, int nResult )
+	{
+		if ( nResult )
+		{
+			std::scoped_lock lock( g_TraceMutex );
+			g_DirectInFlight.erase( ulPresent );
+			++g_State.ulDirectFailures;
+			g_State.ulScanoutRetryNs = get_time_in_nanos() + 5'000'000'000ull;
+			g_State.pszDirectReason = "atomic_commit_failed";
+		}
+		else
+		{
+			g_State.bDirectAccepted = true;
+			++g_State.ulDirectCommits;
+			g_State.pszDirectReason = "atomic_commit_accepted";
+		}
+	}
+
+	void OnDirectFlip( uint64_t ulPresent, uint64_t ulNs, uint32_t uFb )
+	{
+		// Only immutable commit identity crosses the KMS/compositor thread boundary.
+		g_ulDirectPresent.store( ulPresent );
+		g_ulDirectFlipNs.store( ulNs );
+		g_uDirectFb.store( uFb );
+		g_ulDirectFlips.fetch_add( 1 );
+		std::scoped_lock lock( g_TraceMutex );
+		auto it = g_DirectInFlight.find( ulPresent );
+		if ( it != g_DirectInFlight.end() )
+		{
+			auto row = it->second;
+			g_DirectInFlight.erase( it );
+			row.ulFlipNs = ulNs;
+			if ( g_Flipped.size() < 4096 ) g_Flipped.push_back( row );
+		}
+	}
+
+	bool PrepareScanout( FrameInfo_t *pFrameInfo )
+	{
+		State_t &s = g_State;
+		if ( !cv_kfg_direct_scan ) return false;
+		if ( get_time_in_nanos() < s.ulScanoutRetryNs ) return false;
+		if ( !s.bPending || s.bApplied || !pFrameInfo->layers.count() )
+		{ s.pszDirectReason = "no_pending_generation"; return false; }
+		if ( s.nTransfer != KFG_TRANSFER_SDR || SourceTransfer( pFrameInfo->layers.get( 0 ) ) != KFG_TRANSFER_SDR )
+		{ s.pszDirectReason = "hdr_composition_required"; return false; }
+		if ( s.pending.show != KFG_SHOW_GEN && !( s.pending.show == KFG_SHOW_REPEAT && s.pLastShown && s.pLastShown->GetBackendFb() ) )
+		{ s.pszDirectReason = "real_frame_composition"; return false; }
+		g_device.garbageCollect();
+		State_t::Scanout_t *pSlot = nullptr;
+		if ( s.pending.show == KFG_SHOW_GEN )
+		{
+			const uint64_t ulCompleted = g_device.completedSeqNo();
+			for ( auto &slot : s.scanout )
+				if ( kfg_runtime_slot_free( slot.tex && slot.tex->IsInUse(), slot.seq, ulCompleted ) ) { pSlot = &slot; break; }
+			if ( !pSlot && s.scanout.size() < 3 ) { s.scanout.emplace_back(); pSlot = &s.scanout.back(); }
+			if ( !pSlot ) { s.pszDirectReason = "scanout_pool_busy"; return false; }
+			if ( !pSlot->tex || pSlot->tex->width() != s.uWidth || pSlot->tex->height() != s.uHeight )
+			{
+				// No alpha-less storage views: require an actual common ABGR modifier.
+				if ( GetBackend()->UsesModifiers() && GetBackend()->GetSupportedModifiers( DRM_FORMAT_ABGR8888 ).empty() )
+				{ s.pszDirectReason = "no_scanout_modifier"; return false; }
+				CVulkanTexture::createFlags flags;
+				flags.bSampled = flags.bStorage = flags.bFlippable = true;
+				gamescope::OwningRc<CVulkanTexture> tex = new CVulkanTexture();
+				if ( !tex->BInit( s.uWidth, s.uHeight, 1, DRM_FORMAT_ABGR8888, flags ) || !tex->GetBackendFb() )
+				{ ++s.ulDirectFailures; s.ulScanoutRetryNs = get_time_in_nanos() + 5'000'000'000ull; s.pszDirectReason = "scanout_allocation_failed"; return false; }
+				pSlot->tex = std::move( tex );
+			}
+			s.pScanoutWriting = pSlot->tex.get();
+		}
+		auto pCmd = g_device.commandBuffer();
+		RecordComposite( pCmd.get(), pFrameInfo );
+		s.pScanoutWriting = nullptr;
+		const uint64_t ulSeq = g_device.submit( std::move( pCmd ) );
+		if ( pSlot ) pSlot->seq = ulSeq;
+		// Sync0: preserve an explicit wait for the writer. The normal backend's
+		// signalled fence is valid only after this wait; no unready buffer is committed.
+		vulkan_wait( ulSeq, false );
+		if ( !IsScanoutFb( pFrameInfo->layers.get( 0 ).tex->GetBackendFb() ) )
+		{ s.pszDirectReason = "prepared_frame_not_flippable"; return false; }
+		++s.ulDirectPrepared;
+		s.pszDirectReason = "prepared_gpu_complete";
+		return true;
 	}
 
 	void OnPresented( bool bPresented )
@@ -1484,16 +1709,18 @@ namespace kfg
 		}
 		if ( !g_bTraceOn.load( std::memory_order_relaxed ) )
 			return;
+		if ( s.bDirectAccepted ) return; // registered before atomic commit, correlated by present ID
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.size() > 64 )
 			g_InFlight.clear();  // flips stopped arriving (suspend, DPMS)
 		g_InFlight.push_back( TraceRow_t{ s.nPendingVBlank, 0, s.pending, bBypass, s.ulGridPeriod, s.uMultiplier } );
 	}
 
-	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence )
+	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, bool bDirect )
 	{
 		(void) uSequence;
 		g_ulFlips.fetch_add( 1, std::memory_order_relaxed );
+		if ( bDirect ) return;
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.empty() )
 			return;
