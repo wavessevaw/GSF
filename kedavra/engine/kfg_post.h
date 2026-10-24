@@ -251,6 +251,30 @@ static inline int kfg_plan_post(kfg_plan *p, uint32_t w, uint32_t h, const kfg_p
 	return (int)cur.ring;
 }
 
+// Redirect only the last post pass into a distinct host-owned colour image.
+// Intermediate POST ping-pong targets must keep their original meanings.
+// The host also checks physical image aliasing, size and format compatibility.
+// Returns 0 without changing the plan when the destination is unsafe.
+static inline int kfg_plan_post_into(kfg_plan *p, kfg_image_ref target)
+{
+	if (!p || !p->n || p->n > KFG_MAX_PASSES ||
+	    target.role != KFG_ROLE_COLOR || target.level != 0 ||
+	    p->pass[p->n - 1].dst.role != KFG_ROLE_POST)
+		return 0;
+	for (uint32_t i = 0; i < p->n; i++) {
+		const kfg_pass *x = &p->pass[i];
+		if (x->nslots > KFG_MAX_SLOTS)
+			return 0;
+		if (x->dst.role == target.role && x->dst.ring == target.ring && x->dst.level == target.level)
+			return 0;
+		for (uint32_t j = 0; j < x->nslots; j++)
+			if (x->slots[j].role == target.role && x->slots[j].ring == target.ring && x->slots[j].level == target.level)
+				return 0;
+	}
+	p->pass[p->n - 1].dst = target;
+	return 1;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -30,6 +30,8 @@ fi
 mkdir -p "$G/src/kfg/smaa" "$G/src/shaders/smaa"
 cp "$HERE/src/kfg/kfg.cpp" "$HERE/src/kfg/kfg.hpp" "$G/src/kfg/"
 cp "$K/engine/kfg_plan.h" "$K/engine/kfg_post.h" "$K/engine/kfg_smaa_tex.h" "$K/sched/kfg_sched.h" "$K/sched/kfg_auto.h" "$G/src/kfg/"
+cp "$K/sched/kfg_runtime.h" "$G/src/kfg/"
+cp "$K/sched/kfg_present.hpp" "$G/src/kfg/"
 cp "$K/engine/smaa/AreaTex.h" "$K/engine/smaa/SearchTex.h" "$G/src/kfg/smaa/"
 cp "$K/shaders/kfg_common.glsl" "$K/shaders/kfg_smaa.glsl" "$G/src/shaders/"
 cp "$K/shaders/smaa/SMAA.hlsl" "$G/src/shaders/smaa/"

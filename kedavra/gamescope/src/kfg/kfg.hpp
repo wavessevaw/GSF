@@ -23,6 +23,7 @@
 struct FrameInfo_t;
 struct kfg_params;
 class CVulkanCmdBuffer;
+namespace gamescope { class IBackendFb; }
 
 namespace kfg
 {
@@ -34,6 +35,14 @@ namespace kfg
 	// DRM backend: true while every frame must go through the composite (generation, or
 	// filters on the game's frames), so it is never scanned out directly.
 	bool WantsComposite();
+	bool PrepareScanout( FrameInfo_t *pFrameInfo );
+	void ScanoutFallback( const char *pszReason );
+	void FinalGpuWorkComplete();
+	bool IsScanoutFb( gamescope::IBackendFb *pFb );
+	void OnDirectCommit( uint64_t ulPresent, int nResult );
+	uint64_t BeforeDrmCommit();
+	void AfterDrmCommit( uint64_t ulToken, int nResult );
+	void OnDirectFlip( uint64_t ulPresent, uint64_t ulNs, uint32_t uFb );
 
 	// steamcompmgr paint_all, before the connector presents frameInfo. Feeds the
 	// scheduler with the base plane commit and the vblank this paint targets.
@@ -46,7 +55,7 @@ namespace kfg
 	void RecordComposite( CVulkanCmdBuffer *pCmd, FrameInfo_t *pFrameInfo );
 
 	// KMS thread: page flip completed at ulVBlankNs (kernel timestamp).
-	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence );
+	void OnPageFlip( uint64_t ulVBlankNs, uint32_t uSequence, uint64_t ulToken = 0 );
 
 	// rendervulkan.cpp: uploads pass constants (CVulkanCmdBuffer::uploadConstants lives there).
 	void UploadParams( CVulkanCmdBuffer *pCmd, const kfg_params &params );

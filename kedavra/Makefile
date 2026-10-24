@@ -7,6 +7,7 @@
 
 BUILD ?= build
 CC ?= cc
+CXX ?= c++
 CFLAGS ?= -O2 -g
 WARN = -Wall -Wextra -Wno-missing-field-initializers
 GLSLANG ?= glslangValidator
@@ -44,7 +45,15 @@ $(BUILD)/test_completion_bridge: sched/test_completion_bridge.c sched/kfg_sched.
 test-pacing:
 	$(PYTHON) -m unittest discover -s tools -p 'test_pacing.py'
 
-test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim $(BUILD)/test_completion_bridge
+$(BUILD)/test_runtime: sched/test_runtime.c sched/kfg_runtime.h sched/kfg_sched.h | $(BUILD)
+	$(CC) -O1 -g -fsanitize=address,undefined $(WARN) -std=c11 -o $@ sched/test_runtime.c
+
+$(BUILD)/test_present: sched/test_present.cpp sched/kfg_present.hpp | $(BUILD)
+	$(CXX) -O1 -g -fsanitize=address,undefined $(WARN) -std=c++20 -o $@ sched/test_present.cpp
+
+test-sched: $(BUILD)/test_sched $(BUILD)/test_auto $(BUILD)/kfg_sim $(BUILD)/test_completion_bridge $(BUILD)/test_runtime $(BUILD)/test_present
+	$(BUILD)/test_present
+	$(BUILD)/test_runtime
 	$(BUILD)/test_completion_bridge
 	$(BUILD)/test_sched
 	$(BUILD)/test_auto

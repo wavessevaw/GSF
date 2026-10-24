@@ -23,3 +23,15 @@ patched Gamescope (`kedavra/gamescope`) that the zip carries in `runtime/`.
 
 Build: `sh package.sh OUT.zip RUNTIME_DIR BENCH_DIR` (CI job `plugin` produces the full
 `KEDAVRA.zip`). Tests: `python3 -m unittest discover -s tests`.
+# Experimental Hardware Runtime
+
+All runtime installation and controls are in the plugin. Install this ZIP through Decky's
+standard plugin interface, then open **Setup → Install / Reinstall Hardware Runtime → Reboot now**.
+Setup contains independent **DirectScan**, **Deadline-aware analysis** and **C1 direct history**
+controls, plus Image filters. All default to Off and persist across Gamescope restarts.
+Older/stale runtime status cannot enable new features; reinstall/reboot is offered in Setup.
+Errors, rollback and sampled fallback reasons are recorded automatically. **Log** shows them;
+**Save report to Desktop** includes rotations, settings, manifests and pixel self-test output.
+**Remove and restore stock Gamescope → Reboot now** restores the system runtime.
+The footer says **HARDWARE RUNTIME TEST**; no terminal commands or file edits are required.
+

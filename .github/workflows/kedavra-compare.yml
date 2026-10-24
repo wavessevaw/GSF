@@ -1,0 +1,51 @@
+name: KEDAVRA comparison vs 1.4.1
+on:
+  pull_request:
+    paths:
+      - 'kedavra/tools/kfg_compare*'
+      - 'kedavra/tools/compare_versions.py'
+      - '.github/workflows/kedavra-compare.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      BASELINE_SHA: 5f22938b55f9853f764e927c847d9c1a8d9a8c04
+      LP_NUM_THREADS: '2'
+      MESA_SHADER_CACHE_DISABLE: 'true'
+      OMP_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline
+      - name: Identical compiler and software Vulkan ICD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libvulkan-dev mesa-vulkan-drivers glslang-tools vulkan-tools
+          echo "VK_ICD_FILENAMES=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)" >> "$GITHUB_ENV"
+      - name: Build original 1.4.1 and current engine with the same harness
+        run: |
+          make -C baseline/kedavra all
+          make -C kedavra all
+          cc -O2 -g -std=c11 -Ibaseline/kedavra/engine kedavra/tools/kfg_compare.c baseline/kedavra/engine/kfg_vk.c -lvulkan -lm -o baseline/kedavra/build/kfg_compare
+          cc -O2 -g -std=c11 -DKFG_COMPARE_CANDIDATE=1 -Ikedavra/engine kedavra/tools/kfg_compare.c kedavra/engine/kfg_vk.c -lvulkan -lm -o kedavra/build/kfg_compare
+          cc -O2 -std=c11 -Ibaseline/kedavra/sched kedavra/tools/kfg_compare_sched.c -o baseline/kedavra/build/compare_sched
+          cc -O2 -std=c11 -DKFG_COMPARE_CANDIDATE=1 -Ikedavra/sched kedavra/tools/kfg_compare_sched.c -o kedavra/build/compare_sched
+      - name: Same-host A/B/A blocks, pixel checks and controlled completion comparison
+        run: python3 kedavra/tools/compare_versions.py --baseline baseline --candidate . --out comparison --cycles 5 --samples 30 --warmup 9
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kedavra-comparison-${{ github.event.pull_request.head.sha || github.sha }}
+          path: comparison/
+      - name: Publish readable comparison in job summary
+        if: always()
+        run: |
+          if test -f comparison/REPORT.ru.md; then cat comparison/REPORT.ru.md >> "$GITHUB_STEP_SUMMARY"; fi

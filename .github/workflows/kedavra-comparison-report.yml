@@ -1,0 +1,40 @@
+name: KEDAVRA saved comparison report
+on:
+  pull_request:
+    paths: ['.github/workflows/kedavra-comparison-report.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Completed comparison workflow run'
+        default: '40084819888'
+      artifact_name:
+        description: 'Exact comparison artifact name'
+        default: 'kedavra-comparison-f965e9fe91209232789668e4beb86f6fb1cfc1a3'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || '40084819888' }}
+          name: ${{ inputs.artifact_name || 'kedavra-comparison-f965e9fe91209232789668e4beb86f6fb1cfc1a3' }}
+          path: saved-comparison
+      - name: Print saved report and timing summaries without executing artifact content
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("saved-comparison")
+          report = (root / "REPORT.ru.md").read_text()
+          print("BEGIN_SAVED_REPORT", flush=True)
+          print(report, flush=True)
+          print("END_SAVED_REPORT", flush=True)
+          result = json.loads((root / "results.json").read_text())
+          print("BEGIN_SAVED_METRICS", flush=True)
+          print(json.dumps({"metadata": result["metadata"], "comparisons": result["comparisons"], "pixel_checks": result["pixel_checks"]}, ensure_ascii=False), flush=True)
+          print("END_SAVED_METRICS", flush=True)
+          PY
