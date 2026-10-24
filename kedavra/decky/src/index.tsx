@@ -304,7 +304,7 @@ function Content() {
     <div style={gap}/>
     <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       const r = await rpc.install(); setNeedsReboot(r.needs_reboot); await refreshDiag(); return r.message;
-    })} className="gsf-btn" style={primary}>{busy ? 'Working…' : c1Bundle ? (installed ? 'Reinstall C1 test runtime' : 'Install C1 test runtime') : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
+    })} className="gsf-btn" style={primary}>{busy ? 'Working…' : c1Bundle ? (installed ? 'Reinstall Hardware Runtime' : 'Install Hardware Runtime') : installed ? 'Reinstall Gamescope KEDAVRA' : 'Install Gamescope KEDAVRA'}</DialogButton></PanelSectionRow>
     {needsReboot && <PanelSectionRow><DialogButton disabled={busy} onClick={() => void act(async () => {
       await rpc.reboot(); return 'Rebooting…';
     })} className="gsf-btn" style={secondary}>Reboot now</DialogButton></PanelSectionRow>}
@@ -333,6 +333,7 @@ function Content() {
           {' '}Recorded direct passes: {status?.post_direct_history_sdr_records ?? 0}; history copies: {status?.post_history_copy_records ?? 0}.
           {' '}These are recorded commands; performance on Deck is not measured.</>}
       {status?.post_error && <div style={{color: C.red}}>Filter error: {status.post_error}</div>}
+      {running && !runtimeSupported && <div style={{color: C.yellow}}>Install the current Hardware Runtime above and reboot to use DirectScan and deadline analysis.</div>}
       {runtimeSupported && <div style={{marginTop: 8, overflowWrap: 'anywhere'}}>
         C1: {status?.c1_reason}.<br/>
         DirectScan requested {status?.direct_scan_requested ? 'On' : 'Off'}: {status?.direct_scan_reason}.<br/>

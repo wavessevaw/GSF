@@ -37,6 +37,7 @@ namespace kfg
 	bool WantsComposite();
 	bool PrepareScanout( FrameInfo_t *pFrameInfo );
 	void ScanoutFallback( const char *pszReason );
+	void FinalGpuWorkComplete();
 	bool IsScanoutFb( gamescope::IBackendFb *pFb );
 	void OnDirectCommit( uint64_t ulPresent, int nResult );
 	void BeforeDirectCommit( uint64_t ulPresent );

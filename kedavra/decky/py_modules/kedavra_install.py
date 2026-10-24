@@ -236,7 +236,7 @@ class Installer:
         rc, out = self.run(["systemctl", "enable", UNIT_NAME])
         if rc != 0:
             raise RuntimeError("systemctl enable: " + out.strip()[-300:])
-        label = "C1 test runtime" if self.build_info(self.runtime) else "Gamescope KEDAVRA"
+        label = "experimental Hardware Runtime" if self.build_info(self.runtime) else "Gamescope KEDAVRA"
         return {"installed": self.bundled_version(), "needs_reboot": True,
                 "message": f"Installed {label}. Press Reboot now to start it in Gaming Mode."}
 
@@ -285,7 +285,7 @@ class Installer:
         add("installed", inst is not None, f"Installed: {inst}" if inst else "Not installed")
         bundle_build, installed_build = self.build_info(self.bundle), self.build_info(self.runtime)
         if bundle_build:
-            add("experimental_bundle", True, "Plugin carries C1 test build " + bundle_build["head_commit"][:12])
+            add("experimental_bundle", True, "Plugin carries experimental build " + bundle_build["head_commit"][:12])
             if inst:
                 add("experimental_installed", installed_build == bundle_build,
                     "Installed C1 build matches plugin" if installed_build == bundle_build

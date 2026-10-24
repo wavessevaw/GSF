@@ -9,14 +9,14 @@ import uuid
 
 
 class Diagnostics:
-    FIELDS = ("fresh", "engine", "time_ns", "experimental_build", "hardware_runtime_version", "history_epoch",
+    FIELDS = ("fresh", "engine", "time_ns", "engine_pid", "trace_dropped", "experimental_build", "hardware_runtime_version", "history_epoch",
               "app_id", "state", "width", "height", "transfer", "steam_ui", "post", "post_error", "last_problem",
               "post_direct_history_requested", "c1_reason", "post_direct_history_sdr_records", "post_history_copy_records",
               "direct_scan_requested", "direct_scan_reason", "direct_scan_prepared", "direct_scan_commits",
               "direct_scan_flips", "direct_scan_failures", "direct_scan_present_id", "direct_scan_fb", "direct_scan_flip_ns",
               "deadline_analysis_requested", "analysis_reason", "analysis_completions", "analysis_deferred",
               "analysis_dropped", "analysis_jobs_pending", "analysis_submit_cpu_ns", "analysis_completion_observed_ns",
-              "gpu_us_last", "gpu_analysis_us_last", "over_budget", "ring_miss", "unsupported")
+              "gpu_us_last", "gpu_analysis_us_last", "final_cpu_record_wait_ns", "over_budget", "ring_miss", "unsupported")
 
     def __init__(self, directory, clock=time.time, limit=512 * 1024):
         self.directory, self.clock, self.limit = Path(directory), clock, limit
@@ -58,8 +58,9 @@ class Diagnostics:
     def observe(self, status):
         current = {key: status.get(key) for key in self.FIELDS}
         previous = self.previous
-        restart = (previous and current.get("time_ns") and previous.get("time_ns")
-                   and current["time_ns"] < previous["time_ns"])
+        restart = bool(previous and ((current.get("engine_pid") and previous.get("engine_pid")
+                       and current["engine_pid"] != previous["engine_pid"])
+                       or (current.get("time_ns") and previous.get("time_ns") and current["time_ns"] < previous["time_ns"])))
         transition = not previous or restart or any(current.get(k) != previous.get(k) for k in (
             "fresh", "engine", "experimental_build", "history_epoch", "state", "transfer", "post",
             "post_direct_history_requested", "c1_reason", "direct_scan_requested", "direct_scan_reason",

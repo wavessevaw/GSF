@@ -15,8 +15,10 @@
    resize может заменить только свободный slot. DRM, liftoff, Mura/HUD/Steam overlays,
    atomic validation, commit и retirement остаются у Gamescope. Partial composition overlays
    разрешена прежним backend. При fallback подготовленный base используется повторно без
-   второго warp. REAL кадры пока идут через обычную композицию. HDR input/output, shader
-   rotation, FSR/NIS/SGSR, effects и остальные штатные ограничения сохраняют composition.
+   второго warp. REAL кадры пока идут через обычную композицию. HDR input, shader rotation,
+   FSR/NIS/SGSR, effects и остальные штатные ограничения сохраняют composition. SDR source
+   на HDR display допускается только штатными проверками color management Gamescope;
+   существующие HDR ITM/backlight/LUT ограничения не обходятся.
    Перед KMS сохранён CPU wait **на writer sequence**. Nonblocking IN_FENCE handoff в этот
    вариант не входит; удалён финальный полноэкранный BLIT eligible base, а не этот wait.
 2. **Deadline-aware analysis.** Планировщик получает готовность пары после наблюдаемого
@@ -24,7 +26,10 @@
    sequence и CPU submit time. Reset/resize/focus/policy смена инвалидируют старые jobs.
    Включённый режим не сообщает заранее `latch+2`. Admission резервирует время следующего
    final кадра и guard, используя консервативную оценку измеренной GPU-region стоимости
-   анализа и final пути плюс CPU submit cost. При нехватке slack работа откладывается.
+   анализа и final пути плюс CPU submit cost. Final reserve также учитывает CPU record→wait
+   interval всего подготовленного/композитного Vulkan пути (включая очередь и BLIT), с
+   медленным спадом верхней оценки. Он не называется чистым GPU execution time.
+   При нехватке slack работа откладывается.
    Устаревший **неотправленный** остаток отменяется при новом source вместо переноса внутрь
    final composite. Незавершённая пара не используется как temporal seed. Это эвристика
    userspace одной очереди, без гарантированного hardware deadline и без новых priorities.

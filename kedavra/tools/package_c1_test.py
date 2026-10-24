@@ -31,7 +31,7 @@ def main():
         "default_enabled": False, "scope": "SDR generation with active post filters",
         "plugin_controls": True,
         "controls": {
-            "install": "Setup > Install / Reinstall C1 test runtime > Reboot now",
+            "install": "Setup > Install / Reinstall Hardware Runtime > Reboot now",
             "filters": "Setup > Image filters",
             "enable": "Setup > C1 direct history: On",
             "disable": "Setup > C1 direct history: Off",

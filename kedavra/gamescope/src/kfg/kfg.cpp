@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "convar.h"
 #include "log.hpp"
@@ -119,12 +120,13 @@ namespace kfg
 		uint64_t ulEpoch = 1, ulTargetNs = 0, ulAnalysisID = 0, ulScanoutRetryNs = 0;
 		bool bDeadline = false;
 		bool bDirectAccepted = false;
-		std::deque<Completion_t> completions, inlineCompletions;
+		std::deque<Completion_t> completions;
 		std::vector<Scanout_t> scanout;
 		CVulkanTexture *pScanoutWriting = nullptr;
 		uint64_t ulCompletionCount = 0, ulAnalysisDeferred = 0, ulAnalysisDropped = 0;
 		uint64_t ulDirectPrepared = 0, ulDirectCommits = 0, ulDirectFailures = 0;
 		uint64_t ulLastSubmitNs = 0, ulCompletionObservedNs = 0;
+		uint64_t ulFinalBeginNs = 0, ulFinalCpuNs = 0, ulFinalReserveNs = 1'000'000;
 		double flAnalysisChunkUs = 4000.0;
 		const char *pszDirectReason = "disabled", *pszAnalysisReason = "baseline", *pszC1Reason = "disabled";
 		kfg_sched sched;
@@ -231,6 +233,7 @@ namespace kfg
 	static std::string g_sTraceOpen;                // its path (under g_TraceMutex), for status
 	// Every KMS page flip of the output (KMS thread), for the displayed frame rate.
 	static std::atomic<uint64_t> g_ulFlips{ 0 };
+	static std::atomic<uint64_t> g_ulTraceDropped{ 0 };
 	static std::atomic<uint64_t> g_ulDirectFlips{ 0 }, g_ulDirectPresent{ 0 }, g_ulDirectFlipNs{ 0 };
 	static std::atomic<uint32_t> g_uDirectFb{ 0 };
 
@@ -459,7 +462,6 @@ namespace kfg
 	{
 		++s.ulEpoch;
 		s.completions.clear();
-		s.inlineCompletions.clear();
 		for ( Frame_t &f : s.frames )
 			f = Frame_t{};
 		s.pSelect[ 0 ] = s.pSelect[ 1 ] = nullptr;
@@ -538,8 +540,8 @@ namespace kfg
 	{
 		++s.ulEpoch;
 		s.completions.clear();
-		s.inlineCompletions.clear();
 		s.bAnalysisQueued = false;
+		s.ulFinalReserveNs = 1'000'000;
 		for ( Frame_t &f : s.frames )
 		{
 			f.bValid = false;
@@ -1053,9 +1055,9 @@ namespace kfg
 			"\"post\":\"%s\",\"post_active\":%s,\"post_error\":\"%s\",\"post_frames\":%" PRIu64 ",\"post_skipped\":%" PRIu64 ","
 			"\"gpu_post_us_last\":%.1f,\"gpu_post_us_avg\":%.1f,\"gpu_analysis_us_last\":%.1f,\"gpu_analysis_us_avg\":%.1f,\"analysis_pairs\":%" PRIu64 ","
 			"\"experimental_build\":\"c1-post-history-v1\",\"post_direct_history_requested\":%s,\"post_direct_history_sdr_records\":%" PRIu64 ",\"post_history_copy_records\":%" PRIu64 ","
-			"\"hardware_runtime_version\":1,\"history_epoch\":%" PRIu64 ",\"c1_reason\":\"%s\","
+			"\"hardware_runtime_version\":1,\"engine_pid\":%u,\"trace_dropped\":%" PRIu64 ",\"history_epoch\":%" PRIu64 ",\"c1_reason\":\"%s\","
 			"\"direct_scan_requested\":%s,\"direct_scan_reason\":\"%s\",\"direct_scan_prepared\":%" PRIu64 ",\"direct_scan_commits\":%" PRIu64 ",\"direct_scan_failures\":%" PRIu64 ",\"direct_scan_flips\":%" PRIu64 ",\"direct_scan_present_id\":%" PRIu64 ",\"direct_scan_flip_ns\":%" PRIu64 ",\"direct_scan_fb\":%u,\"scanout_pool_size\":%zu,"
-			"\"deadline_analysis_requested\":%s,\"analysis_reason\":\"%s\",\"analysis_completions\":%" PRIu64 ",\"analysis_deferred\":%" PRIu64 ",\"analysis_dropped\":%" PRIu64 ",\"analysis_jobs_pending\":%zu,\"analysis_submit_cpu_ns\":%" PRIu64 ",\"analysis_completion_observed_ns\":%" PRIu64 ","
+			"\"deadline_analysis_requested\":%s,\"analysis_reason\":\"%s\",\"analysis_completions\":%" PRIu64 ",\"analysis_deferred\":%" PRIu64 ",\"analysis_dropped\":%" PRIu64 ",\"analysis_jobs_pending\":%zu,\"analysis_submit_cpu_ns\":%" PRIu64 ",\"analysis_completion_observed_ns\":%" PRIu64 ",\"final_cpu_record_wait_ns\":%" PRIu64 ","
 			"\"hdr_enabled\":%s,\"transfer\":\"%s\",\"post_hdr_limited\":%s,"
 			"\"analysis_width\":%u,\"analysis_height\":%u,\"vrr_held\":%s,\"output_height\":%u}\n",
 			ulNow, s.uMultiplier, s.bInit ? kfg_state_name( q.state ) : "off",
@@ -1075,11 +1077,11 @@ namespace kfg
 			s.flPostUsLast, s.ulPostSamples ? s.flPostUsSum / double( s.ulPostSamples ) : 0.0,
 			s.flAnalysisUsLast, s.ulAnalysisPairs ? s.flAnalysisUsSum / double( s.ulAnalysisPairs ) : 0.0, s.ulAnalysisPairs,
 			cv_kfg_post_direct_history ? "true" : "false", s.ulPostDirectRecords, s.ulPostHistoryCopyRecords,
-			s.ulEpoch, s.pszC1Reason,
+			unsigned( getpid() ), g_ulTraceDropped.load(), s.ulEpoch, s.pszC1Reason,
 			cv_kfg_direct_scan ? "true" : "false", s.pszDirectReason, s.ulDirectPrepared, s.ulDirectCommits, s.ulDirectFailures,
 			g_ulDirectFlips.load(), g_ulDirectPresent.load(), g_ulDirectFlipNs.load(), g_uDirectFb.load(), s.scanout.size(),
 			cv_kfg_deadline_analysis ? "true" : "false", s.pszAnalysisReason, s.ulCompletionCount, s.ulAnalysisDeferred, s.ulAnalysisDropped,
-			s.completions.size(), s.ulLastSubmitNs, s.ulCompletionObservedNs,
+			s.completions.size(), s.ulLastSubmitNs, s.ulCompletionObservedNs, s.ulFinalCpuNs,
 			cv_kfg_hdr ? "true" : "false", kfg_transfer_names[ s.nTransfer ], s.bPostLimited ? "true" : "false",
 			asz[ 0 ], asz[ 1 ], s.bVRRHeld ? "true" : "false", g_Hud.uOutputHeight );
 		fclose( f );
@@ -1153,6 +1155,15 @@ namespace kfg
 		State_t &s = g_State;
 		const uint64_t ulNow = get_time_in_nanos();
 		s.bDirectAccepted = false;
+		s.ulFinalBeginNs = 0;
+		if ( !s.scanout.empty() && ( !cv_kfg_direct_scan || s.nTransfer != KFG_TRANSFER_SDR ) )
+		{
+			g_device.garbageCollect();
+			const uint64_t ulCompleted = g_device.completedSeqNo();
+			std::erase_if( s.scanout, [ulCompleted]( const State_t::Scanout_t &slot ) {
+				return kfg_runtime_slot_free( slot.tex && slot.tex->IsInUse(), slot.seq, ulCompleted );
+			} );
+		}
 		s.bPending = false;
 		s.bApplied = false;
 		s.bPostPending = false;
@@ -1487,6 +1498,7 @@ namespace kfg
 		const bool bPost = s.bPostPending && !s.bPostApplied;
 		if ( !bGenerate && !bPost )
 			return;
+		if ( !s.ulFinalBeginNs ) s.ulFinalBeginNs = get_time_in_nanos();
 		s.bApplied |= bGenerate;
 		s.bPostApplied |= bPost;
 
@@ -1542,7 +1554,7 @@ namespace kfg
 		{
 			if ( s.analysisPool != VK_NULL_HANDLE ) AnalysisTimingDrain( s );
 			const uint64_t ulNow = get_time_in_nanos();
-			const uint64_t ulFinalNs = uint64_t( std::max( 1000.0, s.flGpuUsLast * 1.25 ) * 1000.0 );
+			const uint64_t ulFinalNs = std::max( s.ulFinalReserveNs, uint64_t( std::max( 1000.0, s.flGpuUsLast * 1.25 ) * 1000.0 ) );
 			const uint64_t ulAnalysisNs = uint64_t( std::max( 500.0, s.flAnalysisChunkUs * 1.25 ) * 1000.0 );
 			if ( !kfg_runtime_admit( ulNow, s.ulTargetNs + s.ulGridPeriod, ulFinalNs, ulAnalysisNs, 500'000ull + s.ulLastSubmitNs ) )
 			{
@@ -1590,6 +1602,14 @@ namespace kfg
 		if ( cv_kfg_direct_scan ) g_State.pszDirectReason = pszReason;
 	}
 
+	void FinalGpuWorkComplete()
+	{
+		auto &s = g_State;
+		if ( !s.ulFinalBeginNs ) return;
+		s.ulFinalCpuNs = get_time_in_nanos() - s.ulFinalBeginNs;
+		s.ulFinalReserveNs = std::max( s.ulFinalCpuNs + s.ulFinalCpuNs / 4, s.ulFinalReserveNs * 95 / 100 );
+	}
+
 	bool IsScanoutFb( gamescope::IBackendFb *pFb )
 	{
 		if ( !pFb ) return false;
@@ -1603,7 +1623,7 @@ namespace kfg
 		State_t &s = g_State;
 		if ( !g_bTraceOn.load( std::memory_order_relaxed ) ) return;
 		std::scoped_lock lock( g_TraceMutex );
-		if ( g_DirectInFlight.size() >= 64 ) g_DirectInFlight.clear();
+		if ( g_DirectInFlight.size() >= 64 ) { g_ulTraceDropped.fetch_add( g_DirectInFlight.size() ); g_DirectInFlight.clear(); }
 		g_DirectInFlight[ ulPresent ] = TraceRow_t{ s.nPendingVBlank, 0, s.pending, false, s.ulGridPeriod, s.uMultiplier };
 	}
 
@@ -1640,6 +1660,7 @@ namespace kfg
 			g_DirectInFlight.erase( it );
 			row.ulFlipNs = ulNs;
 			if ( g_Flipped.size() < 4096 ) g_Flipped.push_back( row );
+			else g_ulTraceDropped.fetch_add( 1 );
 		}
 	}
 
@@ -1685,6 +1706,7 @@ namespace kfg
 		// Sync0: preserve an explicit wait for the writer. The normal backend's
 		// signalled fence is valid only after this wait; no unready buffer is committed.
 		vulkan_wait( ulSeq, false );
+		FinalGpuWorkComplete();
 		if ( !IsScanoutFb( pFrameInfo->layers.get( 0 ).tex->GetBackendFb() ) )
 		{ s.pszDirectReason = "prepared_frame_not_flippable"; return false; }
 		++s.ulDirectPrepared;
@@ -1712,7 +1734,10 @@ namespace kfg
 		if ( s.bDirectAccepted ) return; // registered before atomic commit, correlated by present ID
 		std::scoped_lock lock( g_TraceMutex );
 		if ( g_InFlight.size() > 64 )
+		{
+			g_ulTraceDropped.fetch_add( g_InFlight.size() );
 			g_InFlight.clear();  // flips stopped arriving (suspend, DPMS)
+		}
 		g_InFlight.push_back( TraceRow_t{ s.nPendingVBlank, 0, s.pending, bBypass, s.ulGridPeriod, s.uMultiplier } );
 	}
 
@@ -1729,5 +1754,6 @@ namespace kfg
 		row.ulFlipNs = ulVBlankNs;
 		if ( g_Flipped.size() < 4096 )
 			g_Flipped.push_back( row );
+		else g_ulTraceDropped.fetch_add( 1 );
 	}
 }

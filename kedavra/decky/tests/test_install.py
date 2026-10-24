@@ -171,6 +171,34 @@ class InstallerTest(unittest.TestCase):
         diag = self.inst.diagnose()
         self.assertFalse(next(c for c in diag["checks"] if c["key"] == "experimental_installed")["ok"])
 
+    def test_report_includes_runtime_logs_settings_builds_and_selftest(self):
+        data = self.tmp / "home/.local/share/kedavra"
+        data.mkdir(parents=True)
+        for name in ("runtime-events.jsonl", "runtime-events.jsonl.1", "runtime-events.jsonl.2",
+                     "runtime-summary.json", "runtime-selftest.json", "settings.json"):
+            (data / name).write_text('{"evidence": true}\n')
+        (self.inst.bundle / "EXPERIMENT.json").write_text('{"head_commit": "test"}')
+        self.inst._own = lambda *paths: None  # ownership is covered by Linux installation tests
+        report = self.inst.report(data)
+        with zipfile.ZipFile(report["path"]) as archive:
+            for name in ("runtime-events.jsonl", "runtime-events.jsonl.1", "runtime-events.jsonl.2",
+                         "runtime-summary.json", "runtime-selftest.json", "settings.json", "plugin-build.json"):
+                self.assertIn("runtime/" + name, archive.namelist())
+
+    def test_pixel_selftest_preserves_failure_and_classifies_software_device(self):
+        directory = self.inst.plugin_dir / "bench"
+        directory.mkdir()
+        (directory / "kfg_posttest").write_text("fixture")
+        out = self.tmp / "test-output"
+        runner = lambda argv, **kw: (0, "device: llvmpipe\nPASS: 0 failure(s)\n")
+        result = kedavra_install.runtime_selftest(self.inst.plugin_dir, out, run=runner)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["software_device"])
+        self.assertFalse(result["hardware_scanout_tested"])
+        result = kedavra_install.runtime_selftest(self.inst.plugin_dir, out, run=lambda argv, **kw: (1, "injected Vulkan failure"))
+        self.assertFalse(result["ok"])
+        self.assertIn("injected Vulkan failure", (out / "runtime-selftest.json").read_text())
+
     def test_boot_script_rolls_back_unhealthy_boot(self):
         self.inst.install()
         script = (self.root / "var/lib/kedavra/boot.sh").read_text()
