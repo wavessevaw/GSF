@@ -1638,6 +1638,8 @@ namespace kfg
 			++g_State.ulDirectFailures;
 			g_State.ulScanoutRetryNs = get_time_in_nanos() + 5'000'000'000ull;
 			g_State.pszDirectReason = "atomic_commit_failed";
+			// A prepared texture that never reached KMS must not become a later REPEAT.
+			ResetHistory( g_State, "direct atomic commit failed" );
 		}
 		else
 		{
