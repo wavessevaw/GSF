@@ -4,6 +4,11 @@
 
 После первоначального аудита три направления реализованы в изолированном [экспериментальном PR #79](https://github.com/wavessevaw/GSF_Kedavra/pull/79). Документы 01–10 описывают исходную 1.4.1. [11 — новое сравнение с 1.4.1 вне Deck](11-NON-DECK-COMPARISON.md) содержит измеренный эффект C1, контрольные результаты и границы проверки DirectScan/completion.
 
+
+## Повторный аудит 25 октября: официальный релиз и подключённый OLED
+
+[12 — новые shader proposals и разбор архитектуры](12-RELEASE-1.4.1-OPTIMIZATION-AUDIT.md), [13 — проверки и критерии A/B/A](13-RELEASE-1.4.1-VALIDATION.md). На предоставленном Deck подтверждены RADV VANGOGH, четыре compute queues и subgroup control 32..64. Подготовлены два изолированных shader patches: raw SAD cache и исправление OOB duplicate skip. 32 187 CPU equivalence cases и 50 000 reference cases прошли; baseline/proposal скомпилированы и прошли SPIR-V validation на Deck. GPU dispatch A/B, качество, энергия и input latency новых patches **не измерены**. Live telemetry не является сравнением версий. Первоначальные ограничения среды ниже относятся к этапу 24 октября; свежий inventory и его ограничения находятся в 12/13. Рабочий runtime не изменён.
+
 ## Вывод
 
 Более экономичный тракт технически обоснован, но его преимущество на Steam Deck OLED **не измерено**. Самая предметная возможность — дать финальному warp писать в framebuffer, который Gamescope сможет передать своему DRM backend без ещё одного полноэкранного чтения и записи. Это условный fast path, а не отдельный compositor и не передача DRM master другому процессу.
