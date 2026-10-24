@@ -1,0 +1,118 @@
+name: KEDAVRA installer archive integrity
+on:
+  pull_request:
+    paths: ['.github/workflows/kedavra-package-integrity.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: wavessevaw/GSF_Kedavra
+    steps:
+      - name: Download the exact archive reported by the user
+        run: gh api repos/wavessevaw/GSF_Kedavra/actions/artifacts/12556548733/zip > source.zip
+      - name: Verify archive bytes, nested ZIP and payload; stage a directly installable artifact
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json, pathlib, stat, zipfile
+          src = pathlib.Path("source.zip")
+          digest = hashlib.sha256(src.read_bytes()).hexdigest()
+          assert digest == "6dffb5542c1a067bdf3e43c2905fae325247ed2009d8904ff9473716761ea435", digest
+          out = pathlib.Path("installable")
+          out.mkdir()
+          with zipfile.ZipFile(src) as outer:
+              assert outer.testzip() is None, "outer ZIP CRC failed"
+              assert len(outer.namelist()) == len(set(outer.namelist())), "duplicate outer names"
+              checks = {}
+              for line in outer.read("SHA256SUMS").decode().splitlines():
+                  expected, name = line.split("  ", 1)
+                  assert pathlib.PurePosixPath(name).name == name
+                  checks[name] = hashlib.sha256(outer.read(name)).hexdigest()
+                  assert checks[name] == expected, name
+              candidates = [n for n in outer.namelist() if n.endswith(".zip")]
+              assert len(candidates) == 1, candidates
+              name = candidates[0]
+              data = outer.read(name)
+              manifest = json.loads(outer.read("BUILD-INFO.json"))
+              assert manifest["head_commit"] == "d831bfef79cc64418bf6bc360f4bfe4079f82930"
+              with zipfile.ZipFile(io.BytesIO(data)) as inner:
+                  assert inner.testzip() is None, "inner ZIP CRC failed"
+                  assert len(inner.namelist()) == len(set(inner.namelist())), "duplicate payload names"
+                  assert json.loads(inner.read("KEDAVRA/EXPERIMENT.json")) == manifest
+                  assert json.loads(inner.read("KEDAVRA/runtime/EXPERIMENT.json")) == manifest
+                  required = ["KEDAVRA/plugin.json", "KEDAVRA/main.py", "KEDAVRA/dist/index.js",
+                              "KEDAVRA/runtime/bin/gamescope", "KEDAVRA/bench/kfg_posttest"]
+                  assert all(n in inner.namelist() for n in required)
+                  hashes = {}
+                  for entry in inner.infolist():
+                      path = pathlib.PurePosixPath(entry.filename)
+                      assert not path.is_absolute() and ".." not in path.parts
+                      assert "\\" not in entry.filename and path.parts[0] == "KEDAVRA"
+                      assert not stat.S_ISLNK(entry.external_attr >> 16)
+                      if entry.is_dir():
+                          continue
+                      content = inner.read(entry)
+                      assert len(content) < 512 * 1024 * 1024
+                      dest = out.joinpath(*path.parts)
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      dest.write_bytes(content)
+                      hashes[entry.filename] = hashlib.sha256(content).hexdigest()
+          report = dict(source_artifact=12556548733, source_sha256=digest,
+                        source_bytes=src.stat().st_size, outer_crc="PASS",
+                        inner_name=name, inner_sha256=hashlib.sha256(data).hexdigest(),
+                        inner_bytes=len(data), inner_crc="PASS", payload_files=len(hashes),
+                        payload_sha256=hashes, manifest=manifest,
+                        delivery="direct ZIP with KEDAVRA/ at archive root; no nested ZIP")
+          pathlib.Path("integrity").mkdir()
+          pathlib.Path("integrity/report.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps({k:v for k,v in report.items() if k not in ("payload_sha256", "manifest")}, indent=2))
+          print("PASS: original outer CRC, all SHA256SUMS, inner CRC and manifests")
+          PY
+      - uses: actions/upload-artifact@v4
+        id: installer
+        with:
+          name: KEDAVRA-HardwareRuntime-INSTALL-d831bfef79cc
+          path: installable/
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Download and verify the actual final archive produced by Actions
+        env:
+          FINAL_ARTIFACT_ID: ${{ steps.installer.outputs.artifact-id }}
+          FINAL_ARTIFACT_DIGEST: ${{ steps.installer.outputs.artifact-digest }}
+        run: |
+          gh api "repos/wavessevaw/GSF_Kedavra/actions/artifacts/$FINAL_ARTIFACT_ID/zip" > delivered.zip
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, zipfile
+          src = pathlib.Path("delivered.zip")
+          digest = hashlib.sha256(src.read_bytes()).hexdigest()
+          assert digest == os.environ["FINAL_ARTIFACT_DIGEST"]
+          report_path = pathlib.Path("integrity/report.json")
+          report = json.loads(report_path.read_text())
+          with zipfile.ZipFile(src) as archive:
+              assert archive.testzip() is None
+              files = [x for x in archive.infolist() if not x.is_dir()]
+              names = [x.filename for x in files]
+              assert len(names) == len(set(names))
+              assert all(n.startswith("KEDAVRA/") for n in names)
+              assert not any(n.endswith(".zip") for n in names)
+              hashes = {n: hashlib.sha256(archive.read(n)).hexdigest() for n in names}
+              assert hashes == report["payload_sha256"], "payload changed during final upload"
+              assert archive.read("KEDAVRA/runtime/bin/gamescope").startswith(b"\x7fELF")
+              methods = sorted(set(x.compress_type for x in files))
+          report["final"] = dict(artifact_id=int(os.environ["FINAL_ARTIFACT_ID"]),
+                                sha256=digest, bytes=src.stat().st_size, crc="PASS",
+                                compression_methods=methods, payload_matches=True)
+          report_path.write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report["final"], indent=2))
+          print("PASS: final downloadable ZIP CRC, exact payload SHA256, KEDAVRA root and ELF")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: KEDAVRA-package-integrity-report
+          path: integrity/
